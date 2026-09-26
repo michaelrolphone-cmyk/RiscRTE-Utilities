@@ -10,11 +10,14 @@ Utilities are useful end-user hardware/connectivity tools that are not required 
 
 - [GPS](docs/apps/gps.md) — GNSS receiver status, coordinates, satellite count, and driver state.
 - [LoRa](docs/apps/lora.md) — SX1262 raw packet monitoring, signal information, counters, and test transmit.
+- [Battery Status](docs/apps/battery.md) — firmware-owned battery, gauge, charger, capacity, current, voltage, and temperature telemetry.
 
 ## Repository tree
 
 ```text
 Apps/
+  battery.c
+  battery.json
   gps.c
   gps.json
   lora.c
@@ -22,6 +25,7 @@ Apps/
 
 docs/
   apps/
+    battery.md
     gps.md
     lora.md
 

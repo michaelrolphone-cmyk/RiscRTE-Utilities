@@ -26,7 +26,7 @@
       "manifest_path": "Apps/battery.json",
       "upstream_source_sha": "10c8def52738cae0059eda4aeb68699a3165328b",
       "upstream_manifest_sha": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
-      "migration_status": "manifest-and-doc-present-source-pending"
+      "migration_status": "complete"
     }
   ]
 }

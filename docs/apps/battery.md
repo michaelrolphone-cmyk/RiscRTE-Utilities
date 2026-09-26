@@ -1,11 +1,101 @@
 # Battery Status
 
-Battery Status is a read-only telemetry app.
+## Purpose and classification
 
-It uses `T5AppApi` for input polling, `T5BatteryApi` for a firmware-owned telemetry snapshot, and `T5UiApi` for list rendering and selection.
+Battery Status is a read-only RiscRTE hardware telemetry utility. It presents the firmware-owned battery snapshot and does not initialize, configure, or directly access the battery gauge or charger hardware.
 
-Manifest: version 1.0.1, minimum firmware 1.1.18, ELF `battery.elf`.
+This repository classifies it as a **utility** because it is optional hardware telemetry rather than a foundational first-use system workflow.
 
-The app displays mode, charge percentage, voltage, board state, and—when detailed telemetry is available—gauge/charger status, current, capacity, temperature, and related status fields. It does not initialize or directly access battery hardware.
+## Manifest
 
-Source: `Apps/battery.c` and `Apps/battery.json`.
+- Display name: **Battery Status**
+- Version: **1.0.1**
+- Minimum firmware: **1.1.18**
+- ELF: `battery.elf`
+- Icon: `solid:f240`
+- Categories: `System`, `Hardware`
+
+The upstream manifest declares no optional provider capability.
+
+## Host interfaces
+
+### T5AppApi
+
+Used for input polling. The app exits when polling fails, an exit is requested, or Back is pressed.
+
+### T5BatteryApi
+
+Used through `read()` to obtain a `t5_battery_state_t` snapshot. Battery Status does not communicate with BQ27220 or BQ25896 directly; firmware supplies normalized telemetry for those devices.
+
+### T5UiApi
+
+Used for list rendering, touch hit testing, and previous/next selection helpers.
+
+## User interface and navigation
+
+The app renders a list titled **Battery Status**. Confirm requests a fresh battery snapshot. Up/Left move selection backward, Down/Right move forward, and a touch hit selects the tapped row. Back exits.
+
+The implementation supports up to **28 rows** and stores each formatted row value in a **72-byte** buffer.
+
+## Summary fields
+
+The list always begins with operating mode, state of charge, and voltage. When detailed telemetry is unavailable it also shows board name and gauge state.
+
+Voltage uses gauge voltage when a gauge read is valid; otherwise it uses the battery-voltage field.
+
+## Detailed telemetry
+
+When `detailed_telemetry` is true, the source renders:
+
+- average and instantaneous current,
+- state of health,
+- remaining and full capacity,
+- configured/profile battery capacity,
+- temperature converted from deci-kelvin to Celsius,
+- VBUS input state,
+- BQ27220 online/read state,
+- gauge state,
+- gauge charge voltage and taper current,
+- battery-full, gauging-full, taper, and charge-inhibit flags,
+- BQ25896 online/read state,
+- VBUS, system, and battery voltages,
+- charge regulation voltage,
+- configured charge current,
+- precharge and termination current,
+- charger ADC current,
+- charger charge-status text,
+- and whether charging is enabled.
+
+The application formats these values for display only and does not modify charging policy or battery configuration.
+
+## Footer/status behavior
+
+If battery management is unavailable, the footer reports that condition.
+
+With basic telemetry, the footer contains board name, charge percentage, and an indication that only basic ADC telemetry is available.
+
+With detailed telemetry, it contains board name, charge percentage, USB input state, and average current.
+
+## Failure behavior
+
+If a required API is unavailable, required function pointers are missing, or the first battery read fails, `app_main` returns without entering the UI loop.
+
+If a refresh requested with Confirm fails, the application keeps the previously rendered state.
+
+## Persistence and storage
+
+The source does not persist application state and does not read or write files.
+
+## Hardware ownership boundary
+
+Gauge/charger discovery, initialization, register access, charging configuration, and telemetry acquisition are firmware responsibilities. Battery Status only reads the normalized `T5BatteryApi` state.
+
+## Source
+
+- `Apps/battery.c`
+- `Apps/battery.json`
+
+Authoritative upstream blobs for version 1.0.1:
+
+- source: `10c8def52738cae0059eda4aeb68699a3165328b`
+- manifest: `173e18fcb7eb6553eb1faf80d08ed97bd7962157`
