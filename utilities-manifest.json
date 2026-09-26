@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "upstream_repository": "michaelrolphone-cmyk/T5S3-Reader",
+  "upstream_branch": "master",
+  "apps": [
+    {
+      "id": "gps",
+      "version": "1.0.0",
+      "min_firmware_version": "1.1.14",
+      "classification": "utility"
+    },
+    {
+      "id": "lora",
+      "version": "1.0.0",
+      "min_firmware_version": "1.1.15",
+      "classification": "utility"
+    }
+  ]
+}
