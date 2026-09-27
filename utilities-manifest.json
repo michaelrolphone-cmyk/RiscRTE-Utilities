@@ -2,31 +2,15 @@
   "schema": 1,
   "upstream_repository": "michaelrolphone-cmyk/T5S3-Reader",
   "upstream_branch": "master",
+  "upstream_audited_sha": "403a9f418fe5e6d231711c4e2242ed0acda43329",
   "apps": [
-    {
-      "id": "gps",
-      "version": "1.0.0",
-      "min_firmware_version": "1.1.14",
-      "classification": "utility"
-    },
-    {
-      "id": "lora",
-      "version": "1.0.0",
-      "min_firmware_version": "1.1.15",
-      "classification": "utility"
-    },
-    {
-      "id": "battery",
-      "display_name": "Battery Status",
-      "version": "1.0.1",
-      "min_firmware_version": "1.1.18",
-      "file_name": "battery.elf",
-      "classification": "utility",
-      "source_path": "Apps/battery.c",
-      "manifest_path": "Apps/battery.json",
-      "upstream_source_sha": "10c8def52738cae0059eda4aeb68699a3165328b",
-      "upstream_manifest_sha": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
-      "migration_status": "complete"
-    }
+    {"id":"gps","version":"1.0.0","min_firmware_version":"1.1.14","classification":"utility"},
+    {"id":"lora","version":"1.0.0","min_firmware_version":"1.1.15","classification":"utility"},
+    {"id":"battery","display_name":"Battery Status","version":"1.0.1","min_firmware_version":"1.1.18","file_name":"battery.elf","classification":"utility","source_path":"Apps/battery.c","manifest_path":"Apps/battery.json","upstream_source_sha":"10c8def52738cae0059eda4aeb68699a3165328b","upstream_manifest_sha":"173e18fcb7eb6553eb1faf80d08ed97bd7962157","migration_status":"complete"},
+    {"id":"sd_list","display_name":"SD Files","version":"1.0.0","min_firmware_version":"1.1.5","file_name":"sd_list.elf","classification":"utility","source_path":"Apps/sd_list.c","manifest_path":"Apps/sd_list.json","upstream_source_sha":"664b5eabf176a7c8ebe26d1448cb293751a1fbfc","upstream_manifest_sha":"86cbc4ed7096eb45a64905daa47acea3014762b3","published_elf_size":3516,"published_elf_sha256":"2626f53540422f8594a70d2ae73bf2bf53e312d6c3b3fa5d18b9a548f668ba78","migration_status":"source-and-doc-complete-build-pending"},
+    {"id":"web_server","display_name":"Web Server","version":"1.0.0","min_firmware_version":"1.1.16","file_name":"web_server.elf","classification":"utility","source_path":"Apps/web_server.c","manifest_path":"Apps/web_server.json","upstream_source_sha":"f4087ce1b2b4dc5a703f5d0217ca26560b3d8b47","upstream_manifest_sha":"08e1d13ba34f482d8781f2e2f15ae66667f92b11","published_elf_size":5076,"published_elf_sha256":"063047a55f2f6bd292724a9ccb0e4a974cedb1be5eacb265730ca2f28fd310b5","migration_status":"source-and-doc-complete-build-pending"}
+  ],
+  "approved_pending": [
+    {"id":"gnss_stream_diagnostic","version":"0.1.1","min_firmware_version":"1.2.26","classification":"utility","upstream_source_sha":"376dede4cfee7e45e752f5fb9a32b03a6dfb45f7","upstream_manifest_sha":"117b328a82b0d1850f03604cf4a40f6bba5d1f69","required_helper_sha":"f7dab9a4cd579550fa3dd391c022cd9df8a0e633","reason":"source/helper Git object write blocked in current run"}
   ]
 }
