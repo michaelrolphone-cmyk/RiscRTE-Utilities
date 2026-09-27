@@ -45,6 +45,9 @@ docs/
     sd_list.md
     web_server.md
 
+tools/
+  validate_repository.py
+
 utilities-manifest.json
 ```
 
@@ -53,3 +56,7 @@ utilities-manifest.json
 Every migrated utility has a dedicated Markdown page derived from actual source, manifest, interfaces, helpers, and behavior. A utility is not parity-complete until source, manifest/version, required helper/build inputs, build/release behavior, and documentation match the approved upstream set. Source/document parity does not yet imply reproduced ELF parity because the independent compatibility-header/toolchain/release pipeline is still incomplete.
 
 GNSS Stream Diagnostic is intentionally marked partial until exact `Apps/gnss_stream_diagnostic.c` can be attached; its manifest, helper header, and source-derived documentation are present, but source parity is not complete.
+
+## Validation tooling
+
+`tools/validate_repository.py` checks the checked-in utilities registry against app manifests, source/document presence, README documentation links, versions, minimum firmware versions, file names, duplicate IDs, and utility classification. Entries explicitly marked with a `source-pending` migration status may omit their source file while staged migration work remains incomplete; all other registered apps must have source, manifest, and dedicated documentation present. The validator is intended to be run with `python3 tools/validate_repository.py` until repository CI is wired to execute it automatically.
