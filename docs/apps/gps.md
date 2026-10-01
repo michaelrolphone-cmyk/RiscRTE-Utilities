@@ -47,3 +47,11 @@ If the GPS interface reports unsupported, the UI tells the user to install the G
 
 - `Apps/gps.c`
 - `Apps/gps.json`
+
+## Independent-build baseline
+
+Source and manifest exactly match Reader `a5e2db59077cc889079668dc9cd7428b08bc32a1`. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
+
+## Limits and failed operations
+
+Missing required APIs/function pointers cause a silent return. `read()` results are ignored: read failure has no explicit diagnostic or guaranteed clearing of stale data. Input polling waits 50 ms; redraw is at least three seconds apart. Unsupported and start-failure guidance does not prove installed driver permission, leases, receiver connectivity or provider startup. No map, navigation, recording, export, files, persistence or altitude/speed/HDOP display is implemented.

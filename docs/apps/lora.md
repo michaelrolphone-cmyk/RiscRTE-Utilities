@@ -42,7 +42,7 @@ The UI shows:
 - SNR in dB
 - RX and TX packet counters
 
-The local display buffers can represent up to 256 payload bytes in the ASCII view and the corresponding spaced hexadecimal representation. The documentation does not imply a transport limit beyond what the app's current buffers display.
+The public API caps valid packets at 255 bytes (`T5_LORA_MAX_PACKET`), although the display buffers have 256-byte capacity. Only the latest packet is retained. RSSI/SNR display truncates tenths to integer units.
 
 ## Transmit workflow
 
@@ -54,7 +54,7 @@ Transmission is only attempted while the LoRa state reports Ready.
 
 ## Hardware and failure states
 
-If the service reports unsupported, the footer states that SX1262 hardware is unavailable on the board. Radio errors display the service's numeric `last_error`.
+If the service reports unsupported, the footer states that SX1262 hardware is unavailable on the board. Only ERROR status displays numeric `last_error`; not every failed operation becomes visible.
 
 Hardware ownership and SPI/radio implementation live below the app in the LoRa service/driver.
 
@@ -62,3 +62,13 @@ Hardware ownership and SPI/radio implementation live below the app in the LoRa s
 
 - `Apps/lora.c`
 - `Apps/lora.json`
+
+## Independent-build baseline
+
+Source and manifest exactly match Reader `a5e2db59077cc889079668dc9cd7428b08bc32a1`. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
+
+## Limits and failed operations
+
+Missing required APIs/function pointers cause a silent return. Start, state-read, transmit and display-hook results are ignored. State/render refresh happens on startup, a packet or Ping, not on a timer. Ready can coexist with nonzero last_error, so failed transmit/restoration need not appear as an error. No configuration UI, arbitrary transmit payload, history, recording or protocol decoding is implemented.
+
+At the pinned Reader baseline the host implementation supports BOARD_T5S3_PRO, and inherited default TX power is 22 dBm. Shared-pin display arbitration stops/restores the radio; startup includes a 1500 ms delay. Continuous/lossless reception is not established. These are current firmware implementation facts, not permanent ELF ownership architecture. Do not transmit without appropriate hardware and local authorization.

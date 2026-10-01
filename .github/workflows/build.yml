@@ -1,0 +1,38 @@
+name: Independent utility build
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test SDK baseline, manifests, integrity and drift classification
+        run: python -m unittest discover -s tests -v
+      - name: Exercise app UI and provider interaction fixtures
+        run: |
+          python scripts/test_apps.py
+      - name: Install pinned public compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Build and structurally validate all application ELFs
+        run: |
+          python scripts/build_all_apps.py
+          python scripts/check_release_parity.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: utilities-development-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/apps/
+          if-no-files-found: error
+          retention-days: 14

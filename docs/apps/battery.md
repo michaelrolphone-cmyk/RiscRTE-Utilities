@@ -99,3 +99,11 @@ Authoritative upstream blobs for version 1.0.1:
 
 - source: `10c8def52738cae0059eda4aeb68699a3165328b`
 - manifest: `173e18fcb7eb6553eb1faf80d08ed97bd7962157`
+
+## Independent-build baseline
+
+Source and manifest exactly match Reader `a5e2db59077cc889079668dc9cd7428b08bc32a1`. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
+
+## Snapshot and hardware boundaries
+
+Snapshots do not auto-refresh. Confirm requests a new snapshot; navigation redraws the in-memory state. Failed initial read exits; failed Confirm read leaves the old screen immediately without an error notice, but the provider may have mutated the in-memory state, which a later navigation redraw can show. Detailed telemetry availability does not guarantee every numeric field is valid. Gauge/charger diagnostic rows distinguish missing/read-error devices. The app only reads telemetry; the current host bridge calls battery-management initialization, so the complete hardware path is not promised side-effect-free.

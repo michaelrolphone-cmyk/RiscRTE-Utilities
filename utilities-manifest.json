@@ -7,13 +7,31 @@
       "id": "gps",
       "version": "1.0.0",
       "min_firmware_version": "1.1.14",
-      "classification": "utility"
+      "classification": "utility",
+      "source_path": "Apps/gps.c",
+      "manifest_path": "Apps/gps.json",
+      "file_name": "gps.elf",
+      "upstream_source_sha": "8ce0e19bf2011ef8f08b959861904d615acbe9cf",
+      "upstream_manifest_sha": "143614649ac7244d45129de2f8b5877d2fee61a0",
+      "source": "Apps/gps.c",
+      "manifest": "Apps/gps.json",
+      "upstream_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
+      "migration_status": "source-parity-runtime-unqualified"
     },
     {
       "id": "lora",
       "version": "1.0.0",
       "min_firmware_version": "1.1.15",
-      "classification": "utility"
+      "classification": "utility",
+      "source_path": "Apps/lora.c",
+      "manifest_path": "Apps/lora.json",
+      "file_name": "lora.elf",
+      "upstream_source_sha": "b4ee8efd74a16fe58c52391ccb858328611c4637",
+      "upstream_manifest_sha": "2dd10457dbc35be609a5573e0beac426330d3fc4",
+      "source": "Apps/lora.c",
+      "manifest": "Apps/lora.json",
+      "upstream_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
+      "migration_status": "source-parity-runtime-unqualified"
     },
     {
       "id": "battery",
@@ -26,7 +44,10 @@
       "manifest_path": "Apps/battery.json",
       "upstream_source_sha": "10c8def52738cae0059eda4aeb68699a3165328b",
       "upstream_manifest_sha": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
-      "migration_status": "complete"
+      "migration_status": "source-parity-runtime-unqualified",
+      "source": "Apps/battery.c",
+      "manifest": "Apps/battery.json",
+      "upstream_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1"
     }
   ]
 }

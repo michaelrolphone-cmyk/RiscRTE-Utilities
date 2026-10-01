@@ -37,3 +37,15 @@ utilities-manifest.json
 Every migrated utility has a dedicated Markdown page derived from its actual source, manifest, interfaces, and current behavior. Interfaces, capabilities, configuration, limits, dependencies, failure states, and workflows are documented where the implementation establishes them. Future or hypothetical behavior is not added as specification.
 
 A utility is not parity-complete until source, manifest/version, build/release behavior, and documentation match the approved upstream utility set.
+
+## Independent builds and readiness
+
+- [Pinned standalone build and focused test coverage](docs/BUILD.md)
+- [Per-app readiness and safe Reader removal conditions](docs/MIGRATION_READINESS.md)
+- [Source drift audit](docs/source-drift.json) and [published ELF byte evidence](docs/release-parity.json)
+
+CI produces development artifacts only. Current-master parity is distinct from prospective U1 package changes and hardware qualification.
+
+## Licenses
+
+See [project MIT license](LICENSE) and the preserved [Apache-2.0 license for vendored ELF loader files](lib/elf_loader/license.txt). Original notices remain intact.

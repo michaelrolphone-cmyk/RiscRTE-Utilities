@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "repository": "michaelrolphone-cmyk/T5S3-Reader",
+  "required_byte_parity": [
+    "gps",
+    "lora",
+    "battery"
+  ],
+  "apps": [
+    {
+      "id": "gps",
+      "version": "1.0.0",
+      "file_name": "gps.elf",
+      "sha256": "380a1a0f496688dc4f1fd61bbb0cc59b2c00e07269b879a8156d6af870e78430",
+      "size": 4800,
+      "tag": "app-gps-v1.0.0",
+      "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-gps-v1.0.0/gps.elf"
+    },
+    {
+      "id": "lora",
+      "version": "1.0.0",
+      "file_name": "lora.elf",
+      "sha256": "eda3aeef9715ec4a2d1fc37d0e506f00c59055d97c10542265f03ff855e76da5",
+      "size": 7992,
+      "tag": "app-lora-v1.0.0",
+      "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-lora-v1.0.0/lora.elf"
+    },
+    {
+      "id": "battery",
+      "version": "1.0.1",
+      "file_name": "battery.elf",
+      "sha256": "998686208d0a16b17c6dbd773d3ba29adf81f7c33da40da3584019a6ac17e23a",
+      "size": 7280,
+      "tag": "app-battery-v1.0.1",
+      "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-battery-v1.0.1/battery.elf"
+    }
+  ],
+  "reader_source_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
+  "release_snapshot_checked_at": "2026-10-01T03:51:00Z",
+  "evidence": "Published GitHub release asset SHA-256 digest and size compared to actual built ELF bytes"
+}
