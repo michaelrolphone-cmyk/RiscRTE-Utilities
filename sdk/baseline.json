@@ -126,6 +126,12 @@
       "source_commit": "3af3c24f3c02e33af12019852393936c82367226",
       "git_blob": "074c2b53db9a6186ecfe666b46756a8aa98b02f8",
       "sha256": "c67d3e926f54da95545748cb75f3f2586ec19b2ff66500f4ed470b55f32ae3e3"
+    },
+    {
+      "path": "lib/elf_loader/license.txt",
+      "upstream_path": "lib/elf_loader/license.txt",
+      "git_blob": "d645695673349e3947e8e5ae42332d0ac3164cd7",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
     }
   ],
   "exports_sha256": "a88ca6059db7ab70ee41f5557f30e41158812de58eb6d898902a48b0a19c1649",

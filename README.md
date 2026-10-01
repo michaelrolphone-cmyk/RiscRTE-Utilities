@@ -45,3 +45,7 @@ A utility is not parity-complete until source, manifest/version, build/release b
 - [Source drift audit](docs/source-drift.json) and [published ELF byte evidence](docs/release-parity.json)
 
 CI produces development artifacts only. Current-master parity is distinct from prospective U1 package changes and hardware qualification.
+
+## Licenses
+
+See [project MIT license](LICENSE) and the preserved [Apache-2.0 license for vendored ELF loader files](lib/elf_loader/license.txt). Original notices remain intact.
