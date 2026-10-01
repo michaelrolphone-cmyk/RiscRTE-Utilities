@@ -32,7 +32,7 @@ jobs:
           python scripts/check_release_parity.py
       - uses: actions/upload-artifact@v4
         with:
-          name: utilities-development-${{ github.sha }}
+          name: utilities-development-${{ github.event.pull_request.head.sha || github.sha }}
           path: dist/apps/
           if-no-files-found: error
           retention-days: 14
