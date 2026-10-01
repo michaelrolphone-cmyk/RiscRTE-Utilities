@@ -1,0 +1,32 @@
+{
+  "reader_source_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
+  "apps": [
+    {
+      "id": "gps",
+      "version": "1.0.0",
+      "published_version": "1.0.0",
+      "byte_parity": true,
+      "required": true,
+      "built_sha256": "380a1a0f496688dc4f1fd61bbb0cc59b2c00e07269b879a8156d6af870e78430",
+      "published_sha256": "380a1a0f496688dc4f1fd61bbb0cc59b2c00e07269b879a8156d6af870e78430"
+    },
+    {
+      "id": "lora",
+      "version": "1.0.0",
+      "published_version": "1.0.0",
+      "byte_parity": true,
+      "required": true,
+      "built_sha256": "eda3aeef9715ec4a2d1fc37d0e506f00c59055d97c10542265f03ff855e76da5",
+      "published_sha256": "eda3aeef9715ec4a2d1fc37d0e506f00c59055d97c10542265f03ff855e76da5"
+    },
+    {
+      "id": "battery",
+      "version": "1.0.1",
+      "published_version": "1.0.1",
+      "byte_parity": true,
+      "required": true,
+      "built_sha256": "998686208d0a16b17c6dbd773d3ba29adf81f7c33da40da3584019a6ac17e23a",
+      "published_sha256": "998686208d0a16b17c6dbd773d3ba29adf81f7c33da40da3584019a6ac17e23a"
+    }
+  ]
+}

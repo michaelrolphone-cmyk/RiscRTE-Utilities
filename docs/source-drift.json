@@ -1,0 +1,53 @@
+{
+  "reader_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
+  "files": [
+    {
+      "id": "gps",
+      "path": "Apps/gps.c",
+      "baseline_blob": "8ce0e19bf2011ef8f08b959861904d615acbe9cf",
+      "external_blob": "8ce0e19bf2011ef8f08b959861904d615acbe9cf",
+      "upstream_blob": "8ce0e19bf2011ef8f08b959861904d615acbe9cf",
+      "state": "unchanged"
+    },
+    {
+      "id": "gps",
+      "path": "Apps/gps.json",
+      "baseline_blob": "143614649ac7244d45129de2f8b5877d2fee61a0",
+      "external_blob": "143614649ac7244d45129de2f8b5877d2fee61a0",
+      "upstream_blob": "143614649ac7244d45129de2f8b5877d2fee61a0",
+      "state": "unchanged"
+    },
+    {
+      "id": "lora",
+      "path": "Apps/lora.c",
+      "baseline_blob": "b4ee8efd74a16fe58c52391ccb858328611c4637",
+      "external_blob": "b4ee8efd74a16fe58c52391ccb858328611c4637",
+      "upstream_blob": "b4ee8efd74a16fe58c52391ccb858328611c4637",
+      "state": "unchanged"
+    },
+    {
+      "id": "lora",
+      "path": "Apps/lora.json",
+      "baseline_blob": "2dd10457dbc35be609a5573e0beac426330d3fc4",
+      "external_blob": "2dd10457dbc35be609a5573e0beac426330d3fc4",
+      "upstream_blob": "2dd10457dbc35be609a5573e0beac426330d3fc4",
+      "state": "unchanged"
+    },
+    {
+      "id": "battery",
+      "path": "Apps/battery.c",
+      "baseline_blob": "10c8def52738cae0059eda4aeb68699a3165328b",
+      "external_blob": "10c8def52738cae0059eda4aeb68699a3165328b",
+      "upstream_blob": "10c8def52738cae0059eda4aeb68699a3165328b",
+      "state": "unchanged"
+    },
+    {
+      "id": "battery",
+      "path": "Apps/battery.json",
+      "baseline_blob": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
+      "external_blob": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
+      "upstream_blob": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
+      "state": "unchanged"
+    }
+  ]
+}

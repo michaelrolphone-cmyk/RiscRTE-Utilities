@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "source_repository": "michaelrolphone-cmyk/T5S3-Reader",
+  "source_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
+  "toolchain": "espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5",
+  "files": [
+    {
+      "path": "LICENSE",
+      "upstream_path": "LICENSE",
+      "git_blob": "b8c074800342d88eb4892d9ef79a65485d1bfcf9",
+      "sha256": "7212963b5b1b5ee34ca158163356beb1e6945dd2cc5d320f1fe7573c424ea640"
+    },
+    {
+      "path": "scripts/app_manifest.py",
+      "upstream_path": "scripts/app_manifest.py",
+      "git_blob": "f1a86b0a6946036a012bfcd92bb61e09f7aad2a2",
+      "sha256": "22b8d525c586dd1a24e5318a894c0c666a3483aae35df202e47cf685082b5fcd"
+    },
+    {
+      "path": "scripts/package_integrity.py",
+      "upstream_path": "scripts/package_integrity.py",
+      "git_blob": "11b9bc5a9329b4d2024326ef0c838e3a2144807c",
+      "sha256": "d8fc39aaf8dcaa3dadbaeaa8e51ef14771c7e4b0d4f1f035f03c648299c316d4"
+    },
+    {
+      "path": "lib/NativeApps/src/SingleFloatDivisionCompat.c",
+      "upstream_path": "lib/NativeApps/src/SingleFloatDivisionCompat.c",
+      "git_blob": "26a63947ae37f9b8c62610826a825b91d3c911d1",
+      "sha256": "e7e54837bbbd6c99be51367729a03b09d6df0553b635e692fad9b4264442befb"
+    },
+    {
+      "path": "lib/NativeApps/src/UnsignedDivisionCompat.c",
+      "upstream_path": "lib/NativeApps/src/UnsignedDivisionCompat.c",
+      "git_blob": "6c692b28aae97379f5daf017861d3dc651339830",
+      "sha256": "cf49adc0be03fbf852a95018be1342dbebdf9953047a9f7e2600728d7f070fff"
+    },
+    {
+      "path": "lib/elf_loader/include/private/elf_types.h",
+      "upstream_path": "lib/elf_loader/include/private/elf_types.h",
+      "git_blob": "c9b4f7a15378f5118219107a4824e5a72c7e72a7",
+      "sha256": "13a6aa3f2977c9da9d83ed7101a6deed9c01e96d0c614be3f84963be0c1a3eda"
+    },
+    {
+      "path": "lib/elf_loader/src/esp_elf_validate.c",
+      "upstream_path": "lib/elf_loader/src/esp_elf_validate.c",
+      "git_blob": "6a2aaf8245690df8f09d1f2badd3f7607a65470a",
+      "sha256": "67b6a0c09038821cb51c7d04a0c00d8c7e25eb974f3d4df6e51fa95febbf46fe"
+    },
+    {
+      "path": "test/native_apps/stubs/sdkconfig.h",
+      "upstream_path": "test/native_apps/stubs/sdkconfig.h",
+      "git_blob": "c27490ad1599092b07c362ca280830625b0f6914",
+      "sha256": "d18f0fce9e3255f9b1f5f934c5441b0685edd310375c68745c61ec0ce275e4ae"
+    },
+    {
+      "path": "test/native_apps/validate_test.c",
+      "upstream_path": "test/native_apps/validate_test.c",
+      "git_blob": "cfe444ddf8a1e8451887cef29c1ee6c7564b4baa",
+      "sha256": "1fcb4274a6b8df77fd5c31dee8ee7dfb929c7fd62a634071a19cd6c9697b42a2"
+    },
+    {
+      "path": "lib/NativeApps/include/T5AppApi.h",
+      "upstream_path": "lib/NativeApps/include/T5AppApi.h",
+      "git_blob": "b5d5cc0162aa6c5caa055563b928c8ceaf3e5cfd",
+      "sha256": "eb0acebe0b1a151916b9f05afd98025e8e516c251337b8fe48fd3961bd58a981"
+    },
+    {
+      "path": "lib/NativeApps/include/T5UiApi.h",
+      "upstream_path": "lib/NativeApps/include/T5UiApi.h",
+      "git_blob": "ef09b405fc2518ee7ecf039f8b251939d80b14a6",
+      "sha256": "88dbfde2a45ab385c69ee0b8192e8025446c9872711e4810f799251479b1057a"
+    },
+    {
+      "path": "test/native_apps/gps_test.c",
+      "upstream_path": "test/native_apps/gps_test.c",
+      "git_blob": "34ec7330a1f53b2bcb4fc614874265fa52373d85",
+      "sha256": "7e380c6bf32dce9348fb72f4215ef47f4004efb2c44b60694bf9b5859c452d3f"
+    },
+    {
+      "path": "test/native_apps/lora_test.c",
+      "upstream_path": "test/native_apps/lora_test.c",
+      "git_blob": "570d9dbf5acfdab17433cbab354a12dfdebe9b37",
+      "sha256": "27d296bee9d98f181eb678c8710d08897a164f4f02999ba69355acba987d604f"
+    },
+    {
+      "path": "test/native_apps/battery_test.c",
+      "upstream_path": "test/native_apps/battery_test.c",
+      "git_blob": "3cfaba151b0f7bdf04ce9042dada4614635671e5",
+      "sha256": "edc2ae452ee08ab8cf0e86c8670577c8057690bbc8e53b5d39aa4d5e848e8a13"
+    },
+    {
+      "path": "lib/NativeApps/include/T5GpsApi.h",
+      "upstream_path": "lib/NativeApps/include/T5GpsApi.h",
+      "git_blob": "77d25dcc5d587a814a28da974da64ec4f5d3c8ad",
+      "sha256": "a0550bc74574ba073a419d8a65ae73bd2697f531dc1b6d5172d6eab5ccea3262"
+    },
+    {
+      "path": "lib/NativeApps/include/T5LoRaApi.h",
+      "upstream_path": "lib/NativeApps/include/T5LoRaApi.h",
+      "git_blob": "4417d8ab43cbee871689b9314c5ed7788ed59b76",
+      "sha256": "b4e5fb1f88a83e2285b13edbcf6475f795896a32ad75478b5ad8954b216b1f01"
+    },
+    {
+      "path": "lib/NativeApps/include/T5BatteryApi.h",
+      "upstream_path": "lib/NativeApps/include/T5BatteryApi.h",
+      "git_blob": "67592547d55d25ca3769d46392bc5c823f410071",
+      "sha256": "f939c924102099de4ed746519791ce2b68eb2bac79bc212caeaad1366dc8c9a5"
+    },
+    {
+      "path": "sdk/profiles/lora-1.0.0/T5AppApi.h",
+      "upstream_path": "lib/NativeApps/include/T5AppApi.h",
+      "source_commit": "3af3c24f3c02e33af12019852393936c82367226",
+      "git_blob": "84389f57f6b0b92f54390f1d2d148478723858f5",
+      "sha256": "cb267e073a254c0b546e6f1bc698729aea25180443a9e12a1f6a56305d04c0b1"
+    },
+    {
+      "path": "sdk/profiles/lora-1.0.0/T5LoRaApi.h",
+      "upstream_path": "lib/NativeApps/include/T5LoRaApi.h",
+      "source_commit": "3af3c24f3c02e33af12019852393936c82367226",
+      "git_blob": "4417d8ab43cbee871689b9314c5ed7788ed59b76",
+      "sha256": "b4e5fb1f88a83e2285b13edbcf6475f795896a32ad75478b5ad8954b216b1f01"
+    },
+    {
+      "path": "sdk/profiles/lora-1.0.0/T5UiApi.h",
+      "upstream_path": "lib/NativeApps/include/T5UiApi.h",
+      "source_commit": "3af3c24f3c02e33af12019852393936c82367226",
+      "git_blob": "074c2b53db9a6186ecfe666b46756a8aa98b02f8",
+      "sha256": "c67d3e926f54da95545748cb75f3f2586ec19b2ff66500f4ed470b55f32ae3e3"
+    }
+  ],
+  "exports_sha256": "a88ca6059db7ab70ee41f5557f30e41158812de58eb6d898902a48b0a19c1649",
+  "export_inputs": [
+    {
+      "path": "lib/NativeApps/src/NativeAppLauncher.c",
+      "git_blob": "b033b3df223958ab055499e2aeb78ad65a03e2ac"
+    },
+    {
+      "path": "lib/elf_loader/src/esp_elf_symbol.c",
+      "git_blob": "7b548136aa87b8acc035809993fab82a03005556"
+    },
+    {
+      "path": "lib/NativeApps/include/NativeHardwareCompatSymbols.def",
+      "git_blob": "75b54556a96d2a798a1230369f11fc25b836f279"
+    },
+    {
+      "path": "src/native/NativeHardwareCompat.cpp",
+      "git_blob": "b8452540f01dccedd29fac926eb91d82604e9aa6"
+    },
+    {
+      "path": "platformio.ini",
+      "git_blob": "789e3b2f126957e602bd0661a4785550c5ea8159"
+    }
+  ],
+  "build_profile": "published-unstripped-c11-pic-sysv; lora-1.0.0 release-era headers"
+}
