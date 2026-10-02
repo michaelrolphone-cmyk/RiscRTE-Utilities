@@ -1,20 +1,22 @@
 # Utilities migration readiness
 
-## Indexed current-master checkpoint
+## Current Reader master checkpoint
 
-Reader source: `a5e2db59077cc889079668dc9cd7428b08bc32a1`. External base: `c9e992a0be59d658d4cb044308c17d2d0bfd7ec2`. All six app source/manifest inputs match (no external fixes discarded). All three independently built artifacts reproduce published bytes; no version changes, releases or live catalog writes.
+Reader master: `3722a3f44a3294ba5e8adab830807a2523df3b03`. Utilities target base: `4343b808f762b67bb14c39fb50f28d32819af07e`. This sync copies versions already published by Reader: GPS 1.0.1, LoRa 1.0.1 and Battery Status 1.0.2. No new version is invented. Source, manifest, release ZIP digest and embedded ELF identity are recorded per package in [source drift](source-drift.json), [release provenance](release-parity.json), and [the release baseline](../sdk/release-baseline.json).
 
-| App | Version / minimum firmware | Source and independent build | Remaining runtime evidence |
+| App | Current release / minimum firmware | Current-master change | Runtime evidence still needed |
 | --- | --- | --- | --- |
-| [GPS](apps/gps.md) | 1.0.0 / 1.1.14 | Current-master parity; published-byte identity | Real receiver/driver permission, lease, fix, loss and exit |
-| [LoRa](apps/lora.md) | 1.0.0 / 1.1.15 | Current-master parity; historical-header profile restores byte identity | Actual RX/TX, unavailable radio, arbitration gaps and recovery |
-| [Battery Status](apps/battery.md) | 1.0.1 / 1.1.18 | Current-master parity; published-byte identity | Board/gauge/charger availability and truthful telemetry |
+| [GPS](apps/gps.md) | 1.0.1 / 1.1.14 | Manifest-only release update; source unchanged. Reader RTE asset and nested ELF identity verified. Utilities exact-head build and payload-byte comparison are a pre-merge CI gate. | Real receiver/driver permission, lease, fix, loss and exit |
+| [LoRa](apps/lora.md) | 1.0.1 / 1.1.15 | Copies Reader's current-source arbitration-failure display fix and matching API headers; uses the API headers from the published build; the exact ELF byte comparison remains a pre-merge CI gate. Exact-head build and payload-byte comparison are a pre-merge CI gate. | Actual RX/TX, unavailable radio, arbitration gaps and recovery |
+| [Battery Status](apps/battery.md) | 1.0.2 / 1.1.18 | Manifest-only release update; source unchanged. Reader RTE asset and nested ELF identity verified. Utilities exact-head build and payload-byte comparison are a pre-merge CI gate. | Board/gauge/charger availability and truthful telemetry |
 
-Evidence: [build/test method](BUILD.md), [source drift](source-drift.json), [release bytes](release-parity.json), [immutable SDK](../sdk/baseline.json), [claim](WORK_CLAIM.md). These are implemented applications with explicitly documented limitations, not placeholders promoted to hardware-complete.
+The published RTE ZIPs were verified against Reader release metadata and actual nested `.package.json` and ELF bytes from workflow artifact run [36965130240](https://github.com/michaelrolphone-cmyk/T5S3-Reader/actions/runs/36965130240), artifact 11209466823. The target's independent build/release-parity workflow must pass on the exact PR head before merge. This evidence does not qualify hardware behavior.
 
-## Prospective U1, not current-master acceptance
+## Prospective U1 ZIP and cutover readiness
 
-Read-only U1 inspection at `48d8445094c478f11064f7700117b10205a2a990` found identical app C but prospective ZIP versions GPS/LoRa 1.0.1 and Battery 1.0.2. Do not copy those manifest versions into this current-master checkpoint. U1 bundle layout, install/version enforcement and BQ ownership work are distinct from this independent repository build. Configurable independent sources are subsequent ecosystem work; remaining GNSS/LoRa hardware ownership is prospective. Old firmware ZIP consumption, live index transition and installed-package continuity remain unproven here.
+Current-master source/release parity is separate from U1 package installation or provider cutover. No U1 ZIP acceptance, install/version enforcement, installed-package continuity, live catalog change, Reader source removal, deployment or device flashing is authorized or implied here. Remaining hardware ownership, driver permissions and runtime lifetimes remain unproven.
+
+Evidence: [build and test method](BUILD.md), [source drift](source-drift.json), [release bytes](release-parity.json), [immutable SDK and versioned LoRa profile](../sdk/baseline.json), and [maintenance claim](WORK_CLAIM.md).
 
 ## Safe Reader removal checklist (not authorization)
 

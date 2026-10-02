@@ -9,33 +9,91 @@
   "apps": [
     {
       "id": "gps",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "file_name": "gps.elf",
-      "sha256": "380a1a0f496688dc4f1fd61bbb0cc59b2c00e07269b879a8156d6af870e78430",
-      "size": 4800,
-      "tag": "app-gps-v1.0.0",
-      "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-gps-v1.0.0/gps.elf"
+      "sha256": "a85520bd944c72420fedd898700980c0602ce2af4fccb8700d6f3c511cfc86be",
+      "size": 3804,
+      "tag": "app-gps-v1.0.1",
+      "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-gps-v1.0.1/application-gps-1.0.1-xtensa-esp32s3.rte.zip",
+      "previous_release": {
+        "version": "1.0.0",
+        "sha256": "380a1a0f496688dc4f1fd61bbb0cc59b2c00e07269b879a8156d6af870e78430",
+        "size": 4800,
+        "tag": "app-gps-v1.0.0",
+        "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-gps-v1.0.0/gps.elf"
+      },
+      "package_asset": {
+        "name": "application-gps-1.0.1-xtensa-esp32s3.rte.zip",
+        "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-gps-v1.0.1/application-gps-1.0.1-xtensa-esp32s3.rte.zip",
+        "sha256": "32f3e8d34fe3d40576686992a58d2538278f8ffb40ec5de9c0561a93b4158cb4",
+        "size": 4776,
+        "payload_path": "gps.elf",
+        "payload_sha256": "a85520bd944c72420fedd898700980c0602ce2af4fccb8700d6f3c511cfc86be",
+        "payload_size": 3804
+      }
     },
     {
       "id": "lora",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "file_name": "lora.elf",
-      "sha256": "eda3aeef9715ec4a2d1fc37d0e506f00c59055d97c10542265f03ff855e76da5",
-      "size": 7992,
-      "tag": "app-lora-v1.0.0",
-      "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-lora-v1.0.0/lora.elf"
+      "sha256": "e0fef5d6f4d0f9f624fc137d1a393b659dd257ae29a83730a645338adbb6f8c8",
+      "size": 6892,
+      "tag": "app-lora-v1.0.1",
+      "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-lora-v1.0.1/application-lora-1.0.1-xtensa-esp32s3.rte.zip",
+      "previous_release": {
+        "version": "1.0.0",
+        "sha256": "eda3aeef9715ec4a2d1fc37d0e506f00c59055d97c10542265f03ff855e76da5",
+        "size": 7992,
+        "tag": "app-lora-v1.0.0",
+        "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-lora-v1.0.0/lora.elf"
+      },
+      "package_asset": {
+        "name": "application-lora-1.0.1-xtensa-esp32s3.rte.zip",
+        "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-lora-v1.0.1/application-lora-1.0.1-xtensa-esp32s3.rte.zip",
+        "sha256": "934e2205bcfa695275203a2c07fc705e3d57f0bb5f73690c3a1d45b7d9ac6848",
+        "size": 7881,
+        "payload_path": "lora.elf",
+        "payload_sha256": "e0fef5d6f4d0f9f624fc137d1a393b659dd257ae29a83730a645338adbb6f8c8",
+        "payload_size": 6892
+      }
     },
     {
       "id": "battery",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "file_name": "battery.elf",
-      "sha256": "998686208d0a16b17c6dbd773d3ba29adf81f7c33da40da3584019a6ac17e23a",
-      "size": 7280,
-      "tag": "app-battery-v1.0.1",
-      "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-battery-v1.0.1/battery.elf"
+      "sha256": "039d0e6a351955b48f53bf74a4b0d14855adab9479a07be0f07a993b7ffd05cf",
+      "size": 6284,
+      "tag": "app-battery-v1.0.2",
+      "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-battery-v1.0.2/application-battery-1.0.2-xtensa-esp32s3.rte.zip",
+      "previous_release": {
+        "version": "1.0.1",
+        "sha256": "998686208d0a16b17c6dbd773d3ba29adf81f7c33da40da3584019a6ac17e23a",
+        "size": 7280,
+        "tag": "app-battery-v1.0.1",
+        "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-battery-v1.0.1/battery.elf"
+      },
+      "package_asset": {
+        "name": "application-battery-1.0.2-xtensa-esp32s3.rte.zip",
+        "url": "https://github.com/michaelrolphone-cmyk/T5S3-Reader/releases/download/app-battery-v1.0.2/application-battery-1.0.2-xtensa-esp32s3.rte.zip",
+        "sha256": "5d83032114fb0ab5335b249b890ce5ad36b4ba38b838054f5b68f3bc72f70d41",
+        "size": 7304,
+        "payload_path": "battery.elf",
+        "payload_sha256": "039d0e6a351955b48f53bf74a4b0d14855adab9479a07be0f07a993b7ffd05cf",
+        "payload_size": 6284
+      }
     }
   ],
-  "reader_source_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
-  "release_snapshot_checked_at": "2026-10-01T03:51:00Z",
-  "evidence": "Published GitHub release asset SHA-256 digest and size compared to actual built ELF bytes"
+  "reader_source_commit": "3722a3f44a3294ba5e8adab830807a2523df3b03",
+  "release_snapshot_checked_at": "2026-10-02T17:37:00Z",
+  "evidence": "Published RTE ZIP digest/size and nested .package.json/ELF identity verified against Reader release metadata and artifact bytes. Utilities rebuild parity is a pre-merge exact-head CI gate.",
+  "release_evidence": {
+    "reader_release_source_commit": "f7f006f78bf1f83c28f3ce05728b8973e895956b",
+    "reader_master_commit": "3722a3f44a3294ba5e8adab830807a2523df3b03",
+    "workflow_run": 36965130240,
+    "artifact_id": 11209466823,
+    "artifact_archive_sha256": "b361650f521e33d0c79d480a46c55a30fce36539006484ce4c3e27c5844bfbcb",
+    "artifact_archive_size": 391544,
+    "checked_at": "2026-10-02T17:37:00Z",
+    "method": "Extract each RTE ZIP from the Reader Actions artifact, verify .package.json against its ELF bytes, then cross-check ZIP bytes against release API digest and size."
+  }
 }

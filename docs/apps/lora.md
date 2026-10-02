@@ -2,7 +2,7 @@
 
 ## Purpose
 
-LoRa is a raw SX1262 packet monitor/transmit utility. Its manifest identifies `lora.elf`, version **1.0.0**, minimum firmware **1.1.15**, categories `Connectivity` and `Hardware`.
+LoRa is a raw SX1262 packet monitor/transmit utility. Its manifest identifies `lora.elf`, version **1.0.1**, minimum firmware **1.1.15**, categories `Connectivity` and `Hardware`.
 
 The app intentionally treats received payloads as opaque bytes. It is a radio/packet utility, not a decoder for a higher-level correction or messaging protocol.
 
@@ -54,7 +54,9 @@ Transmission is only attempted while the LoRa state reports Ready.
 
 ## Hardware and failure states
 
-If the service reports unsupported, the footer states that SX1262 hardware is unavailable on the board. Only ERROR status displays numeric `last_error`; not every failed operation becomes visible.
+If the service reports unsupported, the footer states that SX1262 hardware is unavailable on the board. `T5_LORA_ERROR_REBOOT_REQUIRED` displays that SD/SPI is unavailable and a manual reboot is required. Other ERROR states display numeric `last_error`.
+
+Before a UI refresh, firmware arbitrates the shared display/radio pins. If `prepare_display()` reports that display access is unavailable, the app skips that render and does not call `finish_display()` for the unstarted refresh.
 
 Hardware ownership and SPI/radio implementation live below the app in the LoRa service/driver.
 
@@ -63,12 +65,16 @@ Hardware ownership and SPI/radio implementation live below the app in the LoRa s
 - `Apps/lora.c`
 - `Apps/lora.json`
 
+## Current release identity
+
+Reader release `app-lora-v1.0.1` publishes `application-lora-1.0.1-xtensa-esp32s3.rte.zip` (SHA-256 `934e2205bcfa695275203a2c07fc705e3d57f0bb5f73690c3a1d45b7d9ac6848`, 7,881 bytes). Its nested `lora.elf` is 6,892 bytes with SHA-256 `e0fef5d6f4d0f9f624fc137d1a393b659dd257ae29a83730a645338adbb6f8c8`. The ZIP digest and inner package metadata were checked against Reader workflow artifact 11209466823.
+
 ## Independent-build baseline
 
-Source and manifest exactly match Reader `a5e2db59077cc889079668dc9cd7428b08bc32a1`. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
+Source and manifest converge to Reader current master `3722a3f44a3294ba5e8adab830807a2523df3b03` (source `fd5dce73da4d314d6a3c74f34272a9d18b4690bb`, manifest `5a7daf6d8951267f4fdfc0922130599e32566df9`). The LoRa 1.0.1 build profile pins the API headers used by its published release. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
 
 ## Limits and failed operations
 
-Missing required APIs/function pointers cause a silent return. Start, state-read, transmit and display-hook results are ignored. State/render refresh happens on startup, a packet or Ping, not on a timer. Ready can coexist with nonzero last_error, so failed transmit/restoration need not appear as an error. No configuration UI, arbitrary transmit payload, history, recording or protocol decoding is implemented.
+Missing required APIs/function pointers cause a silent return. Start, state-read and transmit results are ignored. A false `prepare_display()` result now aborts that render attempt; the `finish_display()` result remains ignored. State/render refresh happens on startup, a packet or Ping, not on a timer. Ready can coexist with nonzero `last_error`, so a failed transmit/restoration need not appear as an error unless it is `T5_LORA_ERROR_REBOOT_REQUIRED`. No configuration UI, arbitrary transmit payload, history, recording or protocol decoding is implemented.
 
-At the pinned Reader baseline the host implementation supports BOARD_T5S3_PRO, and inherited default TX power is 22 dBm. Shared-pin display arbitration stops/restores the radio; startup includes a 1500 ms delay. Continuous/lossless reception is not established. These are current firmware implementation facts, not permanent ELF ownership architecture. Do not transmit without appropriate hardware and local authorization.
+At the current Reader implementation the host implementation supports BOARD_T5S3_PRO, and inherited default TX power is 22 dBm. Shared-pin display arbitration stops/restores the radio; startup includes a 1500 ms delay. Continuous/lossless reception is not established. These are current firmware implementation facts, not permanent ELF ownership architecture. Do not transmit without appropriate hardware and local authorization.

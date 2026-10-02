@@ -20,6 +20,29 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(rows), 6)
         self.assertTrue(all(row['state'] == 'unchanged' for row in rows))
 
+    def test_current_reader_release_inputs_and_provenance(self):
+        inventory = json.loads((ROOT / 'utilities-manifest.json').read_text())
+        drift = json.loads((ROOT / 'docs/source-drift.json').read_text())
+        releases = json.loads((ROOT / 'sdk/release-baseline.json').read_text())
+        self.assertEqual(drift['reader_commit'],
+                         '3722a3f44a3294ba5e8adab830807a2523df3b03')
+        self.assertTrue(all(app['upstream_commit'] == drift['reader_commit']
+                            for app in inventory['apps']))
+        self.assertEqual({app['id']: app['version'] for app in inventory['apps']},
+                         {'gps': '1.0.1', 'lora': '1.0.1', 'battery': '1.0.2'})
+        states = {row['path']: row['state'] for row in drift['files']}
+        for path in ('Apps/gps.json', 'Apps/lora.c', 'Apps/lora.json', 'Apps/battery.json'):
+            self.assertEqual(states[path], 'converged')
+        self.assertEqual(states['Apps/gps.c'], 'unchanged')
+        self.assertEqual(states['Apps/battery.c'], 'unchanged')
+        versions = {item['id']: item['version'] for item in inventory['apps']}
+        for app in releases['apps']:
+            self.assertEqual(app['version'], versions[app['id']])
+            self.assertEqual(app['sha256'], app['package_asset']['payload_sha256'])
+        profile = json.loads((ROOT / 'sdk/baseline.json').read_text())
+        self.assertTrue(any(row.get('profile') == 'lora-1.0.1'
+                            for row in profile['files']))
+
     def test_three_way_conflict_preservation(self):
         for base, local, upstream, state in [('a','a','a','unchanged'), ('a','b','b','converged'),
                                             ('a','a','b','upstream-only'), ('a','b','a','external-only'),

@@ -17,6 +17,8 @@ for name, app in json.loads((ROOT / 'tests/host-tests.json').read_text()).items(
                     '-I' + str(ROOT / 'lib/NativeApps/include'), '-I' + str(ROOT / 'sdk/driver'),
                     *map(str, sources), '-o', str(binary)], check=True, timeout=60)
     subprocess.run([str(binary)], cwd=ROOT, check=True, timeout=30)
+    if name == 'lora':
+        subprocess.run([str(binary), 'block_display'], cwd=ROOT, check=True, timeout=30)
     print(name + ': host fixture passed', flush=True)
 for fixture in sorted((ROOT / 'tests').glob('*_failures.c')):
     binary = out / fixture.stem

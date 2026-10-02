@@ -9,7 +9,7 @@ This repository classifies it as a **utility** because it is optional hardware t
 ## Manifest
 
 - Display name: **Battery Status**
-- Version: **1.0.1**
+- Version: **1.0.2**
 - Minimum firmware: **1.1.18**
 - ELF: `battery.elf`
 - Icon: `solid:f240`
@@ -95,14 +95,19 @@ Gauge/charger discovery, initialization, register access, charging configuration
 - `Apps/battery.c`
 - `Apps/battery.json`
 
-Authoritative upstream blobs for version 1.0.1:
+Authoritative current-master blobs for version 1.0.2:
 
 - source: `10c8def52738cae0059eda4aeb68699a3165328b`
-- manifest: `173e18fcb7eb6553eb1faf80d08ed97bd7962157`
+- manifest: `c8f3483b28e8d423322ac5e5d56f6c45063b8508`
+- Reader source commit: `3722a3f44a3294ba5e8adab830807a2523df3b03`
+
+## Current release identity
+
+Reader release `app-battery-v1.0.2` publishes `application-battery-1.0.2-xtensa-esp32s3.rte.zip` (SHA-256 `5d83032114fb0ab5335b249b890ce5ad36b4ba38b838054f5b68f3bc72f70d41`, 7,304 bytes). Its nested `battery.elf` is 6,284 bytes with SHA-256 `039d0e6a351955b48f53bf74a4b0d14855adab9479a07be0f07a993b7ffd05cf`. The ZIP digest and inner package metadata were checked against Reader workflow artifact 11209466823.
 
 ## Independent-build baseline
 
-Source and manifest exactly match Reader `a5e2db59077cc889079668dc9cd7428b08bc32a1`. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
+Source remains unchanged; the manifest now matches Reader `3722a3f44a3294ba5e8adab830807a2523df3b03`. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
 
 ## Snapshot and hardware boundaries
 
