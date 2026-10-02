@@ -20,7 +20,7 @@
       "package_asset_sha256": "32f3e8d34fe3d40576686992a58d2538278f8ffb40ec5de9c0561a93b4158cb4",
       "package_asset_size": 4776,
       "payload_path": "gps.elf",
-      "validation_status": "Exact-head Utilities CI 37061388060 reproduced the published ELF bytes; release ZIP digest/size and embedded payload were verified from Reader artifact 11209466823."
+      "validation_status": "Exact-head run 37061519781 and postmerge run 37061677495 passed; published ELF byte identity reproduced."
     },
     {
       "id": "lora",
@@ -36,7 +36,7 @@
       "package_asset_sha256": "934e2205bcfa695275203a2c07fc705e3d57f0bb5f73690c3a1d45b7d9ac6848",
       "package_asset_size": 7881,
       "payload_path": "lora.elf",
-      "validation_status": "Exact-head Utilities CI 37061388060 reproduced the published ELF bytes; release ZIP digest/size and embedded payload were verified from Reader artifact 11209466823."
+      "validation_status": "Exact-head run 37061519781 and postmerge run 37061677495 passed; published ELF byte identity reproduced."
     },
     {
       "id": "battery",
@@ -52,9 +52,11 @@
       "package_asset_sha256": "5d83032114fb0ab5335b249b890ce5ad36b4ba38b838054f5b68f3bc72f70d41",
       "package_asset_size": 7304,
       "payload_path": "battery.elf",
-      "validation_status": "Exact-head Utilities CI 37061388060 reproduced the published ELF bytes; release ZIP digest/size and embedded payload were verified from Reader artifact 11209466823."
+      "validation_status": "Exact-head run 37061519781 and postmerge run 37061677495 passed; published ELF byte identity reproduced."
     }
   ],
-  "utilities_validation_run": 37061388060,
-  "utilities_validation_head": "eb10cb165f526e9b288c055328ab195d51d8c860"
+  "utilities_validation_run": 37061519781,
+  "utilities_validation_head": "7ea54fa4ad80ee68fa51c7dfe1ba906c832d43be",
+  "utilities_postmerge_run": 37061677495,
+  "utilities_merge_commit": "9b4d2fef8a969011c13f37e8081255a068fc93d5"
 }
