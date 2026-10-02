@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build a native C app with the SAME Xtensa S3 compiler used by this firmware."""
 import argparse
+import json
 import os
 import pathlib
 import shutil
@@ -16,8 +17,10 @@ parser.add_argument('--require-manifest', action='store_true')
 parser.add_argument('--cc', default=os.environ.get('NATIVE_APP_CC'))
 args = parser.parse_args()
 manifest = None
+manifest_version = None
 if args.require_manifest or args.source.with_suffix('.json').exists():
     manifest = validate_manifest(args.source, args.output)
+    manifest_version = json.loads(manifest.read_text(encoding='utf-8'))['version']
 cc = args.cc or shutil.which('xtensa-esp32s3-elf-gcc')
 if not cc:
     core = pathlib.Path(os.environ.get('PLATFORMIO_CORE_DIR', pathlib.Path.home() / '.platformio'))
@@ -34,7 +37,7 @@ flags = [cc, '-std=c11', '-Os', '-fPIC', '-mtext-section-literals', '-mlongcalls
 # Header declaration additions change GCC local symbol suffixes in LoRa's full
 # symbol table. Pin its historical headers to reproduce the immutable payload.
 if args.source.stem == 'lora' and manifest:
-    profile = repo / f"sdk/profiles/lora-{manifest['version']}"
+    profile = repo / f"sdk/profiles/lora-{manifest_version}"
     if profile.is_dir():
         flags.insert(1, '-I' + str(profile))
 readelf = cc.replace('gcc', 'readelf')
