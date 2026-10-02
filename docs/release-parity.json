@@ -10,7 +10,7 @@
       "id": "gps",
       "version": "1.0.1",
       "published_version": "1.0.1",
-      "byte_parity": null,
+      "byte_parity": true,
       "required": true,
       "built_sha256": "a85520bd944c72420fedd898700980c0602ce2af4fccb8700d6f3c511cfc86be",
       "published_sha256": "a85520bd944c72420fedd898700980c0602ce2af4fccb8700d6f3c511cfc86be",
@@ -20,13 +20,13 @@
       "package_asset_sha256": "32f3e8d34fe3d40576686992a58d2538278f8ffb40ec5de9c0561a93b4158cb4",
       "package_asset_size": 4776,
       "payload_path": "gps.elf",
-      "validation_status": "pending Utilities exact-head CI"
+      "validation_status": "Exact-head Utilities CI 37061388060 reproduced the published ELF bytes; release ZIP digest/size and embedded payload were verified from Reader artifact 11209466823."
     },
     {
       "id": "lora",
       "version": "1.0.1",
       "published_version": "1.0.1",
-      "byte_parity": null,
+      "byte_parity": true,
       "required": true,
       "built_sha256": "e0fef5d6f4d0f9f624fc137d1a393b659dd257ae29a83730a645338adbb6f8c8",
       "published_sha256": "e0fef5d6f4d0f9f624fc137d1a393b659dd257ae29a83730a645338adbb6f8c8",
@@ -36,13 +36,13 @@
       "package_asset_sha256": "934e2205bcfa695275203a2c07fc705e3d57f0bb5f73690c3a1d45b7d9ac6848",
       "package_asset_size": 7881,
       "payload_path": "lora.elf",
-      "validation_status": "pending Utilities exact-head CI"
+      "validation_status": "Exact-head Utilities CI 37061388060 reproduced the published ELF bytes; release ZIP digest/size and embedded payload were verified from Reader artifact 11209466823."
     },
     {
       "id": "battery",
       "version": "1.0.2",
       "published_version": "1.0.2",
-      "byte_parity": null,
+      "byte_parity": true,
       "required": true,
       "built_sha256": "039d0e6a351955b48f53bf74a4b0d14855adab9479a07be0f07a993b7ffd05cf",
       "published_sha256": "039d0e6a351955b48f53bf74a4b0d14855adab9479a07be0f07a993b7ffd05cf",
@@ -52,7 +52,9 @@
       "package_asset_sha256": "5d83032114fb0ab5335b249b890ce5ad36b4ba38b838054f5b68f3bc72f70d41",
       "package_asset_size": 7304,
       "payload_path": "battery.elf",
-      "validation_status": "pending Utilities exact-head CI"
+      "validation_status": "Exact-head Utilities CI 37061388060 reproduced the published ELF bytes; release ZIP digest/size and embedded payload were verified from Reader artifact 11209466823."
     }
-  ]
+  ],
+  "utilities_validation_run": 37061388060,
+  "utilities_validation_head": "eb10cb165f526e9b288c055328ab195d51d8c860"
 }
