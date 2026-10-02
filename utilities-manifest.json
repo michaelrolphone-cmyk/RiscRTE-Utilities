@@ -5,49 +5,49 @@
   "apps": [
     {
       "id": "gps",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "min_firmware_version": "1.1.14",
       "classification": "utility",
       "source_path": "Apps/gps.c",
       "manifest_path": "Apps/gps.json",
       "file_name": "gps.elf",
       "upstream_source_sha": "8ce0e19bf2011ef8f08b959861904d615acbe9cf",
-      "upstream_manifest_sha": "143614649ac7244d45129de2f8b5877d2fee61a0",
+      "upstream_manifest_sha": "8cc7d27782bda4e6a5f8998fd372baceba8e48ad",
       "source": "Apps/gps.c",
       "manifest": "Apps/gps.json",
-      "upstream_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
+      "upstream_commit": "3d9bc4f373679f5ae8dd184db6a8d0afa5a40231",
       "migration_status": "source-parity-runtime-unqualified"
     },
     {
       "id": "lora",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "min_firmware_version": "1.1.15",
       "classification": "utility",
       "source_path": "Apps/lora.c",
       "manifest_path": "Apps/lora.json",
       "file_name": "lora.elf",
-      "upstream_source_sha": "b4ee8efd74a16fe58c52391ccb858328611c4637",
-      "upstream_manifest_sha": "2dd10457dbc35be609a5573e0beac426330d3fc4",
+      "upstream_source_sha": "fd5dce73da4d314d6a3c74f34272a9d18b4690bb",
+      "upstream_manifest_sha": "5a7daf6d8951267f4fdfc0922130599e32566df9",
       "source": "Apps/lora.c",
       "manifest": "Apps/lora.json",
-      "upstream_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
+      "upstream_commit": "3d9bc4f373679f5ae8dd184db6a8d0afa5a40231",
       "migration_status": "source-parity-runtime-unqualified"
     },
     {
       "id": "battery",
       "display_name": "Battery Status",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "min_firmware_version": "1.1.18",
       "file_name": "battery.elf",
       "classification": "utility",
       "source_path": "Apps/battery.c",
       "manifest_path": "Apps/battery.json",
       "upstream_source_sha": "10c8def52738cae0059eda4aeb68699a3165328b",
-      "upstream_manifest_sha": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
+      "upstream_manifest_sha": "c8f3483b28e8d423322ac5e5d56f6c45063b8508",
       "migration_status": "source-parity-runtime-unqualified",
       "source": "Apps/battery.c",
       "manifest": "Apps/battery.json",
-      "upstream_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1"
+      "upstream_commit": "3d9bc4f373679f5ae8dd184db6a8d0afa5a40231"
     }
   ]
 }

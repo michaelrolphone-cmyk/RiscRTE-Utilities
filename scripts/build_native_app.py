@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build a native C app with the SAME Xtensa S3 compiler used by this firmware."""
 import argparse
+import json
 import os
 import pathlib
 import shutil
@@ -16,8 +17,10 @@ parser.add_argument('--require-manifest', action='store_true')
 parser.add_argument('--cc', default=os.environ.get('NATIVE_APP_CC'))
 args = parser.parse_args()
 manifest = None
+manifest_version = None
 if args.require_manifest or args.source.with_suffix('.json').exists():
     manifest = validate_manifest(args.source, args.output)
+    manifest_version = json.loads(manifest.read_text(encoding='utf-8'))['version']
 cc = args.cc or shutil.which('xtensa-esp32s3-elf-gcc')
 if not cc:
     core = pathlib.Path(os.environ.get('PLATFORMIO_CORE_DIR', pathlib.Path.home() / '.platformio'))
@@ -33,9 +36,12 @@ flags = [cc, '-std=c11', '-Os', '-fPIC', '-mtext-section-literals', '-mlongcalls
          '-I' + str(repo / 'sdk/driver'), '-Wl,--hash-style=sysv']
 # Header declaration additions change GCC local symbol suffixes in LoRa's full
 # symbol table. Pin its historical headers to reproduce the immutable payload.
-if args.source.stem == 'lora':
-    flags.insert(1, '-I' + str(repo / 'sdk/profiles/lora-1.0.0'))
+if args.source.stem == 'lora' and manifest:
+    profile = repo / f"sdk/profiles/lora-{manifest_version}"
+    if profile.is_dir():
+        flags.insert(1, '-I' + str(profile))
 readelf = cc.replace('gcc', 'readelf')
+strip = cc.replace('gcc', 'strip')
 
 
 def build(support=()):
@@ -75,12 +81,16 @@ if support:
 
 validate_dynamic_abi(info)
 
-# These three immutable published app versions predate Reader's strip change.
-# Retain their full symbol tables to reproduce the already released bytes.
-# Removing them would change published payload identities and needs new versions.
-# All dynamic imports and actual ELF structure are still validated.
+# Pin stripping to the exact released payload lineage. These current package
+# versions use Reader's --strip-unneeded policy; older versions retain their
+# historical full symbol tables. New release versions must be audited here.
 info = subprocess.check_output([readelf, '--dyn-syms', '--wide', str(args.output)], text=True)
 validate_dynamic_abi(info)
+stripped_releases = {('gps', '1.0.1'), ('lora', '1.0.1'), ('battery', '1.0.2')}
+if manifest and (args.source.stem, manifest_version) in stripped_releases:
+    subprocess.run([strip, '--strip-unneeded', str(args.output)], check=True)
+    info = subprocess.check_output([readelf, '--dyn-syms', '--wide', str(args.output)], text=True)
+    validate_dynamic_abi(info)
 print(info)
 if manifest:
     shutil.copyfile(manifest, args.output.with_suffix('.json'))

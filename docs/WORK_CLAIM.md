@@ -1,11 +1,11 @@
 # Utilities independent build claim
 
-Status: released at validated implementation checkpoint (2026-10-01 03:58 UTC)
-Owner: Utilities independent build maintenance task
-Started: 2026-10-01 03:50 UTC
-Base: c9e992a0be59d658d4cb044308c17d2d0bfd7ec2
-Reader source: a5e2db59077cc889079668dc9cd7428b08bc32a1 (read-only)
-Branch: parity/utilities-pinned-build-20261001
-Scope: pinned standalone build, byte parity, focused fixtures and readiness docs. No open competing PR or claim found. No Reader/U1/GameBoy writes, release, cutover, deletion, deploy or flash. Release at validated checkpoint or blocker.
+## Previous checkpoint
 
-Implementation validated locally: all 3 actual ELF hashes match published payloads; 10 pipeline tests and 6 app interaction/failure fixtures passed. [PR #2](https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/2) implementation-head CI [36812887364](https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/actions/runs/36812887364) passed all stages and uploaded development artifacts. Final checkout-ref/documentation-head CI and merge status are recorded in the PR/Actions. No further implementation writer is claimed by this record. Future work must recheck open PRs and claims; hardware, U1 and removal gaps remain in MIGRATION_READINESS.md.
+The initial independent build and historical release-byte profile were completed by [PR #2](https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/2) on 2026-10-01. The pinned standalone build, host fixtures, release-byte parity and readiness record remain part of the external repository.
+
+## Current claim
+
+The active current-master refresh is tracked in [claim issue #5](https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/issues/5), branch `parity/utilities-reader-3d9bc4-20261002`, based on Utilities main `4343b808f762b67bb14c39fb50f28d32819af07e`. Scope is published GPS 1.0.1, LoRa 1.0.1 and Battery Status 1.0.2 parity with Reader master `3d9bc4f373679f5ae8dd184db6a8d0afa5a40231`, including exact artifact provenance and target CI validation. The issue is the durable claim status; current master parity does not grant U1 ZIP/cutover, release publishing, catalog, source removal, deployment or flashing authority.
+
+The claim record is closed by merge only after exact-head target CI passes, source and base are rechecked, and post-merge target CI is verified. Hardware runtime gaps remain in [readiness](MIGRATION_READINESS.md).

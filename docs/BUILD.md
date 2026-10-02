@@ -11,21 +11,21 @@ python scripts/check_release_parity.py
 
 Set PLATFORMIO_CORE_DIR or NATIVE_APP_CC for an existing pinned compiler. Outputs are development-only ELF/JSON integrity sidecars and evidence under dist/apps; this pipeline never publishes a release/catalog or installs packages.
 
-## Immutable inputs and compatibility profile
+## Immutable SDK inputs and LoRa release profiles
 
-`sdk/baseline.json` hashes source-owned headers, bounded compiler helpers, ELF validator, host fixtures and public firmware exports. The main snapshot is Reader a5e2db59077cc889079668dc9cd7428b08bc32a1. Build scripts are audited standalone adaptations, not claimed byte-identical upstream copies.
+`sdk/baseline.json` locks the independent SDK snapshot, bounded compiler helpers, ELF validator and host fixtures. The shared pinned snapshot remains Reader `a5e2db59077cc889079668dc9cd7428b08bc32a1`; this refresh does not sweep later unrelated SDK/tooling changes into Utilities. LoRa 1.0.0 retains its historical three-header profile. A separate LoRa 1.0.1 profile locks the exact public headers from Reader release source `f7f006f78bf1f83c28f3ce05728b8973e895956b`; these package source and header blobs are unchanged at current Reader master `3d9bc4f373679f5ae8dd184db6a8d0afa5a40231`. Each profile is content-locked and version-selected by the app manifest.
 
-Published versions retain full symbol tables. GPS 1.0.0 and Battery 1.0.1 reproduce against the current pinned SDK. LoRa 1.0.0 additionally uses its release-era three headers from 3af3c24f3c02e33af12019852393936c82367226. New declarations in T5AppApi.h change GCC's local symbol numbering: current headers differ only at six bytes in `.strtab` (`digits$2452`/`ping$2478` versus `$2506`/`$2532`). Using the historical profile restores the immutable release digest without altering code or ABI. Never rename symbols or overwrite historical assets to mask drift.
+## Published artifact identity and build policy
 
-All three actual built ELF byte hashes and sizes equal GitHub's published asset digests in `sdk/release-baseline.json`; `docs/release-parity.json` records results. Therefore app versions do not change. Any changed distributable or distribution format requires a numeric version increment beyond the accepted published lineage before release, even if only symbol/packaging bytes changed.
+Current Reader versions are GPS 1.0.1, LoRa 1.0.1 and Battery Status 1.0.2. Each is published as an RTE ZIP; the release baseline records the ZIP digest/size and the nested `.package.json`-verified ELF digest/size. The utilities pipeline compares the actual development ELF with that published ELF payload. It does not create or migrate an install package.
+
+These current versions use Reader's `--strip-unneeded` release policy. The build applies that policy only to the audited version tuples (GPS 1.0.1, LoRa 1.0.1 and Battery Status 1.0.2); historical versions keep their previous full-symbol build behavior. The target CI must reproduce all three published payload hashes before the parity PR can merge. Future versions require source/profile review and an explicit build-policy update. Never rename symbols or change package bytes under an existing version to conceal drift.
 
 ## Checks and limits
 
-10 Python tests cover immutable inputs, exact inventory, manifests, path/collision rejection, strong/weak import rejection, integrity stamps, source-aware conflict classification and actual-byte parity. Three upstream C fixtures cover GPS searching/fix/redraw/stop, LoRa configuration/RX/Ping/arbitration callbacks, and Battery detailed telemetry/update/navigation.
+Python tests cover the immutable SDK lock, exact inventory, manifests, path/collision rejection, strong/weak import rejection, integrity stamps, source-aware conflict classification and current release provenance. Three app host fixtures exercise the real GPS, LoRa and Battery Status source against simulated APIs; the LoRa fixture runs both normal display and denied display-arbitration scenarios. Additional failure fixtures cover missing interfaces, unsupported/start failures, telemetry and empty/oversize packet behavior.
 
-Three additional C fixtures cover missing APIs/functions; GPS unsupported/start failure/stop; LoRa unsupported Confirm cannot transmit, 255-byte formatting and empty-packet preservation; Battery failed startup and failed refresh preserving the prior screen. Fixtures compile the real app sources against simulated APIs. They do not prove real GPS reception, RF transmission, battery validity, concurrency, hotplug or hardware lifetimes.
-
-Each cross-built ELF passes entrypoint/import checks and the source-owned structural validator. CI uploads exact-head development artifacts and build-evidence.json (compiler, SDK, repository SHA, payload hashes). Evidence produced from a dirty local tree is explicitly marked; CI is the authoritative clean-head record.
+Each cross-built ELF passes entrypoint/import checks and the source-owned structural validator. CI uploads exact-head development artifacts and build-evidence.json (compiler, SDK, repository SHA, payload hashes). Evidence produced from a dirty local tree is explicitly marked; CI is the authoritative clean-head record. Fixtures and structural validation do not prove real GPS reception, RF transmission, battery validity, concurrency, hotplug or hardware lifetimes.
 
 ## Source-aware sync
 

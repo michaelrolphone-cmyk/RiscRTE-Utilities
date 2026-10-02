@@ -79,8 +79,9 @@
     {
       "path": "test/native_apps/lora_test.c",
       "upstream_path": "test/native_apps/lora_test.c",
-      "git_blob": "570d9dbf5acfdab17433cbab354a12dfdebe9b37",
-      "sha256": "27d296bee9d98f181eb678c8710d08897a164f4f02999ba69355acba987d604f"
+      "git_blob": "55986a3133cc1d2c5f2af510887594cac0c8d3d0",
+      "sha256": "59e8706567249a03530e9ee019aa779a86fddfc0e97f625db4583b914b7373c4",
+      "source_commit": "3d9bc4f373679f5ae8dd184db6a8d0afa5a40231"
     },
     {
       "path": "test/native_apps/battery_test.c",
@@ -132,6 +133,33 @@
       "upstream_path": "lib/elf_loader/license.txt",
       "git_blob": "d645695673349e3947e8e5ae42332d0ac3164cd7",
       "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "sdk/profiles/lora-1.0.1/T5AppApi.h",
+      "upstream_path": "lib/NativeApps/include/T5AppApi.h",
+      "git_blob": "b5d5cc0162aa6c5caa055563b928c8ceaf3e5cfd",
+      "sha256": "eb0acebe0b1a151916b9f05afd98025e8e516c251337b8fe48fd3961bd58a981",
+      "source_commit": "f7f006f78bf1f83c28f3ce05728b8973e895956b",
+      "release_tag": "app-lora-v1.0.1",
+      "profile": "lora-1.0.1"
+    },
+    {
+      "path": "sdk/profiles/lora-1.0.1/T5LoRaApi.h",
+      "upstream_path": "lib/NativeApps/include/T5LoRaApi.h",
+      "git_blob": "031b61087c2c933d50316ed2de8d00f6d71cc6bb",
+      "sha256": "d1f2d58159c94142ea62596b8cd164f1eba07b8bbe7791a978b74e6b3dd293c1",
+      "source_commit": "f7f006f78bf1f83c28f3ce05728b8973e895956b",
+      "release_tag": "app-lora-v1.0.1",
+      "profile": "lora-1.0.1"
+    },
+    {
+      "path": "sdk/profiles/lora-1.0.1/T5UiApi.h",
+      "upstream_path": "lib/NativeApps/include/T5UiApi.h",
+      "git_blob": "78434b75d4ee173f30035a351e5fd076d3af7bae",
+      "sha256": "5ce32f393197867783d1a8286c4140feb72c7cdbc781887bc54e9fb2fed9cd11",
+      "source_commit": "f7f006f78bf1f83c28f3ce05728b8973e895956b",
+      "release_tag": "app-lora-v1.0.1",
+      "profile": "lora-1.0.1"
     }
   ],
   "exports_sha256": "a88ca6059db7ab70ee41f5557f30e41158812de58eb6d898902a48b0a19c1649",
@@ -157,5 +185,19 @@
       "git_blob": "789e3b2f126957e602bd0661a4785550c5ea8159"
     }
   ],
-  "build_profile": "published-unstripped-c11-pic-sysv; lora-1.0.0 release-era headers"
+  "build_profile": "published-unstripped-c11-pic-sysv; lora-1.0.0 release-era headers",
+  "profiles": [
+    {
+      "id": "lora-1.0.1",
+      "source_commit": "f7f006f78bf1f83c28f3ce05728b8973e895956b",
+      "current_reader_master": "3d9bc4f373679f5ae8dd184db6a8d0afa5a40231",
+      "release_tag": "app-lora-v1.0.1",
+      "headers": [
+        "T5AppApi.h",
+        "T5LoRaApi.h",
+        "T5UiApi.h"
+      ],
+      "purpose": "reproduce the current published LoRa 1.0.1 ELF while retaining the lora-1.0.0 header profile for its historical payload."
+    }
+  ]
 }
