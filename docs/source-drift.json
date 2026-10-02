@@ -1,5 +1,5 @@
 {
-  "reader_commit": "a5e2db59077cc889079668dc9cd7428b08bc32a1",
+  "reader_commit": "3d9bc4f373679f5ae8dd184db6a8d0afa5a40231",
   "files": [
     {
       "id": "gps",
@@ -13,25 +13,25 @@
       "id": "gps",
       "path": "Apps/gps.json",
       "baseline_blob": "143614649ac7244d45129de2f8b5877d2fee61a0",
-      "external_blob": "143614649ac7244d45129de2f8b5877d2fee61a0",
-      "upstream_blob": "143614649ac7244d45129de2f8b5877d2fee61a0",
-      "state": "unchanged"
+      "external_blob": "8cc7d27782bda4e6a5f8998fd372baceba8e48ad",
+      "upstream_blob": "8cc7d27782bda4e6a5f8998fd372baceba8e48ad",
+      "state": "converged"
     },
     {
       "id": "lora",
       "path": "Apps/lora.c",
       "baseline_blob": "b4ee8efd74a16fe58c52391ccb858328611c4637",
-      "external_blob": "b4ee8efd74a16fe58c52391ccb858328611c4637",
-      "upstream_blob": "b4ee8efd74a16fe58c52391ccb858328611c4637",
-      "state": "unchanged"
+      "external_blob": "fd5dce73da4d314d6a3c74f34272a9d18b4690bb",
+      "upstream_blob": "fd5dce73da4d314d6a3c74f34272a9d18b4690bb",
+      "state": "converged"
     },
     {
       "id": "lora",
       "path": "Apps/lora.json",
       "baseline_blob": "2dd10457dbc35be609a5573e0beac426330d3fc4",
-      "external_blob": "2dd10457dbc35be609a5573e0beac426330d3fc4",
-      "upstream_blob": "2dd10457dbc35be609a5573e0beac426330d3fc4",
-      "state": "unchanged"
+      "external_blob": "5a7daf6d8951267f4fdfc0922130599e32566df9",
+      "upstream_blob": "5a7daf6d8951267f4fdfc0922130599e32566df9",
+      "state": "converged"
     },
     {
       "id": "battery",
@@ -45,9 +45,9 @@
       "id": "battery",
       "path": "Apps/battery.json",
       "baseline_blob": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
-      "external_blob": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
-      "upstream_blob": "173e18fcb7eb6553eb1faf80d08ed97bd7962157",
-      "state": "unchanged"
+      "external_blob": "c8f3483b28e8d423322ac5e5d56f6c45063b8508",
+      "upstream_blob": "c8f3483b28e8d423322ac5e5d56f6c45063b8508",
+      "state": "converged"
     }
   ]
 }

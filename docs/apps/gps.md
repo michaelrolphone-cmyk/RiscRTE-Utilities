@@ -2,7 +2,7 @@
 
 ## Purpose
 
-GPS is a read-only GNSS status/position utility. Its manifest identifies `gps.elf`, version **1.0.0**, minimum firmware **1.1.14**, categories `GNSS` and `Utilities`.
+GPS is a read-only GNSS status/position utility. Its manifest identifies `gps.elf`, version **1.0.1**, minimum firmware **1.1.14**, categories `GNSS` and `Utilities`.
 
 ## RiscRTE interfaces
 
@@ -48,9 +48,13 @@ If the GPS interface reports unsupported, the UI tells the user to install the G
 - `Apps/gps.c`
 - `Apps/gps.json`
 
+## Current release identity
+
+Reader release `app-gps-v1.0.1` publishes `application-gps-1.0.1-xtensa-esp32s3.rte.zip` (SHA-256 `32f3e8d34fe3d40576686992a58d2538278f8ffb40ec5de9c0561a93b4158cb4`, 4,776 bytes). Its nested `gps.elf` is 3,804 bytes with SHA-256 `a85520bd944c72420fedd898700980c0602ce2af4fccb8700d6f3c511cfc86be`. The ZIP digest and inner package metadata were checked against Reader workflow artifact 11209466823.
+
 ## Independent-build baseline
 
-Source and manifest exactly match Reader `a5e2db59077cc889079668dc9cd7428b08bc32a1`. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
+Source remains unchanged; the manifest now matches Reader `3d9bc4f373679f5ae8dd184db6a8d0afa5a40231`. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
 
 ## Limits and failed operations
 
