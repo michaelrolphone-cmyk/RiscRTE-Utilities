@@ -13,9 +13,16 @@ for name, app in json.loads((ROOT / 'tests/host-tests.json').read_text()).items(
     fixture = ROOT / f'test/native_apps/{name}_test.c'
     sources = [fixture] if app is None or '#include "../../Apps/' in fixture.read_text() else [ROOT / f'Apps/{app}.c', fixture]
     binary = out / name
+    includes = []
+    if name == 'lora':
+        manifest = json.loads((ROOT / 'Apps/lora.json').read_text())
+        profile = ROOT / 'sdk/profiles' / f"lora-{manifest['version']}"
+        if profile.is_dir():
+            includes.append('-I' + str(profile))
+    includes.extend(['-I' + str(ROOT / 'lib/NativeApps/include'),
+                     '-I' + str(ROOT / 'sdk/driver')])
     subprocess.run([os.environ.get('CC', 'cc'), '-std=c11', '-Wall', '-Wextra', '-Werror',
-                    '-I' + str(ROOT / 'lib/NativeApps/include'), '-I' + str(ROOT / 'sdk/driver'),
-                    *map(str, sources), '-o', str(binary)], check=True, timeout=60)
+                    *includes, *map(str, sources), '-o', str(binary)], check=True, timeout=60)
     subprocess.run([str(binary)], cwd=ROOT, check=True, timeout=30)
     if name == 'lora':
         subprocess.run([str(binary), 'block_display'], cwd=ROOT, check=True, timeout=30)
