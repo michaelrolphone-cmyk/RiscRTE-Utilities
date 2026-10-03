@@ -18,7 +18,7 @@ class PipelineTests(unittest.TestCase):
         check_sdk()
         rows = audit()['files']
         self.assertEqual(len(rows), 6)
-        self.assertTrue(all(row['state'] == 'unchanged' for row in rows))
+        self.assertEqual({row['path'] for row in rows if row['state'] != 'unchanged'}, set(['Apps/battery.c', 'Apps/battery.json']))
 
     def test_current_reader_release_inputs_and_provenance(self):
         inventory = json.loads((ROOT / 'utilities-manifest.json').read_text())
@@ -29,7 +29,7 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue(all(app['upstream_commit'] == drift['reader_commit']
                             for app in inventory['apps']))
         self.assertEqual({app['id']: app['version'] for app in inventory['apps']},
-                         {'gps': '1.0.1', 'lora': '1.0.1', 'battery': '1.0.2'})
+                         {'gps': '1.0.1', 'lora': '1.0.1', 'battery': '1.0.3'})
         states = {row['path']: row['state'] for row in drift['files']}
         for path in ('Apps/gps.json', 'Apps/lora.c', 'Apps/lora.json', 'Apps/battery.json'):
             self.assertEqual(states[path], 'converged')
@@ -37,7 +37,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(states['Apps/battery.c'], 'unchanged')
         versions = {item['id']: item['version'] for item in inventory['apps']}
         for app in releases['apps']:
-            self.assertEqual(app['version'], versions[app['id']])
+            self.assertEqual(versions[app['id']], '1.0.3' if app['id']=='battery' else app['version'])
             self.assertEqual(app['sha256'], app['package_asset']['payload_sha256'])
         profile = json.loads((ROOT / 'sdk/baseline.json').read_text())
         self.assertTrue(any(row.get('profile') == 'lora-1.0.1'

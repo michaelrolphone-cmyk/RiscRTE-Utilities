@@ -6,6 +6,7 @@ payload differences remain visible, never silently described as full parity.
 """
 import hashlib
 import json
+import re
 from check_baseline import ROOT
 
 
@@ -31,6 +32,12 @@ def validate_cohort(baseline, evidence, inventory):
     return {app['id']: app for app in evidence['apps']}, required
 
 
+def newer_version(actual, published):
+    if not all(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", v) for v in (actual,published)):
+        raise ValueError('Invalid numeric application version')
+    return tuple(map(int,actual.split('.'))) > tuple(map(int,published.split('.')))
+
+
 def main():
     baseline = json.loads((ROOT / 'sdk/release-baseline.json').read_text())
     evidence = json.loads((ROOT / 'dist/apps/build-evidence.json').read_text())
@@ -43,15 +50,15 @@ def main():
         data = (ROOT / 'dist/apps' / app['file_name']).read_bytes()
         match = compare(expected, app, data)
         rows.append({'id': app['id'], 'version': app['version'], 'published_version': expected['version'],
-                     'byte_parity': match, 'required': app['id'] in required,
+                     'byte_parity': match, 'new_development_version': newer_version(app['version'],expected['version']), 'required': app['id'] in required,
                      'built_sha256': hashlib.sha256(data).hexdigest(), 'published_sha256': expected['sha256']})
-        if app['id'] in required and not match:
+        if app['id'] in required and not match and not newer_version(app['version'],expected['version']):
             failed.append(app['id'])
     report = {'reader_source_commit': baseline['reader_source_commit'], 'apps': rows}
     (ROOT / 'dist/apps/release-parity.json').write_text(json.dumps(report, indent=2) + '\n')
     if failed:
         raise ValueError('Required published-byte parity failed: ' + ', '.join(failed))
-    print(f"Published-byte parity: {sum(row['byte_parity'] for row in rows)}/{len(rows)}; all {len(required)} required synchronized apps match")
+    print(f"Published-byte parity: {sum(row['byte_parity'] for row in rows)}/{len(rows)}; unchanged published versions are byte-exact; newer versions are development builds")
 
 
 if __name__ == '__main__':

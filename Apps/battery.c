@@ -167,7 +167,7 @@ static void render_state(const t5_battery_state_t *state) {
     if (!state->available) {
         copy_text(footer, sizeof(footer), "Battery management unavailable");
     } else if (!state->detailed_telemetry) {
-        snprintf(footer, sizeof(footer), "%s | %u%% | basic ADC telemetry", state->board_name,
+        snprintf(footer, sizeof(footer), "%s | %u%% | basic telemetry", state->board_name,
                  (unsigned)state->soc_percent);
     } else {
         snprintf(footer, sizeof(footer), "%s | %u%% | %s | %d mA avg", state->board_name,
