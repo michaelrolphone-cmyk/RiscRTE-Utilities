@@ -8,7 +8,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'scripts'))
 from app_manifest import validate_manifest
 from build_all_apps import validate_inventory
 from check_baseline import ROOT, audit, check_sdk, classify, git_blob
-from check_release_parity import compare, validate_cohort
+from check_release_parity import compare, newer_version, validate_cohort
 from native_app_symbols import validate_imports
 from package_integrity import stamp_app_manifest
 
@@ -18,7 +18,7 @@ class PipelineTests(unittest.TestCase):
         check_sdk()
         rows = audit()['files']
         self.assertEqual(len(rows), 6)
-        self.assertTrue(all(row['state'] == 'unchanged' for row in rows))
+        self.assertEqual({row['path'] for row in rows if row['state'] != 'unchanged'}, set(['Apps/battery.c', 'Apps/battery.json']))
 
     def test_current_reader_release_inputs_and_provenance(self):
         inventory = json.loads((ROOT / 'utilities-manifest.json').read_text())
@@ -28,7 +28,9 @@ class PipelineTests(unittest.TestCase):
                          '3d9bc4f373679f5ae8dd184db6a8d0afa5a40231')
         self.assertTrue(all(app['upstream_commit'] == drift['reader_commit']
                             for app in inventory['apps']))
-        self.assertEqual({app['id']: app['version'] for app in inventory['apps']},
+        # Freeze the historical release snapshot, not the current development
+        # version. Inventory/source manifests must agree (checked separately).
+        self.assertEqual({app['id']: app['version'] for app in releases['apps']},
                          {'gps': '1.0.1', 'lora': '1.0.1', 'battery': '1.0.2'})
         states = {row['path']: row['state'] for row in drift['files']}
         for path in ('Apps/gps.json', 'Apps/lora.c', 'Apps/lora.json', 'Apps/battery.json'):
@@ -37,7 +39,10 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(states['Apps/battery.c'], 'unchanged')
         versions = {item['id']: item['version'] for item in inventory['apps']}
         for app in releases['apps']:
-            self.assertEqual(app['version'], versions[app['id']])
+            if app['id'] == 'battery':
+                self.assertTrue(newer_version(versions[app['id']], app['version']))
+            else:
+                self.assertEqual(versions[app['id']], app['version'])
             self.assertEqual(app['sha256'], app['package_asset']['payload_sha256'])
         profile = json.loads((ROOT / 'sdk/baseline.json').read_text())
         self.assertTrue(any(row.get('profile') == 'lora-1.0.1'
