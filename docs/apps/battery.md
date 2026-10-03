@@ -9,13 +9,13 @@ This repository classifies it as a **utility** because it is optional hardware t
 ## Manifest
 
 - Display name: **Battery Status**
-- Version: **1.0.2**
+- Version: **1.0.4**
 - Minimum firmware: **1.1.18**
 - ELF: `battery.elf`
 - Icon: `solid:f240`
 - Categories: `System`, `Hardware`
 
-The upstream manifest declares no optional provider capability.
+The current manifest declares no optional provider capability.
 
 ## Host interfaces
 
@@ -40,6 +40,8 @@ The implementation supports up to **28 rows** and stores each formatted row valu
 ## Summary fields
 
 The list always begins with operating mode, state of charge, and voltage. When detailed telemetry is unavailable it also shows board name and gauge state.
+
+Charge values from 0 through 100 are shown as percentages. Values outside that range, including the portable adapter's `UINT16_MAX` sentinel, display **Unknown** in the row and footer; valid voltage and charging telemetry remain visible. Zero percent is a valid known value.
 
 Voltage uses gauge voltage when a gauge read is valid; otherwise it uses the battery-voltage field.
 
@@ -72,9 +74,9 @@ The application formats these values for display only and does not modify chargi
 
 If battery management is unavailable, the footer reports that condition.
 
-With basic telemetry, the footer contains board name, charge percentage, and an indication that only basic ADC telemetry is available.
+With basic telemetry, the footer contains board name, charge percentage (or **Unknown**), and the provider-neutral wording **basic telemetry**.
 
-With detailed telemetry, it contains board name, charge percentage, USB input state, and average current.
+With detailed telemetry, it contains board name, charge percentage (or **Unknown**), USB input state, and average current.
 
 ## Failure behavior
 
@@ -95,19 +97,21 @@ Gauge/charger discovery, initialization, register access, charging configuration
 - `Apps/battery.c`
 - `Apps/battery.json`
 
-Authoritative current-master blobs for version 1.0.2:
+Historical Reader snapshot blobs for version 1.0.2, retained for provenance:
 
 - source: `10c8def52738cae0059eda4aeb68699a3165328b`
 - manifest: `c8f3483b28e8d423322ac5e5d56f6c45063b8508`
 - Reader source commit: `3d9bc4f373679f5ae8dd184db6a8d0afa5a40231`
 
-## Current release identity
+The current 1.0.4 app differs from that snapshot only in provider-neutral footer wording and safe unknown-SOC formatting. It uses the existing shared app interfaces; there is no Watch-specific fork. See [portable battery telemetry](../PORTABLE_BATTERY.md).
+
+## Historical release identity
 
 Reader release `app-battery-v1.0.2` publishes `application-battery-1.0.2-xtensa-esp32s3.rte.zip` (SHA-256 `5d83032114fb0ab5335b249b890ce5ad36b4ba38b838054f5b68f3bc72f70d41`, 7,304 bytes). Its nested `battery.elf` is 6,284 bytes with SHA-256 `039d0e6a351955b48f53bf74a4b0d14855adab9479a07be0f07a993b7ffd05cf`. The ZIP digest and inner package metadata were checked against Reader workflow artifact 11209466823.
 
 ## Independent-build baseline
 
-Source remains unchanged; the manifest now matches Reader `3d9bc4f373679f5ae8dd184db6a8d0afa5a40231`. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
+The historical baseline records Reader `3d9bc4f373679f5ae8dd184db6a8d0afa5a40231`; it is not a current-source or Battery 1.0.4 parity claim. The current source and manifest are intentional development changes. See [build evidence](../BUILD.md), [readiness and removal criteria](../MIGRATION_READINESS.md), [source audit](../source-drift.json) and [published-byte comparison](../release-parity.json). Host fixtures exercise actual app C with simulated APIs; they do not establish hardware/runtime qualification.
 
 ## Snapshot and hardware boundaries
 
