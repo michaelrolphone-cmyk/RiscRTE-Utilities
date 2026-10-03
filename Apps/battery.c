@@ -110,7 +110,10 @@ static void build_rows(const t5_battery_state_t *state) {
     memset(values, 0, sizeof(values));
 
     add_row("Mode", mode_name(state), T5_UI_LIST_HIGHLIGHT_VALUE);
-    add_u16("Charge", state->soc_percent, "%", T5_UI_LIST_HIGHLIGHT_VALUE);
+    if (state->soc_percent <= 100)
+        add_u16("Charge", state->soc_percent, "%", T5_UI_LIST_HIGHLIGHT_VALUE);
+    else
+        add_row("Charge", "Unknown", T5_UI_LIST_HIGHLIGHT_VALUE);
     add_u16("Voltage", state->gauge_read_ok ? state->gauge_voltage_mv : state->battery_voltage_mv,
             "mV", T5_UI_LIST_HIGHLIGHT_VALUE);
 
@@ -164,14 +167,20 @@ static void render_state(const t5_battery_state_t *state) {
     if (row_count == 0) selected_index = 0;
     else if (selected_index < 0 || (uint32_t)selected_index >= row_count) selected_index = 0;
 
+    char charge[16];
+    if (state->soc_percent <= 100)
+        snprintf(charge, sizeof(charge), "%u%%", (unsigned)state->soc_percent);
+    else
+        copy_text(charge, sizeof(charge), "Unknown");
+
     if (!state->available) {
         copy_text(footer, sizeof(footer), "Battery management unavailable");
     } else if (!state->detailed_telemetry) {
-        snprintf(footer, sizeof(footer), "%s | %u%% | basic telemetry", state->board_name,
-                 (unsigned)state->soc_percent);
+        snprintf(footer, sizeof(footer), "%s | %s | basic telemetry", state->board_name,
+                 charge);
     } else {
-        snprintf(footer, sizeof(footer), "%s | %u%% | %s | %d mA avg", state->board_name,
-                 (unsigned)state->soc_percent, state->vbus_connected ? "USB IN" : "USB OUT",
+        snprintf(footer, sizeof(footer), "%s | %s | %s | %d mA avg", state->board_name,
+                 charge, state->vbus_connected ? "USB IN" : "USB OUT",
                  (int)state->average_current_ma);
     }
 
