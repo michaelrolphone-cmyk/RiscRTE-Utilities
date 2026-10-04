@@ -1,4 +1,4 @@
-# Audio Spectrum 0.1.0
+# Audio Spectrum 0.1.1
 
 One shared Audio Tools application toggles between a live microphone spectrum and
 scrolling spectrogram. This is original Utilities app source, reused by Watch
@@ -28,7 +28,7 @@ member is retained for ABI compatibility and is unused. The app opens mono 16 kH
 PCM and requests at most 256 signed 16-bit frames per read. The existing Watch
 `twatch-mic` provider supplies decimated PDM PCM with a 40 ms native read bound.
 The runtime prerequisite is the separately reviewed bounded PDM RX work based on
-Runtime 0.1.12; this app alone does not make older hardware backends functional.
+Runtime 0.1.16; this app alone does not make older hardware backends functional.
 
 Successful short reads are assembled until 256 samples exist. An empty successful
 read contributes no samples; eight consecutive empty reads stop capture. A false
