@@ -18,7 +18,7 @@ IMPORTS={'risc_runtime_get_api','memcpy','memset','memcmp','strcmp','strlen','sn
 EXPORTS={'app_main','app_module_init','app_module_fini'}
 def inventory():
     apps=json.loads((ROOT/'utilities-manifest.json').read_text())['portable_apps']
-    if [a.get('id') for a in apps]!=['calculator','stopwatch']:
+    if [a.get('id') for a in apps]!=['calculator','stopwatch','waterfall']:
         raise ValueError('Unexpected portable daily tool inventory')
     for app in apps:
         name=app['id']
@@ -66,6 +66,6 @@ def build(system):
     (out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n')
     for name in ('LICENSE-FontAwesome.txt','LICENSE-Orbitron.txt','LICENSE-Rajdhani.txt','SOURCES.json'):
         (out/name).write_bytes((system/'lib/PortableApps/fonts'/name).read_bytes())
-    print('Validated two portable application ELFs; no install or release')
+    print('Validated portable application ELFs; no install or release')
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--system-apps',required=True,type=Path);a=p.parse_args();build(a.system_apps.resolve())

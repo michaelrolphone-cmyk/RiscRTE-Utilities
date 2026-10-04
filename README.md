@@ -68,6 +68,12 @@ builds. `python scripts/build_portable_apps.py --system-apps /clean/pinned/syste
 builds target ELFs against exact shared source
 `fd6bed09fe6716c8d3a75c0538c4f232f3cc388e`. Results are development evidence in
 `dist/portable-apps`, not release/install catalogs or hardware qualification.
+Waterfall 0.1.0 is another shared catalog app on the same portable profile.
+It is not the watch default and it does not replace Clock. One 256-pair IQ
+burst, when the modem dump is actually brought up, becomes one scrolled row
+on the RGB565 panel. The ELF does not include receiver bring-up or an FPGA
+stream. See [Waterfall](docs/apps/waterfall.md).
+
 No new firmware ABI, chip driver, sound, alarm wake, filesystem or timezone
 policy is introduced by this subset. The Watch's existing caller return and
 crown Back are deployment-owned. Standalone generic builds require an authorized
