@@ -1,6 +1,6 @@
 {
-  "min_firmware_version": "0.1.12",
-  "version": "0.1.0",
+  "min_firmware_version": "0.1.16",
+  "version": "0.1.1",
   "display_name": "Frequency Generator",
   "file_name": "frequency_generator.elf",
   "icon": "solid:f028",
