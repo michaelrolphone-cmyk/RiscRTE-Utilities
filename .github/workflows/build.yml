@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: b2fc83280c54ca3ebd567184cc50e4785daa3951
+          ref: 0fa8c576f547817b8124ed10686d80a6351bb634
           path: .dependencies/runtime
           persist-credentials: false
       - name: Exercise staged Alarm and Countdown production source
@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 95783cb7071e025b90977dbc331b5d06cfe996f9
+          ref: 593004abccf277def71dd01ef4281d2d2890aa4b
           path: .dependencies/audio-system-apps
           persist-credentials: false
       - name: Exercise shared Audio Tools and lifecycle
