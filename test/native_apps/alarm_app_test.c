@@ -38,8 +38,13 @@ static void setup(void){memset(stored,0,32);stored_n=ticks=put_calls=release_cal
 static void tap(int x,int y){events[event_count++]=(t5_app_input_t){.tapped=true,.touch_x=x,.touch_y=y};}
 static alarm_config saved(void){alarm_config c;assert(alarm_config_decode(&c,stored,stored_n,DAILY_ALARM_KIND));return c;}
 int main(void){
+#ifdef PORTABLE_ALARM_CLIENT
+ setup();app_main();assert(!put_calls&&release_calls==3&&!service_steps&&!stop_calls);
+ setup();stop_fails=true;app_main();assert(release_calls==3&&!stop_calls&&!service_steps&&!diagnosed);
+#else
  setup();app_main();assert(!put_calls&&release_calls==3&&!service_steps&&stop_calls==1);
  setup();stop_fails=retain_test=true;if(!setjmp(retained))app_main();assert(!release_calls&&stop_calls==3&&!service_steps&&diagnosed);
+#endif
  setup();tap(50,195);app_main();assert(put_calls==1&&saved().enabled&&saved().revision==1);
  setup();tap(50,195);tap(180,195);app_main();assert(put_calls==2&&!saved().enabled&&saved().revision==2);
  setup();put_error=-5;persist_error=true;tap(50,195);app_main();assert(put_calls==1&&saved().enabled&&!writer.uncertain);

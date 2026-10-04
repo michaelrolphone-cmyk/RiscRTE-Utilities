@@ -169,6 +169,11 @@ void app_main(void) {
     for(;;) {
         t5_app_input_t input={0};bool poll_ok=app->poll(&input,20);
         if(!poll_ok) {
+#ifdef PORTABLE_ALARM_CLIENT
+            /* The shared adapter already owns the settled/error boundary and
+               bounded output cleanup; never repeat or race it here. */
+            break;
+#else
             /* A false poll can mean an outstanding/failed presentation. Only
                independent output cleanup is allowed, never normal service I/O. */
             int32_t stopped=ALARM_PENDING;
@@ -183,10 +188,14 @@ void app_main(void) {
                 for(;;)runtime->yield_ms(50);
             }
             break;
+#endif
         }
         /* Successful poll/present is the staged client's safe point. The next
            shared adapter must expose its settled/error barrier explicitly. */
-        (void)service->step(service->context);refresh_status();
+#ifndef PORTABLE_ALARM_CLIENT
+        (void)service->step(service->context);
+#endif
+        refresh_status();
         bool alert=service_valid&&service_state.occurrence.generation;
         if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)) {
             if(!alert)break;
