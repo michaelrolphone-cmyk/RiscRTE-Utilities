@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "system_apps": "95783cb7071e025b90977dbc331b5d06cfe996f9",
+  "watch_audio_abi": "216e2d73b72cca6c3bcf75ad9ef56466b8861144",
+  "runtime_minimum": "0.1.12",
+  "purpose": "Audio Tools development with exact foreground lifecycle adapter"
+}

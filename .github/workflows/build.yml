@@ -44,6 +44,17 @@ jobs:
           SANITIZE=1 bash scripts/test_alarm_runtime.sh .dependencies/runtime .dependencies/system-apps
       - name: Exercise shared Calculator and Stopwatch
         run: python scripts/test_daily_apps.py --system-apps .dependencies/system-apps
+      - name: Exact shared audio lifecycle adapter
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 95783cb7071e025b90977dbc331b5d06cfe996f9
+          path: .dependencies/audio-system-apps
+          persist-credentials: false
+      - name: Exercise Frequency Generator core and lifecycle
+        run: |
+          python scripts/test_frequency_generator.py --system-apps .dependencies/audio-system-apps
+          python scripts/test_audio_service_lifecycle.py --system-apps .dependencies/audio-system-apps --runtime .dependencies/runtime
       - name: Install pinned public compiler
         run: |
           python -m pip install platformio==6.1.19
@@ -55,6 +66,7 @@ jobs:
           python scripts/build_portable_apps.py --system-apps .dependencies/system-apps
           python scripts/build_alarm_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           python scripts/build_points_service.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
+          python scripts/build_audio_apps.py --system-apps .dependencies/audio-system-apps
           bash scripts/test_alarm_target_loader.sh .dependencies/runtime
       - uses: actions/upload-artifact@v4
         with:
@@ -64,5 +76,6 @@ jobs:
             dist/portable-apps/
             dist/alarm-apps/
             dist/points-service/
+            dist/audio-apps/
           if-no-files-found: error
           retention-days: 14
