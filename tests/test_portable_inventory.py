@@ -6,7 +6,7 @@ class PortableInventory(unittest.TestCase):
  def test_explicit_shared_original_apps(self):
   apps=inventory();self.assertEqual([x['id'] for x in apps],['calculator','stopwatch','waterfall'])
   self.assertEqual(PIN,'b28428505c9e067bb6ea8a84d12f13ec0bcc4992')
-  self.assertEqual([app['version'] for app in apps],['0.1.1','0.1.1','0.1.0'])
+  self.assertEqual([app['version'] for app in apps],['0.1.1','0.1.1','0.1.1'])
   for app in apps:
    self.assertTrue(all((ROOT/path).is_file() for path in app['additional_sources']))
  def test_reader_release_cohort_is_preserved(self):
