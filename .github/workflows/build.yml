@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 593004abccf277def71dd01ef4281d2d2890aa4b
+          ref: 23b5ebcc896d1f39719541579552e01ce650b547
           path: .dependencies/audio-system-apps
           persist-credentials: false
       - name: Exercise shared Audio Tools and lifecycle
