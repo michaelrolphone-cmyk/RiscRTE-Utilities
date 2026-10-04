@@ -1,15 +1,30 @@
 {
   "min_firmware_version": "0.1.5",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "display_name": "Stopwatch",
   "file_name": "stopwatch.elf",
-  "icon": "solid:f017",
-  "category": ["Utilities", "Time"],
+  "icon": "solid:f2f2",
+  "category": [
+    "Utilities",
+    "Time"
+  ],
   "runtime_profile": "portable-riscrte-v1",
   "requires": [
-    {"capability": "display.output", "api": ">=1"},
-    {"capability": "input.touch.raw", "api": ">=1"},
-    {"capability": "rtc.clock", "api": ">=2"},
-    {"capability": "storage.key-value", "api": ">=1"}
+    {
+      "capability": "display.output",
+      "api": ">=1"
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": ">=1"
+    },
+    {
+      "capability": "rtc.clock",
+      "api": ">=2"
+    },
+    {
+      "capability": "storage.key-value",
+      "api": ">=1"
+    }
   ]
 }

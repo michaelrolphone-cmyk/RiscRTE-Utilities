@@ -36,7 +36,7 @@
     {
       "id": "battery",
       "display_name": "Battery Status",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "min_firmware_version": "1.1.18",
       "file_name": "battery.elf",
       "classification": "utility",
@@ -54,7 +54,7 @@
     {
       "id": "calculator",
       "display_name": "Calculator",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/calculator.c",
@@ -68,7 +68,7 @@
     {
       "id": "stopwatch",
       "display_name": "Stopwatch",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/stopwatch.c",

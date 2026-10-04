@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: fd6bed09fe6716c8d3a75c0538c4f232f3cc388e
+          ref: b28428505c9e067bb6ea8a84d12f13ec0bcc4992
           path: .dependencies/system-apps
           persist-credentials: false
       - name: Exercise shared Calculator and Stopwatch
