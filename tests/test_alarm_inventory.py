@@ -8,7 +8,7 @@ class AlarmInventory(unittest.TestCase):
   for app in apps:
    manifest=json.loads((ROOT/app['manifest_path']).read_text());caps={x['capability'] for x in manifest['requires']}
    self.assertEqual(caps,{'display.output','input.touch.raw','rtc.clock','storage.key-value','alarm.service'})
-   self.assertEqual(manifest['version'],'0.1.0')
+   self.assertEqual(manifest['version'],'0.1.2')
   self.assertEqual(RUNTIME_PIN,'b2fc83280c54ca3ebd567184cc50e4785daa3951');self.assertEqual(RUNTIME_TREE,'b3399091995ec67d84a151e8e18be59fe4475ee9')
  def test_delivered_subset_unchanged(self):
   root=json.loads((ROOT/'utilities-manifest.json').read_text());self.assertEqual([x['id'] for x in root['portable_apps']],['calculator','stopwatch'])

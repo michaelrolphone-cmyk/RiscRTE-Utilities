@@ -37,9 +37,18 @@ const risc_runtime_api_v1*risc_runtime_get_api(uint32_t version){assert(version=
 static void setup(void){memset(stored,0,32);stored_n=ticks=put_calls=release_calls=event_index=event_count=service_steps=stop_calls=0;retain_test=stop_fails=diagnosed=false;status_text[0]=0;get_error=put_error=0;persist_error=deny_service=has_alert=false;clock_good=true;width_value=height_value=240;rtc_value=(twatch_rtc_time_v1){2026,10,4,0,12,0,0};fake_app=(t5_app_api_v1){.abi_version=1,.struct_size=sizeof(fake_app),.screen_width=width,.screen_height=height,.clear=clear,.draw_text=text,.draw_label=label,.fill_rect=rect,.present=present,.poll=poll,.millis=millis};rt_api=(risc_runtime_api_v1){.api_version=1,.struct_size=sizeof(rt_api),.acquire=acquire,.release=release,.yield_ms=yield_ms,.diagnostic=diagnostic};kv_api=(risc_key_value_v1){1,sizeof(kv_api),NULL,get,put};time_api=(twatch_rtc_api_v1){2,sizeof(time_api),NULL,read_time,NULL,NULL,NULL};service_api=(alarm_service_v1){1,sizeof(service_api),NULL,state,step_fake,refresh_fake,ack,NULL,stop_only_fake};}
 static void tap(int x,int y){events[event_count++]=(t5_app_input_t){.tapped=true,.touch_x=x,.touch_y=y};}
 static alarm_config saved(void){alarm_config c;assert(alarm_config_decode(&c,stored,stored_n,DAILY_ALARM_KIND));return c;}
+#ifdef PORTABLE_ALARM_CLIENT
+bool portable_app_sleep_retained(void){return retain_test;}
+#endif
 int main(void){
+#ifdef PORTABLE_ALARM_CLIENT
+ setup();app_main();assert(!put_calls&&release_calls==3&&!service_steps&&!stop_calls);
+ setup();stop_fails=true;app_main();assert(release_calls==3&&!stop_calls&&!service_steps&&!diagnosed);
+ setup();retain_test=true;app_main();assert(!release_calls&&!stop_calls&&!service_steps);
+#else
  setup();app_main();assert(!put_calls&&release_calls==3&&!service_steps&&stop_calls==1);
  setup();stop_fails=retain_test=true;if(!setjmp(retained))app_main();assert(!release_calls&&stop_calls==3&&!service_steps&&diagnosed);
+#endif
  setup();tap(50,195);app_main();assert(put_calls==1&&saved().enabled&&saved().revision==1);
  setup();tap(50,195);tap(180,195);app_main();assert(put_calls==2&&!saved().enabled&&saved().revision==2);
  setup();put_error=-5;persist_error=true;tap(50,195);app_main();assert(put_calls==1&&saved().enabled&&!writer.uncertain);

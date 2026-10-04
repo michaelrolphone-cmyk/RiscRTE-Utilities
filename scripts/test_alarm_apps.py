@@ -7,6 +7,7 @@ p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=Tr
 out=ROOT/'build/alarm';out.mkdir(parents=True,exist_ok=True)
 includes=[ROOT/'lib/Alarm/include',a.runtime/'sdk/driver',a.system_apps/'lib/PortableApps/include',a.system_apps/'lib/NativeApps/include']
 fixtures=[('tests/alarm_records_test.c',[]),('test/native_apps/alarm_service_test.c',[]),('test/native_apps/alarm_service_regressions.c',[]),('test/native_apps/alarm_app_test.c',['-DDAILY_ALARM_KIND=1']),('test/native_apps/alarm_app_test.c',['-DDAILY_ALARM_KIND=2']),('test/native_apps/alarm_app_test.c',['-DDAILY_ALARM_KIND=1','-DPORTABLE_RTC_UTC8_DENVER'])]
+fixtures += [('test/native_apps/alarm_app_test.c',['-DDAILY_ALARM_KIND='+str(kind),'-DPORTABLE_ALARM_CLIENT']) for kind in (1,2)]
 for index,(fixture,defs) in enumerate(fixtures):
  for sanitized in (False,True):
   target=out/f'fixture-{index}-{int(sanitized)}'

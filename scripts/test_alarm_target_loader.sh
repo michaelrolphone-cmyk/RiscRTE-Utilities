@@ -8,3 +8,7 @@ cc -std=gnu11 -O1 -g -I"$root/test/alarm-loader-stubs" -I"$runtime/lib/elf_loade
  -o "$build/target-loader"
 "$build/target-loader" "$root/dist/alarm-apps/alarms/alarms.elf" \
  "$root/dist/alarm-apps/countdown/countdown.elf" "$root/dist/alarm-apps/alarm-service/driver.elf"
+
+if [[ -f "$root/dist/points-service/driver.elf" ]]; then
+ "$build/target-loader" "$root/dist/points-service/driver.elf"
+fi

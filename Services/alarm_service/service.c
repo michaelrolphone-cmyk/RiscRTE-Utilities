@@ -1,6 +1,9 @@
 /* Ordinary singleton ELF. All policy/persistence/UI-facing state belongs here;
  * Runtime only resolves opaque dependencies. No poll callback, task or ISR. */
 #include "AlarmRecords.h"
+#ifdef POINTS_IN_TIME_SERVICE
+#include "PointsSchedule.h"
+#endif
 #include "AlarmOutputV1.h"
 #include "PortableRtcClock.h"
 #include "RiscProviderV2.h"
@@ -12,7 +15,11 @@
 typedef enum { LOAD_ALARM,LOAD_TIMER,LOAD_MODE,LOAD_ALARM_OCC,LOAD_TIMER_OCC,
                READ_RTC,EVALUATE,IDLE,WRITE_OCC,VERIFY_OCC,ACTIVATE_RTC,START_AUDIO,
                START_HAPTIC,PLAYING,CLEAN_HAPTIC,CLEAN_SILENCE,CLEAN_AUDIO,
-               BLOCKED } phase_t;
+               BLOCKED
+#ifdef POINTS_IN_TIME_SERVICE
+               ,LOAD_POINTS_CFG,LOAD_POINTS_OCC
+#endif
+               } phase_t;
 static const risc_bound_key_value_v1 *kv;
 static const risc_platform_clock_api_v1 *clock_api;
 static const twatch_rtc_api_v1 *rtc;
@@ -20,6 +27,10 @@ static const twatch_haptic_api_v1 *haptic;
 static const twatch_audio_out_api_v1 *audio;
 static alarm_config config[2], staging[2];
 static alarm_occurrence occurrences[2], staged_occ[2], desired;
+#ifdef POINTS_IN_TIME_SERVICE
+static points_config points_configured,points_staging;
+static points_ledger points_occ,points_staged_occ,points_desired;
+#endif
 static alarm_status_v1 view;
 static phase_t phase;
 static uint32_t staged_mode, seconds, previous_seconds, sleep_snapshot, alert_limit_ms;
@@ -57,6 +68,9 @@ static void update_view(void) {
         uint64_t elapsed=now_ms()-alert_started;
         view.remaining_ms=elapsed<alert_limit_ms?(uint32_t)(alert_limit_ms-elapsed):0;
         const char *name=desired.kind==ALARM_KIND_ALARM?"ALARM":"COUNTDOWN FINISHED";
+        #ifdef POINTS_IN_TIME_SERVICE
+        if(selected==2)name=points_label(points_configured.points[points_desired.slot].kind,points_desired.edge);
+#endif
         memset(view.label,0,sizeof(view.label));memcpy(view.label,name,strlen(name));
     } else {
         memset(&view.occurrence,0,sizeof(view.occurrence));view.recovery_until=view.remaining_ms=0;
@@ -104,6 +118,64 @@ static void prepare_occurrence(unsigned i,bool replay) {
     if(seconds>=desired.recovery_until)desired.state=ALARM_OCC_EXPIRED;
     persistence_pending=true;phase=WRITE_OCC;
 }
+#ifdef POINTS_IN_TIME_SERVICE
+static bool read_points_config(void) {
+    uint8_t b[POINTS_RECORD_SIZE];uint32_t n=0;
+    int32_t r=kv->get(kv->context,POINTS_CONFIG_KEY,b,sizeof(b),&n);
+    if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){points_staging=(points_config){0};return true;}
+    return r==RISC_BOUND_KEY_VALUE_OK&&points_config_decode(&points_staging,b,n);
+}
+static bool read_points_occ(void) {
+    uint8_t b[POINTS_RECORD_SIZE];uint32_t n=0;
+    int32_t r=kv->get(kv->context,POINTS_OCCURRENCE_KEY,b,sizeof(b),&n);
+    if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){points_staged_occ=(points_ledger){0};return true;}
+    return r==RISC_BOUND_KEY_VALUE_OK&&points_ledger_decode(&points_staged_occ,b,n);
+}
+static bool reconcile_points(void) {
+    uint8_t a[POINTS_RECORD_SIZE],b[POINTS_RECORD_SIZE];
+    if(points_staging.revision<points_configured.revision||points_staged_occ.generation<points_occ.generation)return false;
+    if(points_staging.revision&&points_staging.revision==points_configured.revision) {
+        points_config_encode(&points_staging,a);points_config_encode(&points_configured,b);if(memcmp(a,b,sizeof(a)))return false;
+    }
+    if(points_staged_occ.revision>points_staging.revision||points_staged_occ.revision<points_occ.revision)return false;
+    if(points_staged_occ.revision==points_occ.revision)
+        for(unsigned i=0;i<POINTS_MAX*2;i++)if(points_staged_occ.highwater[i]<points_occ.highwater[i])return false;
+    if(points_staged_occ.generation&&points_staged_occ.generation==points_occ.generation) {
+        points_ledger_encode(&points_staged_occ,a);points_ledger_encode(&points_occ,b);if(memcmp(a,b,sizeof(a)))return false;
+    }
+    points_configured=points_staging;points_occ=points_staged_occ;
+    if(points_occ.revision==points_configured.revision) {
+        for(unsigned i=0;i<POINTS_MAX*2;i++)if(points_occ.highwater[i]) {
+            points_event e={0};
+            if(!points_event_for_day(&points_configured,i/2,points_occ.highwater[i],i%2,&e,NULL))return false;
+        }
+    }
+    if(points_occ.revision==points_configured.revision&&points_occ.state) {
+        unsigned index=points_occ.slot*2+points_occ.edge;points_event e={0};
+        uint8_t configured_mode=points_configured.points[points_occ.slot].mode;
+        if(configured_mode&&points_occ.mode!=configured_mode)return false;
+        if(!points_event_for_day(&points_configured,points_occ.slot,points_occ.highwater[index],points_occ.edge,&e,NULL)||e.deadline!=points_occ.deadline)return false;
+    }
+    return true;
+}
+static points_ledger points_current_ledger(void) {
+    if(points_occ.revision==points_configured.revision)return points_occ;
+    return (points_ledger){.revision=points_configured.revision,.generation=points_occ.generation};
+}
+static void prepare_point(const points_event *e,bool replay) {
+    selected=2;points_desired=points_current_ledger();
+    if(points_desired.generation==UINT32_MAX){fail(ALARM_EXHAUSTED);return;}
+    points_desired.generation++;points_desired.slot=e->slot;points_desired.edge=e->edge;
+    points_desired.deadline=e->deadline;points_desired.recovery_until=e->deadline+ALARM_RECOVERY_SECONDS;
+    points_desired.state=seconds>=points_desired.recovery_until?ALARM_OCC_EXPIRED:ALARM_OCC_PENDING;
+    points_desired.mode=replay?points_occ.mode:e->mode?e->mode:(uint8_t)staged_mode;
+    points_desired.highwater[e->slot*2+e->edge]=(uint16_t)e->parent_day;
+    desired=(alarm_occurrence){.revision=points_desired.revision,.deadline=e->deadline,.generation=points_desired.generation,
+        .recovery_until=points_desired.recovery_until,.kind=(uint8_t)points_token_kind(e->slot,e->edge),
+        .state=points_desired.state,.mode=points_desired.mode};
+    persistence_pending=true;phase=WRITE_OCC;
+}
+#endif
 static int32_t evaluate(void) {
     for(unsigned i=0;i<2;i++) {
         if(staging[i].revision<config[i].revision)return fail(ALARM_STORAGE);
@@ -117,6 +189,13 @@ static int32_t evaluate(void) {
             if(memcmp(old_bytes,new_bytes,sizeof(old_bytes)))return fail(ALARM_STORAGE);
         }
     }
+#ifdef POINTS_IN_TIME_SERVICE
+    if(!reconcile_points())return fail(ALARM_STORAGE);
+    if(points_configured.revision) {
+        uint32_t local_day;
+        if(seconds<points_configured.created||!points_local_day(seconds,&local_day))return fail(ALARM_RTC);
+    }
+#endif
     memcpy(config,staging,sizeof(config));memcpy(occurrences,staged_occ,sizeof(occurrences));
     if(view.snapshot==UINT32_MAX)return fail(ALARM_EXHAUSTED);
     ++view.snapshot;
@@ -130,6 +209,32 @@ static int32_t evaluate(void) {
         if(alarm_same_occurrence(&occurrences[i],&config[i])&&occurrences[i].state!=ALARM_OCC_PENDING)continue;
         if(candidate<0||config[i].deadline<config[candidate].deadline)candidate=(int)i;
     }
+#ifdef POINTS_IN_TIME_SERVICE
+    if(points_configured.revision) {
+        points_ledger ledger=points_current_ledger();points_event event={0};bool replay=false,have=false;
+        if(ledger.state==ALARM_OCC_PENDING) {
+            have=points_event_for_day(&points_configured,ledger.slot,ledger.highwater[ledger.slot*2+ledger.edge],ledger.edge,&event,NULL)&&event.deadline<=seconds;replay=true;
+        } else {
+            bool compacted=false;
+            /* Compact every expired edge in one atomic ledger write. A long
+             * outage must not require one reconciliation for each missed edge. */
+            for(unsigned slot=0;slot<POINTS_MAX;slot++)for(unsigned edge=0;edge<2;edge++) {
+                points_event expired={0};
+                if(points_latest_for_edge(&points_configured,&ledger,seconds,slot,edge,&expired)&&seconds>=expired.deadline+ALARM_RECOVERY_SECONDS) {
+                    ledger.highwater[slot*2+edge]=(uint16_t)expired.parent_day;compacted=true;
+                }
+            }
+            if(compacted) {
+                if(ledger.generation==UINT32_MAX)return fail(ALARM_EXHAUSTED);
+                ledger.generation++;ledger.state=ledger.slot=ledger.edge=ledger.mode=0;
+                ledger.deadline=ledger.recovery_until=0;points_desired=ledger;
+                desired=(alarm_occurrence){0};selected=2;persistence_pending=true;phase=WRITE_OCC;return ALARM_OK;
+            }
+            have=points_due(&points_configured,&ledger,seconds,&event);
+        }
+        if(have&&(candidate<0||event.deadline<config[candidate].deadline)){prepare_point(&event,replay);return error?error:ALARM_OK;}
+    }
+#endif
     if(candidate>=0)prepare_occurrence((unsigned)candidate,alarm_same_occurrence(&occurrences[candidate],&config[candidate]));
     else {phase=IDLE;next_reconcile=now_ms()+1000;}
     return error?error:ALARM_OK;
@@ -150,7 +255,14 @@ static int32_t do_step(void) {
         phase=LOAD_ALARM_OCC;break;
     }
     case LOAD_ALARM_OCC:if(!read_occurrence(0))return fail(ALARM_STORAGE);phase=LOAD_TIMER_OCC;break;
-    case LOAD_TIMER_OCC:if(!read_occurrence(1))return fail(ALARM_STORAGE);phase=READ_RTC;break;
+    case LOAD_TIMER_OCC:if(!read_occurrence(1))return fail(ALARM_STORAGE);
+#ifdef POINTS_IN_TIME_SERVICE
+        phase=LOAD_POINTS_CFG;break;
+    case LOAD_POINTS_CFG:if(!read_points_config())return fail(ALARM_STORAGE);phase=LOAD_POINTS_OCC;break;
+    case LOAD_POINTS_OCC:if(!read_points_occ())return fail(ALARM_STORAGE);phase=READ_RTC;break;
+#else
+        phase=READ_RTC;break;
+#endif
     case READ_RTC: {
         twatch_rtc_time_v1 t;uint32_t current;
         if(!rtc->read(rtc->context,&t)||t.weekday>6||!alarm_calendar_seconds(t.year,t.month,t.day,t.hour,t.minute,t.second,&current))return fail(ALARM_RTC);
@@ -166,16 +278,33 @@ static int32_t do_step(void) {
     case EVALUATE:return evaluate();
     case IDLE:if(refreshed||now>=next_reconcile)begin_reconcile();break;
     case WRITE_OCC: {
+#ifdef POINTS_IN_TIME_SERVICE
+        if(selected==2) {
+            uint8_t b[POINTS_RECORD_SIZE];points_desired.state=desired.state;points_ledger_encode(&points_desired,b);
+            (void)kv->put(kv->context,POINTS_OCCURRENCE_KEY,b,sizeof(b));phase=VERIFY_OCC;break;
+        }
+#endif
         uint8_t b[ALARM_RECORD_SIZE];alarm_occurrence_encode(&desired,b);
         /* Even IO may have persisted. Always verify before deciding next action. */
         (void)kv->put(kv->context,occ_keys[selected],b,sizeof(b));phase=VERIFY_OCC;break;
     }
     case VERIFY_OCC: {
+#ifdef POINTS_IN_TIME_SERVICE
+        if(selected==2) {
+            uint8_t expected[POINTS_RECORD_SIZE],actual[POINTS_RECORD_SIZE];uint32_t n=0;points_ledger_encode(&points_desired,expected);
+            int32_t r=kv->get(kv->context,POINTS_OCCURRENCE_KEY,actual,sizeof(actual),&n);
+            if(r!=RISC_BOUND_KEY_VALUE_OK||n!=sizeof(actual)||memcmp(actual,expected,sizeof(actual)))return fail(ALARM_STORAGE);
+            points_occ=points_desired;persistence_pending=false;
+        } else {
+#endif
         uint8_t expected[ALARM_RECORD_SIZE],actual[ALARM_RECORD_SIZE];uint32_t n=0;
         alarm_occurrence_encode(&desired,expected);
         int32_t r=kv->get(kv->context,occ_keys[selected],actual,sizeof(actual),&n);
         if(r!=RISC_BOUND_KEY_VALUE_OK||n!=sizeof(actual)||memcmp(actual,expected,sizeof(actual)))return fail(ALARM_STORAGE);
         occurrences[selected]=desired;persistence_pending=false;
+#ifdef POINTS_IN_TIME_SERVICE
+        }
+#endif
         if(desired.state==ALARM_OCC_PENDING) {
             active=true;dismiss=false;alert_started=now_ms();alert_limit_ms=ALARM_INVOCATION_MS;next_pulse=alert_started;phase=ACTIVATE_RTC;
         } else {
@@ -190,7 +319,13 @@ static int32_t do_step(void) {
         if(at<sample_ms||at-sample_ms>UINT32_MAX)return fail(ALARM_RTC);
         uint32_t elapsed=(uint32_t)(at-sample_ms)/1000;
         uint64_t delta=current>=seconds?current-seconds:UINT64_MAX;
-        if(current<config[selected].created||delta==UINT64_MAX||(delta>elapsed?delta-elapsed:elapsed-delta)>2)return fail(ALARM_RTC);
+        if(current<
+#ifdef POINTS_IN_TIME_SERVICE
+           (selected==2?points_configured.created:config[selected].created)||
+#else
+           config[selected].created||
+#endif
+           delta==UINT64_MAX||(delta>elapsed?delta-elapsed:elapsed-delta)>2)return fail(ALARM_RTC);
         seconds=previous_seconds=current;sample_ms=previous_ms=now_ms();
         if(current>=desired.recovery_until||now_ms()-alert_started>=alert_limit_ms)begin_cleanup();
         else {
@@ -206,6 +341,15 @@ static int32_t do_step(void) {
         /* Cancellation linearizes at this read. It and the first output call
            are one serialized phase, so no foreground writer can interleave.
            This phase alone may perform two dependency calls. */
+#ifdef POINTS_IN_TIME_SERVICE
+        if(selected==2) {
+            uint8_t expected[POINTS_RECORD_SIZE],actual[POINTS_RECORD_SIZE];uint32_t n=0;
+            points_config_encode(&points_configured,expected);
+            int32_t r=kv->get(kv->context,POINTS_CONFIG_KEY,actual,sizeof(actual),&n);points_config latest;
+            if(r!=RISC_BOUND_KEY_VALUE_OK||!points_config_decode(&latest,actual,n))return fail(ALARM_STORAGE);
+            if(memcmp(expected,actual,sizeof(actual))){active=false;begin_reconcile();break;}
+        } else {
+#endif
         uint8_t expected[ALARM_RECORD_SIZE],actual[ALARM_RECORD_SIZE];uint32_t n=0;
         alarm_config_encode(&config[selected],expected);
         int32_t r=kv->get(kv->context,cfg_keys[selected],actual,sizeof(actual),&n);
@@ -213,6 +357,9 @@ static int32_t do_step(void) {
         alarm_config latest;
         if(!alarm_config_decode(&latest,actual,n,(uint8_t)(selected+1)))return fail(ALARM_STORAGE);
         if(memcmp(expected,actual,sizeof(actual))) {active=false;begin_reconcile();break;}
+#ifdef POINTS_IN_TIME_SERVICE
+        }
+#endif
         if(now_ms()-alert_started>=alert_limit_ms){begin_cleanup();break;}
         if(desired.mode&ALARM_MODE_SOUND) {
             audio_uncertain=true;
@@ -294,6 +441,12 @@ static int32_t acknowledge(void *c,const alarm_token_v1 *value) {
             alarm_token_v1 confirmed=token(&occurrences[i]);
             if(alarm_token_equal(value,&confirmed))return ALARM_OK;
         }
+#ifdef POINTS_IN_TIME_SERVICE
+        if(points_occ.state==ALARM_OCC_ACKED&&points_occ.revision==points_configured.revision) {
+            alarm_token_v1 confirmed={points_token_kind(points_occ.slot,points_occ.edge),points_occ.revision,points_occ.deadline,points_occ.generation};
+            if(alarm_token_equal(value,&confirmed))return ALARM_OK;
+        }
+#endif
         return ALARM_STALE;
     }
     alarm_token_v1 current=token(&desired);
@@ -310,6 +463,20 @@ static int32_t prepare_sleep_internal(alarm_sleep_v1 *out) {
         (!alarm_same_occurrence(&occurrences[i],&config[i])||occurrences[i].state==ALARM_OCC_PENDING)) {
         if(!deadline||config[i].deadline<deadline)deadline=config[i].deadline;
     }
+#ifdef POINTS_IN_TIME_SERVICE
+    if(points_configured.revision) {
+        points_ledger ledger=points_current_ledger();uint32_t day;
+        if(ledger.state==ALARM_OCC_PENDING&&ledger.deadline>seconds&&(!deadline||ledger.deadline<deadline))deadline=ledger.deadline;
+        if(!points_local_day(seconds,&day))return ALARM_RTC;
+        for(unsigned slot=0;slot<POINTS_MAX;slot++)for(unsigned edge=0;edge<2;edge++) {
+            uint32_t first=day>1?day-1:day;
+            if(first<=ledger.highwater[slot*2+edge])first=(uint32_t)ledger.highwater[slot*2+edge]+1;
+            for(unsigned offset=0;offset<=8;offset++) {
+                points_event event={0};if(points_event_for_day(&points_configured,slot,first+offset,edge,&event,NULL)&&event.deadline>seconds&&(!deadline||event.deadline<deadline))deadline=event.deadline;
+            }
+        }
+    }
+#endif
     *out=(alarm_sleep_v1){sizeof(*out),view.snapshot,seconds,deadline};sleep_waiting=false;return ALARM_OK;
 }
 static int32_t prepare_sleep(void *c,alarm_sleep_v1 *out) {
@@ -367,6 +534,9 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
        !haptic||!haptic->effect||!haptic->stop||!audio||!audio->open||!audio->write||!audio->silence||!audio->close) {
         kv=NULL;clock_api=NULL;rtc=NULL;haptic=NULL;audio=NULL;return false;
     }
+#ifdef POINTS_IN_TIME_SERVICE
+    memset(&points_configured,0,sizeof(points_configured));memset(&points_occ,0,sizeof(points_occ));
+#endif
     memset(config,0,sizeof(config));memset(occurrences,0,sizeof(occurrences));memset(&view,0,sizeof(view));
     memset(&desired,0,sizeof(desired));
     active=dismiss=anchored=sleep_waiting=persistence_pending=false;

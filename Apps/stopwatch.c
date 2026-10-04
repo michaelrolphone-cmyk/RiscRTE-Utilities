@@ -4,6 +4,9 @@
 #include "PortableRtcClock.h"
 #include "stopwatch_core.h"
 #include "daily_draw.h"
+#ifdef PORTABLE_ALARM_CLIENT
+#include "PortableAppSleep.h"
+#endif
 #include <stddef.h>
 #include <string.h>
 static const t5_app_api_v1 *app;
@@ -112,12 +115,22 @@ void app_main(void) {
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->draw_text||!app->draw_label||!app->fill_rect||!app->present)return;
  if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
  if(!open_state()){status="RTC OR STORAGE UNAVAILABLE";draw();
-  for(;;){t5_app_input_t input={0};if(!app->poll(&input,50)||input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK))break;}
+  for(;;){t5_app_input_t input={0};if(!app->poll(&input,50)) {
+#ifdef PORTABLE_ALARM_CLIENT
+   if(portable_app_sleep_retained())return;
+#endif
+   break;
+  }if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK))break;}
   close_state();return;
  }
  restore();draw();uint32_t rendered=app->millis(),checked=rendered;
  for(;;) {
-  t5_app_input_t input={0};if(!app->poll(&input,20)||input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK))break;
+  t5_app_input_t input={0};if(!app->poll(&input,20)) {
+#ifdef PORTABLE_ALARM_CLIENT
+   if(portable_app_sleep_retained())return;
+#endif
+   break;
+  }if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK))break;
   uint32_t now=app->millis();bool was_running=clock_state.running;sw_tick(&clock_state,now);bool dirty=false;
   if(was_running&&!clock_state.running){status="99 HOUR LIMIT - RESET";dirty=true;}
   if(clock_state.running&&(uint32_t)(now-checked)>=1000) {

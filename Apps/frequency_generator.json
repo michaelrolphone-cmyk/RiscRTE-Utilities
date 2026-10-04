@@ -1,11 +1,11 @@
 {
-  "min_firmware_version": "0.1.7",
-  "version": "0.1.2",
-  "display_name": "Countdown",
-  "file_name": "countdown.elf",
-  "icon": "solid:f254",
+  "min_firmware_version": "0.1.16",
+  "version": "0.1.1",
+  "display_name": "Frequency Generator",
+  "file_name": "frequency_generator.elf",
+  "icon": "solid:f028",
   "category": [
-    "Utilities"
+    "Audio Tools"
   ],
   "runtime_profile": "portable-riscrte-v1",
   "requires": [
@@ -18,11 +18,7 @@
       "api": ">=1"
     },
     {
-      "capability": "rtc.clock",
-      "api": ">=2"
-    },
-    {
-      "capability": "storage.key-value",
+      "capability": "audio.output",
       "api": ">=1"
     },
     {
