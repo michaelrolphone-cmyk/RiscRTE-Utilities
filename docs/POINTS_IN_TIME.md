@@ -1,4 +1,4 @@
-# Recurring Points: ordinary Alarm service 0.2.0
+# Recurring Points: ordinary Alarm service 0.2.1
 
 Points in Time is a Productivity-owned optional end-user app. Utilities owns the
 reusable recurrence/record helpers and this ordinary singleton provider ELF;
@@ -10,9 +10,9 @@ Runtime or firmware. Reader remains read-only.
 ## Opt-in identity and unchanged ABI
 
 Build service.c with POINTS_IN_TIME_SERVICE and select points-manifest.json:
-alarm-service 0.2.0, ordinary driver ABI2, capability alarm.service@1. The separate
+alarm-service 0.2.1, ordinary driver ABI2, capability alarm.service@1. The separate
 legacy build without that define still selects manifest.json (0.1.0), its two
-one-shot records and exact five-key fixtures. Never ship a 0.2.0 manifest with an
+one-shot records and exact five-key fixtures. Never ship a 0.2.1 manifest with an
 unopted-in ELF or call newly built bytes an existing released artifact.
 
 AlarmServiceV1.h is unchanged: 104-byte status, 16-byte token/sleep decision and
@@ -127,7 +127,16 @@ output failure, stop-only retention, invalid RTC, rollback and checksums.
 Existing test_alarm_apps.py remains required and unchanged five-key tests pass.
 
 scripts/build_points_service.py builds the real pinned GCC8.4 Xtensa ELF, checks
-exports/imports, target ABI/ELF validity, source digests and distinct0.2.0 identity.
+exports/imports, target ABI/ELF validity, source digests and distinct0.2.1 identity.
 The target loader also checks this optional ELF when present. Exact Watch
 cross-layer coverage, CI custody and real hardware wake/output/power-loss/current
 draw qualification remain separate requirements. Building does not flash.
+
+## 0.2.1 compiler-warning correction
+
+GCC11 host CI reported a maybe-uninitialized candidate in the expired-edge path
+under -O1 -Werror. Five service-local event candidates now have explicit zero
+initializers; no warning is disabled. Shared Points headers, app helpers, ABI and
+storage formats are unchanged. Pinned GCC8.4 produces changed service ELF bytes,
+so this correction uses a new0.2.1 identity. Existing shared apps retain their
+versions because their inputs and bytes are unaffected.

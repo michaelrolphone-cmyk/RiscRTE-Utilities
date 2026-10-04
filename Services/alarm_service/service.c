@@ -146,12 +146,12 @@ static bool reconcile_points(void) {
     points_configured=points_staging;points_occ=points_staged_occ;
     if(points_occ.revision==points_configured.revision) {
         for(unsigned i=0;i<POINTS_MAX*2;i++)if(points_occ.highwater[i]) {
-            points_event e;
+            points_event e={0};
             if(!points_event_for_day(&points_configured,i/2,points_occ.highwater[i],i%2,&e,NULL))return false;
         }
     }
     if(points_occ.revision==points_configured.revision&&points_occ.state) {
-        unsigned index=points_occ.slot*2+points_occ.edge;points_event e;
+        unsigned index=points_occ.slot*2+points_occ.edge;points_event e={0};
         uint8_t configured_mode=points_configured.points[points_occ.slot].mode;
         if(configured_mode&&points_occ.mode!=configured_mode)return false;
         if(!points_event_for_day(&points_configured,points_occ.slot,points_occ.highwater[index],points_occ.edge,&e,NULL)||e.deadline!=points_occ.deadline)return false;
@@ -211,7 +211,7 @@ static int32_t evaluate(void) {
     }
 #ifdef POINTS_IN_TIME_SERVICE
     if(points_configured.revision) {
-        points_ledger ledger=points_current_ledger();points_event event;bool replay=false,have=false;
+        points_ledger ledger=points_current_ledger();points_event event={0};bool replay=false,have=false;
         if(ledger.state==ALARM_OCC_PENDING) {
             have=points_event_for_day(&points_configured,ledger.slot,ledger.highwater[ledger.slot*2+ledger.edge],ledger.edge,&event,NULL)&&event.deadline<=seconds;replay=true;
         } else {
@@ -219,7 +219,7 @@ static int32_t evaluate(void) {
             /* Compact every expired edge in one atomic ledger write. A long
              * outage must not require one reconciliation for each missed edge. */
             for(unsigned slot=0;slot<POINTS_MAX;slot++)for(unsigned edge=0;edge<2;edge++) {
-                points_event expired;
+                points_event expired={0};
                 if(points_latest_for_edge(&points_configured,&ledger,seconds,slot,edge,&expired)&&seconds>=expired.deadline+ALARM_RECOVERY_SECONDS) {
                     ledger.highwater[slot*2+edge]=(uint16_t)expired.parent_day;compacted=true;
                 }
@@ -472,7 +472,7 @@ static int32_t prepare_sleep_internal(alarm_sleep_v1 *out) {
             uint32_t first=day>1?day-1:day;
             if(first<=ledger.highwater[slot*2+edge])first=(uint32_t)ledger.highwater[slot*2+edge]+1;
             for(unsigned offset=0;offset<=8;offset++) {
-                points_event event;if(points_event_for_day(&points_configured,slot,first+offset,edge,&event,NULL)&&event.deadline>seconds&&(!deadline||event.deadline<deadline))deadline=event.deadline;
+                points_event event={0};if(points_event_for_day(&points_configured,slot,first+offset,edge,&event,NULL)&&event.deadline>seconds&&(!deadline||event.deadline<deadline))deadline=event.deadline;
             }
         }
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the opt-in ordinary Alarm service0.2.0; no Runtime ABI changes."""
+"""Build the opt-in ordinary Alarm service0.2.1; no Runtime ABI changes."""
 import argparse,hashlib,json,os,shutil,subprocess
 from pathlib import Path
 from build_alarm_apps import ROOT,verify_system,verify_runtime,run,PIN,RUNTIME_PIN
@@ -22,10 +22,10 @@ def build(system,runtime):
  if data[:7]!=b'\x7fELF\x01\x01\x01' or data[16:20]!=b'\x03\x00\x5e\x00':raise ValueError('Wrong target ABI')
  validator=out/'validate-elf';run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror','-I'+str(ROOT/'test/native_apps/stubs'),'-I'+str(ROOT/'lib/elf_loader/include'),ROOT/'lib/elf_loader/src/esp_elf_validate.c',ROOT/'test/native_apps/validate_test.c','-o',validator]);run([validator,elf])
  manifest=(ROOT/'Services/alarm_service/points-manifest.json').read_bytes();side=json.loads(manifest)
- if side['version']!='0.2.0' or side['provides']!=[{'capability':'alarm.service','api':1}]:raise ValueError('Wrong opted-in service identity')
+ if side['version']!='0.2.1' or side['provides']!=[{'capability':'alarm.service','api':1}]:raise ValueError('Wrong opted-in service identity')
  (out/'manifest.json').write_bytes(manifest)
  sources=['Services/alarm_service/service.c','lib/Alarm/include/PointsRecords.h','lib/Alarm/include/PointsSchedule.h','lib/Alarm/include/AlarmServiceV1.h','lib/Alarm/include/AlarmRecords.h']
  evidence={'schema':1,'service_version':side['version'],'source_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'system_apps_sha':PIN,'runtime_sha':actual_runtime,'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'defines':flags,'elf_sha256':hashlib.sha256(data).hexdigest(),'size_bytes':len(data),'imports':sorted(imports),'exports':sorted(exports),'sources':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources},'hardware_verified':False}
- (out/'build-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n');print('Points ordinary Alarm service0.2.0 target ELF/import/ABI validation passed')
+ (out/'build-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n');print('Points ordinary Alarm service0.2.1 target ELF/import/ABI validation passed')
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);p.add_argument('--runtime',type=Path,required=True);a=p.parse_args();build(a.system_apps.resolve(),a.runtime.resolve())

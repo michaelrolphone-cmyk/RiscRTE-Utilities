@@ -86,7 +86,7 @@ claim awake-only alarms satisfy that requirement.
 
 ## Recurring Points service extension
 
-[Points in Time](docs/POINTS_IN_TIME.md) adds an explicitly opted-in0.2.0 build of
+[Points in Time](docs/POINTS_IN_TIME.md) adds an explicitly opted-in0.2.1 build of
 the same ordinary Alarm singleton. Its fixed eight-point catalog and durable
 start/end ledger each fit64 bytes, use two extra explicit key bindings, and keep
 alarm.service@1 unchanged. The Points editor belongs to Productivity; the eight
