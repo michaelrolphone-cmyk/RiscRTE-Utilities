@@ -83,3 +83,13 @@ The service and writers are implemented and tested, but genuine output backend,
 common foreground preservation and owned low-power wake integration must be
 finished before a working Watch image is delivered. This repository does not
 claim awake-only alarms satisfy that requirement.
+
+## Recurring Points service extension
+
+[Points in Time](docs/POINTS_IN_TIME.md) adds an explicitly opted-in0.2.0 build of
+the same ordinary Alarm singleton. Its fixed eight-point catalog and durable
+start/end ledger each fit64 bytes, use two extra explicit key bindings, and keep
+alarm.service@1 unchanged. The Points editor belongs to Productivity; the eight
+schedule faces and deployment belong to Watch. Existing non-opted-in0.1.0 builds
+retain their five-key authority and one-shot behavior. New source fixtures and
+target ELF checks are part of CI; hardware qualification is separate.

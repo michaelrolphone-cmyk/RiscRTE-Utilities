@@ -13,7 +13,7 @@ import shutil
 import subprocess
 from app_manifest import validate_manifest
 ROOT=Path(__file__).resolve().parents[1]
-PIN='f204477b287263fa6c5a2d095829caf86b327506'
+PIN='911be9e8042f1bcc46038fb70189eebe4ca106c5'
 IMPORTS={'risc_runtime_get_api','memcpy','memset','memcmp','strcmp','strlen','snprintf','malloc','free','strcpy'}
 EXPORTS={'app_main','app_module_init','app_module_fini'}
 def inventory():

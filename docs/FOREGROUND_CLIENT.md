@@ -26,3 +26,11 @@ releasing their private grants; Runtime retains before module fini. The ordinary
 failed-presentation path remains adapter-owned bounded stop_only followed by
 normal writer cleanup only when safe. Dedicated native-retention fixtures cover
 full and partial Stopwatch dependency opens and both writer kinds.
+
+## Points-dependent client increment
+
+The recurring Points branch selects System Apps PR27,
+911be9e8042f1bcc46038fb70189eebe4ca106c5, to render copied service labels in the
+shared modal. Rebuilt identities are Battery1.0.8, Calculator/Stopwatch0.1.3 and
+Alarms/Countdown0.1.2. The legacy unopted-in provider remains0.1.0; the explicit
+recurrence provider is0.2.0 with points-manifest.json. See POINTS_IN_TIME.md.

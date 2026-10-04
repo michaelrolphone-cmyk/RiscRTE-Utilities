@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: f204477b287263fa6c5a2d095829caf86b327506
+          ref: 911be9e8042f1bcc46038fb70189eebe4ca106c5
           path: .dependencies/system-apps
           persist-credentials: false
       - name: Exact generic provider-storage source
@@ -39,6 +39,7 @@ jobs:
       - name: Exercise staged Alarm and Countdown production source
         run: |
           python scripts/test_alarm_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
+          python scripts/test_points_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           bash scripts/test_alarm_runtime.sh .dependencies/runtime .dependencies/system-apps
           SANITIZE=1 bash scripts/test_alarm_runtime.sh .dependencies/runtime .dependencies/system-apps
       - name: Exercise shared Calculator and Stopwatch
@@ -53,6 +54,7 @@ jobs:
           python scripts/check_release_parity.py
           python scripts/build_portable_apps.py --system-apps .dependencies/system-apps
           python scripts/build_alarm_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
+          python scripts/build_points_service.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           bash scripts/test_alarm_target_loader.sh .dependencies/runtime
       - uses: actions/upload-artifact@v4
         with:
@@ -61,5 +63,6 @@ jobs:
             dist/apps/
             dist/portable-apps/
             dist/alarm-apps/
+            dist/points-service/
           if-no-files-found: error
           retention-days: 14
