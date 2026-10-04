@@ -49,3 +49,27 @@ CI produces development artifacts only. Current-master parity is distinct from p
 ## Licenses
 
 See [project MIT license](LICENSE) and the preserved [Apache-2.0 license for vendored ELF loader files](lib/elf_loader/license.txt). Original notices remain intact.
+
+## Shared daily tools for the minimal runtime
+
+Calculator 0.1.0 and Stopwatch 0.1.0 are original shared Utilities apps. Their
+explicit `portable_apps` inventory uses the separately pinned portable client
+profile, leaving the three Reader migration/release-parity apps unchanged.
+The same source is built into the Watch deployment; there is no Watch app fork.
+
+- [Calculator](docs/apps/calculator.md): four operations, decimal entry, sign,
+  delete, repeated equals and bounded deterministic six-place arithmetic.
+- [Stopwatch](docs/apps/stopwatch.md): monotonic fractional timing while open,
+  persisted state and RTC-based approximate recovery after app changes or reset.
+
+`python scripts/test_daily_apps.py --system-apps /clean/pinned/system-apps`
+exercises real app source plus failure/property tests under normal and sanitizer
+builds. `python scripts/build_portable_apps.py --system-apps /clean/pinned/system-apps`
+builds target ELFs against exact shared source
+`fd6bed09fe6716c8d3a75c0538c4f232f3cc388e`. Results are development evidence in
+`dist/portable-apps`, not release/install catalogs or hardware qualification.
+No new firmware ABI, chip driver, sound, alarm wake, filesystem or timezone
+policy is introduced by this subset. The Watch's existing caller return and
+crown Back are deployment-owned. Standalone generic builds require an authorized
+RGB565 display/touch implementation; Stopwatch also requires RTC and a scoped
+key-value grant. Full merged reflashing may erase that saved state.
