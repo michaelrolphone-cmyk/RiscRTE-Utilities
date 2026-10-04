@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "system_apps": "95783cb7071e025b90977dbc331b5d06cfe996f9",
-  "watch_audio_abi": "216e2d73b72cca6c3bcf75ad9ef56466b8861144",
-  "runtime_minimum": "0.1.12",
-  "purpose": "Audio Tools development with exact foreground lifecycle adapter"
+  "system_apps": "593004abccf277def71dd01ef4281d2d2890aa4b",
+  "watch_audio_abi": "f649a161314997a4affab4f813d702d434b8184e",
+  "runtime_minimum": "0.1.16",
+  "purpose": "Audio Tools integration with current foreground lifecycle adapter and native PDM Runtime backend"
 }
