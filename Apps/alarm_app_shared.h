@@ -5,6 +5,9 @@
 #include "PortableRtcClock.h"
 #include "PortableTime.h"
 #include "alarm_writer.h"
+#ifdef PORTABLE_ALARM_CLIENT
+#include "PortableAppSleep.h"
+#endif
 #include "daily_draw.h"
 #include <stddef.h>
 #include <stdio.h>
@@ -172,6 +175,7 @@ void app_main(void) {
 #ifdef PORTABLE_ALARM_CLIENT
             /* The shared adapter already owns the settled/error boundary and
                bounded output cleanup; never repeat or race it here. */
+            if(portable_app_sleep_retained())return;
             break;
 #else
             /* A false poll can mean an outstanding/failed presentation. Only

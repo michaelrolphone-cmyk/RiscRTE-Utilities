@@ -1,6 +1,6 @@
 # Optional shared foreground alarm integration
 
-This dependent source increment pins System Apps751daeed69ecd0c8886e593f519e66a9408304d7
+This dependent source increment pins System Appsf204477b287263fa6c5a2d095829caf86b327506
 (PR24) and advances rebuilt application versions: Battery1.0.7,
 Calculator/Stopwatch0.1.2, Alarms/Countdown0.1.1. The ordinary alarm-service0.1.0
 source and canonical contract remain unchanged from PR11.
@@ -19,3 +19,10 @@ is added here. Final Watch integration and physical qualification remain separat
 The paired0.1.7 provider-storage SDK build fixture remains valid for the unchanged
 service; the final Watch deployment will select the separately reviewed0.1.8
 Runtime output/capacity prerequisite.
+
+Native retained sleep is propagated separately by the shared adapter. In that
+case Alarm/Countdown and both Stopwatch polling paths immediately return without
+releasing their private grants; Runtime retains before module fini. The ordinary
+failed-presentation path remains adapter-owned bounded stop_only followed by
+normal writer cleanup only when safe. Dedicated native-retention fixtures cover
+full and partial Stopwatch dependency opens and both writer kinds.
