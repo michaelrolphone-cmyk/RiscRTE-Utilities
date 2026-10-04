@@ -1,6 +1,6 @@
 {
-  "min_firmware_version": "0.1.12",
-  "version": "0.1.0",
+  "min_firmware_version": "0.1.16",
+  "version": "0.1.1",
   "display_name": "Audio Spectrum",
   "file_name": "audio_spectrum.elf",
   "icon": "solid:f130",
