@@ -1,0 +1,21 @@
+{
+  "min_firmware_version": "0.1.5",
+  "version": "0.1.0",
+  "display_name": "Waterfall",
+  "file_name": "waterfall.elf",
+  "icon": "solid:f012",
+  "category": [
+    "Utilities"
+  ],
+  "runtime_profile": "portable-riscrte-v1",
+  "requires": [
+    {
+      "capability": "display.output",
+      "api": ">=1"
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": ">=1"
+    }
+  ]
+}
