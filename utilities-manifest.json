@@ -82,7 +82,7 @@
     {
       "id": "waterfall",
       "display_name": "Waterfall",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/waterfall.c",
@@ -91,7 +91,7 @@
       "additional_sources": [
         "Apps/daily_draw.h",
         "Apps/waterfall_core.h",
-        "Apps/s3_iq_burst.h"
+        "Apps/radio_iq_v1.h"
       ]
     }
   ]
