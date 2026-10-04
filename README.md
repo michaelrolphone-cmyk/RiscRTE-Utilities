@@ -73,3 +73,13 @@ policy is introduced by this subset. The Watch's existing caller return and
 crown Back are deployment-owned. Standalone generic builds require an authorized
 RGB565 display/touch implementation; Stopwatch also requires RTC and a scoped
 key-value grant. Full merged reflashing may erase that saved state.
+
+## Staged Alarm and Countdown work
+
+[Alarms](docs/apps/alarms.md), [Countdown](docs/apps/countdown.md) and the
+[ordinary alarm service](docs/ALARM_SERVICE.md) use a separate development
+inventory and build. They preserve the delivered Calculator/Stopwatch profile.
+The service and writers are implemented and tested, but genuine output backend,
+common foreground preservation and owned low-power wake integration must be
+finished before a working Watch image is delivered. This repository does not
+claim awake-only alarms satisfy that requirement.

@@ -79,5 +79,52 @@
         "Apps/stopwatch_core.h"
       ]
     }
+  ],
+  "alarm_apps": [
+    {
+      "id": "alarms",
+      "display_name": "Alarms",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/alarms.c",
+      "manifest_path": "Apps/alarms.json",
+      "file_name": "alarms.elf",
+      "additional_sources": [
+        "Apps/alarm_app_shared.h",
+        "Apps/alarm_writer.h",
+        "Apps/daily_draw.h",
+        "lib/Alarm/include/AlarmServiceV1.h",
+        "lib/Alarm/include/AlarmRecords.h"
+      ]
+    },
+    {
+      "id": "countdown",
+      "display_name": "Countdown",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/countdown.c",
+      "manifest_path": "Apps/countdown.json",
+      "file_name": "countdown.elf",
+      "additional_sources": [
+        "Apps/alarm_app_shared.h",
+        "Apps/alarm_writer.h",
+        "Apps/daily_draw.h",
+        "lib/Alarm/include/AlarmServiceV1.h",
+        "lib/Alarm/include/AlarmRecords.h"
+      ]
+    }
+  ],
+  "alarm_services": [
+    {
+      "id": "alarm-service",
+      "version": "0.1.0",
+      "source_path": "Services/alarm_service/service.c",
+      "manifest_path": "Services/alarm_service/manifest.json",
+      "file_name": "driver.elf",
+      "runtime_profile": "ordinary-provider-v2",
+      "status": "development-only"
+    }
   ]
 }

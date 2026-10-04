@@ -29,6 +29,18 @@ jobs:
           ref: b28428505c9e067bb6ea8a84d12f13ec0bcc4992
           path: .dependencies/system-apps
           persist-credentials: false
+      - name: Exact generic provider-storage source
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: b2fc83280c54ca3ebd567184cc50e4785daa3951
+          path: .dependencies/runtime
+          persist-credentials: false
+      - name: Exercise staged Alarm and Countdown production source
+        run: |
+          python scripts/test_alarm_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
+          bash scripts/test_alarm_runtime.sh .dependencies/runtime .dependencies/system-apps
+          SANITIZE=1 bash scripts/test_alarm_runtime.sh .dependencies/runtime .dependencies/system-apps
       - name: Exercise shared Calculator and Stopwatch
         run: python scripts/test_daily_apps.py --system-apps .dependencies/system-apps
       - name: Install pinned public compiler
@@ -40,11 +52,14 @@ jobs:
           python scripts/build_all_apps.py
           python scripts/check_release_parity.py
           python scripts/build_portable_apps.py --system-apps .dependencies/system-apps
+          python scripts/build_alarm_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
+          bash scripts/test_alarm_target_loader.sh .dependencies/runtime
       - uses: actions/upload-artifact@v4
         with:
           name: utilities-development-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             dist/apps/
             dist/portable-apps/
+            dist/alarm-apps/
           if-no-files-found: error
           retention-days: 14
