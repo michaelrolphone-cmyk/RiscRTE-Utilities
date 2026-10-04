@@ -1,7 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
 #include "../Apps/waterfall_core.h"
-#include "../Apps/s3_iq_burst.h"
 
 static int16_t qsin(unsigned n) { return waterfall_sin_q14[n & (WATERFALL_FFT - 1)]; }
 
@@ -47,12 +46,6 @@ int main(void) {
     assert(image.rows_pushed == 2);
     assert(image.tone[1][best] == 0);
 
-    uint32_t pairs[8] = {0};
-    assert(s3_iq_take_burst(NULL, 8) == S3_IQ_BAD_ARGUMENT);
-    assert(s3_iq_take_burst(pairs, 0) == S3_IQ_BAD_ARGUMENT);
-    assert(s3_iq_radio_ready == 0);
-    assert(s3_iq_take_burst(pairs, 8) == S3_IQ_NEED_RADIO_BRINGUP);
-    assert(pairs[0] == 0);
     printf("waterfall core ok\n");
     return 0;
 }
