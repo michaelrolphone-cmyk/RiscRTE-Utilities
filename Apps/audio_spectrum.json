@@ -1,0 +1,29 @@
+{
+  "min_firmware_version": "0.1.12",
+  "version": "0.1.0",
+  "display_name": "Audio Spectrum",
+  "file_name": "audio_spectrum.elf",
+  "icon": "solid:f130",
+  "category": [
+    "Audio Tools"
+  ],
+  "runtime_profile": "portable-riscrte-v1",
+  "requires": [
+    {
+      "capability": "display.output",
+      "api": ">=1"
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": ">=1"
+    },
+    {
+      "capability": "audio.input",
+      "api": ">=1"
+    },
+    {
+      "capability": "alarm.service",
+      "api": ">=1"
+    }
+  ]
+}

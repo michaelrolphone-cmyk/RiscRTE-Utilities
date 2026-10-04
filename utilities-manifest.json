@@ -142,6 +142,21 @@
         "Apps/daily_draw.h",
         "lib/Alarm/include/AlarmOutputV1.h"
       ]
+    },
+    {
+      "id": "audio_spectrum",
+      "display_name": "Audio Spectrum",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/audio_spectrum.c",
+      "manifest_path": "Apps/audio_spectrum.json",
+      "file_name": "audio_spectrum.elf",
+      "additional_sources": [
+        "Apps/AudioInputV1.h",
+        "Apps/spectrum_core.h",
+        "Apps/daily_draw.h"
+      ]
     }
   ]
 }

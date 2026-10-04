@@ -102,3 +102,8 @@ portable alarm-aware UI, with bounded synthesis, explicit Start, low initial
 level and checked cleanup. Exact shared audio lifecycle and Runtime prerequisites
 are required; this does not change the existing Reader migration cohort or
 declare an untested Watch installation ready.
+
+[Audio Spectrum](docs/apps/audio_spectrum.md) adds the second Audio Tools app: a
+user-started microphone spectrum and scrolling spectrogram, sharing the existing
+input provider and foreground lifecycle. It keeps only bounded RAM snapshots,
+stops for alarms/sleep/Back, and never resumes capture automatically.

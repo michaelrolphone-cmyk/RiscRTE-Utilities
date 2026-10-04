@@ -9,7 +9,7 @@ from build_audio_apps import inventory
 class AudioInventory(unittest.TestCase):
     def test_exact_generator_identity(self):
         apps=inventory()
-        self.assertEqual([x['id'] for x in apps],['frequency_generator'])
+        self.assertEqual([x['id'] for x in apps],['frequency_generator','audio_spectrum'])
         side=json.loads((ROOT/'Apps/frequency_generator.json').read_text())
         self.assertEqual(side['version'],'0.1.0')
         self.assertEqual([r['capability'] for r in side['requires']],
@@ -32,3 +32,11 @@ class AudioInventory(unittest.TestCase):
         code=(ROOT/'scripts/build_audio_apps.py').read_text()
         for name in ('LICENSE-FontAwesome.txt','LICENSE-Orbitron.txt','LICENSE-Rajdhani.txt','SOURCES.json','LICENSE-Utilities.txt'):
             self.assertIn(name,code)
+
+    def test_spectrum_declares_alarm_and_input(self):
+        side=json.loads((ROOT/'Apps/audio_spectrum.json').read_text())
+        self.assertEqual(side['category'],['Audio Tools'])
+        self.assertEqual(side['version'],'0.1.0')
+        self.assertEqual([r['capability'] for r in side['requires']],
+            ['display.output','input.touch.raw','audio.input','alarm.service'])
+        self.assertNotIn('storage.key-value',json.dumps(side))

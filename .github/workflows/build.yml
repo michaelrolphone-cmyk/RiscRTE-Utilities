@@ -51,9 +51,10 @@ jobs:
           ref: 95783cb7071e025b90977dbc331b5d06cfe996f9
           path: .dependencies/audio-system-apps
           persist-credentials: false
-      - name: Exercise Frequency Generator core and lifecycle
+      - name: Exercise shared Audio Tools and lifecycle
         run: |
           python scripts/test_frequency_generator.py --system-apps .dependencies/audio-system-apps
+          python scripts/test_audio_spectrum.py --system-apps .dependencies/audio-system-apps
           python scripts/test_audio_service_lifecycle.py --system-apps .dependencies/audio-system-apps --runtime .dependencies/runtime
       - name: Install pinned public compiler
         run: |
