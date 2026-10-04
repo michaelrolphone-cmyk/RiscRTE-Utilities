@@ -1,0 +1,21 @@
+{
+  "min_firmware_version": "0.1.5",
+  "version": "0.1.1",
+  "display_name": "Calculator",
+  "file_name": "calculator.elf",
+  "icon": "solid:f00a",
+  "category": [
+    "Utilities"
+  ],
+  "runtime_profile": "portable-riscrte-v1",
+  "requires": [
+    {
+      "capability": "display.output",
+      "api": ">=1"
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": ">=1"
+    }
+  ]
+}

@@ -22,6 +22,15 @@ jobs:
       - name: Exercise app UI and provider interaction fixtures
         run: |
           python scripts/test_apps.py
+      - name: Exact shared portable client source
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: b28428505c9e067bb6ea8a84d12f13ec0bcc4992
+          path: .dependencies/system-apps
+          persist-credentials: false
+      - name: Exercise shared Calculator and Stopwatch
+        run: python scripts/test_daily_apps.py --system-apps .dependencies/system-apps
       - name: Install pinned public compiler
         run: |
           python -m pip install platformio==6.1.19
@@ -30,9 +39,12 @@ jobs:
         run: |
           python scripts/build_all_apps.py
           python scripts/check_release_parity.py
+          python scripts/build_portable_apps.py --system-apps .dependencies/system-apps
       - uses: actions/upload-artifact@v4
         with:
           name: utilities-development-${{ github.event.pull_request.head.sha || github.sha }}
-          path: dist/apps/
+          path: |
+            dist/apps/
+            dist/portable-apps/
           if-no-files-found: error
           retention-days: 14

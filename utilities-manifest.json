@@ -36,7 +36,7 @@
     {
       "id": "battery",
       "display_name": "Battery Status",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "min_firmware_version": "1.1.18",
       "file_name": "battery.elf",
       "classification": "utility",
@@ -48,6 +48,36 @@
       "source": "Apps/battery.c",
       "manifest": "Apps/battery.json",
       "upstream_commit": "3d9bc4f373679f5ae8dd184db6a8d0afa5a40231"
+    }
+  ],
+  "portable_apps": [
+    {
+      "id": "calculator",
+      "display_name": "Calculator",
+      "version": "0.1.1",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/calculator.c",
+      "manifest_path": "Apps/calculator.json",
+      "file_name": "calculator.elf",
+      "additional_sources": [
+        "Apps/daily_draw.h",
+        "Apps/calculator_core.h"
+      ]
+    },
+    {
+      "id": "stopwatch",
+      "display_name": "Stopwatch",
+      "version": "0.1.1",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/stopwatch.c",
+      "manifest_path": "Apps/stopwatch.json",
+      "file_name": "stopwatch.elf",
+      "additional_sources": [
+        "Apps/daily_draw.h",
+        "Apps/stopwatch_core.h"
+      ]
     }
   ]
 }
