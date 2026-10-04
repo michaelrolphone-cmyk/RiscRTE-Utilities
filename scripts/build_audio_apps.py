@@ -19,7 +19,7 @@ def inventory():
         if name not in ('frequency_generator','audio_spectrum') or app['source_path']!=f'Apps/{name}.c' or app['manifest_path']!=f'Apps/{name}.json' or app['file_name']!=name+'.elf':raise ValueError('Invalid audio source identity')
         validate_manifest(ROOT/app['source_path'],name+'.elf')
         side=json.loads((ROOT/app['manifest_path']).read_text())
-        if app['version']!=side['version'] or side['runtime_profile']!='portable-riscrte-v1' or side['min_firmware_version']!='0.1.12':raise ValueError('Audio version/profile mismatch')
+        if app['version']!=side['version'] or side['runtime_profile']!='portable-riscrte-v1' or side['min_firmware_version']!='0.1.16':raise ValueError('Audio version/profile mismatch')
         if any(not(ROOT/p).is_file() for p in app['additional_sources']):raise ValueError('Missing audio source')
     return apps
 def build(system):
