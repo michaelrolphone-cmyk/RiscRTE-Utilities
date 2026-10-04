@@ -1,4 +1,4 @@
-# Frequency Generator 0.1.0
+# Frequency Generator 0.1.1
 
 Shared Utilities application `frequency_generator.elf`. This is a development
 app for the existing `audio.output@1` provider and portable foreground adapter.
@@ -34,7 +34,7 @@ Only the app's own attempted stream is closed; after successful suspension the
 alarm may safely use the same speaker. A failed close causes terminal retention,
 with no repeated close, service/storage work, grant release or app handoff.
 
-Use the audio-enabled portable adapter and Runtime0.1.12 or newer reviewed
+Use the audio-enabled portable adapter and Runtime 0.1.16 or newer reviewed
 equivalent. Healthy I2S activity must preserve alarm storage while any live stream
 still blocks sleep/unload. Before any existing or newly activated alarm reaches
 its output phase the adapter suspends this app's audio. Playback stays stopped
