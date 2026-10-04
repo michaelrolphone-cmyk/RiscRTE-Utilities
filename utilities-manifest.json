@@ -78,6 +78,21 @@
         "Apps/daily_draw.h",
         "Apps/stopwatch_core.h"
       ]
+    },
+    {
+      "id": "waterfall",
+      "display_name": "Waterfall",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/waterfall.c",
+      "manifest_path": "Apps/waterfall.json",
+      "file_name": "waterfall.elf",
+      "additional_sources": [
+        "Apps/daily_draw.h",
+        "Apps/waterfall_core.h",
+        "Apps/s3_iq_burst.h"
+      ]
     }
   ]
 }
