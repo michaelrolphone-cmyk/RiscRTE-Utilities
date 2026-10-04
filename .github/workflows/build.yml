@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: 0fa8c576f547817b8124ed10686d80a6351bb634
+          ref: b2fc83280c54ca3ebd567184cc50e4785daa3951
           path: .dependencies/runtime
           persist-credentials: false
       - name: Exercise staged Alarm and Countdown production source
@@ -51,11 +51,18 @@ jobs:
           ref: 7723df25aacbf299f1e24551eddd35afc58e059f
           path: .dependencies/audio-system-apps
           persist-credentials: false
+      - name: Exact current audio Runtime source
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 0fa8c576f547817b8124ed10686d80a6351bb634
+          path: .dependencies/audio-runtime
+          persist-credentials: false
       - name: Exercise shared Audio Tools and lifecycle
         run: |
           python scripts/test_frequency_generator.py --system-apps .dependencies/audio-system-apps
           python scripts/test_audio_spectrum.py --system-apps .dependencies/audio-system-apps
-          python scripts/test_audio_service_lifecycle.py --system-apps .dependencies/audio-system-apps --runtime .dependencies/runtime
+          python scripts/test_audio_service_lifecycle.py --system-apps .dependencies/audio-system-apps --runtime .dependencies/audio-runtime
       - name: Install pinned public compiler
         run: |
           python -m pip install platformio==6.1.19
