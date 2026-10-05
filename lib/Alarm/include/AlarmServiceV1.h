@@ -47,7 +47,8 @@ typedef struct {
     void *context;
     /* Memory-only copied values; caller sets struct_size. No retained pointers. */
     int32_t (*status)(void *, alarm_status_v1 *);
-    /* One cooperative phase, at most two dependency calls. Explicit foreground
+    /* One cooperative phase, at most two dependency calls (three with the DND
+       preflight enabled). Explicit foreground
        safe point only; synchronous
        NVS has no hard latency guarantee. Never invoke from provider poll. */
     int32_t (*step)(void *);

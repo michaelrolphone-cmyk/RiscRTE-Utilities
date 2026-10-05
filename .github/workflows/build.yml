@@ -41,6 +41,7 @@ jobs:
           python scripts/test_alarm_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           python scripts/test_points_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           python scripts/test_alarm_volume.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
+          python scripts/test_dnd_service.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           bash scripts/test_alarm_runtime.sh .dependencies/runtime .dependencies/system-apps
           SANITIZE=1 bash scripts/test_alarm_runtime.sh .dependencies/runtime .dependencies/system-apps
       - name: Exact non-modal cue-aware client
