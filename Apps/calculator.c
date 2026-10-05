@@ -1,3 +1,7 @@
+#ifdef PORTABLE_NOVA_UI
+#include "RiscRuntimeV1.h"
+#include "calculator_nova.inc"
+#else
 #include "T5AppApi.h"
 #include "calculator_core.h"
 #include "daily_draw.h"
@@ -145,3 +149,5 @@ void app_main(void) {
         if (redraw) calculator_render();
     }
 }
+
+#endif

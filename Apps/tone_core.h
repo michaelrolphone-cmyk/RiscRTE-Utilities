@@ -6,7 +6,7 @@
 #define TONE_RATE 16000u
 #define TONE_MIN_HZ 20u
 #define TONE_MAX_HZ 7000u
-#define TONE_MAX_PERCENT 25u
+#define TONE_MAX_PERCENT 100u
 #define TONE_FRAMES 256u
 /* Source-owned bounded DDS. The table is round(32767*sin(2*pi*n/256)).
  * Linear interpolation and a short gain ramp preserve phase across edits.
@@ -39,10 +39,11 @@ static inline bool tone_configure(tone_state *s,unsigned hz,unsigned percent) {
     s->target=(uint16_t)(percent*32767u/100u);return true;
 }
 static inline bool tone_generate(tone_state *s,int16_t *pcm,size_t frames) {
-    if(!s||!pcm||!frames||frames>TONE_FRAMES||!s->increment||s->gain>8191||s->target>8191)return false;
+    if(!s||!pcm||!frames||frames>TONE_FRAMES||!s->increment||s->gain>32767||s->target>32767)return false;
     for(size_t i=0;i<frames;i++) {
-        if(s->gain<s->target)s->gain=(uint16_t)(s->target-s->gain>128?s->gain+128:s->target);
-        else if(s->gain>s->target)s->gain=(uint16_t)(s->gain-s->target>128?s->gain-128:s->target);
+        /* Keep the original ~4 ms gain ramp at the expanded 0-100% range. */
+        if(s->gain<s->target)s->gain=(uint16_t)(s->target-s->gain>512?s->gain+512:s->target);
+        else if(s->gain>s->target)s->gain=(uint16_t)(s->gain-s->target>512?s->gain-512:s->target);
         unsigned index=s->phase>>24;int32_t first=tone_sine[index];
         int32_t delta=(int32_t)tone_sine[(index+1)&255u]-first;
         int32_t wave=first+delta*(int32_t)((s->phase>>8)&65535u)/65536;

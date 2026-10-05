@@ -48,11 +48,11 @@ must pair the updated client/source, including Clock.
 an app-owned live audio session. Its24 normal/sanitized legacy/Nova profile
 runs exercise due Points cues, preemption refusal, no overlaid frame, durable
 completion exactly once and no automatic app-audio resume. It requires the
-matched CUE-aware shared client; the separate client PR supplies that pin.
+matched CUE-aware shared client; the shared client is pinned at `13f32d3e` in hosted CI.
 
 `alarm_frequency_gain_test.c` links the actual service and Frequency Generator
 as separate translation units with a persistent-gain speaker. After10% and90%
-alarms, ACK and cleanup, the real Frequency default5% output remains1638 peak.
+alarms, ACK and cleanup, the real Frequency default100% output remains32767 peak.
 Observed alarm peaks are3276 and29490 respectively, with unity device gain.
 No overlapping stream or leaked grant remains. New-phase acknowledgment, expiry,
 stop-only, close failure and a read failure specifically at LOAD_VOLUME are

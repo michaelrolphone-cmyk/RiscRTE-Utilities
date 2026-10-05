@@ -65,7 +65,7 @@ static bool audio_write(void *context,const int16_t *pcm,size_t frames) {
         int32_t wire=(int32_t)pcm[i]*(int32_t)physical_gain/(int32_t)physical_maximum;
         assert(wire==pcm[i]);
         if(frequency_stage) {
-            assert(raw<=1638);
+            assert(raw<=32767);
             if(raw>frequency_pcm_peak)frequency_pcm_peak=raw;
             if(magnitude(wire)>frequency_wire_peak)frequency_wire_peak=magnitude(wire);
         } else {
@@ -157,13 +157,13 @@ static void run(unsigned percent) {
     assert(stopped.schedules[0].state==ALARM_SCHEDULE_DISMISSED && alarm_closes==1);
     alarm_occurrence durable;assert(alarm_occurrence_decode(&durable,bytes[3],sizes[3],ALARM_KIND_ALARM));
     assert(durable.state==ALARM_OCC_ACKED && physical_gain==100 && physical_maximum==100);
-    frequency_stage=true;app_main(); /* Actual default 440 Hz / 5% Start, Stop, Back. */
+    frequency_stage=true;app_main(); /* Actual default 440 Hz / 100% Start, Stop, Back. */
     assert(frequency_opens==1 && frequency_writes==4 && frequency_closes==1 && polls==6 && presents>=2);
     assert(!stream_live && !app_grants && gain_calls==1);
-    assert(frequency_pcm_peak>=1637 && frequency_pcm_peak<=1638);
+    assert(frequency_pcm_peak>=32766 && frequency_pcm_peak<=32767);
     assert(frequency_wire_peak==frequency_pcm_peak && physical_gain==100 && physical_maximum==100);
     assert(driver->quiesce());
-    printf("Alarm %u%% peak %u -> ACK/cleanup -> real Frequency 5%% peak %u: unity gain, no overlap, cleanup passed\n",
+    printf("Alarm %u%% peak %u -> ACK/cleanup -> real Frequency 100%% peak %u: unity gain, no overlap, cleanup passed\n",
         percent,alarm_peak,frequency_wire_peak);
 }
 int main(void) {run(10);run(90);return 0;}

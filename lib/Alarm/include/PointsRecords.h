@@ -16,7 +16,8 @@
 #define POINTS_CUSTOM_1 6u
 #define POINTS_CUSTOM_2 7u
 #define POINTS_CUSTOM_COUNT 2u
-#define POINTS_CUSTOM_NAME_MAX 12u
+#define POINTS_CUSTOM_NAME_MAX 13u
+#define POINTS_DEFAULTS_AVAILABLE 1
 #define POINTS_COLOR_COUNT 8u
 #define POINTS_EDGE_START 0u
 #define POINTS_EDGE_END 1u
@@ -37,6 +38,25 @@ typedef struct {
     uint16_t day[POINTS_MAX];
     uint8_t delivered[POINTS_MAX];
 } points_ledger;
+/* Temporary factory schedule. A present record, even an empty one, always wins.
+ * Revision one also makes the first user edit revision two, so service cursors
+ * cannot confuse that edit with the virtual factory catalog. No startup writes. */
+static inline points_config points_default_config(void) {
+    return (points_config){.revision=1,.created=0,.points={
+        {POINTS_CUSTOM_2,1,3,30,4,30,0,0,0},
+        {POINTS_CUSTOM_1,1,3,30,5,30,15,0,0},
+        {POINTS_WORK_START,1,3,30,6,0,0,0,0},
+        {POINTS_BREAK,1,3,30,9,0,15,0,1},
+        {POINTS_LUNCH,1,3,30,12,0,30,0,1},
+        {POINTS_BREAK,1,3,30,14,15,15,0,1},
+        {POINTS_WORK_END,1,3,30,16,30,0,0,0}
+    }};
+}
+static inline points_meta points_default_meta(void) {
+    return (points_meta){.revision=1,.custom={
+        {.color=6,.name="Drive to Work"},{.color=0,.name="Wakeup"}
+    }};
+}
 static inline uint32_t points_checksum(const uint8_t *p) {
     uint32_t h=2166136261u;for(unsigned i=0;i<60;i++)h=(h^p[i])*16777619u;return h;
 }
@@ -90,21 +110,24 @@ static inline bool points_meta_valid(const points_meta *m) {
     }return true;
 }
 static inline void points_meta_encode(const points_meta *m,uint8_t b[POINTS_RECORD_SIZE]) {
-    memset(b,0,POINTS_RECORD_SIZE);memcpy(b,"PTM1",4);alarm_write32(b+4,m->revision);
+    unsigned stride=(strlen(m->custom[0].name)>12||strlen(m->custom[1].name)>12)?15u:14u;
+    memset(b,0,POINTS_RECORD_SIZE);memcpy(b,stride==15?"PTM2":"PTM1",4);alarm_write32(b+4,m->revision);
     for(unsigned i=0;i<POINTS_CUSTOM_COUNT;i++) {
-        const points_custom_type *t=&m->custom[i];uint8_t *q=b+8+i*14;unsigned n=0;
+        const points_custom_type *t=&m->custom[i];uint8_t *q=b+8+i*stride;unsigned n=0;
         while(n<POINTS_CUSTOM_NAME_MAX&&t->name[n])n++;
         q[0]=t->color;q[1]=(uint8_t)n;if(n)memcpy(q+2,t->name,n);
     }alarm_write32(b+60,points_checksum(b));
 }
 static inline bool points_meta_decode(points_meta *m,const uint8_t *b,uint32_t n) {
-    if(!m||!b||n!=POINTS_RECORD_SIZE||memcmp(b,"PTM1",4)||alarm_read32(b+60)!=points_checksum(b))return false;
-    for(unsigned i=36;i<60;i++)if(b[i])return false;
+    if(!m||!b||n!=POINTS_RECORD_SIZE||alarm_read32(b+60)!=points_checksum(b))return false;
+    unsigned stride=!memcmp(b,"PTM1",4)?14u:!memcmp(b,"PTM2",4)?15u:0u;
+    if(!stride)return false;
+    for(unsigned i=8+2*stride;i<60;i++)if(b[i])return false;
     points_meta v={.revision=alarm_read32(b+4)};
     for(unsigned i=0;i<POINTS_CUSTOM_COUNT;i++) {
-        const uint8_t *q=b+8+i*14;if(q[0]>=POINTS_COLOR_COUNT||q[1]>POINTS_CUSTOM_NAME_MAX)return false;
+        const uint8_t *q=b+8+i*stride;if(q[0]>=POINTS_COLOR_COUNT||q[1]>stride-2)return false;
         v.custom[i].color=q[0];if(q[1])memcpy(v.custom[i].name,q+2,q[1]);v.custom[i].name[q[1]]=0;
-        for(unsigned j=q[1];j<POINTS_CUSTOM_NAME_MAX;j++)if(q[2+j])return false;
+        for(unsigned j=q[1];j<stride-2;j++)if(q[2+j])return false;
     }if(!points_meta_valid(&v))return false;*m=v;return true;
 }
 static inline bool points_ledger_valid(const points_ledger *l) {
