@@ -350,29 +350,34 @@ static inline bool spectrum_dsp_init(spectrum_dsp_state *state, const spectrum_d
     return spectrum_dsp_configure(state, &saved);
 }
 
-static inline void spectrum_dsp_analyze(spectrum_dsp_state *state) {
-    unsigned size = state->config.fft_size;
+/* Shared bounded radix-2 kernel; callers own the window and normalization. */
+static inline void spectrum_dsp_fft(int32_t *real, int32_t *imag, unsigned size) {
     for (unsigned i = 1, j = 0; i < size; ++i) {
         unsigned bit = size >> 1;
         for (; j & bit; bit >>= 1) j ^= bit;
         j ^= bit;
-        if (i < j) { int32_t t = state->real[i]; state->real[i] = state->real[j]; state->real[j] = t; }
+        if (i < j) { int32_t t = real[i]; real[i] = real[j]; real[j] = t; }
     }
-    memset(state->imag, 0, size * sizeof(state->imag[0]));
+    memset(imag, 0, size * sizeof(imag[0]));
     for (unsigned length = 2; length <= size; length <<= 1) {
         unsigned half = length / 2u, step = 65536u / length;
         for (unsigned base = 0; base < size; base += length) {
             for (unsigned j = 0; j < half; ++j) {
                 unsigned a = base + j, b = a + half;
                 int32_t wr = spectrum_dsp_sin(j * step + 16384u), wi = -spectrum_dsp_sin(j * step);
-                int32_t tr = (int32_t)(((int64_t)wr * state->real[b] - (int64_t)wi * state->imag[b]) / 1073741824LL);
-                int32_t ti = (int32_t)(((int64_t)wr * state->imag[b] + (int64_t)wi * state->real[b]) / 1073741824LL);
-                int32_t ar = state->real[a], ai = state->imag[a];
-                state->real[a] = (ar + tr) / 2; state->imag[a] = (ai + ti) / 2;
-                state->real[b] = (ar - tr) / 2; state->imag[b] = (ai - ti) / 2;
+                int32_t tr = (int32_t)(((int64_t)wr * real[b] - (int64_t)wi * imag[b]) / 1073741824LL);
+                int32_t ti = (int32_t)(((int64_t)wr * imag[b] + (int64_t)wi * real[b]) / 1073741824LL);
+                int32_t ar = real[a], ai = imag[a];
+                real[a] = (ar + tr) / 2; imag[a] = (ai + ti) / 2;
+                real[b] = (ar - tr) / 2; imag[b] = (ai - ti) / 2;
             }
         }
     }
+}
+
+static inline void spectrum_dsp_analyze(spectrum_dsp_state *state) {
+    unsigned size = state->config.fft_size;
+    spectrum_dsp_fft(state->real, state->imag, size);
     uint32_t peak = 0;
     state->peak_bin = 0;
     for (unsigned k = 0; k <= size / 2u; ++k) {
@@ -468,14 +473,18 @@ static inline unsigned spectrum_dsp_column_at(const spectrum_dsp_config *config,
 }
 
 /* Linear amplitude interpolation, not dB interpolation. */
-static inline uint32_t spectrum_dsp_amplitude_at_q16(const spectrum_dsp_state *state, uint32_t hz_q16) {
+static inline uint32_t spectrum_dsp_amplitude_values_at_q16(const spectrum_dsp_state *state, const uint32_t *values, uint32_t hz_q16) {
     if (!state || !state->initialized || !state->has_transform) return 0;
     uint32_t bin_q16 = (uint32_t)spectrum_dsp_div_u64_u32((uint64_t)hz_q16 * state->config.fft_size, state->config.sample_rate);
     unsigned last = state->config.fft_size / 2u, index = bin_q16 >> 16;
-    if (index >= last) return state->amplitude_q24[last];
+    if (index >= last) return values[last];
     unsigned fraction = bin_q16 & 65535u;
-    return (uint32_t)(((uint64_t)state->amplitude_q24[index] * (65536u - fraction) +
-        (uint64_t)state->amplitude_q24[index + 1u] * fraction + 32768u) / 65536u);
+    return (uint32_t)(((uint64_t)values[index] * (65536u - fraction) +
+        (uint64_t)values[index + 1u] * fraction + 32768u) / 65536u);
+}
+
+static inline uint32_t spectrum_dsp_amplitude_at_q16(const spectrum_dsp_state *state, uint32_t hz_q16) {
+    return spectrum_dsp_amplitude_values_at_q16(state, state ? state->amplitude_q24 : NULL, hz_q16);
 }
 
 static inline int16_t spectrum_dsp_db_at_hz(const spectrum_dsp_state *state, unsigned hz) {
@@ -508,17 +517,17 @@ static inline bool spectrum_dsp_detected(const spectrum_dsp_state *state, unsign
 /* Peak-preserving downsampling; interpolate amplitudes only where display
  * pixels are narrower than an FFT bin. No allocation and no state mutation.
  * The caller supplies width-sized buffers; either output may be NULL. */
-static inline bool spectrum_dsp_resample(const spectrum_dsp_state *state, uint16_t *levels_q15, int16_t *db_centi, unsigned width) {
-    if (!state || !state->initialized || !spectrum_dsp_config_valid(&state->config) ||
+static inline bool spectrum_dsp_resample_values(const spectrum_dsp_state *state, const uint32_t *values, uint16_t *levels_q15, int16_t *db_centi, unsigned width) {
+    if (!state || !values || !state->initialized || !spectrum_dsp_config_valid(&state->config) ||
         !width || width > 4096u || (!levels_q15 && !db_centi)) return false;
     if (width == 1u) {
         uint32_t lo = spectrum_dsp_frequency_q16(&state->config, 0, 2), hi = spectrum_dsp_frequency_q16(&state->config, 1, 2);
-        uint32_t amplitude = spectrum_dsp_amplitude_at_q16(state, lo), edge = spectrum_dsp_amplitude_at_q16(state, hi);
+        uint32_t amplitude = spectrum_dsp_amplitude_values_at_q16(state, values, lo), edge = spectrum_dsp_amplitude_values_at_q16(state, values, hi);
         if (edge > amplitude) amplitude = edge;
         unsigned first = (unsigned)((spectrum_dsp_div_u64_u32((uint64_t)lo * state->config.fft_size, state->config.sample_rate) + 65535u) >> 16);
         unsigned end = (unsigned)(spectrum_dsp_div_u64_u32((uint64_t)hi * state->config.fft_size, state->config.sample_rate) >> 16);
         if (state->has_transform)
-            for (unsigned k = first; k <= end; ++k) if (state->amplitude_q24[k] > amplitude) amplitude = state->amplitude_q24[k];
+            for (unsigned k = first; k <= end; ++k) if (values[k] > amplitude) amplitude = values[k];
         if (levels_q15) levels_q15[0] = spectrum_dsp_level(state, amplitude);
         if (db_centi) db_centi[0] = spectrum_dsp_amplitude_db(amplitude, state->config.gain_db);
         return true;
@@ -531,16 +540,19 @@ static inline bool spectrum_dsp_resample(const spectrum_dsp_state *state, uint16
         uint32_t hi = x + 1u < width ? center / 2u + next / 2u : center;
         uint32_t bin_lo = (uint32_t)spectrum_dsp_div_u64_u32((uint64_t)lo * state->config.fft_size, state->config.sample_rate);
         uint32_t bin_hi = (uint32_t)spectrum_dsp_div_u64_u32((uint64_t)hi * state->config.fft_size, state->config.sample_rate);
-        uint32_t amplitude = spectrum_dsp_amplitude_at_q16(state, center);
+        uint32_t amplitude = spectrum_dsp_amplitude_values_at_q16(state, values, center);
         if (state->has_transform && bin_hi - bin_lo >= 65536u) {
             unsigned first = (bin_lo + 65535u) >> 16, end = bin_hi >> 16;
             if (end > last) end = last;
-            for (unsigned k = first; k <= end; ++k) if (state->amplitude_q24[k] > amplitude) amplitude = state->amplitude_q24[k];
+            for (unsigned k = first; k <= end; ++k) if (values[k] > amplitude) amplitude = values[k];
         }
         if (levels_q15) levels_q15[x] = spectrum_dsp_level(state, amplitude);
         if (db_centi) db_centi[x] = spectrum_dsp_amplitude_db(amplitude, state->config.gain_db);
         previous = center; center = next;
     }
     return true;
+}
+static inline bool spectrum_dsp_resample(const spectrum_dsp_state *state, uint16_t *levels_q15, int16_t *db_centi, unsigned width) {
+    return spectrum_dsp_resample_values(state, state ? state->amplitude_q24 : NULL, levels_q15, db_centi, width);
 }
 #endif

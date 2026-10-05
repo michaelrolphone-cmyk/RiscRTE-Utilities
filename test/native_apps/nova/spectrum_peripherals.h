@@ -10,6 +10,7 @@
 #include "PortableAppSleep.h"
 #include "AlarmServiceV1.h"
 #include "AudioInputV1.h"
+#include "spectrum_signature_store.h"
 #include <math.h>
 #include <assert.h>
 #include <stdio.h>
@@ -23,7 +24,7 @@ static unsigned last_navigation_poll;
 static uint16_t pixels[240*244];
 static const char *directory;
 static struct {unsigned at;int x,y;} actions[256];static unsigned action_count;
-static struct {char key[16];unsigned char bytes[64];uint32_t size;} cells[32];
+static struct {char key[16];unsigned char bytes[2048];uint32_t size;} cells[32];
 static void save_frame(void) {
  char path[1024];snprintf(path,sizeof(path),"%s/frame-%03u.ppm",directory,presents);
  FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n240 240\n255\n");
@@ -52,8 +53,9 @@ static bool fake_rtc(void*c,twatch_rtc_time_v1*s){(void)c;*s=(twatch_rtc_time_v1
 static bool fake_write(void*c,const twatch_rtc_time_v1*s){(void)c;(void)s;assert(!"Unexpected RTC write in read-only audit");return false;}
 static const twatch_rtc_api_v1 rtc_api={.api_version=2,.struct_size=sizeof(rtc_api),.read=fake_rtc,.write=fake_write};
 static int32_t fake_get(void*c,const char*k,void*b,uint32_t cap,uint32_t*s){(void)c;*s=0;for(unsigned i=0;i<32;i++)if(!strcmp(k,cells[i].key)){*s=cells[i].size;if(cap<*s)return RISC_KEY_VALUE_BUFFER_SMALL;memcpy(b,cells[i].bytes,*s);return 0;}return RISC_KEY_VALUE_NOT_FOUND;}
-static int32_t fake_put(void*c,const char*k,const void*b,uint32_t n){(void)c;writes++;assert(n<=64&&strlen(k)<16);unsigned i;for(i=0;i<32&&cells[i].key[0]&&strcmp(k,cells[i].key);i++);assert(i<32);strcpy(cells[i].key,k);memcpy(cells[i].bytes,b,n);cells[i].size=n;return 0;}
-static const risc_key_value_v1 kv_api={1,sizeof(kv_api),NULL,fake_get,fake_put};
+static int32_t fake_put(void*c,const char*k,const void*b,uint32_t n){(void)c;writes++;assert(n<=2048&&strlen(k)<16);unsigned i;for(i=0;i<32&&cells[i].key[0]&&strcmp(k,cells[i].key);i++);assert(i<32);strcpy(cells[i].key,k);memcpy(cells[i].bytes,b,n);cells[i].size=n;return 0;}
+static const risc_key_value_v1 legacy_kv_api={1,sizeof(legacy_kv_api),NULL,fake_get,fake_put};
+static const risc_key_value_v1 kv_api={2,sizeof(kv_api),NULL,fake_get,fake_put};
 static int32_t fake_alarm_status(void*c,alarm_status_v1*s){(void)c;*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_READY,.mode=ALARM_MODE_BOTH};return ALARM_OK;}
 static int32_t fake_alarm_step(void*c){(void)c;return ALARM_OK;}
 static int32_t fake_alarm_ack(void*c,const alarm_token_v1*t){(void)c;(void)t;return ALARM_OK;}
@@ -71,8 +73,17 @@ static bool fake_mic_read(void*c,int16_t*pcm,size_t n,size_t*got){(void)c;assert
 static bool fake_mic_level(void*c,uint16_t*v){(void)c;*v=5000;return mic_opened;}
 static bool fake_mic_close(void*c){(void)c;assert(mic_opened);mic_opened=false;return true;}
 static const twatch_audio_in_api_v1 mic_api={1,sizeof(mic_api),NULL,fake_mic_open,fake_mic_read,fake_mic_level,fake_mic_close};
-static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)id;assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&kv_api;else if(!strcmp(n,"audio.input")&&v==1)g->api=&mic_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else return false;grants++;return true;}
+static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)id;assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&legacy_kv_api;else if(!strcmp(n,"storage.key-value")&&v==2)g->api=&kv_api;else if(!strcmp(n,"audio.input")&&v==1)g->api=&mic_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else return false;grants++;return true;}
 static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);g->api=NULL;grants--;return true;}
 static const risc_runtime_api_v1 runtime_api={1,sizeof(runtime_api),fake_health,fake_yield,fake_diag,fake_launch,fake_acquire,fake_release};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&runtime_api:NULL;}
-int main(int argc,char**argv){assert(argc>=2);directory=argv[1];if(getenv("SPECTRUM_CAPTURE_POLLS")){unsigned n=(unsigned)strtoul(getenv("SPECTRUM_CAPTURE_POLLS"),NULL,10);assert(n>=10&&n<=10000);stop_poll=n;}memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}assert(app_module_init()==0);app_main();app_module_fini();assert(!grants&&!frames&&!subs&&!mic_opened);if(getenv("SPECTRUM_EXPECT_NO_WRITES"))assert(!writes);if(getenv("SPECTRUM_EXIT_POLL"))assert(launches==(getenv("SPECTRUM_LAUNCH_REFUSE_ONCE")?2u:1u));printf("Production app/adapter capture: %u frames, %u polls, %u ms; all grants released; stride guards intact\n",presents,polls,ticks);return 0;}
+static void seed_signature_fixture(void){
+ const char *value=getenv("SPECTRUM_SAMPLE_FIXTURE");if(!value)return;unsigned count=(unsigned)strtoul(value,NULL,10);assert(count==1||count==2);
+ spectrum_signature_analyzer analyzer;spectrum_signature_init(&analyzer);int16_t pcm[256];
+ for(unsigned chunk=0;chunk<2;chunk++){for(unsigned i=0;i<256;i++){double t=(double)(chunk*256+i)/16000;pcm[i]=(int16_t)(8000*sin(6.283185307179586*440*t)+3500*sin(6.283185307179586*1000*t)+1500*sin(6.283185307179586*3200*t));}assert(spectrum_signature_feed(&analyzer,pcm,256));}
+ for(unsigned slot=0;slot<count;slot++){spectrum_signature profile={.kind=1,.frames=64};strcpy(profile.name,slot?"Similar room":"Office");for(unsigned k=0;k<128;k++)profile.sums[k]=(uint64_t)analyzer.power[k]*64;snprintf(cells[slot].key,sizeof(cells[slot].key),"spectrum_s%u",slot);cells[slot].size=SPECTRUM_SIGNATURE_RECORD_SIZE;assert(spectrum_signature_encode(&profile,cells[slot].bytes));}
+}
+static void check_signature_fixture(void){
+ const char *value=getenv("SPECTRUM_EXPECT_SAMPLE");if(!value)return;unsigned expected=(unsigned)strtoul(value,NULL,10);spectrum_signature profile;bool found=false;for(unsigned i=0;i<32;i++)if(!strcmp(cells[i].key,"spectrum_s0")){assert(spectrum_signature_decode(&profile,cells[i].bytes,cells[i].size));assert(profile.kind==expected&&profile.frames==(expected==1?64u:1u));found=true;}assert(found&&writes==1);
+}
+int main(int argc,char**argv){assert(argc>=2);directory=argv[1];if(getenv("SPECTRUM_CAPTURE_POLLS")){unsigned n=(unsigned)strtoul(getenv("SPECTRUM_CAPTURE_POLLS"),NULL,10);assert(n>=10&&n<=10000);stop_poll=n;}memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}seed_signature_fixture();assert(app_module_init()==0);app_main();app_module_fini();check_signature_fixture();assert(!grants&&!frames&&!subs&&!mic_opened);if(getenv("SPECTRUM_EXPECT_NO_WRITES"))assert(!writes);if(getenv("SPECTRUM_EXIT_POLL"))assert(launches==(getenv("SPECTRUM_LAUNCH_REFUSE_ONCE")?2u:1u));printf("Production app/adapter capture: %u frames, %u polls, %u ms; all grants released; stride guards intact\n",presents,polls,ticks);return 0;}

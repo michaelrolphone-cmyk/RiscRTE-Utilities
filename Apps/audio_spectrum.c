@@ -4,6 +4,7 @@
 #include "RiscKeyValueV1.h"
 #include "spectrum_dsp.h"
 #include "spectrum_store.h"
+#include "spectrum_signature_store.h"
 #include "PortableWatchKeyboard.h"
 #include <stddef.h>
 #include <stdio.h>
@@ -58,7 +59,7 @@ static uint32_t palette[256];
 static const uint32_t label_colors[8]={0xffd24au,0xff7a1au,0xff3d71u,0xb24dffu,0x6d7bffu,0x3d9bffu,0x3dff9au,0x9be15du};
 static const char *palette_names[5]={"NOVA","INFERNO","VIRIDIS","GRAY","JET"};
 static const char *window_names[5]={"RECT","HANN","HAMMING","BLACKMAN","FLAT TOP"};
-enum {PAGE_MAIN,PAGE_CONTROLS,PAGE_LABEL,PAGE_KEYBOARD};
+enum {PAGE_MAIN,PAGE_CONTROLS,PAGE_LABEL,PAGE_KEYBOARD,PAGE_SIGNATURES,PAGE_SIGNATURE_EDIT};
 static int clamp_int(int n,int low,int high){return n<low?low:n>high?high:n;}
 static int abs_int(int n){return n<0?-n:n;}
 static bool hit(int x,int y,int l,int t,int w,int h){return x>=l && y>=t && x<l+w && y<t+h;}
@@ -103,10 +104,17 @@ static void short_freq(unsigned hz,char out[20]){if(hz>=1000 && !(hz%1000))snpri
 static bool optional_contact(void){return app->struct_size>=offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)&&app->touch_contact;}
 static void notify(const char *s){toast_message=s;toast_until=app->millis()+4200u;dirty=true;}
 
+static bool acquire_storage(void);
+static void set_page(unsigned next);
+static void keyboard_begin(void);
+static void clear_analysis(void);
+static void refresh_analysis(void);
+#include "spectrum_signature_app.inc"
+
 bool portable_audio_services_safe(void){return !uncertain;}
 bool portable_audio_suspend(void){
  if(uncertain)return false;
- bool was_running=running;running=false;spectrum.used=0;dirty=true;contact_down=contact_plot=false;
+ bool was_running=running;running=false;spectrum.used=0;signature_suspend();dirty=true;contact_down=contact_plot=false;
  if(!owned){if(was_running)message="STOPPED / MIC OFF";return true;}
  if(!microphone->close(microphone->context)){uncertain=true;return false;}
  owned=false;message="STOPPED / MIC OFF";return true;
@@ -125,9 +133,9 @@ static bool acquire_storage(void){
  if(storage)return true;
  if(store_acquired)return false;
  store_grant=(risc_runtime_capability_v1){.struct_size=sizeof(store_grant)};
- if(!runtime->acquire("storage.key-value",1,0,&store_grant))return false;
+ if(!runtime->acquire("storage.key-value",2,0,&store_grant))return false;
  store_acquired=true;
- const risc_key_value_v1 *p=store_grant.api;if(!p||p->api_version!=1||p->struct_size<sizeof(*p)||!p->get||!p->put)return false;storage=p;return true;
+ const risc_key_value_v1 *p=store_grant.api;if(!p||p->api_version!=2||p->struct_size<sizeof(*p)||!p->get||!p->put)return false;storage=p;return true;
 }
 static void label_key(unsigned slot,char out[16]){snprintf(out,16,"spectrum_l%u",slot);}
 /* Unread records remain authoritative. A failed read is never permission to
@@ -161,32 +169,40 @@ static void persist(void){
  for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(pending_save&(2u<<i)){char key[16];label_key(i,key);spectrum_label_encode(&labels[i],bytes);if(storage->put(storage->context,key,bytes,sizeof(bytes))==RISC_KEY_VALUE_OK)pending_save&=(uint16_t)~(2u<<i);else failed=true;}
  if(failed){store_message="SAVE UNCONFIRMED";notify("SAVE UNCONFIRMED");}else store_message=load_errors?"SAVED DATA UNREAD / RETRY":NULL;
 }
-static void clear_analysis(void){memset(history,0,sizeof(history));memset(spec_levels,0,sizeof(spec_levels));memset(fall_levels,0,sizeof(fall_levels));memset(peak_levels,0,sizeof(peak_levels));memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));for(unsigned i=0;i<PLOT_W;i++)spec_db[i]=-12000;for(unsigned i=0;i<PLOT_H;i++)fall_db[i]=-12000;history_next=history_count=0;recorded_transform=0;}
+static void clear_analysis(void){signature_display_reset();memset(history,0,sizeof(history));memset(spec_levels,0,sizeof(spec_levels));memset(fall_levels,0,sizeof(fall_levels));memset(peak_levels,0,sizeof(peak_levels));memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));for(unsigned i=0;i<PLOT_W;i++)spec_db[i]=-12000;for(unsigned i=0;i<PLOT_H;i++)fall_db[i]=-12000;history_next=history_count=0;recorded_transform=0;}
 static void configure_dsp(void){
  dsp_config=spectrum_dsp_defaults();dsp_config.sample_rate=sample_rate;dsp_config.fft_size=prefs.fft_size;dsp_config.window=(spectrum_dsp_window)prefs.window;dsp_config.low_hz=prefs.low_hz;dsp_config.high_hz=prefs.high_hz>sample_rate/2?sample_rate/2:prefs.high_hz;dsp_config.log_frequency=prefs.log_frequency;dsp_config.log_amplitude=prefs.log_amplitude;dsp_config.gain_db=prefs.gain_db;dsp_config.threshold_db=prefs.threshold_db;
  (void)spectrum_dsp_configure(&spectrum,&dsp_config);clear_analysis();if(cursor_hz>dsp_config.high_hz||cursor_hz<(dsp_config.log_frequency&&dsp_config.low_hz<10?10:dsp_config.low_hz))cursor_visible=false;
 }
 static void toggle(void){
  if(running){stop();frozen=false;return;}
- sample_rate=PREFERRED_RATE;
+ sample_rate=PREFERRED_RATE;spectrum_room_reset(&room_tracker);signature_audio.available=false;signature_audio.used=0;event_slot=-1;
  if(!acquire_microphone()){message="MIC UNAVAILABLE";capture_error=true;notify(message);return;}
  owned=true;
  if(!microphone->open(microphone->context,sample_rate)){stop();message="MIC START FAILED";capture_error=true;notify(message);return;}
  configure_dsp();(void)spectrum_dsp_init(&spectrum,&dsp_config);capture_error=false;running=true;frozen=false;started=true;empty_reads=0;rendered=app->millis();message="MIC / 16 kHz";dirty=true;
 }
 static void freeze(void){stop();frozen=true;message="FROZEN / MIC OFF";dirty=true;}
-static void capture(void){
- int16_t pcm[256];size_t got=0;
- bool ok=microphone->read(microphone->context,pcm,256,&got);
- if(!ok||got>256||!spectrum_dsp_feed(&spectrum,pcm,got)){stop();message="MIC READ FAILED";capture_error=true;notify(message);return;}
- if(!got){if(++empty_reads>=8){stop();message="NO MICROPHONE DATA";capture_error=true;notify(message);}return;}empty_reads=0;
- uint32_t now=app->millis();if(spectrum.transforms==recorded_transform||(uint32_t)(now-rendered)<FRAME_MS)return;
- spectrum_dsp_resample(&spectrum,spec_levels,spec_db,PLOT_W);spectrum_dsp_resample(&spectrum,fall_levels,fall_db,PLOT_H);
+static void refresh_analysis(void){
+ if(!spectrum.has_transform)return;
+ uint32_t now=app->millis();
+ int selected=signature_filter();const uint32_t *display_amplitude=spectrum.amplitude_q24;
+ if(selected>=0){signature_prepare_filter(selected);for(unsigned k=0;k<=spectrum.config.fft_size/2;k++)filtered_amplitude[k]=spectrum_signature_filtered_amplitude(spectrum.amplitude_q24[k],k,spectrum.config.fft_size,signature_display_gains);display_amplitude=filtered_amplitude;}
+ spectrum_dsp_resample_values(&spectrum,display_amplitude,spec_levels,spec_db,PLOT_W);spectrum_dsp_resample_values(&spectrum,display_amplitude,fall_levels,fall_db,PLOT_H);
  for(unsigned i=0;i<PLOT_W;i++){unsigned decay=peak_levels[i]>196?peak_levels[i]-196:0;peak_levels[i]=spec_levels[i]>decay?spec_levels[i]:(uint16_t)decay;}
  for(unsigned y=0;y<PLOT_H;y++)history[history_next][y]=(uint8_t)((uint32_t)fall_levels[y]*255/32767);
  history_next=(history_next+1)%PLOT_W;if(history_count<PLOT_W)history_count++;
  for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++){if(!labels[i].present||labels[i].frequency_hz>sample_rate/2){label_active[i]=false;continue;}int db=spectrum_dsp_label_db(&spectrum,labels[i].frequency_hz);label_db[i]=level_valid[i]?(int16_t)((label_db[i]*55+db*45)/100):(int16_t)db;level_valid[i]=true;label_active[i]=label_db[i]>prefs.threshold_db*100;}
- recorded_transform=spectrum.transforms;rendered=now;dirty=true;
+ signature_display_reset();recorded_transform=spectrum.transforms;rendered=now;dirty=true;
+}
+static void capture(void){
+ int16_t pcm[256];size_t got=0;
+ bool ok=microphone->read(microphone->context,pcm,256,&got);
+ if(!ok||got>256||!spectrum_dsp_feed(&spectrum,pcm,got)||!spectrum_signature_feed(&signature_audio,pcm,got)){stop();message="MIC READ FAILED";capture_error=true;notify(message);return;}
+ if(!got){if(++empty_reads>=8){stop();message="NO MICROPHONE DATA";capture_error=true;notify(message);}return;}empty_reads=0;
+ signature_observe();
+ uint32_t now=app->millis();if(spectrum.transforms==recorded_transform||(uint32_t)(now-rendered)<FRAME_MS)return;
+ refresh_analysis();
 }
 
 typedef struct {uint8_t at;uint32_t color;} color_stop;
@@ -242,6 +258,8 @@ static void draw_plot(void){
   if(label_active[i]){int y=view==1?PLOT_Y+clamp_int(p-18,1,PLOT_H-17):PLOT_Y+20+(int)(i%3)*17;int tw=text_width(1,l->name);if(tw>132)tw=132;int x=view==1?PLOT_X+PLOT_W-8-tw:PLOT_X+clamp_int(p>PLOT_W-90?p-4-tw:p+4,0,PLOT_W-tw);fill(x,y,tw,17,0);text(1,x,y,tw,l->name,color);}
  }
  pill_w=pill_h=0;
+ if(event_slot>=0){char event_name[32];snprintf(event_name,sizeof(event_name),"%.16s %u%%",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}
+ if(signature_filter()>=0)text(1,PLOT_X+112,PLOT_Y+1,113,"BG FILTER",0xffd24au);
  if(cursor_visible){int p=(int)spectrum_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);int db=view==1?fall_db[p]:spec_db[p];char f[20],caption[40];freq_text(cursor_hz,f);snprintf(caption,sizeof(caption),"%s  %d dB",f,db/100);
   if(view==1)fill(PLOT_X,PLOT_Y+p,PLOT_W,1,NOVA_WHITE);else fill(PLOT_X+p,PLOT_Y,1,PLOT_H-18,NOVA_WHITE);
   int px=view==1?PLOT_X+PLOT_W-9:PLOT_X+p,py=view==1?PLOT_Y+p:PLOT_Y+PLOT_H-1-(int)((uint32_t)spec_levels[p]*(PLOT_H-1)/32767);round_rect(px-4,py-4,9,9,4,NOVA_CYAN);round_rect(px-2,py-2,5,5,2,NOVA_WHITE);
@@ -269,7 +287,7 @@ static void draw_footer(void){
  if(view==2)return;
  const char *label=running?"MIC / STOP":frozen?"FROZEN / START":"START";
  text(1,8,218,140,label,NOVA_CYAN);text(1,183,218,51,running?"FREEZE":"EXIT",NOVA_CAP);
- if(pending_save)fill(150,225,4,4,0xff6a5f);
+ if(pending_save||signature_pending)fill(150,225,4,4,0xff6a5f);
 }
 static void draw_start(void){
  center(0,20,46,200,"SPECTRUM",NOVA_CYAN);center(1,20,68,200,"NOVA-7",NOVA_CAP);if(capture_error)center(1,12,85,216,message,0xff6a5f);pill(68,108,104,38,"START",true);
@@ -301,24 +319,24 @@ static void draw(void){
 #else
  app->clear();
 #endif
- if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();else if(page==PAGE_KEYBOARD)draw_keyboard();else if(!started)draw_start();else{draw_tabs();if(view==2)draw_labels();else draw_plot();draw_footer();if(capture_error){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
+ if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();else if(page==PAGE_KEYBOARD)draw_keyboard();else if(!started)draw_start();else{draw_tabs();if(view==2)draw_labels();else draw_plot();draw_footer();if(capture_error){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
  if(toast_message&&page!=PAGE_KEYBOARD){round_rect(14,198,212,28,14,NOVA_DIM);round_rect(15,199,210,26,13,0);text(1,23,203,undo_slot>=0?145:194,toast_message,NOVA_TEXT);if(undo_slot>=0)text(1,174,203,45,"UNDO",NOVA_CYAN);}
  app->present(false);dirty=false;
 }
 
 static char keyboard_before[17];
-static void set_page(unsigned next){if(next==PAGE_CONTROLS&&page!=PAGE_CONTROLS)controls_scroll=0;page=next;contact_down=contact_plot=contact_controls=false;if(app->struct_size>=offsetof(t5_app_api_v1,set_back_exits_app)+sizeof(app->set_back_exits_app)&&app->set_back_exits_app)app->set_back_exits_app(page==PAGE_MAIN&&!lab_edit);dirty=true;}
+static void set_page(unsigned next){if(next==PAGE_CONTROLS&&page!=PAGE_CONTROLS)controls_scroll=0;page=next;contact_down=contact_plot=contact_controls=false;if(app->struct_size>=offsetof(t5_app_api_v1,set_back_exits_app)+sizeof(app->set_back_exits_app)&&app->set_back_exits_app)app->set_back_exits_app(page==PAGE_MAIN&&!lab_edit&&!signature_pending&&!signature_goal);dirty=true;}
 static void keyboard_begin(void){
  memcpy(keyboard_before,editing.name,sizeof(keyboard_before));key_page=PWK_INITIAL_PAGE;key_choice=0;toast_message=NULL;set_page(PAGE_KEYBOARD);
 }
-static void keyboard_cancel(void){memcpy(editing.name,keyboard_before,sizeof(editing.name));key_choice=0;set_page(PAGE_LABEL);}
+static void keyboard_cancel(void){memcpy(editing.name,keyboard_before,sizeof(editing.name));key_choice=0;set_page(signature_keyboard?PAGE_SIGNATURE_EDIT:PAGE_LABEL);}
 static void keyboard_activate(unsigned key){
  if(page!=PAGE_KEYBOARD || key>=PWK_COUNT)return;
  size_t n=strlen(editing.name);
  if(key<PWK_CHARACTERS){unsigned ch=portable_watch_key_character(key_page,key);if(ch && n<SPECTRUM_LABEL_NAME_MAX){editing.name[n]=(char)ch;editing.name[n+1]=0;}}
  else if(key==PWK_PAGE)key_page=(key_page+1)%PWK_PAGES;
  else if(key==PWK_DELETE){if(n)editing.name[n-1]=0;}
- else if(key==PWK_DONE){key_choice=0;set_page(PAGE_LABEL);}
+ else if(key==PWK_DONE){key_choice=0;set_page(signature_keyboard?PAGE_SIGNATURE_EDIT:PAGE_LABEL);}
  dirty=true;
 }
 static void save_label(void){
@@ -339,18 +357,20 @@ static void undo_delete(void){
  if(slot<0){notify("8 LABEL LIMIT / CANNOT UNDO");return;}labels[slot]=deleted;pending_save|=(uint16_t)(2u<<slot);undo_slot=-1;toast_message=NULL;persist();dirty=true;
 }
 static void open_label(int slot,uint16_t frequency){
+ signature_keyboard=false;
  if(slot<0){unsigned tolerance=2*sample_rate/prefs.fft_size;for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(labels[i].present){unsigned t=labels[i].frequency_hz*3/100;if(t<tolerance)t=tolerance;if(abs_int((int)labels[i].frequency_hz-frequency)<=(int)t){slot=(int)i;break;}}}
  edit_slot=slot;
  if(slot>=0)editing=labels[slot];else{if(saved_count()==SPECTRUM_LABEL_MAX){notify("8 LABEL LIMIT / DELETE ONE");return;}editing=(spectrum_label){.present=true,.frequency_hz=frequency};for(unsigned c=0;c<8;c++){bool used=false;for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(labels[i].present&&labels[i].color==c)used=true;if(!used){editing.color=(uint8_t)c;break;}}}
  toast_message=NULL;set_page(PAGE_LABEL);
 }
 static void settings_change(unsigned setting,int direction,int segment){
+ if(setting==12){signature_load();set_page(PAGE_SIGNATURES);return;}
  if(setting==0)return; /* Reserved legacy source setting is no longer exposed. */
  if(setting!=11 && (load_errors&1u)){notify("RETRY STORAGE FIRST");return;}
  static const uint16_t lows[]={0,20,50,100,200,500,1000},highs[]={1000,2000,5000,8000};
  switch(setting){
  case 1:case 2:{const uint16_t *values=setting==1?lows:highs;unsigned count=setting==1?7:4,current=setting==1?prefs.low_hz:prefs.high_hz,i=0;for(;i<count&&values[i]!=current;i++);int next=clamp_int((int)i+direction,0,(int)count-1);uint16_t value=values[next];if((setting==1&&value>=prefs.high_hz)||(setting==2&&value<=prefs.low_hz))return;if(setting==1)prefs.low_hz=value;else prefs.high_hz=value;break;}
- case 3:prefs.log_frequency=segment==0;break;case 4:prefs.log_amplitude=segment==0;break;case 5:prefs.show_labels=segment==0;break;case 6:prefs.palette=(uint8_t)clamp_int((int)prefs.palette+direction,0,4);build_palette();break;case 7:prefs.gain_db=(int8_t)clamp_int(prefs.gain_db+direction*3,-24,60);break;case 8:prefs.window=(uint8_t)clamp_int((int)prefs.window+direction,0,4);break;case 9:prefs.fft_size=(uint16_t)clamp_int(direction>0?prefs.fft_size*2:prefs.fft_size/2,256,8192);break;case 10:prefs.threshold_db=(int8_t)clamp_int(prefs.threshold_db+direction*5,-90,-20);break;case 11:if(load_errors){stop();reload_storage();configure_dsp();build_palette();}persist();notify(store_message?store_message:"SAVED DATA LOADED");dirty=true;return;default:return;
+ case 3:prefs.log_frequency=segment==0;break;case 4:prefs.log_amplitude=segment==0;break;case 5:prefs.show_labels=segment==0;break;case 6:prefs.palette=(uint8_t)clamp_int((int)prefs.palette+direction,0,4);build_palette();break;case 7:prefs.gain_db=(int8_t)clamp_int(prefs.gain_db+direction*3,-24,60);break;case 8:prefs.window=(uint8_t)clamp_int((int)prefs.window+direction,0,4);break;case 9:prefs.fft_size=(uint16_t)clamp_int(direction>0?prefs.fft_size*2:prefs.fft_size/2,256,8192);break;case 10:prefs.threshold_db=(int8_t)clamp_int(prefs.threshold_db+direction*5,-90,-20);break;case 11:signature_load();signature_save();if(load_errors){stop();reload_storage();configure_dsp();build_palette();}persist();notify(store_message?store_message:"SAVED DATA LOADED");dirty=true;return;default:return;
  }
  configure_dsp();pending_save|=1;persist();dirty=true;
 }
@@ -368,7 +388,7 @@ static bool process_contact(void){
  return consumed;
 }
 static bool request_root_exit(void){
- stop();
+ stop();if(!signature_exit_ready())return false;
 #ifdef PORTABLE_RETURN_APP
  if(!runtime->request_launch||!runtime->request_launch(PORTABLE_RETURN_APP)){message="EXIT FAILED / RETRY";notify(message);return false;}
 #endif
@@ -377,9 +397,10 @@ static bool request_root_exit(void){
 static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested){
  if(x<0||y<0||x>=240||y>=240)return false;
  if(page!=PAGE_KEYBOARD&&toast_message&&hit(x,y,14,198,212,28)){if(undo_slot>=0&&x>=167)undo_delete();else{toast_message=NULL;dirty=true;}return false;}
+ if(page==PAGE_SIGNATURES||page==PAGE_SIGNATURE_EDIT){signature_tap(x,y,toggle_requested);return false;}
  if(page==PAGE_KEYBOARD){if(hit(x,y,8,4,48,36)){keyboard_cancel();return false;}int key=portable_watch_key_hit(x,y);if(key>=0){key_choice=(unsigned)key;keyboard_activate((unsigned)key);}return false;}
  if(page==PAGE_LABEL){if(hit(x,y,31,104,178,32)){keyboard_begin();}else if(y>=140&&y<166&&x>=28&&x<216){editing.color=(uint8_t)clamp_int((x-28)/23,0,7);dirty=true;}else if(y>=169&&y<203){if(x>=24&&x<89)set_page(PAGE_MAIN);else if(edit_slot>=0&&x>=89&&x<152)delete_label(edit_slot);else if(x>=(edit_slot>=0?152:122)&&x<218)save_label();}return false;}
- if(page==PAGE_CONTROLS){if(hit(x,y,79,201,82,32)){set_page(PAGE_MAIN);return false;}if(y<CONTROLS_TOP||y>=CONTROLS_BOTTOM)return false;unsigned position=(unsigned)(y-CONTROLS_TOP+controls_scroll),setting=position/CONTROLS_ROW_HEIGHT+1;int row_y=(int)(position%CONTROLS_ROW_HEIGHT);if(setting>CONTROLS_COUNT||row_y<4||row_y>=44)return false;if(controls_segment(setting)){if(x>=110&&x<165)settings_change(setting,0,0);else if(x>=171&&x<232)settings_change(setting,0,1);}else if(setting==11){if(x>=110&&x<232)settings_change(setting,0,0);}else if(x>=90&&x<122)settings_change(setting,-1,0);else if(x>=200&&x<232)settings_change(setting,1,0);return false;}
+ if(page==PAGE_CONTROLS){if(hit(x,y,79,201,82,32)){set_page(PAGE_MAIN);return false;}if(y<CONTROLS_TOP||y>=CONTROLS_BOTTOM)return false;unsigned position=(unsigned)(y-CONTROLS_TOP+controls_scroll),setting=position/CONTROLS_ROW_HEIGHT+1;int row_y=(int)(position%CONTROLS_ROW_HEIGHT);if(setting>CONTROLS_COUNT||row_y<4||row_y>=44)return false;if(controls_segment(setting)){if(x>=110&&x<165)settings_change(setting,0,0);else if(x>=171&&x<232)settings_change(setting,0,1);}else if(setting==11||setting==12){if(x>=110&&x<232)settings_change(setting,0,0);}else if(x>=90&&x<122)settings_change(setting,-1,0);else if(x>=200&&x<232)settings_change(setting,1,0);return false;}
  if(!started){if(hit(x,y,68,102,104,48))*toggle_requested=true;else if(hit(x,y,72,196,98,38)){list_scroll=0;set_page(PAGE_CONTROLS);}else if(hit(x,y,6,4,50,34))return request_root_exit();return false;}
  if(y>=8&&y<42){if(x>=4&&x<55){view=0;list_scroll=0;lab_edit=false;}else if(x>=58&&x<108){view=1;list_scroll=0;lab_edit=false;}else if(x>=111&&x<185){view=2;list_scroll=0;lab_edit=false;}else if(x>=188&&x<210&&view!=2){if(load_errors&1u)notify("RETRY STORAGE FIRST");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=213&&x<240){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
  if(view==2){if(hit(x,y,161,44,64,37)){lab_edit=!lab_edit;list_scroll=0;set_page(PAGE_MAIN);return false;}unsigned order[8],n=ordered_labels(order);if(lab_edit&&y>=88&&y<198){unsigned row=(unsigned)(y-88)/55+list_scroll;if(row<n){if(x>=182&&x<220)delete_label((int)order[row]);else if(x>=20&&x<181)open_label((int)order[row],0);}}if(y>=200&&y<235){if(x>=16&&x<68&&list_scroll)list_scroll--;else if(x>=173&&x<224&&list_scroll+2<n)list_scroll++;}dirty=true;return false;}
@@ -395,7 +416,7 @@ void app_main(void){
  capture_error=acquired=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=true;
  pending_save=load_errors=0;page=PAGE_MAIN;view=list_scroll=empty_reads=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / MIC OFF";store_message=toast_message=NULL;rendered=recorded_transform=toast_until=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;
  controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
- restore();configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
+ restore();signature_restore();configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
  for(;;){
   if(dirty)draw();
   t5_app_input_t input={0};
@@ -405,9 +426,9 @@ void app_main(void){
 #endif
    break;
   }
-  if(input.exit_requested)break;
-  if(input.buttons&T5_APP_BUTTON_BACK){if(page==PAGE_KEYBOARD){keyboard_cancel();}else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else break;continue;}
-  uint32_t now=app->millis();if(toast_message&&(int32_t)(now-toast_until)>=0){toast_message=NULL;undo_slot=-1;dirty=true;}
+  if(input.exit_requested){if(signature_exit_ready())break;continue;}
+  if(input.buttons&T5_APP_BUTTON_BACK){if(page==PAGE_KEYBOARD){keyboard_cancel();}else if(page==PAGE_SIGNATURE_EDIT){set_page(PAGE_SIGNATURES);}else if(page==PAGE_SIGNATURES){set_page(PAGE_CONTROLS);}else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else if(signature_exit_ready())break;continue;}
+  uint32_t now=app->millis();if(event_slot>=0&&(uint32_t)(now-last_event_at)>2000u){event_slot=-1;dirty=true;}if(toast_message&&(int32_t)(now-toast_until)>=0){toast_message=NULL;undo_slot=-1;dirty=true;}
   bool consumed=process_contact(),toggle_requested=false,freeze_requested=false;
   if(page==PAGE_MAIN){toggle_requested=!!(input.buttons&T5_APP_BUTTON_CONFIRM);freeze_requested=!!(input.buttons&T5_APP_BUTTON_DOWN);if(input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_RIGHT)){view=(view+(input.buttons&T5_APP_BUTTON_LEFT?2u:1u))%3;list_scroll=0;lab_edit=false;set_page(PAGE_MAIN);}}
   else if(page==PAGE_CONTROLS){if(input.buttons&T5_APP_BUTTON_UP)controls_move(controls_scroll-CONTROLS_ROW_HEIGHT);if(input.buttons&T5_APP_BUTTON_DOWN)controls_move(controls_scroll+CONTROLS_ROW_HEIGHT);}
