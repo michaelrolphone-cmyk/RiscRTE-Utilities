@@ -11,7 +11,7 @@ class AudioInventory(unittest.TestCase):
         apps=inventory()
         self.assertEqual([x['id'] for x in apps],['frequency_generator','audio_spectrum'])
         side=json.loads((ROOT/'Apps/frequency_generator.json').read_text())
-        self.assertEqual(side['version'],'0.1.1')
+        self.assertEqual(side['version'],'0.1.2')
         self.assertEqual(side['min_firmware_version'],'0.1.16')
         self.assertEqual([r['capability'] for r in side['requires']],
             ['display.output','input.touch.raw','audio.output','alarm.service'])
@@ -28,6 +28,10 @@ class AudioInventory(unittest.TestCase):
         self.assertNotIn('->silence(',code)
         self.assertIn('if(!owned)return true;',code)
         self.assertIn('if(uncertain)return false;',code)
+        self.assertIn('volume=100',code)
+        tone=(ROOT/'Apps/tone_core.h').read_text()
+        self.assertIn('#define TONE_MAX_PERCENT 100u',tone)
+        self.assertIn('s->gain>32767||s->target>32767',tone)
 
     def test_bundled_font_notices_are_preserved(self):
         code=(ROOT/'scripts/build_audio_apps.py').read_text()
