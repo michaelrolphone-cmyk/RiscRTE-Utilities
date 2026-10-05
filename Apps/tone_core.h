@@ -41,8 +41,9 @@ static inline bool tone_configure(tone_state *s,unsigned hz,unsigned percent) {
 static inline bool tone_generate(tone_state *s,int16_t *pcm,size_t frames) {
     if(!s||!pcm||!frames||frames>TONE_FRAMES||!s->increment||s->gain>32767||s->target>32767)return false;
     for(size_t i=0;i<frames;i++) {
-        if(s->gain<s->target)s->gain=(uint16_t)(s->target-s->gain>128?s->gain+128:s->target);
-        else if(s->gain>s->target)s->gain=(uint16_t)(s->gain-s->target>128?s->gain-128:s->target);
+        /* Keep the original ~4 ms gain ramp at the expanded 0-100% range. */
+        if(s->gain<s->target)s->gain=(uint16_t)(s->target-s->gain>512?s->gain+512:s->target);
+        else if(s->gain>s->target)s->gain=(uint16_t)(s->gain-s->target>512?s->gain-512:s->target);
         unsigned index=s->phase>>24;int32_t first=tone_sine[index];
         int32_t delta=(int32_t)tone_sine[(index+1)&255u]-first;
         int32_t wave=first+delta*(int32_t)((s->phase>>8)&65535u)/65536;
