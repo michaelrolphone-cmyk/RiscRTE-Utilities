@@ -166,5 +166,22 @@
       ],
       "min_firmware_version": "0.1.16"
     }
+  ],
+  "lora_apps": [
+    {
+      "id": "lora_messages",
+      "display_name": "LoRa Messages",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/lora_messages.c",
+      "manifest_path": "Apps/lora_messages.json",
+      "file_name": "lora_messages.elf",
+      "additional_sources": [
+        "Apps/PortableLoRaV2.h",
+        "Apps/lora_messages_model.h"
+      ],
+      "min_firmware_version": "0.1.27"
+    }
   ]
 }

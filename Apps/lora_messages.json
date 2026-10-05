@@ -1,0 +1,17 @@
+{
+  "min_firmware_version": "0.1.27",
+  "version": "0.1.0",
+  "display_name": "LoRa Messages",
+  "file_name": "lora_messages.elf",
+  "icon": "solid:f27a",
+  "category": ["Connectivity"],
+  "runtime_profile": "portable-riscrte-v1",
+  "requires": [
+    {"capability": "display.output", "api": ">=1"},
+    {"capability": "input.touch.raw", "api": ">=1"},
+    {"capability": "radio.lora", "api": ">=2"},
+    {"capability": "storage.key-value", "api": ">=1"},
+    {"capability": "rtc.clock", "api": ">=2"},
+    {"capability": "alarm.service", "api": ">=1"}
+  ]
+}

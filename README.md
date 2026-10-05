@@ -107,3 +107,12 @@ declare an untested Watch installation ready.
 user-started microphone spectrum and scrolling spectrogram, sharing the existing
 input provider and foreground lifecycle. It keeps only bounded RAM snapshots,
 stops for alarms/sleep/Back, and never resumes capture automatically.
+
+## LoRa Messages
+
+[LoRa Messages](docs/apps/lora_messages.md) adds an original portable Nova7 app
+using the existing `radio.lora@2` provider. It offers explicit RF setup, the
+standard Points keyboard, manual raw broadcast send/listen, bounded session
+history and honest transmit/error status. No RF values, auto-transmission or
+physical hardware qualification are inferred. The historical Reader LoRa
+utility and its published-byte parity remain unchanged.

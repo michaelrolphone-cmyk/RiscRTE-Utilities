@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "system_apps": "0cd135096b4c9a0dc061905e9fe8aa70cf86e74f",
+  "watch_radio_abi": "2a4fbae8fb2425bf830c302863a5e195106e77c9",
+  "runtime_minimum": "0.1.27",
+  "purpose": "LoRa Messages with explicit RF policy and app-owned radio lifecycle"
+}
