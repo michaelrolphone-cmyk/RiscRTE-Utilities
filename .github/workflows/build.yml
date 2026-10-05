@@ -93,7 +93,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        app: [calculator, stopwatch]
+        app: [calculator, stopwatch, battery]
     steps:
       - uses: actions/checkout@v4
         with:
