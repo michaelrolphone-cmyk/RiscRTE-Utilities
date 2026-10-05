@@ -91,7 +91,7 @@ void app_main(void) {
        !runtime->acquire||!runtime->release||!runtime->diagnostic||!runtime->yield_ms)return;
     if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
     output=NULL;grant=(risc_runtime_capability_v1){0};tone=(tone_state){0};
-    frequency=440;volume=5;step_index=1;playing=owned=uncertain=false;dirty=true;message="Start at a low level";
+    frequency=440;volume=100;step_index=1;playing=owned=uncertain=false;dirty=true;message="100% level - tap Start";
     for(;;) {
         if(dirty)draw();
         t5_app_input_t input={0};
