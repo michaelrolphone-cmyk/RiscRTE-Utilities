@@ -87,3 +87,35 @@ jobs:
             dist/audio-apps/
           if-no-files-found: error
           retention-days: 14
+
+  nova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        app: [calculator]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 06bb53cb46c815ef9796eb7999fb36e34420ff0b
+          path: .dependencies/nova-system
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python scripts/test_nova_utility.py --app ${{ matrix.app }} --system-apps .dependencies/nova-system
+      - name: Install pinned public compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - run: python scripts/build_nova_utility.py --app ${{ matrix.app }} --system-apps .dependencies/nova-system
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nova-${{ matrix.app }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/nova/
+          if-no-files-found: error
+          retention-days: 14

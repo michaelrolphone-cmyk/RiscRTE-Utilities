@@ -54,7 +54,7 @@
     {
       "id": "calculator",
       "display_name": "Calculator",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/calculator.c",
@@ -62,7 +62,8 @@
       "file_name": "calculator.elf",
       "additional_sources": [
         "Apps/daily_draw.h",
-        "Apps/calculator_core.h"
+        "Apps/calculator_core.h",
+        "Apps/calculator_nova.inc"
       ]
     },
     {
