@@ -41,11 +41,12 @@ class AudioInventory(unittest.TestCase):
     def test_spectrum_declares_alarm_and_input(self):
         side=json.loads((ROOT/'Apps/audio_spectrum.json').read_text())
         self.assertEqual(side['category'],['Audio Tools'])
-        self.assertEqual(side['version'],'0.3.0')
-        self.assertEqual(side['requires'][-1]['api'],'>=2')
-        self.assertEqual(side['min_firmware_version'],'0.1.16')
+        self.assertEqual(side['version'],'0.4.0')
+        self.assertEqual(side['requires'][-2]['api'],'>=2')
+        self.assertEqual(side['requires'][-1],{'capability':'storage.app-data','api':'>=1'})
+        self.assertEqual(side['min_firmware_version'],'0.1.30')
         self.assertEqual([r['capability'] for r in side['requires']],
-            ['display.output','input.touch.raw','audio.input','alarm.service','storage.key-value'])
+            ['display.output','input.touch.raw','audio.input','alarm.service','storage.key-value','storage.app-data'])
 
     def test_watch_spectrum_product_controls(self):
         code=(ROOT/'Apps/audio_spectrum.c').read_text()
@@ -58,3 +59,13 @@ class AudioInventory(unittest.TestCase):
         controls=(ROOT/'Apps/spectrum_controls.inc').read_text()
         self.assertIn('controls_scroll',controls)
         self.assertNotIn('SOURCE',controls)
+
+    def test_temporal_backend_is_explicitly_pending(self):
+        import hashlib
+        dependency=json.loads((ROOT/'sdk/spectrum-temporal-sources.json').read_text())
+        self.assertEqual(dependency['namespace'],2)
+        self.assertEqual(dependency['required_layout_abi'],2)
+        self.assertFalse(dependency['watch_installable'])
+        self.assertIsNone(dependency['runtime_commit'])
+        self.assertEqual(dependency['api_header_sha256'],hashlib.sha256((ROOT/'Apps/RiscAppDataV1.h').read_bytes()).hexdigest())
+        self.assertEqual(dependency['preserved_key_value_namespaces'],{'spectrum_api2':7,'shared_preferences_api1':1})

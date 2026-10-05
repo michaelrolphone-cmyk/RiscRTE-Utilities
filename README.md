@@ -119,3 +119,12 @@ standard Points keyboard, manual raw broadcast send/listen, bounded session
 history and honest transmit/error status. No RF values, auto-transmission or
 physical hardware qualification are inferred. The historical Reader LoRa
 utility and its published-byte parity remain unchanged.
+
+## Temporal audio development increment
+
+[Audio Spectrum 0.4.0](docs/apps/spectrum_temporal.md) adds explicit positive and
+negative short-event examples, background-relative labels, temporal matching and
+bounded frequency-shift tolerance. Its app-data backend dependency is not yet
+published; `sdk/spectrum-temporal-sources.json` records that state explicitly.
+These owner-repository development artifacts do not replace the tested Watch
+cohort using Spectrum 0.3.0. No new layout is formatted or installed by this repo.

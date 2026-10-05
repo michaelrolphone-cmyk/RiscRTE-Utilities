@@ -74,6 +74,7 @@ jobs:
           python scripts/test_frequency_generator.py --system-apps .dependencies/audio-system-apps
           python scripts/test_audio_spectrum.py --system-apps .dependencies/audio-system-apps
           python scripts/test_spectrum_renderer.py --system-apps .dependencies/audio-system-apps
+          python scripts/test_spectrum_temporal_renderer.py --system-apps .dependencies/audio-system-apps
           python scripts/test_audio_service_lifecycle.py --system-apps .dependencies/audio-system-apps --runtime .dependencies/audio-runtime
       - name: Install pinned public compiler
         run: |

@@ -1,4 +1,4 @@
-# Audio Spectrum 0.3.0
+# Audio Spectrum 0.4.0 (development source)
 
 The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
 and saved frequency labels on the Watch's 240 × 240 display. The supplied design
@@ -15,7 +15,8 @@ was implemented in the native app and shared NOVA renderer, not a web view.
   with distinct DC/Nyquist scaling. Displayed level is dBFS plus selected display
   gain, not calibrated sound-pressure level. Gain does not alter microphone gain.
 - Logarithmic or linear frequency and amplitude axes; low/high range controls;
-  display gain from −24 to +60 dB; label detection threshold −90 to −20 dB.
+  display gain from −24 to +60 dB; background-excess FLOOR from −90 to −20 dBFS; detection also requires
+  a peak above the local background, independent of display gain.
 - Peak trace and five palettes: NOVA, Inferno, Viridis, Gray and Jet.
 - The only source is the live microphone. Synthetic PCM exists only in test
   fixtures; the app has no demo generator or demo source selection. Legacy saved
@@ -31,7 +32,9 @@ the cursor; tap its pill to name that frequency. The tag button toggles markers.
 The label editor supports up to eight labels, sixteen printable ASCII characters
 per name, and eight colors. Saved labels can be renamed, recolored or deleted;
 a short Undo action restores the last deleted label. The active-label list shows
-frequencies above the chosen threshold, sorted by level. Edit mode includes
+recent-frame frequencies above background and the chosen excess floor, sorted
+by excess level. Their values show dB above background; steady ambient tones
+do not activate merely because their absolute level is high. Edit mode includes
 inactive labels. Paging keeps controls visible on the small screen.
 
 The gear opens one continuously scrolling controls view with fixed header and
@@ -43,6 +46,15 @@ unnecessary side gutters. The standard Points/Watch 32-key keyboard covers all
 eight-key pager is not used. Back and Cancel retain nested
 navigation ownership. Stop and Freeze close the microphone. Resuming requires
 another explicit Start.
+
+## Temporal event examples in 0.4.0
+
+[Temporal event examples](spectrum_temporal.md) add attack/decay/duration, flux,
+impact spacing, multiple positive/nonmatch examples, bounded time alignment and
+frequency-shift tolerance. Controls → Events opens this separate collection.
+Existing room and single-frame KV records remain untouched. This source increment
+requires an unpublished Runtime app-data dependency and is not an installable
+Watch cohort yet; the existing 0.3.0 cohort remains unchanged.
 
 ## Persistence and grants
 
@@ -57,6 +69,10 @@ Retry rereads unresolved records without writing defaults over them. Unresolved
 label slots stay reserved, and errors remain visible until their own records are
 read successfully. Capture stops before restored source/settings are applied.
 Saved data is not guaranteed to survive a full-device erase/reflash.
+
+Temporal example files additionally require `storage.app-data@1`, namespace 2,
+and Runtime 0.1.30 with the explicit opt-in app-data layout. Shared adapter
+preferences remain `storage.key-value@1` namespace 1.
 
 The microphone retains the existing safe acquisition/cleanup behavior. Alarm,
 sleep, Back, read failure and interrupted ownership stop capture. Unconfirmed
@@ -93,7 +109,8 @@ are not inferred. Collect representative frames under the correct label.
 - USE selects a saved room manually and enables MANUAL. This is useful when
   two rooms have similar backgrounds. Manual selection is clearly distinguished
   from a measured match score.
-- Event matches show their label and similarity percentage for two seconds.
+- Legacy single-frame event matches show their label and similarity percentage
+  for two seconds. They also require SNR-active excess above the selected floor.
   Unknown, quiet or ambiguous frames produce no new match. Similarity is not a
   probability or calibrated identification confidence.
 
@@ -165,9 +182,8 @@ bins and at most 1,024 profile-band comparisons across all eight slots. One fram
 is 32 ms. No profile operation allocates memory or expands an unbounded history.
 The dedicated analyzer uses 4,640 bytes, eight profiles plus mean caches 12,480
 bytes, and the room tracker 544 bytes; a separate filtered-bin buffer preserves
-raw FFT output. The pinned Xtensa target build measures 161,028 bytes of total
-BSS, 9,956 bytes of data and 90,063 bytes of text for the shared Spectrum app
-and adapter (excluding runtime-owned display surfaces).
+raw FFT output. Those pieces describe the original room/snapshot analyzer. The 0.4.0 temporal
+working-set and target costs are documented separately in the temporal guide.
 Host timing is a regression signal, not a device real-time guarantee.
 
 New normal and ASan/UBSan tests cover canonical identity across all display

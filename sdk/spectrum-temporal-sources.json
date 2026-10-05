@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "runtime_repository": "michaelrolphone-cmyk/RiscRTE",
+  "runtime_minimum": "0.1.30",
+  "runtime_commit": null,
+  "runtime_publication": "pending",
+  "watch_installable": false,
+  "required_layout_abi": 2,
+  "capability": "storage.app-data",
+  "api": 1,
+  "namespace": 2,
+  "api_header_sha256": "49ced12bd617ce9e29626f97ee21d824edcf5f8272524a7da8780c60979df201",
+  "preserved_key_value_namespaces": {
+    "spectrum_api2": 7,
+    "shared_preferences_api1": 1
+  },
+  "note": "Owner source and host/target development artifacts only. Do not update a Watch install/release cohort until the canonical app-data backend, explicit namespace grant and opt-in layout are available and integrated."
+}

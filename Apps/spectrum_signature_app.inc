@@ -1,6 +1,7 @@
 /* Saved spectral samples. Existing preference and frequency-label keys retain
  * their v1 encoding. New profile slots each commit independently through @2. */
 static spectrum_signature signatures[SPECTRUM_SIGNATURE_SLOTS],signature_capture;
+static uint32_t legacy_event_excess[SPECTRUM_SIGNATURE_SLOTS][SPECTRUM_SIGNATURE_BANDS];
 static uint32_t signature_means[SPECTRUM_SIGNATURE_SLOTS][SPECTRUM_SIGNATURE_BANDS];
 static spectrum_signature_analyzer signature_audio;
 static spectrum_room_tracker room_tracker;
@@ -56,12 +57,14 @@ static void signature_prepare_filter(int selected){
 static void signature_observe(void){
  if(signature_seen==signature_audio.transforms)return;
  signature_seen=signature_audio.transforms;
+ temporal_observe();
  if(signature_display_frames<512){for(unsigned i=0;i<SPECTRUM_SIGNATURE_BANDS;i++)signature_display_sums[i]+=signature_audio.power[i];++signature_display_frames;}
  if(signature_goal){if(!spectrum_signature_add(&signature_capture,signature_audio.power)){signature_goal=0;notify("SAMPLE LIMIT");}else if(signature_capture.frames>=signature_goal)signature_commit_capture();}
  int previous_filter=signature_filter();
- spectrum_room_observe(&room_tracker,signature_audio.power,signatures,signature_means);
+ if(ambient.ready)spectrum_room_observe(&room_tracker,ambient.slow,signatures,signature_means);
  if(previous_filter!=signature_filter())clear_analysis();
- unsigned confidence=0;bool ambiguous=false;int found=spectrum_signature_best(signature_audio.power,signatures,signature_means,SPECTRUM_SIGNATURE_EVENT,&confidence,&ambiguous);
+ for(unsigned slot=0;slot<8;slot++)for(unsigned band=0;band<128;band++)legacy_event_excess[slot][band]=spectrum_signature_residual(signature_means[slot][band],ambient.slow[band]);
+ unsigned confidence=0;bool ambiguous=false;int found=ambient.ready&&ambient.foreground&&spectrum_background_db(spectrum_signature_total(foreground_power))>=prefs.threshold_db*100?spectrum_signature_best(foreground_power,signatures,legacy_event_excess,SPECTRUM_SIGNATURE_EVENT,&confidence,&ambiguous):-1;
  if(found>=0){event_slot=found;event_confidence=confidence;last_event_at=app->millis();dirty=true;}else if(event_slot>=0&&(uint32_t)(app->millis()-last_event_at)>2000u){event_slot=-1;dirty=true;}
  if(page==PAGE_SIGNATURES||signature_goal)dirty=true;
 }
@@ -73,7 +76,7 @@ static bool signature_exit_ready(void){
 }
 static void signature_open(int slot,unsigned kind){
  if(signature_goal){notify("FINISH OR CANCEL SAMPLE");return;}
- signature_slot=slot;signature_delete_confirm=false;editing=(spectrum_label){0};
+ event_keyboard=false;signature_slot=slot;signature_delete_confirm=false;editing=(spectrum_label){0};
  if(slot>=0){memcpy(editing.name,signatures[slot].name,17);editing.color=signatures[slot].kind;}else{editing.color=(uint8_t)kind;for(unsigned i=0;i<SPECTRUM_SIGNATURE_SLOTS;i++)if(!signatures[i].kind&&!(signature_errors&(1u<<i))){signature_slot=(int)i;break;}if(signature_slot<0){notify(signature_errors?"RETRY UNREAD SAMPLES":"8 SAMPLE LABELS FULL");return;}}
  toast_message=NULL;set_page(PAGE_SIGNATURE_EDIT);
 }

@@ -19,7 +19,7 @@ def inventory():
         if name not in ('frequency_generator','audio_spectrum') or app['source_path']!=f'Apps/{name}.c' or app['manifest_path']!=f'Apps/{name}.json' or app['file_name']!=name+'.elf':raise ValueError('Invalid audio source identity')
         validate_manifest(ROOT/app['source_path'],name+'.elf')
         side=json.loads((ROOT/app['manifest_path']).read_text())
-        if app['version']!=side['version'] or side['runtime_profile']!='portable-riscrte-v1' or side['min_firmware_version']!='0.1.16':raise ValueError('Audio version/profile mismatch')
+        if app['version']!=side['version'] or side['runtime_profile']!='portable-riscrte-v1' or side['min_firmware_version']!=('0.1.30' if name=='audio_spectrum' else '0.1.16'):raise ValueError('Audio version/profile mismatch')
         if any(not(ROOT/p).is_file() for p in app['additional_sources']):raise ValueError('Missing audio source')
     return apps
 def build(system):
@@ -47,7 +47,7 @@ def build(system):
         manifest={'type':'application','id':name,'version':side['version'],'architecture':'xtensa-esp32s3','file_name':elf.name,'entry':'app_main','requires':[{'capability':r['capability'],'api':int(r['api'][2:])} for r in side['requires']]}
         elf.with_suffix('.json').write_text(json.dumps(manifest,indent=2)+'\n')
         rows.append({'id':name,'version':side['version'],'size_bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'imports':sorted(imports)})
-    record={'schema':1,'purpose':'development-audio-tools-no-hardware-qualification','source_pins':pin,'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}
+    record={'spectrum_temporal_dependencies':json.loads((ROOT/'sdk/spectrum-temporal-sources.json').read_text()),'schema':1,'purpose':'development-audio-tools-no-hardware-qualification','source_pins':pin,'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}
     (out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n')
     for name in ('LICENSE-FontAwesome.txt','LICENSE-Orbitron.txt','LICENSE-Rajdhani.txt','SOURCES.json'):
         (out/name).write_bytes((system/'lib/PortableApps/fonts'/name).read_bytes())
