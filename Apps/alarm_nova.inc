@@ -114,7 +114,13 @@ static void draw(void) {
             else snprintf(value,sizeof(value),"%s: %02u",alarm_fields[i],values[i]);
             portable_nova_button(20,58+(int)i*50,200,44,value,false);
         }
-        portable_nova_center(2,16,215,208,"Draft only. Back, then Arm / Start.",NOVA_CAP);
+        portable_nova_center(2,16,215,208,
+#if DAILY_ALARM_KIND == 2
+            "Draft only. Back, then Start.",
+#else
+            "Draft only. Back, then Arm / Start.",
+#endif
+            NOVA_CAP);
     } else {
         portable_nova_center(1,16,62,208,alarm_fields[alarm_field],NOVA_CAP);
         unsigned shown_value=values[alarm_field];if(alarm_field==0 && !alarm_24h())shown_value=shown_value%12?shown_value%12:12;
