@@ -148,11 +148,18 @@ jobs:
           ref: c5c76883fa4db4de9c81345fdb225b38192231c1
           path: .dependencies/lora-system
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: fc4fe03a0ed26222aae4848ff587fb6137390106
+          path: .dependencies/lora-watch
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Verify LoRa state, radio errors, keyboard and Nova frames
         run: |
+          python scripts/check_lora_abi.py --watch .dependencies/lora-watch
           python scripts/test_lora_messages.py --system-apps .dependencies/lora-system
           python scripts/test_lora_renderer.py --system-apps .dependencies/lora-system
       - name: Install pinned public compiler

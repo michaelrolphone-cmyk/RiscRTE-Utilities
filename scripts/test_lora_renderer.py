@@ -5,7 +5,12 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--system-apps',required=True,type=Path);a=p.parse_args();system=a.system_apps.resolve()
 scenes={
- 'home':[], 'compose':[(3,100,100)],
+ 'home':[], 'selection-save-error':[(3,175,200),(20,100,150),(40,175,200)],
+ 'radio-picker':[(3,175,200)], 'radio-picker-selected':[(3,175,200),(20,200,20)],
+ 'picker-back':[(3,175,200),(20,20,20)],'picker-first-choice':[(3,175,200),(20,100,60)],
+ 'legacy-radio-choice':[],'legacy-picker':[(3,175,200)],'radio-mismatch':[(3,175,200),(20,100,60)],
+ 'fixed-radio-picker':[(3,175,200),(20,100,60)], 'old-provider':[(3,175,200)],
+ 'compose':[(3,100,100)],
  'keyboard':[(3,100,100),(20,50,210)],
  'rf':[(3,175,200)],'rf-invalid':[(3,175,200),(20,170,210)],
  'rf-keyboard':[(3,175,200),(20,100,65)],
@@ -24,7 +29,12 @@ for sanitized in (False,True):
  for name,actions in scenes.items():
   folder=out/name;folder.mkdir(exist_ok=True);path=folder/'actions.txt';path.write_text(''.join(f'{n} {x} {y}\n' for n,x,y in actions))
   env=dict(os.environ)
-  if name in ('listen-stop','send-history'):env['LORA_RENDER_PROFILE']='1'
+  if name in ('listen-stop','send-history','radio-picker-selected'):env['LORA_RENDER_PROFILE']='1'
+  if name in ('rf','rf-invalid','rf-keyboard'):env['LORA_RENDER_CHOICE']='1'
+  if name in ('legacy-radio-choice','legacy-picker','radio-mismatch'):env['LORA_RENDER_LEGACY']='1'
+  if name=='fixed-radio-picker':env['LORA_RENDER_FIXED']='1'
+  if name=='old-provider':env['LORA_RENDER_OLD_API']='1'
+  if name=='selection-save-error':env['LORA_RENDER_SAVE_ERROR']='1'
   if name=='send-history':env['LORA_RENDER_ALLOW_SEND']='1'
   subprocess.run([str(exe),str(folder),str(path)],check=True,env=env,timeout=60)
   frames=sorted(folder.glob('frame-*.ppm'));assert frames,name
@@ -35,5 +45,7 @@ for sanitized in (False,True):
    return sum(any(raw[(y*240+x)*3:(y*240+x+1)*3]) for y in range(y0,y0+h) for x in range(x0,x0+w))
   if name=='rf-invalid':assert lit(12,56,216,96)>250,'RF validation message must be visible'
   if name in ('keyboard','rf-keyboard'):assert lit(12,76,216,96)>1500,'standard keyboard cells missing'
+  if name in ('radio-picker','radio-picker-selected','fixed-radio-picker','legacy-picker'):
+   for row in range(4):assert lit(12,40+row*44,216,40)>150,'radio choice missing'
   if name=='send-history':assert lit(12,44,216,120)>150,'transmit history details missing'
-print('LoRa real renderer: ten scenes normal + ASan/UBSan, framebuffer stride guards, all leases released, manual RF only')
+print('LoRa real renderer: twenty scenes normal + ASan/UBSan, framebuffer stride guards, all leases released, manual RF only')

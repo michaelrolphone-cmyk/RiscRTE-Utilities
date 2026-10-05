@@ -174,7 +174,7 @@
     {
       "id": "lora_messages",
       "display_name": "LoRa Messages",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/lora_messages.c",

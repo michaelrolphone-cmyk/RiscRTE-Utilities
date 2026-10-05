@@ -17,7 +17,7 @@
 void app_main(void);int app_module_init(void);void app_module_fini(void);
 static unsigned ticks,polls,grants,frames,subs,presents;
 static unsigned stop_poll=240;
-static unsigned radio_sends,radio_state;static bool radio_owned;
+static unsigned radio_sends,radio_state,selected_profile;static bool radio_owned;
 static uint16_t pixels[240*244];
 static const char *directory;
 static struct {unsigned at;int x,y;} actions[256];static unsigned action_count;
@@ -50,7 +50,7 @@ static bool fake_rtc(void*c,twatch_rtc_time_v1*s){(void)c;*s=(twatch_rtc_time_v1
 static bool fake_write(void*c,const twatch_rtc_time_v1*s){(void)c;(void)s;assert(!"Unexpected RTC write in read-only audit");return false;}
 static const twatch_rtc_api_v1 rtc_api={.api_version=2,.struct_size=sizeof(rtc_api),.read=fake_rtc,.write=fake_write};
 static int32_t fake_get(void*c,const char*k,void*b,uint32_t cap,uint32_t*s){(void)c;*s=0;for(unsigned i=0;i<32;i++)if(!strcmp(k,cells[i].key)){*s=cells[i].size;if(cap<*s)return RISC_KEY_VALUE_BUFFER_SMALL;memcpy(b,cells[i].bytes,*s);return 0;}return RISC_KEY_VALUE_NOT_FOUND;}
-static int32_t fake_put(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(n<=64&&strlen(k)<16);unsigned i;for(i=0;i<32&&cells[i].key[0]&&strcmp(k,cells[i].key);i++);assert(i<32);strcpy(cells[i].key,k);memcpy(cells[i].bytes,b,n);cells[i].size=n;return 0;}
+static int32_t fake_put(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(n<=64&&strlen(k)<16);unsigned i;for(i=0;i<32&&cells[i].key[0]&&strcmp(k,cells[i].key);i++);assert(i<32);strcpy(cells[i].key,k);memcpy(cells[i].bytes,b,n);cells[i].size=n;return getenv("LORA_RENDER_SAVE_ERROR")&&!strcmp(k,LM_PROFILE_KEY)?RISC_KEY_VALUE_IO:0;}
 static const risc_key_value_v1 kv_api={1,sizeof(kv_api),NULL,fake_get,fake_put};
 static int32_t fake_alarm_status(void*c,alarm_status_v1*s){(void)c;*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_READY,.mode=ALARM_MODE_BOTH};return ALARM_OK;}
 static int32_t fake_alarm_step(void*c){(void)c;return ALARM_OK;}
@@ -70,10 +70,15 @@ static bool radio_receive(void*c,uint32_t ms){(void)c;assert(radio_owned&&ms==50
 static bool radio_poll(void*c,twatch_lora_status_v2*s){(void)c;assert(radio_owned);*s=(twatch_lora_status_v2){.state=radio_state==TW_LORA_TX?TW_LORA_SENT:TW_LORA_RX};return true;}
 static bool radio_read(void*c,uint8_t*b,size_t n,size_t*got){(void)c;(void)b;(void)n;*got=0;return false;}
 static bool radio_cancel(void*c){(void)c;radio_owned=false;return true;}
-static const twatch_radio_api_v2 radio_api={2,sizeof(radio_api),NULL,radio_configure,radio_send,radio_receive,radio_poll,radio_read,radio_cancel};
+static bool radio_info(void*c,twatch_lora_profile_info_v1*out){(void)c;assert(out->struct_size==sizeof(*out));*out=(twatch_lora_profile_info_v1){.struct_size=sizeof(*out),.supported_profiles=getenv("LORA_RENDER_FIXED")?2:15,.selected_profile=selected_profile};return true;}
+static bool radio_select(void*c,uint32_t choice){(void)c;assert(!radio_owned);selected_profile=choice;return true;}
+static twatch_radio_api_v2 radio_api={2,sizeof(radio_api),NULL,radio_configure,radio_send,radio_receive,radio_poll,radio_read,radio_cancel,radio_info,radio_select};
 static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)id;assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&kv_api;else if(!strcmp(n,"radio.lora")&&v==2)g->api=&radio_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else return false;grants++;return true;}
 static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);g->api=NULL;grants--;return true;}
 static const risc_runtime_api_v1 runtime_api={1,sizeof(runtime_api),fake_health,fake_yield,fake_diag,fake_launch,fake_acquire,fake_release};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&runtime_api:NULL;}
-int main(int argc,char**argv){assert(argc>=2);directory=argv[1];memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}if(getenv("LORA_RENDER_PROFILE")){twatch_lora_config_v2 p={.frequency_hz=915000000,.bandwidth_hz=125000,.preamble=8,.sf=7,.coding_rate=5,.power_dbm=0};uint8_t record[32];lm_profile_encode(&p,record);assert(fake_put(NULL,LM_PROFILE_KEY,record,32)==0);}
+int main(int argc,char**argv){assert(argc>=2);directory=argv[1];memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}if(getenv("LORA_RENDER_PROFILE")){twatch_lora_config_v2 p={.frequency_hz=915000000,.bandwidth_hz=125000,.preamble=8,.sf=7,.coding_rate=5,.power_dbm=0};uint8_t record[32];lm_profile_encode(&p,3,true,record);assert(fake_put(NULL,LM_PROFILE_KEY,record,32)==0);}
+if(getenv("LORA_RENDER_CHOICE")){twatch_lora_config_v2 p={0};uint8_t record[32];lm_profile_encode(&p,3,false,record);assert(fake_put(NULL,LM_PROFILE_KEY,record,32)==0);}
+if(getenv("LORA_RENDER_LEGACY")){twatch_lora_config_v2 p={.frequency_hz=915000000,.bandwidth_hz=125000,.preamble=8,.sf=7,.coding_rate=5,.power_dbm=0};uint8_t record[32];lm_profile_encode(&p,0,true,record);record[2]=1;record[17]=0;lm_put32(record+28,lm_checksum(record));assert(fake_put(NULL,LM_PROFILE_KEY,record,32)==0);}
+if(getenv("LORA_RENDER_OLD_API"))radio_api.struct_size=offsetof(twatch_radio_api_v2,profile_info);
 assert(app_module_init()==0);app_main();app_module_fini();assert(!grants&&!frames&&!subs&&!radio_owned);if(getenv("LORA_RENDER_ALLOW_SEND"))assert(radio_sends==1);else assert(!radio_sends);printf("Production app/adapter capture: %u frames, %u polls, %u ms; all grants released; stride guards intact\n",presents,polls,ticks);return 0;}

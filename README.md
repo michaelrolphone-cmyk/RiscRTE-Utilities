@@ -113,7 +113,8 @@ automatically. Raw display remains the default.
 ## LoRa Messages
 
 [LoRa Messages](docs/apps/lora_messages.md) adds an original portable Nova7 app
-using the existing `radio.lora@2` provider. It offers explicit RF setup, the
+using the append-only selector in `radio.lora@2`. It offers an explicit
+433/868/915 MHz or 2.4 GHz radio picker, compatible RF setup, the
 standard Points keyboard, manual raw broadcast send/listen, bounded session
 history and honest transmit/error status. No RF values, auto-transmission or
 physical hardware qualification are inferred. The historical Reader LoRa

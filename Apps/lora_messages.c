@@ -14,7 +14,7 @@
 #include "PortableAppSleep.h"
 #endif
 #include <stdio.h>
-enum { PAGE_HOME,PAGE_COMPOSE,PAGE_KEYBOARD,PAGE_RF,PAGE_HISTORY,PAGE_MESSAGE,PAGE_RF_ERROR };
+enum { PAGE_HOME,PAGE_COMPOSE,PAGE_KEYBOARD,PAGE_RF,PAGE_HISTORY,PAGE_MESSAGE,PAGE_RF_ERROR,PAGE_RADIO };
 static const t5_app_api_v1 *app;
 static const risc_runtime_api_v1 *runtime;
 static risc_runtime_capability_v1 grants[4];
@@ -22,14 +22,23 @@ static bool acquired[4];
 static const risc_key_value_v1 *store,*preferences;
 static const twatch_rtc_api_v1 *rtc;
 static lm_model model;
-static unsigned page,rf_page,rf_fields,key_page,key_choice,edit_field,history_page,detail_offset,compose_offset,time_format;
+static unsigned picker_mask,picker_return_page,page,rf_page,rf_fields,key_page,key_choice,edit_field,history_page,detail_offset,compose_offset,time_format;
 static twatch_lora_config_v2 editing_profile;
 static lm_message detail;
 static char draft[LM_TEXT_MAX+1],entry[LM_TEXT_MAX+1];
 static bool dirty;
+static unsigned profile_save_state; /* 0 verified/default, 1 session-only, 2 uncertain. */
 static const char *notice;
+static const char *const radio_names[]={"CHOOSE RADIO","SX1262 / 433 MHz","SX1262 / 868 MHz","SX1262 / 915 MHz","SX1280 / 2.4 GHz"};
+static const char *radio_name(void){return radio_names[model.choice<=4?model.choice:0];}
 static const char *const field_names[]={"FREQUENCY HZ","BANDWIDTH HZ","SPREADING FACTOR","CODING RATE 4/N","POWER DBM","PREAMBLE SYMBOLS"};
-static const char *const field_help[]={"Exact Hz; match antenna band","125000 / 250000 / 500000 *","5 to 12","5 to 8","Board and local limits apply","8 to 4096"};
+static const char *field_help(unsigned field){
+ static const char *const ranges[]={"Choose radio first","430000000-440000000 Hz","863000000-870000000 Hz","902000000-928000000 Hz","2400000000-2500000000 Hz"};
+ if(field==0)return ranges[model.choice<=4?model.choice:0];
+ if(field==1)return model.choice==4?"203125,406250,812500,1625000":"125000 / 250000 / 500000 Hz";
+ if(field==4)return model.choice==4?"-18 to 13 dBm / check local limits":"-9 to 22 dBm / check local limits";
+ return field==2?"5 to 12":field==3?"5 to 8":"8 to 4096";
+}
 static void retain(void){runtime->diagnostic("LORA cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
 bool portable_radio_services_safe(void){return !model.uncertain;}
 bool portable_radio_suspend(void){
@@ -46,22 +55,49 @@ static bool acquire(unsigned i,const char *name,uint32_t version,uint64_t instan
  if(!runtime->acquire(name,version,instance,&grants[i]))return false;
  acquired[i]=true;return true;
 }
+static bool open_radio_provider(void){
+ if(model.radio)return true;
+ if(!acquire(0,"radio.lora",2,0)){notify("Radio unavailable; retry");return false;}
+ if(!lm_selector_valid(grants[0].api)){release_grant(0);notify("Update driver for radio picker");return false;}
+ model.radio=grants[0].api;return true;
+}
 static bool open_radio(void){
  uint8_t policy=0;
  if(!preferences && acquire(2,"storage.key-value",1,PORTABLE_TIME_FORMAT_STORE_INSTANCE))preferences=grants[2].api;
  if(!portable_radio_load(preferences,&policy)){notify("Radio policy unavailable; retry");return false;}
  if(policy&PORTABLE_RADIO_AIRPLANE){notify("Airplane mode is on");return false;}
- if(model.radio)return true;
- if(!acquire(0,"radio.lora",2,0)){notify("Radio unavailable; retry");return false;}
- if(!lm_api_valid(grants[0].api)){release_grant(0);notify("Radio API unavailable; retry");return false;}
- model.radio=grants[0].api;return true;
+ return open_radio_provider();
+}
+static void open_picker(void){
+ if(!portable_radio_suspend())retain();
+ picker_return_page=page;picker_mask=0;page=PAGE_RADIO;dirty=true;
+ twatch_lora_profile_info_v1 info;
+ if(!open_radio_provider())return;
+ if(!lm_profile_info(model.radio,&info)){notify("Radio choices unavailable; retry");return;}
+ picker_mask=info.supported_profiles;notice=NULL;
+}
+static bool save_profile(void){
+ if(!store){profile_save_state=1;return false;}
+ uint8_t bytes[32],check[32];uint32_t size=0;lm_profile_encode(&model.profile,model.choice,model.profile_valid,bytes);
+ int32_t result=store->put(store->context,LM_PROFILE_KEY,bytes,sizeof(bytes));
+ bool saved=result==RISC_KEY_VALUE_OK && store->get(store->context,LM_PROFILE_KEY,check,sizeof(check),&size)==RISC_KEY_VALUE_OK && size==sizeof(check) && !memcmp(bytes,check,sizeof(bytes));
+ profile_save_state=saved?0:2;return saved;
+}
+static void choose_radio(unsigned choice){
+ if(choice<1 || choice>4 || !(picker_mask&(1u<<(choice-1))))return;
+ if(!lm_select(&model,choice)){if(model.uncertain)retain();notify("Radio choice rejected; retry");return;}
+ bool saved=save_profile();page=picker_return_page;
+ notify(!store?"Radio set for this session only":!saved?"Radio set; save unconfirmed":
+        lm_profile_matches(&model.profile,choice)?"Radio saved / RF retained":"Radio saved / set RF next");
 }
 static void load_preferences(void){
  if(acquire(1,"storage.key-value",1,LM_STORE_INSTANCE)){
   const risc_key_value_v1 *v=grants[1].api;
   if(v && v->api_version==1 && v->struct_size>=sizeof(*v) && v->get && v->put){
    store=v;uint8_t bytes[32];uint32_t n=0;int32_t status=v->get(v->context,LM_PROFILE_KEY,bytes,sizeof(bytes),&n);
-   if(status==RISC_KEY_VALUE_OK && lm_profile_decode(&model.profile,bytes,n))model.profile_valid=true;
+   if(status==RISC_KEY_VALUE_OK && lm_profile_decode(&model.profile,&model.choice,&model.profile_valid,bytes,n)){
+    if(!model.choice)notice="Choose radio; saved RF retained";
+   }
    else if(status!=RISC_KEY_VALUE_NOT_FOUND)notice="Saved RF invalid; configure again";
   }
  }
@@ -92,7 +128,8 @@ static const char *state_text(void){
  case LM_SEND_UNKNOWN:return "SEND UNCONFIRMED";
  case LM_RADIO_ERROR:return "RADIO ERROR / RETRY";
  case LM_CLEANUP_ERROR:return "RADIO CLEANUP UNCONFIRMED";
- default:return model.profile_valid?"RADIO OFF / READY":"RADIO OFF / SET RF FIRST";
+ default:return !model.choice?"RADIO OFF / CHOOSE RADIO":!model.profile_valid?"RADIO OFF / SET RF FIRST":
+        !lm_profile_matches(&model.profile,model.choice)?"RF DOES NOT MATCH RADIO":"RADIO OFF / READY";
  }
 }
 static bool hit(int x,int y,int l,int t,int w,int h){return portable_nova_hit(x,y,l,t,w,h);}
@@ -114,9 +151,9 @@ static void draw_keyboard(void){
 static void draw(void){
  char line[80],clock[32];
  if(page==PAGE_KEYBOARD){draw_keyboard();app->present(false);dirty=false;return;}
- header(page==PAGE_HOME?"LORA MESSAGES":page==PAGE_COMPOSE?"REVIEW MESSAGE":(page==PAGE_RF || page==PAGE_RF_ERROR)?"RF SETTINGS":page==PAGE_HISTORY?"SESSION HISTORY":"MESSAGE");
+ header(page==PAGE_HOME?"LORA MESSAGES":page==PAGE_COMPOSE?"REVIEW MESSAGE":(page==PAGE_RF || page==PAGE_RF_ERROR)?(profile_save_state==2?"RF SAVE UNCERTAIN":profile_save_state==1?"RF SESSION ONLY":"RF SETTINGS"):page==PAGE_HISTORY?"SESSION HISTORY":page==PAGE_RADIO?"RADIO HARDWARE":"MESSAGE");
  if(page==PAGE_HOME){
-  text(43,state_text(),NOVA_CYAN);text(61,notice?notice:"No encryption or receipts",NOVA_CAP);
+  text(43,state_text(),NOVA_CYAN);text(61,notice?notice:profile_save_state==2?"Radio settings save unconfirmed":profile_save_state==1?"Radio settings: session only":radio_name(),NOVA_CAP);
   portable_nova_button(12,82,216,44,"COMPOSE",false);
   snprintf(line,sizeof(line),"HISTORY  %u / %u",model.count,LM_HISTORY_MAX);portable_nova_button(12,132,216,44,line,false);
   portable_nova_button(12,182,104,44,model.owned?"STOP":"LISTEN",model.listening);portable_nova_button(124,182,104,44,"SET RF",false);
@@ -126,12 +163,20 @@ static void draw(void){
   text(146,state_text(),NOVA_CYAN);text(166,notice?notice:model.state==LM_SEND_UNKNOWN?"Retry may send a duplicate":"Tap text to page / no receipt",NOVA_CAP);
   portable_nova_button(12,190,104,44,"EDIT",false);portable_nova_button(124,190,104,44,model.state==LM_SENDING?"CANCEL":"SEND",false);
  }else if(page==PAGE_RF){
+  /* A separate 56px header target opens the radio picker without changing RF. */
+  portable_nova_fill(176,0,64,37,0);portable_nova_text(1,181,12,56,"RADIO",NOVA_CYAN);
   for(unsigned row=0;row<3;row++){unsigned i=rf_page*3+row;char value[32];if(rf_fields&(1u<<i))snprintf(value,sizeof(value),"%lld",(long long)field_value(i));else snprintf(value,sizeof(value),"NOT SET");portable_nova_row(12,42+(int)row*48,216,44,field_names[i],value,false);}
   portable_nova_button(12,188,104,44,rf_page?"PREVIOUS":"NEXT",false);portable_nova_button(124,188,104,44,"APPLY",false);
  }else if(page==PAGE_HISTORY){
   if(!model.count){text(58,"No packets this session",NOVA_TEXT);text(82,"History clears when app exits",NOVA_CAP);}
   for(unsigned row=0;row<3;row++){unsigned i=history_page*3+row;lm_message *v=lm_at(&model,i);if(!v)break;time_text(v,clock);int y=44+(int)row*46;portable_nova_text(1,12,y,216,v->text,NOVA_TEXT);snprintf(line,sizeof(line),"%s  %s",v->status==LM_IN?"IN":v->status==LM_OUT_SENT?"TX":v->status==LM_OUT_UNKNOWN?"?":"...",clock);portable_nova_text(1,12,y+19,216,line,NOVA_CAP);portable_nova_rule(12,y+41,216);}
   portable_nova_button(12,188,104,44,"NEWER",false);portable_nova_button(124,188,104,44,"OLDER",false);
+ }else if(page==PAGE_RADIO){
+  for(unsigned choice=1;choice<=4;choice++){
+   bool available=!!(picker_mask&(1u<<(choice-1)));int y=40+(int)(choice-1)*44;
+   portable_nova_row(12,y,216,44,radio_names[choice],!available?"UNAVAILABLE":model.choice==choice?(profile_save_state==2?"SELECTED / UNSAVED":profile_save_state==1?"SELECTED / SESSION":"SELECTED"):"SELECT",available && model.choice==choice);
+  }
+  text(220,notice?notice:"Match physical radio and antenna",NOVA_CAP);
  }else if(page==PAGE_RF_ERROR){
   portable_nova_wrap(1,12,56,216,24,4,"Set all six RF values. Match radio, antenna, peers and local power limits. Radio stays off.",NOVA_TEXT);
   portable_nova_button(12,188,216,44,"BACK TO RF SETTINGS",false);
@@ -156,11 +201,11 @@ static void edit(unsigned field){
 static bool apply_field(void){
  int64_t n;if(!lm_number(entry,edit_field==4,&n))return false;
  switch(edit_field){
- case 0:if(n<430000000 || n>2500000000LL)return false;editing_profile.frequency_hz=(uint32_t)n;break;
- case 1:if(n!=125000 && n!=250000 && n!=500000 && n!=203125 && n!=406250 && n!=812500 && n!=1625000)return false;editing_profile.bandwidth_hz=(uint32_t)n;break;
+ case 0:if(n<0 || n>UINT32_MAX || !lm_frequency_matches((uint32_t)n,model.choice))return false;editing_profile.frequency_hz=(uint32_t)n;break;
+ case 1:if(model.choice==4?(n!=203125 && n!=406250 && n!=812500 && n!=1625000):(n!=125000 && n!=250000 && n!=500000))return false;editing_profile.bandwidth_hz=(uint32_t)n;break;
  case 2:if(n<5 || n>12)return false;editing_profile.sf=(uint8_t)n;break;
  case 3:if(n<5 || n>8)return false;editing_profile.coding_rate=(uint8_t)n;break;
- case 4:if(n<-18 || n>22)return false;editing_profile.power_dbm=(int8_t)n;break;
+ case 4:if(model.choice==4?(n<-18 || n>13):(n<-9 || n>22))return false;editing_profile.power_dbm=(int8_t)n;break;
  case 5:if(n<8 || n>4096)return false;editing_profile.preamble=(uint16_t)n;break;
  default:return false;
  }
@@ -172,25 +217,24 @@ static void key(unsigned k){
  else if(k==PWK_PAGE)key_page=(key_page+1)%PWK_PAGES;
  else if(k==PWK_DELETE){if(n)entry[n-1]=0;}
  else if(k==PWK_DONE){
-  if(edit_field<6){if(!apply_field()){notify(field_help[edit_field]);return;}page=PAGE_RF;}
+  if(edit_field<6){if(!apply_field()){notify(field_help(edit_field));return;}page=PAGE_RF;}
   else{memcpy(draft,entry,sizeof(draft));compose_offset=0;page=PAGE_COMPOSE;}
   notice=NULL;
  }
  dirty=true;
 }
 static void apply_profile(void){
- if(rf_fields!=63 || !lm_profile_valid(&editing_profile)){notify("Set six valid matching RF values");page=PAGE_RF_ERROR;return;}
+ if(rf_fields!=63 || !lm_profile_matches(&editing_profile,model.choice)){notify("Set six valid matching RF values");page=PAGE_RF_ERROR;return;}
  if(!portable_radio_suspend())retain();
  model.profile=editing_profile;model.profile_valid=true;page=PAGE_HOME;
- if(!store){notify("RF set for this session only");return;}
- uint8_t bytes[32],check[32];uint32_t size=0;lm_profile_encode(&model.profile,bytes);
- int32_t result=store->put(store->context,LM_PROFILE_KEY,bytes,sizeof(bytes));
- if(result!=RISC_KEY_VALUE_OK || store->get(store->context,LM_PROFILE_KEY,check,sizeof(check),&size)!=RISC_KEY_VALUE_OK || size!=sizeof(check) || memcmp(bytes,check,sizeof(bytes)))notify("RF active; save unconfirmed");
+ if(!store){profile_save_state=1;notify("RF set for this session only");return;}
+ if(!save_profile())notify("RF active; save unconfirmed");
  else notify("RF saved / radio remains off");
 }
 static void send_message(void){
  if(model.state==LM_SENDING){if(!portable_radio_suspend())retain();notify("Send canceled / delivery unknown");return;}
- if(!model.profile_valid){notify("Set RF before sending");page=PAGE_HOME;return;}
+ if(!model.choice){open_picker();return;}
+ if(!model.profile_valid || !lm_profile_matches(&model.profile,model.choice)){notify("Set matching RF before sending");page=PAGE_HOME;return;}
  if(!open_radio())return;
  unsigned before=model.next;bool ok=lm_send(&model,draft,app->millis());
  if(model.uncertain)retain();
@@ -207,6 +251,7 @@ static bool back(void){
   return false;
  }
  if(page==PAGE_KEYBOARD){page=edit_field<6?PAGE_RF:PAGE_COMPOSE;return true;}
+ if(page==PAGE_RADIO){page=picker_return_page;notice=NULL;return true;}
  if(page==PAGE_MESSAGE){page=PAGE_HISTORY;return true;}
  if(page==PAGE_RF_ERROR){page=PAGE_RF;notice=NULL;return true;}
  page=PAGE_HOME;return true;
@@ -216,6 +261,8 @@ static bool input(t5_app_input_t *in){
  if(in->buttons&T5_APP_BUTTON_BACK)return back();
  int x=in->touch_x-(app->screen_width()-240)/2,y=in->touch_y-(app->screen_height()-240)/2;
  if(in->tapped && hit(x,y,0,0,48,40))return back();
+ if(page==PAGE_RF && in->tapped && hit(x,y,176,0,64,40)){open_picker();return true;}
+ if(page==PAGE_RADIO){if(in->tapped && hit(x,y,12,40,216,176))choose_radio(1+(unsigned)(y-40)/44);return true;}
  if(page==PAGE_KEYBOARD){
   if(in->buttons&T5_APP_BUTTON_LEFT)key_choice=(key_choice+PWK_COUNT-1)%PWK_COUNT;
   if(in->buttons&T5_APP_BUTTON_RIGHT)key_choice=(key_choice+1)%PWK_COUNT;
@@ -230,11 +277,13 @@ static bool input(t5_app_input_t *in){
   else if(hit(x,y,12,132,216,44)){page=PAGE_HISTORY;history_page=0;dirty=true;}
   else if(hit(x,y,12,182,104,44)){
    if(model.owned){if(!portable_radio_suspend())retain();notify("Radio stopped");}
-   else if(!model.profile_valid)notify("Set RF before listening");
+   else if(!model.choice)open_picker();
+   else if(!model.profile_valid || !lm_profile_matches(&model.profile,model.choice))notify("Set matching RF before listening");
    else if(open_radio()){bool ok=lm_listen(&model,app->millis());if(model.uncertain)retain();notify(ok?"No encryption or receipts":"RF/provider rejected; check setup");}
   }else if(hit(x,y,124,182,104,44)){
-   if(!portable_radio_suspend())retain();
-   editing_profile=model.profile;rf_fields=model.profile_valid?63:0;rf_page=0;page=PAGE_RF;dirty=true;
+   if(!model.choice)open_picker();
+   else{if(!portable_radio_suspend())retain();
+    editing_profile=model.profile;rf_fields=model.profile_valid?63:0;rf_page=0;page=PAGE_RF;dirty=true;}
   }
  }else if(page==PAGE_COMPOSE){
   if(hit(x,y,12,190,104,44))edit(6);
@@ -261,7 +310,7 @@ void app_main(void){
  if(!app || app->abi_version!=1 || app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label) || !app->poll || !app->present || !app->millis || !app->screen_width || !app->screen_height || !app->set_back_exits_app ||
     !runtime || runtime->api_version!=1 || runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE || !runtime->acquire || !runtime->release || !runtime->diagnostic || !runtime->yield_ms)return;
  if(app->screen_width()<240 || app->screen_height()<240)return;
- memset(&model,0,sizeof(model));memset(grants,0,sizeof(grants));memset(acquired,0,sizeof(acquired));memset(draft,0,sizeof(draft));store=preferences=NULL;rtc=NULL;notice=NULL;page=PAGE_HOME;dirty=true;
+ memset(&model,0,sizeof(model));memset(grants,0,sizeof(grants));memset(acquired,0,sizeof(acquired));memset(draft,0,sizeof(draft));store=preferences=NULL;rtc=NULL;notice=NULL;profile_save_state=0;page=PAGE_HOME;dirty=true;
  app->set_back_exits_app(false);load_preferences();
  for(;;){
   if(dirty)draw();
