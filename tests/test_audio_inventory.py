@@ -41,7 +41,19 @@ class AudioInventory(unittest.TestCase):
     def test_spectrum_declares_alarm_and_input(self):
         side=json.loads((ROOT/'Apps/audio_spectrum.json').read_text())
         self.assertEqual(side['category'],['Audio Tools'])
-        self.assertEqual(side['version'],'0.2.1')
+        self.assertEqual(side['version'],'0.2.2')
         self.assertEqual(side['min_firmware_version'],'0.1.16')
         self.assertEqual([r['capability'] for r in side['requires']],
             ['display.output','input.touch.raw','audio.input','alarm.service','storage.key-value'])
+
+    def test_watch_spectrum_product_controls(self):
+        code=(ROOT/'Apps/audio_spectrum.c').read_text()
+        self.assertIn('PortableWatchKeyboard.h',code)
+        self.assertNotIn('PortableNovaKeyboard.h',code)
+        self.assertNotIn('portable_nova_key_character',code)
+        self.assertNotIn('demo_pcm',code)
+        self.assertIn('#define PLOT_X 6',code)
+        self.assertIn('#define PLOT_W 228',code)
+        controls=(ROOT/'Apps/spectrum_controls.inc').read_text()
+        self.assertIn('controls_scroll',controls)
+        self.assertNotIn('SOURCE',controls)

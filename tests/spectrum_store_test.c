@@ -6,6 +6,9 @@ int main(void){
  spectrum_preferences p=spectrum_preferences_default(),q;uint8_t b[32],good[32];assert(spectrum_preferences_valid(&p));spectrum_preferences_encode(&p,b);assert(spectrum_preferences_decode(&q,b,32));assert(q.low_hz==20&&q.high_hz==8000&&q.fft_size==2048&&q.source==0&&q.log_amplitude&&q.gain_db==12);memcpy(good,b,32);
  for(unsigned i=0;i<32;i++){memcpy(b,good,32);b[i]^=0x80;assert(!spectrum_preferences_decode(&q,b,32));}
  for(unsigned n=0;n<32;n++)assert(!spectrum_preferences_decode(&q,good,n));
+ /* Legacy source=1 is normalized only after the full record validates. Other
+  * preferences survive unchanged; new records always reserve byte 12 as zero. */
+ memcpy(b,good,32);b[12]=1;b[10]=48;b[13]=4;b[14]=3;checksum(b);assert(spectrum_preferences_decode(&q,b,32));assert(q.source==0&&q.gain_db==24&&q.window==4&&q.palette==3&&q.fft_size==2048);assert(b[12]==1);q.source=1;spectrum_preferences_encode(&q,b);assert(b[12]==0);
  assert(!spectrum_preferences_decode(&q,good,33));assert(!spectrum_preferences_decode(NULL,good,32));assert(!spectrum_preferences_decode(&q,NULL,32));
  const unsigned indexes[]={0,1,2,3,4,6,8,10,11,12,13,14,15,16,29};for(unsigned i=0;i<sizeof(indexes)/sizeof(*indexes);i++){memcpy(b,good,32);b[indexes[i]]=255;checksum(b);assert(!spectrum_preferences_decode(&q,b,32));}
  for(unsigned n=256;n<=8192;n*=2){p.fft_size=(uint16_t)n;for(int gain=-24;gain<=60;gain+=3){p.gain_db=(int8_t)gain;for(int t=-90;t<=-20;t+=5){p.threshold_db=(int8_t)t;spectrum_preferences_encode(&p,b);assert(spectrum_preferences_decode(&q,b,32));assert(q.fft_size==n&&q.gain_db==gain&&q.threshold_db==t);}}}

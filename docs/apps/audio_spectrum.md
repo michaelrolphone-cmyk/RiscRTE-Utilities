@@ -1,4 +1,4 @@
-# Audio Spectrum 0.2.1
+# Audio Spectrum 0.2.2
 
 The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
 and saved frequency labels on the Watch's 240 × 240 display. The supplied design
@@ -17,9 +17,9 @@ was implemented in the native app and shared NOVA renderer, not a web view.
 - Logarithmic or linear frequency and amplitude axes; low/high range controls;
   display gain from −24 to +60 dB; label detection threshold −90 to −20 dB.
 - Peak trace and five palettes: NOVA, Inferno, Viridis, Gray and Jet.
-- Demo is an explicit deterministic signal source processed by the same FFT. It
-  never plays sound and is clearly identified. A failed microphone does not
-  silently become a demo measurement.
+- The only source is the live microphone. Synthetic PCM exists only in test
+  fixtures; the app has no demo generator or demo source selection. Legacy saved
+  demo preferences are read as microphone mode while preserving other settings.
 
 ## Interaction
 
@@ -34,9 +34,13 @@ a short Undo action restores the last deleted label. The active-label list shows
 frequencies above the chosen threshold, sorted by level. Edit mode includes
 inactive labels. Paging keeps controls visible on the small screen.
 
-The gear opens three pages of controls. Source/range/scale, color/gain and
-window/FFT/detection controls are separate from the main plot. A bounded native
-keyboard covers all 95 printable ASCII characters. Back and Cancel retain nested
+The gear opens one continuously scrolling controls view with fixed header and
+Back footer. Range/scale, color/gain and window/FFT/detection settings use larger
+native-raster lettering. The plots recover screen width previously lost to
+unnecessary side gutters. The standard Points/Watch 32-key keyboard covers all
+95 printable ASCII characters on three pages, with ABC/#, DELETE and DONE. Its
+32 hit cells, navigation and action geometry are shared unchanged; the rejected
+eight-key pager is not used. Back and Cancel retain nested
 navigation ownership. Stop and Freeze close the microphone. Resuming requires
 another explicit Start.
 

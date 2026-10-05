@@ -38,11 +38,11 @@ static void check(void (*fn)(void)){add(EVENT_CALL,0,-1);events[count-1].check=f
 static void start(void){add(EVENT_INPUT,T5_APP_BUTTON_CONFIRM,0);}static void back(void){add(EVENT_INPUT,T5_APP_BUTTON_BACK,-1);}static void run(void){if(!setjmp(retained_jump))app_main();else escaped=true;}
 static void clean(unsigned o,unsigned r,unsigned c){assert(!escaped&&!live&&!grant_live&&!owned&&!running&&!uncertain&&!store_live);assert(opens==o&&reads==r&&closes==c);assert(acquires==releases);assert(store_acquires==store_releases);}
 static void check_exit_retry(void){assert(launches==1&&!running&&!owned&&!strcmp(message,"EXIT FAILED / RETRY"));fail_launch=false;}
-static void check_controls0(void){assert(page==PAGE_CONTROLS&&list_scroll==0&&!back_exits&&prefs.high_hz==8000);}
-static void check_controls1(void){assert(page==PAGE_CONTROLS&&list_scroll==1);}
-static void check_controls2(void){assert(page==PAGE_CONTROLS&&list_scroll==2);}
-static void check_demo(void){assert(prefs.source==1&&running&&!owned&&opens==0);}
-static void check_demo_data(void){assert(spectrum.transforms>0&&history_count>0&&prefs.source==1&&reads==0);}
+static void check_controls0(void){assert(page==PAGE_CONTROLS&&controls_scroll==0&&!back_exits&&prefs.high_hz==8000);}
+static void check_controls1(void){assert(page==PAGE_CONTROLS&&controls_scroll==51&&puts_count==0);}
+static void check_controls2(void){assert(page==PAGE_CONTROLS&&controls_scroll==CONTROLS_MAX_SCROLL&&puts_count==0);}
+static void check_live_only(void){assert(prefs.source==0&&running&&owned&&opens==1);}
+static void check_live_data(void){assert(spectrum.transforms>0&&history_count>0&&prefs.source==0&&reads>600);}
 static void check_cursor(void){assert(cursor_visible&&cursor_hz>=100&&cursor_hz<=8000);}
 static void check_no_cursor(void){assert(!cursor_visible);}
 static void check_popup(void){assert(page==PAGE_LABEL&&!back_exits&&editing.present);}
@@ -53,7 +53,19 @@ static void check_undone(void){assert(labels[0].present&&!strcmp(labels[0].name,
 static void direct_edit_saved(void){open_label(0,0);strcpy(editing.name,"Power hum");editing.color=4;save_label();assert(!strcmp(labels[0].name,"Power hum")&&!pending_save);}
 static void direct_unsaved(void){fail_put=true;prefs.gain_db=15;pending_save|=1;persist();assert(pending_save==1&&store_message);fail_put=false;persist();assert(!pending_save&&!store_message);}
 static void direct_all_settings(void){for(unsigned k=0;k<12;k++){settings_change(k,1,1);settings_change(k,-1,0);}assert(spectrum_preferences_valid(&prefs)&&prefs.high_hz<=8000);}
-static void check_restored(void){assert(prefs.source==1&&prefs.gain_db==24&&labels[0].present&&!strcmp(labels[0].name,"Saved label")&&!labels[1].present&&!running);}
+static void check_restored(void){assert(prefs.source==0&&prefs.gain_db==24&&labels[0].present&&!strcmp(labels[0].name,"Saved label")&&!labels[1].present&&!running);}
+static void check_continuous_controls(void){
+ bool t=false,f=false;assert(page==PAGE_CONTROLS);unsigned before=puts_count;
+ controls_move(51);assert(controls_scroll==51);draw();
+ /* A clipped HIGH row is still HIGH; header/footer never hit a hidden row. */
+ tap_action(105,70,&t,&f);assert(prefs.high_hz==5000&&puts_count==before+1);
+ tap_action(215,45,&t,&f);tap_action(215,195,&t,&f);assert(puts_count==before+1);
+ controls_move(7*CONTROLS_ROW_HEIGHT);assert(controls_scroll==336);draw();
+ tap_action(215,70,&t,&f);assert(prefs.window==2&&puts_count==before+2);
+ controls_move(10000);assert(controls_scroll==CONTROLS_MAX_SCROLL);draw();
+ controls_move(-10000);assert(controls_scroll==0);draw();
+ settings_change(0,0,1);assert(prefs.source==0&&puts_count==before+2);
+}
 static void check_bad_records(void){assert(prefs.high_hz==8000&&!labels[0].present&&store_message&&puts_count==0);}
 static void preload(const char *key,const uint8_t *bytes){unsigned i=0;while(cells[i].key[0])i++;strcpy(cells[i].key,key);memcpy(cells[i].bytes,bytes,32);cells[i].size=32;}
 int main(void){
@@ -86,16 +98,17 @@ int main(void){
  reset();fail_read=fail_close=true;start();run();assert(escaped&&closes==1&&reads==1&&!releases);
  reset();fail_release=true;start();back();run();assert(escaped&&!live&&grant_live&&releases==1&&closes==1&&yields==1);
  reset();tap(-1,220,0);tap(240,220,0);tap(60,-1,0);tap(60,240,0);back();run();clean(0,0,0);
- reset();tap(120,211,0);check(check_controls0);tap(198,214,0);check(check_controls1);tap(198,214,0);check(check_controls2);tap(120,214,0);back();run();clean(0,0,0);
- reset();tap(120,211,0);tap(193,62,0);tap(120,214,0);start();check(check_demo);for(unsigned i=0;i<600;i++)add(EVENT_INPUT,0,1);check(check_demo_data);back();run();clean(0,0,0);
+ reset();tap(120,211,0);check(check_controls0);touch(215,180,true);touch(215,129,true);touch(215,129,false);events[count-1].input=(t5_app_input_t){.tapped=true,.touch_x=215,.touch_y=129};check(check_controls1);touch(215,180,true);touch(215,-200,true);touch(215,-200,false);check(check_controls2);check(check_continuous_controls);tap(120,214,0);back();run();clean(0,0,0);
+ reset();start();check(check_live_only);for(unsigned i=0;i<600;i++)add(EVENT_INPUT,0,1);check(check_live_data);back();run();clean(1,603,1);
  reset();start();touch(180,160,true);touch(196,155,true);touch(196,155,false);check(check_cursor);tap(40,155,1);check(check_no_cursor);back();run();assert(!escaped&&opens==1&&closes==1);
- reset();start();tap(185,228,1);tap(145,155,0);check(check_cursor);tap(140,62,0);check(check_popup);tap(120,120,0);check(check_keyboard);tap(40,102,0);tap(40,149,0);tap(200,205,0);tap(200,154,0);tap(170,183,0);check(check_saved_label);back();run();clean(1,1,1);
+ reset();start();tap(185,228,1);tap(145,155,0);check(check_cursor);tap(140,62,0);check(check_popup);tap(120,120,0);check(check_keyboard);tap(52,87,0);tap(160,87,0);tap(191,190,0);tap(200,154,0);tap(170,183,0);check(check_saved_label);back();run();clean(1,1,1);
  reset();start();tap(136,26,1);tap(190,62,1);tap(201,105,1);check(check_deleted);tap(192,211,1);check(check_undone);back();back();run();assert(!escaped&&closes==1);
  reset();check(direct_edit_saved);check(direct_unsaved);check(direct_all_settings);back();run();clean(0,0,0);assert(puts_count>20);
- reset();spectrum_preferences p=spectrum_preferences_default();p.source=1;p.gain_db=24;uint8_t bytes[32];spectrum_preferences_encode(&p,bytes);preload("spectrum_cfg",bytes);spectrum_label l={true,600,2,"Saved label"};spectrum_label_encode(&l,bytes);preload("spectrum_l0",bytes);l=(spectrum_label){0};spectrum_label_encode(&l,bytes);preload("spectrum_l1",bytes);check(check_restored);back();run();clean(0,0,0);assert(!puts_count);
+ reset();spectrum_preferences p=spectrum_preferences_default();p.gain_db=24;uint8_t bytes[32];spectrum_preferences_encode(&p,bytes);bytes[12]=1;spectrum_store_put16(bytes+30,spectrum_store_checksum(bytes));preload("spectrum_cfg",bytes);spectrum_label l={true,600,2,"Saved label"};spectrum_label_encode(&l,bytes);preload("spectrum_l0",bytes);l=(spectrum_label){0};spectrum_label_encode(&l,bytes);preload("spectrum_l1",bytes);check(check_restored);start();check(check_live_only);back();run();clean(1,2,1);assert(!puts_count&&cells[0].bytes[12]==1);
+ reset();spectrum_preferences_encode(&p,bytes);bytes[12]=1;spectrum_store_put16(bytes+30,spectrum_store_checksum(bytes));preload("spectrum_cfg",bytes);deny_acquire=true;start();back();run();assert(!running&&!owned&&!started&&!opens&&!reads&&capture_error&&prefs.source==0&&prefs.gain_db==24&&!puts_count&&cells[0].bytes[12]==1);
  reset();memset(bytes,0xff,32);preload("spectrum_cfg",bytes);preload("spectrum_l0",bytes);check(check_bad_records);back();run();clean(0,0,0);
  reset();deny_store=true;back();run();assert(!store_live&&!store_releases&&store_message);
  const int sizes[][2]={{240,320},{320,240},{480,480},{1024,1024}};for(unsigned i=0;i<4;i++){reset();width=sizes[i][0];height=sizes[i][1];start();back();run();clean(1,1,1);}
  reset();width=239;run();assert(!polls&&!acquires&&!store_acquires);reset();height=1025;run();assert(!polls&&!acquires);reset();api.poll=NULL;run();assert(!polls&&!acquires);reset();rt.release=NULL;run();assert(!polls&&!acquires);reset();api.struct_size=4;run();assert(!polls&&!acquires);
- puts("Spectrum controller: capture lifecycle/faults/retention, three tabs, all settings, demo PCM, cursor drag/dismiss, label keyboard/color/save/delete/undo, persistence/retry and bounds passed");return 0;
+ puts("Spectrum controller: live-only capture lifecycle/faults/retention, three tabs, continuous controls and clipped hit tests, cursor drag/dismiss, label keyboard/color/save/delete/undo, legacy migration, persistence/retry and bounds passed");return 0;
 }

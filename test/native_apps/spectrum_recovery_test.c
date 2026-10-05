@@ -13,7 +13,7 @@ static void recover_reads(void){
  settings_change(7,1,0);assert(!puts_count && prefs.gain_db==12);
  kv.get=get_value;settings_change(11,0,0);
  assert(!puts_count && !load_errors && !store_message && !running);
- assert(prefs.gain_db==24 && prefs.source==1 && labels[0].present && !strcmp(labels[0].name,"Saved label"));
+ assert(prefs.gain_db==24 && prefs.source==0 && labels[0].present && !strcmp(labels[0].name,"Saved label"));
  assert(!memcmp(cells[0].bytes,saved_config,32)&&!memcmp(cells[1].bytes,saved_label,32));
 }
 static void corrupt_label_retry(void){
@@ -36,16 +36,16 @@ static void corrupt_config_retry(void){
  assert(load_errors==1u && !puts_count);
  settings_change(11,0,0);assert(load_errors==1u&&store_message&&!puts_count);
  settings_change(0,0,1);assert(!puts_count&&prefs.source==0);
- bool toggle_requested=false,freeze_requested=false;started=true;tap_action(180,26,&toggle_requested,&freeze_requested);
+ bool toggle_requested=false,freeze_requested=false;started=true;tap_action(200,26,&toggle_requested,&freeze_requested);
  assert(!puts_count&&prefs.show_labels);
 }
 static void recover_live_capture(void){
  assert(running&&owned&&live&&load_errors==3u);
  kv.get=get_value;settings_change(11,0,0);
- assert(!running&&!owned&&!live&&closes==1&&!puts_count&&!load_errors&&prefs.source==1);
+ assert(!running&&!owned&&!live&&closes==1&&!puts_count&&!load_errors&&prefs.source==0);
 }
 int main(void){
- spectrum_preferences p=spectrum_preferences_default();p.source=1;p.gain_db=24;spectrum_preferences_encode(&p,saved_config);
+ spectrum_preferences p=spectrum_preferences_default();p.gain_db=24;spectrum_preferences_encode(&p,saved_config);saved_config[12]=1;spectrum_store_put16(saved_config+30,spectrum_store_checksum(saved_config));
  spectrum_label l={true,600,2,"Saved label"};spectrum_label_encode(&l,saved_label);
  reset();preload("spectrum_cfg",saved_config);preload("spectrum_l0",saved_label);kv.get=fail_startup_get;check(recover_reads);back();run();clean(0,0,0);
  reset();preload("spectrum_cfg",saved_config);preload("spectrum_l0",saved_label);kv.get=fail_startup_get;start();check(recover_live_capture);back();run();clean(1,1,1);

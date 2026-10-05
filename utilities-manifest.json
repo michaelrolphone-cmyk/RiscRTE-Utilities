@@ -147,7 +147,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -157,7 +157,8 @@
         "Apps/AudioInputV1.h",
         "Apps/spectrum_dsp.h",
         "Apps/spectrum_store.h",
-        "Apps/daily_draw.h"
+        "Apps/daily_draw.h",
+        "Apps/spectrum_controls.inc"
       ],
       "min_firmware_version": "0.1.16"
     }

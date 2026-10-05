@@ -12,7 +12,7 @@
 #define SPECTRUM_LABEL_RECORD_SIZE 32u
 typedef struct {
  uint16_t low_hz,high_hz,fft_size;
- uint8_t source,window,palette;
+ uint8_t source,window,palette; /* source is a reserved legacy byte; live is 0. */
  bool log_frequency,log_amplitude,show_labels;
  int8_t gain_db,threshold_db;
 } spectrum_preferences;
@@ -28,12 +28,15 @@ static inline void spectrum_store_put16(uint8_t *b,uint16_t n){b[0]=(uint8_t)n;b
 static inline uint16_t spectrum_store_checksum(const uint8_t *b){uint16_t n=0x7631;for(unsigned i=0;i<30;i++)n=(uint16_t)((n^b[i])*257u+17u);return n;}
 static inline bool spectrum_store_header(const uint8_t *b,size_t size,uint8_t kind){return b && size==32 && b[0]=='S' && b[1]=='P' && b[2]==1 && b[3]==kind && spectrum_store_u16(b+30)==spectrum_store_checksum(b);}
 static inline void spectrum_preferences_encode(const spectrum_preferences *p,uint8_t b[32]){
- memset(b,0,32);b[0]='S';b[1]='P';b[2]=1;b[3]=1;spectrum_store_put16(b+4,p->low_hz);spectrum_store_put16(b+6,p->high_hz);spectrum_store_put16(b+8,p->fft_size);b[10]=(uint8_t)(p->gain_db+24);b[11]=(uint8_t)(p->threshold_db+90);b[12]=p->source;b[13]=p->window;b[14]=p->palette;b[15]=(uint8_t)(p->log_frequency|(p->log_amplitude<<1)|(p->show_labels<<2));spectrum_store_put16(b+30,spectrum_store_checksum(b));
+ memset(b,0,32);b[0]='S';b[1]='P';b[2]=1;b[3]=1;spectrum_store_put16(b+4,p->low_hz);spectrum_store_put16(b+6,p->high_hz);spectrum_store_put16(b+8,p->fft_size);b[10]=(uint8_t)(p->gain_db+24);b[11]=(uint8_t)(p->threshold_db+90);b[12]=0;b[13]=p->window;b[14]=p->palette;b[15]=(uint8_t)(p->log_frequency|(p->log_amplitude<<1)|(p->show_labels<<2));spectrum_store_put16(b+30,spectrum_store_checksum(b));
 }
 static inline bool spectrum_preferences_decode(spectrum_preferences *out,const uint8_t *b,size_t n){
  if(!out || !spectrum_store_header(b,n,1) || b[10]>84 || b[11]>70 || b[15]>7)return false;
  for(unsigned i=16;i<30;i++)if(b[i])return false;
- spectrum_preferences p={spectrum_store_u16(b+4),spectrum_store_u16(b+6),spectrum_store_u16(b+8),b[12],b[13],b[14],!!(b[15]&1),!!(b[15]&2),!!(b[15]&4),(int8_t)((int)b[10]-24),(int8_t)((int)b[11]-90)};if(!spectrum_preferences_valid(&p))return false;*out=p;return true;
+ spectrum_preferences p={spectrum_store_u16(b+4),spectrum_store_u16(b+6),spectrum_store_u16(b+8),b[12],b[13],b[14],!!(b[15]&1),!!(b[15]&2),!!(b[15]&4),(int8_t)((int)b[10]-24),(int8_t)((int)b[11]-90)};if(!spectrum_preferences_valid(&p))return false;
+ /* Accept checksummed v1 records from the removed source option. Preserve all
+  * other settings and leave the original record intact until an explicit edit. */
+ p.source=0;*out=p;return true;
 }
 static inline bool spectrum_label_valid(const spectrum_label *l){if(!l)return false;if(!l->present)return true;if(l->frequency_hz>8000 || l->color>=8 || !l->name[0] || l->name[0]==' ')return false;unsigned n=0;for(;n<=16 && l->name[n];n++)if((unsigned char)l->name[n]<32 || (unsigned char)l->name[n]>126)return false;return n && n<=16 && l->name[n-1]!=' ';}
 static inline void spectrum_label_encode(const spectrum_label *l,uint8_t b[32]){

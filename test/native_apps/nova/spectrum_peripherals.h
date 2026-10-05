@@ -18,7 +18,7 @@
 void app_main(void);int app_module_init(void);void app_module_fini(void);
 static unsigned ticks,polls,grants,frames,subs,presents;
 static unsigned stop_poll=240;
-static bool mic_opened; static unsigned mic_rate, mic_frame, launches;
+static bool mic_opened; static unsigned mic_rate, mic_frame, launches,writes;
 static unsigned last_navigation_poll;
 static uint16_t pixels[240*244];
 static const char *directory;
@@ -52,7 +52,7 @@ static bool fake_rtc(void*c,twatch_rtc_time_v1*s){(void)c;*s=(twatch_rtc_time_v1
 static bool fake_write(void*c,const twatch_rtc_time_v1*s){(void)c;(void)s;assert(!"Unexpected RTC write in read-only audit");return false;}
 static const twatch_rtc_api_v1 rtc_api={.api_version=2,.struct_size=sizeof(rtc_api),.read=fake_rtc,.write=fake_write};
 static int32_t fake_get(void*c,const char*k,void*b,uint32_t cap,uint32_t*s){(void)c;*s=0;for(unsigned i=0;i<32;i++)if(!strcmp(k,cells[i].key)){*s=cells[i].size;if(cap<*s)return RISC_KEY_VALUE_BUFFER_SMALL;memcpy(b,cells[i].bytes,*s);return 0;}return RISC_KEY_VALUE_NOT_FOUND;}
-static int32_t fake_put(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(n<=64&&strlen(k)<16);unsigned i;for(i=0;i<32&&cells[i].key[0]&&strcmp(k,cells[i].key);i++);assert(i<32);strcpy(cells[i].key,k);memcpy(cells[i].bytes,b,n);cells[i].size=n;return 0;}
+static int32_t fake_put(void*c,const char*k,const void*b,uint32_t n){(void)c;writes++;assert(n<=64&&strlen(k)<16);unsigned i;for(i=0;i<32&&cells[i].key[0]&&strcmp(k,cells[i].key);i++);assert(i<32);strcpy(cells[i].key,k);memcpy(cells[i].bytes,b,n);cells[i].size=n;return 0;}
 static const risc_key_value_v1 kv_api={1,sizeof(kv_api),NULL,fake_get,fake_put};
 static int32_t fake_alarm_status(void*c,alarm_status_v1*s){(void)c;*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_READY,.mode=ALARM_MODE_BOTH};return ALARM_OK;}
 static int32_t fake_alarm_step(void*c){(void)c;return ALARM_OK;}
@@ -75,4 +75,4 @@ static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabi
 static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);g->api=NULL;grants--;return true;}
 static const risc_runtime_api_v1 runtime_api={1,sizeof(runtime_api),fake_health,fake_yield,fake_diag,fake_launch,fake_acquire,fake_release};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&runtime_api:NULL;}
-int main(int argc,char**argv){assert(argc>=2);directory=argv[1];if(getenv("SPECTRUM_CAPTURE_POLLS")){unsigned n=(unsigned)strtoul(getenv("SPECTRUM_CAPTURE_POLLS"),NULL,10);assert(n>=10&&n<=10000);stop_poll=n;}memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}assert(app_module_init()==0);app_main();app_module_fini();assert(!grants&&!frames&&!subs&&!mic_opened);if(getenv("SPECTRUM_EXIT_POLL"))assert(launches==(getenv("SPECTRUM_LAUNCH_REFUSE_ONCE")?2u:1u));printf("Production app/adapter capture: %u frames, %u polls, %u ms; all grants released; stride guards intact\n",presents,polls,ticks);return 0;}
+int main(int argc,char**argv){assert(argc>=2);directory=argv[1];if(getenv("SPECTRUM_CAPTURE_POLLS")){unsigned n=(unsigned)strtoul(getenv("SPECTRUM_CAPTURE_POLLS"),NULL,10);assert(n>=10&&n<=10000);stop_poll=n;}memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}assert(app_module_init()==0);app_main();app_module_fini();assert(!grants&&!frames&&!subs&&!mic_opened);if(getenv("SPECTRUM_EXPECT_NO_WRITES"))assert(!writes);if(getenv("SPECTRUM_EXIT_POLL"))assert(launches==(getenv("SPECTRUM_LAUNCH_REFUSE_ONCE")?2u:1u));printf("Production app/adapter capture: %u frames, %u polls, %u ms; all grants released; stride guards intact\n",presents,polls,ticks);return 0;}
