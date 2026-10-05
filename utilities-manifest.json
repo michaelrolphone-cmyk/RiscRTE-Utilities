@@ -36,7 +36,7 @@
     {
       "id": "battery",
       "display_name": "Battery Status",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "min_firmware_version": "1.1.18",
       "file_name": "battery.elf",
       "classification": "utility",
