@@ -85,7 +85,7 @@
     {
       "id": "alarms",
       "display_name": "Alarms",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/alarms.c",
@@ -96,7 +96,9 @@
         "Apps/alarm_writer.h",
         "Apps/daily_draw.h",
         "lib/Alarm/include/AlarmServiceV1.h",
-        "lib/Alarm/include/AlarmRecords.h"
+        "lib/Alarm/include/AlarmRecords.h",
+        "Apps/alarm_nova.inc",
+        "lib/Alarm/include/AlarmVolume.h"
       ]
     },
     {
