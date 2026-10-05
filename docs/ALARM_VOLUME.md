@@ -57,3 +57,8 @@ Observed alarm peaks are3276 and29490 respectively, with unity device gain.
 No overlapping stream or leaked grant remains. New-phase acknowledgment, expiry,
 stop-only, close failure and a read failure specifically at LOAD_VOLUME are
 also covered. These are software/model observations, not acoustic measurements.
+
+Service0.4.1 applies the same selected percentage and32767 PCM basis to Points
+in Time, preserving its350ms cue reservation and single256-frame pulse. Zero
+mutes sound; DND independently suppresses both sound and vibration for all
+three sources. Frequency Generator retains its own level.

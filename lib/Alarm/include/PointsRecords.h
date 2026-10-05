@@ -34,7 +34,7 @@ typedef struct { uint8_t color; char name[POINTS_CUSTOM_NAME_MAX+1]; } points_cu
 typedef struct { uint32_t revision; points_custom_type custom[POINTS_CUSTOM_COUNT]; } points_meta;
 typedef struct {
     uint32_t revision,generation,deadline,recovery_until;
-    uint8_t slot,edge,state,mode;
+    uint8_t slot,edge,state,mode,silenced;
     uint16_t day[POINTS_MAX];
     uint8_t delivered[POINTS_MAX];
 } points_ledger;
@@ -131,25 +131,27 @@ static inline bool points_meta_decode(points_meta *m,const uint8_t *b,uint32_t n
     }if(!points_meta_valid(&v))return false;*m=v;return true;
 }
 static inline bool points_ledger_valid(const points_ledger *l) {
-    if(!l||!l->revision||!l->generation||l->slot>=POINTS_MAX||l->edge>=POINTS_EDGE_COUNT||l->state>ALARM_OCC_EXPIRED)return false;
+    if(!l||!l->revision||!l->generation||l->slot>=POINTS_MAX||l->edge>=POINTS_EDGE_COUNT||l->state>ALARM_OCC_EXPIRED||l->silenced>1)return false;
     for(unsigned i=0;i<POINTS_MAX;i++)if(l->day[i]>36525||(l->delivered[i]&~7u)||(!l->day[i]&&l->delivered[i]))return false;
-    if(!l->state)return !l->slot&&!l->edge&&!l->deadline&&!l->recovery_until&&!l->mode;
+    if(!l->state)return !l->slot&&!l->edge&&!l->deadline&&!l->recovery_until&&!l->mode&&!l->silenced;
     return l->mode>=1&&l->mode<=3&&l->deadline&&l->deadline<=ALARM_RTC_MAX-ALARM_RECOVERY_SECONDS&&l->recovery_until==l->deadline+ALARM_RECOVERY_SECONDS;
 }
 static inline void points_ledger_encode(const points_ledger *l,uint8_t b[POINTS_RECORD_SIZE]) {
-    memset(b,0,POINTS_RECORD_SIZE);memcpy(b,"PTO2",4);alarm_write32(b+4,l->revision);alarm_write32(b+8,l->generation);
+    memset(b,0,POINTS_RECORD_SIZE);memcpy(b,l->silenced?"PTO3":"PTO2",4);alarm_write32(b+4,l->revision);alarm_write32(b+8,l->generation);
     alarm_write32(b+12,l->deadline);alarm_write32(b+16,l->recovery_until);
     b[20]=l->slot;b[21]=l->edge;b[22]=l->state;b[23]=l->mode;
+    b[48]=l->silenced;
     for(unsigned i=0;i<POINTS_MAX;i++){b[24+i*2]=(uint8_t)l->day[i];b[25+i*2]=(uint8_t)(l->day[i]>>8);b[40+i]=l->delivered[i];}
     alarm_write32(b+60,points_checksum(b));
 }
 static inline bool points_ledger_decode(points_ledger *l,const uint8_t *b,uint32_t n) {
     if(!l||!b||n!=POINTS_RECORD_SIZE||alarm_read32(b+60)!=points_checksum(b))return false;
     points_ledger v={0};
-    if(!memcmp(b,"PTO2",4)) {
-        for(unsigned i=48;i<60;i++)if(b[i])return false;
+    if(!memcmp(b,"PTO2",4)||!memcmp(b,"PTO3",4)) {
+        bool muted=!memcmp(b,"PTO3",4);if(b[48]!=(muted?1:0))return false;
+        for(unsigned i=49;i<60;i++)if(b[i])return false;
         v=(points_ledger){.revision=alarm_read32(b+4),.generation=alarm_read32(b+8),.deadline=alarm_read32(b+12),
-            .recovery_until=alarm_read32(b+16),.slot=b[20],.edge=b[21],.state=b[22],.mode=b[23]};
+            .recovery_until=alarm_read32(b+16),.slot=b[20],.edge=b[21],.state=b[22],.mode=b[23],.silenced=b[48]};
         for(unsigned i=0;i<POINTS_MAX;i++){v.day[i]=(uint16_t)(b[24+i*2]|((uint16_t)b[25+i*2]<<8));v.delivered[i]=b[40+i];}
     } else if(!memcmp(b,"PTO1",4)) {
         if(alarm_read32(b+56))return false;

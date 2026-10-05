@@ -4,12 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 #include "../../Services/alarm_service/service.c"
-static uint8_t blobs[8][64];static uint32_t sizes[8];
+static uint8_t blobs[9][64];static uint32_t sizes[9];
 static uint64_t ms;static uint32_t rtc_base;static int opens,writes,effects,stops,silences,closes,put_calls;
 static unsigned physical_gain=17;
 static bool put_fail,put_persists,write_fail,effect_fail,revoked;
 static const alarm_service_v1 *client;static const risc_driver_v2 *driver_api;
-static int index_key(const char *key){const char *keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY,POINTS_CONFIG_KEY,POINTS_OCCURRENCE_KEY,"alarm_volume"};for(int i=0;i<8;i++)if(!strcmp(keys[i],key))return i;assert(0);return 0;}
+static int index_key(const char *key){const char *keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY,POINTS_CONFIG_KEY,POINTS_OCCURRENCE_KEY,"alarm_volume","alert_dnd"};for(int i=0;i<9;i++)if(!strcmp(keys[i],key))return i;assert(0);return 0;}
 static int32_t get_blob(void*c,const char*k,void*b,uint32_t cap,uint32_t*n){(void)c;assert(!revoked);int i=index_key(k);*n=0;if(!sizes[i])return -1;if(cap<sizes[i])return -2;memcpy(b,blobs[i],sizes[i]);*n=sizes[i];return 0;}
 static int32_t put_blob(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(!revoked);int i=index_key(k);assert(i==3||i==4||i==6);put_calls++;if(!put_fail||put_persists){memcpy(blobs[i],b,n);sizes[i]=n;}return put_fail?-5:0;}
 static uint64_t mono(void*c){(void)c;return ms;}
@@ -19,7 +19,7 @@ static bool h_stop(void*c){(void)c;stops++;return true;}
 static bool a_open(void*c,uint32_t r,uint8_t n){(void)c;assert(r==8000&&n==1);opens++;return true;}
 static bool a_write(void*c,const int16_t*p,size_t n){(void)c;assert(n==256);
 #ifdef ALARM_VOLUME_CONTROL
-assert(physical_gain==100u);for(size_t i=0;i<n;i++)assert(p[i]==((i&4)?(selected==2?1600:26213):-(selected==2?1600:26213)));
+assert(physical_gain==100u);for(size_t i=0;i<n;i++)assert(p[i]==((i&4)?(int)(ALARM_VOLUME_PCM_PEAK*staged_volume/100u):-(int)(ALARM_VOLUME_PCM_PEAK*staged_volume/100u)));
 #endif
 bool audible=false;for(size_t i=0;i<n;i++)audible|=p[i]!=0;assert(audible);writes++;return !write_fail;}
 static bool a_gain(void*c,uint16_t g,uint16_t m){(void)c;assert(m==100&&g<=100);physical_gain=g;return true;}
@@ -126,7 +126,7 @@ int main(void){
  /* Persisted cursor prevents duplicate cue after reboot. */
  int before=effects+opens;boot(false);pump(1000);assert(effects+opens==0);(void)before;
 #ifdef ALARM_VOLUME_CONTROL
- /* A normal alarm at80% is followed by a unity-gain original quiet Points cue. */
+ /* A normal alarm and following Points cue both use the selected80% level. */
  boot(true);rtc_base=noon;blobs[7][0]=80;sizes[7]=1;blobs[2][0]=2;sizes[2]=1;
  alarm_config alarm={.revision=1,.deadline=noon,.created=noon-60,.kind=1,.enabled=1};alarm_config_encode(&alarm,blobs[0]);sizes[0]=32;
  save(catalog(noon,POINTS_CUSTOM_1,0,2,false,false));

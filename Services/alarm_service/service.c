@@ -1,6 +1,9 @@
 /* Ordinary singleton ELF. All policy/persistence/UI-facing state belongs here;
  * Runtime only resolves opaque dependencies. No poll callback, task or ISR. */
 #include "AlarmRecords.h"
+#ifdef ALARM_DND_CONTROL
+#include "AlarmDnd.h"
+#endif
 #ifdef ALARM_VOLUME_CONTROL
 #include "AlarmVolume.h"
 #endif
@@ -21,6 +24,9 @@ typedef enum { LOAD_ALARM,LOAD_TIMER,LOAD_MODE,LOAD_ALARM_OCC,LOAD_TIMER_OCC,
                BLOCKED
 #ifdef ALARM_VOLUME_CONTROL
                ,LOAD_VOLUME,SET_AUDIO_GAIN
+#endif
+#ifdef ALARM_DND_CONTROL
+               ,LOAD_DND
 #endif
 #ifdef POINTS_IN_TIME_SERVICE
                ,LOAD_POINTS_CFG,LOAD_POINTS_OCC
@@ -43,9 +49,6 @@ static unsigned selected;
 #ifdef ALARM_VOLUME_CONTROL
 static unsigned staged_volume;
 static bool volume_sound_enabled(void) {
-#ifdef POINTS_IN_TIME_SERVICE
-    if(selected==2)return true; /* Brief Points cues retain their independent output. */
-#endif
     return staged_volume!=0;
 }
 #endif
@@ -54,6 +57,15 @@ static uint64_t previous_ms, sample_ms, next_reconcile, alert_started, next_puls
 static bool started, in_call, refreshed, anchored, sleep_waiting;
 static bool active, dismiss, haptic_uncertain, audio_uncertain, cleanup_failed;
 static bool persistence_pending, foreground_failed;
+#ifdef ALARM_DND_CONTROL
+static bool staged_dnd,muting_active;
+static int32_t read_dnd(bool *enabled) {
+    uint8_t b=0;uint32_t n=0;int32_t r=kv->get(kv->context,ALARM_DND_KEY,&b,1,&n);
+    if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){*enabled=false;return ALARM_OK;}
+    if(r!=RISC_BOUND_KEY_VALUE_OK||n!=1||b>1)return ALARM_STORAGE;
+    *enabled=b!=0;return ALARM_OK;
+}
+#endif
 
 static int32_t error;
 static const char *const cfg_keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY};
@@ -136,6 +148,10 @@ static void prepare_occurrence(unsigned i,bool replay) {
     if(occurrences[i].generation==UINT32_MAX){fail(ALARM_EXHAUSTED);return;}
     desired.generation=occurrences[i].generation+1;
     if(replay)desired.mode=occurrences[i].mode;
+    desired.silenced=replay?occurrences[i].silenced:0;
+#ifdef ALARM_DND_CONTROL
+    desired.silenced|=staged_dnd;
+#endif
     if(seconds>=desired.recovery_until)desired.state=ALARM_OCC_EXPIRED;
     persistence_pending=true;phase=WRITE_OCC;
 }
@@ -195,10 +211,14 @@ static void prepare_point(const points_event *e,bool replay) {
     points_desired.deadline=e->deadline;points_desired.recovery_until=e->deadline+ALARM_RECOVERY_SECONDS;
     points_desired.state=seconds>=points_desired.recovery_until?ALARM_OCC_EXPIRED:ALARM_OCC_PENDING;
     points_desired.mode=replay?points_occ.mode:e->mode?e->mode:(uint8_t)staged_mode;
+    points_desired.silenced=replay?points_occ.silenced:0;
+#ifdef ALARM_DND_CONTROL
+    points_desired.silenced|=staged_dnd;
+#endif
     if(!points_ledger_mark(&points_desired,e->slot,e->parent_day,e->edge)){fail(ALARM_STORAGE);return;}
     desired=(alarm_occurrence){.revision=points_desired.revision,.deadline=e->deadline,.generation=points_desired.generation,
         .recovery_until=points_desired.recovery_until,.kind=(uint8_t)points_token_kind(e->slot,e->edge),
-        .state=points_desired.state,.mode=points_desired.mode};
+        .state=points_desired.state,.mode=points_desired.mode,.silenced=points_desired.silenced};
     persistence_pending=true;phase=WRITE_OCC;
 }
 #endif
@@ -253,7 +273,7 @@ static int32_t evaluate(void) {
             }
             if(compacted) {
                 if(ledger.generation==UINT32_MAX)return fail(ALARM_EXHAUSTED);
-                ledger.generation++;ledger.state=ledger.slot=ledger.edge=ledger.mode=0;
+                ledger.generation++;ledger.state=ledger.slot=ledger.edge=ledger.mode=ledger.silenced=0;
                 ledger.deadline=ledger.recovery_until=0;points_desired=ledger;
                 desired=(alarm_occurrence){0};selected=2;persistence_pending=true;phase=WRITE_OCC;return ALARM_OK;
             }
@@ -271,6 +291,25 @@ static int32_t do_step(void) {
     uint64_t now=now_ms();
     if(active&&(phase==ACTIVATE_RTC||phase==START_AUDIO||phase==START_HAPTIC||phase==PLAYING)&&
        (dismiss||now-alert_started>=alert_limit_ms))begin_cleanup();
+#ifdef ALARM_DND_CONTROL
+    /* The foreground is serialized. Check immediately before any new output;
+     * an active alert stays visual while its outputs are stopped and its mute
+     * marker is durably verified. Disabling DND cannot replay this occurrence. */
+    if(active&&!desired.silenced&&(phase==START_AUDIO||
+#ifdef ALARM_VOLUME_CONTROL
+       phase==SET_AUDIO_GAIN||
+#endif
+       phase==START_HAPTIC||phase==PLAYING)) {
+        bool muted=false;int32_t result=read_dnd(&muted);
+        if(result!=ALARM_OK||muted) {
+            desired.silenced=1;
+#ifdef POINTS_IN_TIME_SERVICE
+            if(selected==2)points_desired.silenced=1;
+#endif
+            muting_active=true;error=result;begin_cleanup();
+        }
+    }
+#endif
     switch(phase) {
     case LOAD_ALARM: if(!read_config(0))return fail(ALARM_STORAGE);phase=LOAD_TIMER;break;
     case LOAD_TIMER: if(!read_config(1))return fail(ALARM_STORAGE);phase=LOAD_MODE;break;
@@ -287,8 +326,17 @@ static int32_t do_step(void) {
         if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND)staged_volume=ALARM_VOLUME_DEFAULT;
         else if(r!=RISC_BOUND_KEY_VALUE_OK||!alarm_volume_decode(&b,n,&staged_volume))return fail(ALARM_STORAGE);
 #endif
-        phase=LOAD_ALARM_OCC;break;
+        phase=
+#ifdef ALARM_DND_CONTROL
+            LOAD_DND;
+#else
+            LOAD_ALARM_OCC;
+#endif
+        break;
     }
+#ifdef ALARM_DND_CONTROL
+    case LOAD_DND:if(read_dnd(&staged_dnd)!=ALARM_OK)return fail(ALARM_STORAGE);phase=LOAD_ALARM_OCC;break;
+#endif
     case LOAD_ALARM_OCC:if(!read_occurrence(0))return fail(ALARM_STORAGE);phase=LOAD_TIMER_OCC;break;
     case LOAD_TIMER_OCC:if(!read_occurrence(1))return fail(ALARM_STORAGE);
 #ifdef POINTS_IN_TIME_SERVICE
@@ -340,6 +388,13 @@ static int32_t do_step(void) {
 #ifdef POINTS_IN_TIME_SERVICE
         }
 #endif
+#ifdef ALARM_DND_CONTROL
+        if(muting_active) {
+            muting_active=false;
+            if(error)return fail(error);
+            phase=PLAYING;break; /* Keep the original visual timeout/token. */
+        }
+#endif
         if(desired.state==ALARM_OCC_PENDING) {
             active=true;dismiss=false;alert_started=now_ms();
 #ifdef POINTS_IN_TIME_SERVICE
@@ -381,7 +436,8 @@ static int32_t do_step(void) {
         if(dismiss){begin_cleanup();break;}
         /* Cancellation linearizes at this read. It and the first output call
            are one serialized phase, so no foreground writer can interleave.
-           This phase alone may perform two dependency calls. */
+           This phase performs two dependency calls, plus the optional DND
+           preflight read before any new output. */
 #ifdef POINTS_IN_TIME_SERVICE
         if(selected==2) {
             uint8_t expected[POINTS_RECORD_SIZE],actual[POINTS_RECORD_SIZE];uint32_t n=0;
@@ -403,6 +459,7 @@ static int32_t do_step(void) {
         }
 #endif
         if(now_ms()-alert_started>=alert_limit_ms){begin_cleanup();break;}
+        if(desired.silenced){phase=PLAYING;break;}
         if((desired.mode&ALARM_MODE_SOUND)
 #ifdef ALARM_VOLUME_CONTROL
            &&volume_sound_enabled()
@@ -438,7 +495,8 @@ static int32_t do_step(void) {
                            100,100)){error=ALARM_OUTPUT;begin_cleanup();break;}
 #ifdef POINTS_IN_TIME_SERVICE
         if(selected==2) {
-            int16_t pcm[256];for(unsigned i=0;i<256;i++)pcm[i]=(i&4)?1600:-1600;
+            int16_t peak=(int16_t)(ALARM_VOLUME_PCM_PEAK*staged_volume/100u);
+            int16_t pcm[256];for(unsigned i=0;i<256;i++)pcm[i]=(i&4)?peak:-peak;
             if(!audio->write(audio->context,pcm,256)){error=ALARM_OUTPUT;begin_cleanup();break;}
         }
 #endif
@@ -446,6 +504,7 @@ static int32_t do_step(void) {
 #endif
     case START_HAPTIC:
         if(dismiss){begin_cleanup();break;}
+        if(desired.silenced){phase=PLAYING;break;}
         if(desired.mode&ALARM_MODE_VIBRATE) {
             haptic_uncertain=true;
             if(!haptic->effect(haptic->context,47)){error=ALARM_OUTPUT;begin_cleanup();break;}
@@ -453,6 +512,7 @@ static int32_t do_step(void) {
         phase=PLAYING;break;
     case PLAYING:
         if(dismiss||now-alert_started>=alert_limit_ms){begin_cleanup();break;}
+        if(desired.silenced)break;
 #ifdef POINTS_IN_TIME_SERVICE
         if(selected==2)break;
 #endif
@@ -488,6 +548,10 @@ static int32_t do_step(void) {
         else {audio_uncertain=true;cleanup_failed=true;}
         if(cleanup_failed)return fail(ALARM_OUTPUT);
         if(error==ALARM_OUTPUT&&!dismiss)return fail(ALARM_OUTPUT);
+#ifdef ALARM_DND_CONTROL
+        if(muting_active&&!dismiss){persistence_pending=true;phase=WRITE_OCC;break;}
+        muting_active=false;
+#endif
         error=0;
 #ifdef POINTS_IN_TIME_SERVICE
         desired.state=selected==2?ALARM_OCC_ACKED:(dismiss?ALARM_OCC_ACKED:ALARM_OCC_EXPIRED);
@@ -635,6 +699,9 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
     memset(config,0,sizeof(config));memset(occurrences,0,sizeof(occurrences));memset(&view,0,sizeof(view));
     memset(&desired,0,sizeof(desired));
     active=dismiss=anchored=sleep_waiting=persistence_pending=false;
+#ifdef ALARM_DND_CONTROL
+    staged_dnd=muting_active=false;
+#endif
     seconds=0;staged_mode=ALARM_MODE_VIBRATE;started=true;begin_reconcile();return true;
 }
 static void stop(void) {(void)quiesce();}
