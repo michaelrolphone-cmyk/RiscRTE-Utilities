@@ -69,7 +69,7 @@
     {
       "id": "stopwatch",
       "display_name": "Stopwatch",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/stopwatch.c",

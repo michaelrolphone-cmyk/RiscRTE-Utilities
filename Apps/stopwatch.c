@@ -4,6 +4,9 @@
 #include "PortableRtcClock.h"
 #include "stopwatch_core.h"
 #include "daily_draw.h"
+#ifdef PORTABLE_NOVA_UI
+#include "PortableNovaUi.h"
+#endif
 #ifdef PORTABLE_ALARM_CLIENT
 #include "PortableAppSleep.h"
 #endif
@@ -76,6 +79,17 @@ static void reset(void) {
  if(save(record)){pending_pause=false;sw_restore(&clock_state,&record,false,0,app->millis());status="RESET";}
 }
 static void draw(void) {
+#ifdef PORTABLE_NOVA_UI
+ portable_nova_begin();portable_nova_header("STOPWATCH");
+ char value[12],large[9];sw_format(clock_state.elapsed_ms,value);memcpy(large,value,8);large[8]=0;
+ portable_nova_center(4,16,68,208,large,NOVA_CYAN);
+ portable_nova_center(0,16,111,208,value+8,NOVA_TEXT);
+ portable_nova_center(1,16,135,208,clock_state.running?"Running":loaded?"Paused":"Storage error",NOVA_CAP);
+ if(status && strcmp(status,"RUNNING") && strcmp(status,"PAUSED"))portable_nova_center(2,16,157,208,status,NOVA_CYAN);
+ portable_nova_button(16,180,64,48,pending_pause?"Save":clock_state.running?"Pause":"Start",false);
+ portable_nova_button(88,180,64,48,reset_armed?"Confirm":"Reset",reset_armed);
+ portable_nova_button(160,180,64,48,"Retry",false);app->present(false);
+#else
  int w=app->screen_width(),h=app->screen_height();
  app->clear();app->draw_text(8,16,"BACK");app->draw_label(52,16,w-104,"STOPWATCH");
  char value[12];sw_format(clock_state.elapsed_ms,value);
@@ -89,6 +103,7 @@ static void draw(void) {
  app->draw_label(10,h-67,w/2-16,pending_pause?"SAVE PAUSE":clock_state.running?"PAUSE":"START");
  app->draw_label(w/2+6,h-67,w/2-16,reset_armed?"CONFIRM RESET":"RESET");
  app->draw_label(8,h-20,w-16,"RETRY STORAGE");app->present(false);
+#endif
 }
 static bool open_state(void) {
  runtime=risc_runtime_get_api(1);
@@ -142,9 +157,16 @@ void app_main(void) {
   }
   if(input.buttons&T5_APP_BUTTON_CONFIRM){toggle();dirty=true;}
   if(input.tapped) {
+#ifdef PORTABLE_NOVA_UI
+   int x=input.touch_x,y=input.touch_y;
+   if(portable_nova_hit(x,y,16,180,64,48)){toggle();dirty=true;}
+   else if(portable_nova_hit(x,y,88,180,64,48)){reset();dirty=true;}
+   else if(portable_nova_hit(x,y,160,180,64,48)) {
+#else
    int x=input.touch_x,y=input.touch_y,w=app->screen_width(),h=app->screen_height();
    if(x>=8&&x<w-8&&y>=h-84&&y<h-44){if(x<w/2-4)toggle();else if(x>=w/2+4)reset();dirty=true;}
    else if(x>=8&&x<w-8&&y>=h-32&&y<h){
+#endif
     if(pending_pause)toggle();
     else if(clock_state.running)status="RUNNING - NO RETRY NEEDED";
     else restore();
