@@ -16,7 +16,13 @@ int main(void){
  c.created=raw(2026,3,1,0,0);c.points[0]=(points_item){POINTS_BREAK,1,1,127,2,30,0};now=raw(2026,3,8,0,0);assert(points_project(&c,now,&p)&&(p.flags&POINTS_FLAG_GAP));assert(p.next[0].deadline==raw(2026,3,9,2,30));
  c.created=raw(2026,10,1,0,0);c.points[0].hour=1;c.points[0].minute=30;now=raw(2026,11,1,0,0);assert(points_project(&c,now,&p)&&(p.flags&POINTS_FLAG_FOLD));assert(p.next[0].deadline==raw(2026,11,2,1,30));
 #endif
- points_ledger l={.revision=1,.generation=1,.slot=0,.edge=0,.state=ALARM_OCC_PENDING,.mode=3,.deadline=800000100,.recovery_until=800000160};l.highwater[0]=100;points_ledger m;points_ledger_encode(&l,bytes);assert(points_ledger_decode(&m,bytes,64));
+ points_ledger l={.revision=1,.generation=1,.slot=0,.edge=POINTS_EDGE_START,.state=ALARM_OCC_PENDING,.mode=3,.deadline=800000100,.recovery_until=800000160};
+ assert(points_ledger_mark(&l,0,100,POINTS_EDGE_START));points_ledger m;points_ledger_encode(&l,bytes);assert(points_ledger_decode(&m,bytes,64));
+ assert(m.day[0]==100&&(m.delivered[0]&(1u<<POINTS_EDGE_START)));
  for(unsigned i=0;i<64;i++){memcpy(copy,bytes,64);copy[i]^=1;assert(!points_ledger_decode(&m,copy,64));}
- puts("Points records, bounded projection, weekdays, midnight, revisions and DST fixtures passed");return 0;
+ c=example();c.points[0]=(points_item){.kind=POINTS_CUSTOM_1,.enabled=1,.mode=1,.weekdays=127,.hour=12,.minute=0,.duration_minutes=30,.notify_end=1,.warn3=1};
+ assert(points_config_valid(&c));points_config_encode(&c,bytes);assert(points_config_decode(&d,bytes,64));assert(d.points[0].notify_end&&d.points[0].warn3);
+ points_event w={0},e={0};assert(points_event_for_day(&c,0,100,POINTS_EDGE_WARNING,&w,NULL));assert(points_event_for_day(&c,0,100,POINTS_EDGE_END,&e,NULL));assert(w.deadline+180==e.deadline);
+ points_meta meta={.revision=1};meta.custom[0].color=6;memcpy(meta.custom[0].name,"MEDICINE",9);assert(points_meta_valid(&meta));points_meta_encode(&meta,bytes);points_meta decoded;assert(points_meta_decode(&decoded,bytes,64));assert(!strcmp(decoded.custom[0].name,"MEDICINE")&&decoded.custom[0].color==6);
+ puts("Points records, custom metadata, cue flags, bounded projection, weekdays, midnight, revisions and DST fixtures passed");return 0;
 }
