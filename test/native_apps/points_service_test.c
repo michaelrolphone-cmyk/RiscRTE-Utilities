@@ -4,11 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 #include "../../Services/alarm_service/service.c"
-static uint8_t blobs[7][64];static uint32_t sizes[7];
+static uint8_t blobs[8][64];static uint32_t sizes[8];
 static uint64_t ms;static uint32_t rtc_base;static int opens,writes,effects,stops,silences,closes,put_calls;
+static unsigned physical_gain=17;
 static bool put_fail,put_persists,write_fail,effect_fail,revoked;
 static const alarm_service_v1 *client;static const risc_driver_v2 *driver_api;
-static int index_key(const char *key){const char *keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY,POINTS_CONFIG_KEY,POINTS_OCCURRENCE_KEY};for(int i=0;i<7;i++)if(!strcmp(keys[i],key))return i;assert(0);return 0;}
+static int index_key(const char *key){const char *keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY,POINTS_CONFIG_KEY,POINTS_OCCURRENCE_KEY,"alarm_volume"};for(int i=0;i<8;i++)if(!strcmp(keys[i],key))return i;assert(0);return 0;}
 static int32_t get_blob(void*c,const char*k,void*b,uint32_t cap,uint32_t*n){(void)c;assert(!revoked);int i=index_key(k);*n=0;if(!sizes[i])return -1;if(cap<sizes[i])return -2;memcpy(b,blobs[i],sizes[i]);*n=sizes[i];return 0;}
 static int32_t put_blob(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(!revoked);int i=index_key(k);assert(i==3||i==4||i==6);put_calls++;if(!put_fail||put_persists){memcpy(blobs[i],b,n);sizes[i]=n;}return put_fail?-5:0;}
 static uint64_t mono(void*c){(void)c;return ms;}
@@ -16,8 +17,12 @@ static bool read_rtc(void*c,twatch_rtc_time_v1*out){(void)c;return points_calend
 static bool h_effect(void*c,uint8_t e){(void)c;assert(e);effects++;return !effect_fail;}
 static bool h_stop(void*c){(void)c;stops++;return true;}
 static bool a_open(void*c,uint32_t r,uint8_t n){(void)c;assert(r==8000&&n==1);opens++;return true;}
-static bool a_write(void*c,const int16_t*p,size_t n){(void)c;assert(n==256);bool audible=false;for(size_t i=0;i<n;i++)audible|=p[i]!=0;assert(audible);writes++;return !write_fail;}
-static bool a_gain(void*c,uint16_t g,uint16_t m){(void)c;(void)g;(void)m;return true;}
+static bool a_write(void*c,const int16_t*p,size_t n){(void)c;assert(n==256);
+#ifdef ALARM_VOLUME_CONTROL
+assert(physical_gain==100u);for(size_t i=0;i<n;i++)assert(p[i]==((i&4)?(selected==2?1600:26213):-(selected==2?1600:26213)));
+#endif
+bool audible=false;for(size_t i=0;i<n;i++)audible|=p[i]!=0;assert(audible);writes++;return !write_fail;}
+static bool a_gain(void*c,uint16_t g,uint16_t m){(void)c;assert(m==100&&g<=100);physical_gain=g;return true;}
 static bool a_silence(void*c){(void)c;silences++;return true;}
 static bool a_close(void*c){(void)c;closes++;return true;}
 static const risc_bound_key_value_v1 bound={1,sizeof(bound),NULL,get_blob,put_blob};
@@ -56,6 +61,15 @@ int main(void){
  boot(true);rtc_base=noon;save(catalog(noon,POINTS_BREAK,0,2,false,false));write_fail=true;for(unsigned i=0;i<100;i++){pump(1);if(phase==BLOCKED)break;}assert(points_occ.state==ALARM_OCC_PENDING);write_fail=false;boot(false);settle_edge(POINTS_EDGE_START,noon);
  /* Persisted cursor prevents duplicate cue after reboot. */
  int before=effects+opens;boot(false);pump(1000);assert(effects+opens==0);(void)before;
+#ifdef ALARM_VOLUME_CONTROL
+ /* A normal alarm at80% is followed by a unity-gain original quiet Points cue. */
+ boot(true);rtc_base=noon;blobs[7][0]=80;sizes[7]=1;blobs[2][0]=2;sizes[2]=1;
+ alarm_config alarm={.revision=1,.deadline=noon,.created=noon-60,.kind=1,.enabled=1};alarm_config_encode(&alarm,blobs[0]);sizes[0]=32;
+ save(catalog(noon,POINTS_CUSTOM_1,0,2,false,false));
+ for(unsigned i=0;i<100&&(!active||selected!=0||phase!=PLAYING||!writes);i++)pump(1);
+ assert(active&&selected==0&&physical_gain==100&&writes);alarm_token_v1 alarm_token=snapshot().occurrence;assert(client->acknowledge(NULL,&alarm_token)==ALARM_PENDING);
+ settle_edge(POINTS_EDGE_START,noon);assert(physical_gain==100&&writes==2&&!effects);
+#endif
  /* Config bits round-trip and the ledger tracks three independent delivered bits. */
  points_config c=catalog(noon,POINTS_LUNCH,30,1,true,true);uint8_t b[64];points_config_encode(&c,b);points_config d;assert(points_config_decode(&d,b,64)&&d.points[0].notify_end&&d.points[0].warn3);
  points_ledger l={.revision=1,.generation=1};assert(points_ledger_mark(&l,0,100,POINTS_EDGE_START));assert(points_ledger_mark(&l,0,100,POINTS_EDGE_WARNING));assert(!points_ledger_handled(&l,0,100,POINTS_EDGE_END));

@@ -126,5 +126,39 @@
       "runtime_profile": "ordinary-provider-v2",
       "status": "development-only"
     }
+  ],
+  "audio_apps": [
+    {
+      "id": "frequency_generator",
+      "display_name": "Frequency Generator",
+      "version": "0.1.1",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/frequency_generator.c",
+      "manifest_path": "Apps/frequency_generator.json",
+      "file_name": "frequency_generator.elf",
+      "additional_sources": [
+        "Apps/tone_core.h",
+        "Apps/daily_draw.h",
+        "lib/Alarm/include/AlarmOutputV1.h"
+      ],
+      "min_firmware_version": "0.1.16"
+    },
+    {
+      "id": "audio_spectrum",
+      "display_name": "Audio Spectrum",
+      "version": "0.1.1",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/audio_spectrum.c",
+      "manifest_path": "Apps/audio_spectrum.json",
+      "file_name": "audio_spectrum.elf",
+      "additional_sources": [
+        "Apps/AudioInputV1.h",
+        "Apps/spectrum_core.h",
+        "Apps/daily_draw.h"
+      ],
+      "min_firmware_version": "0.1.16"
+    }
   ]
 }

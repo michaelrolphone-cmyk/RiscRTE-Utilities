@@ -26,5 +26,9 @@
   "points_occ": {
     "namespace": 4,
     "access": "read-write"
+  },
+  "alarm_volume": {
+    "namespace": 1,
+    "access": "read"
   }
 }

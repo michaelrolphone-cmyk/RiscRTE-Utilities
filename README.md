@@ -93,3 +93,17 @@ alarm.service@1 unchanged. The Points editor belongs to Productivity; the eight
 schedule faces and deployment belong to Watch. Existing non-opted-in0.1.0 builds
 retain their five-key authority and one-shot behavior. New source fixtures and
 target ELF checks are part of CI; hardware qualification is separate.
+
+## Shared Audio Tools
+
+[Frequency Generator](docs/apps/frequency_generator.md) is a separate explicit
+`audio_apps` development profile. It uses the existing speaker capability and
+portable alarm-aware UI, with bounded synthesis, explicit Start, low initial
+level and checked cleanup. Exact shared audio lifecycle and Runtime prerequisites
+are required; this does not change the existing Reader migration cohort or
+declare an untested Watch installation ready.
+
+[Audio Spectrum](docs/apps/audio_spectrum.md) adds the second Audio Tools app: a
+user-started microphone spectrum and scrolling spectrogram, sharing the existing
+input provider and foreground lifecycle. It keeps only bounded RAM snapshots,
+stops for alarms/sleep/Back, and never resumes capture automatically.
