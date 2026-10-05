@@ -1,10 +1,15 @@
 # Spectrum 0.4.0: temporal event examples
 
-This is an owner-repository development increment. The canonical Runtime
-`storage.app-data@1` backend is not published yet. `sdk/spectrum-temporal-sources.json`
-records a null runtime commit, pending publication and `watch_installable: false`.
-The current tested Watch cohort remains on Spectrum 0.3.0. No install, release,
-flash, microphone/device test, neural training or automatic format is performed.
+The `storage.app-data@1` backend is pinned to published Runtime 0.1.30 commit
+`1d9bcb204a0b12ac6483511f32ba56da47699404` ([Runtime PR22](https://github.com/michaelrolphone-cmyk/RiscRTE/pull/22)).
+`sdk/spectrum-temporal-sources.json` records the API-header hash and validated
+Watch profile fingerprints. That profile has 12 requirements/grants, app-data
+namespace 2, legacy KV@2 namespace 7 and preference KV@1 namespace 1. Its actual
+target ELF passes loader/relocation checks, and the combined Runtime admits the
+profile. Compatibility requires the explicit ABI2 app-data layout and pinned
+backend; the Watch repository verifies the final source-bound assembly.
+No install, release, flash, microphone/device test, neural training or automatic
+format is performed by these builds or compatibility metadata.
 
 ## Capture and review
 
@@ -187,7 +192,8 @@ keyboard/capture/review/retry/discard flows. Native Nova raster tests inspect
 ordinary, clipped, explicitly completed, full-storage and recovery screens.
 `bash scripts/test_spectrum_app_data.sh RUNTIME_CHECKOUT` also links the production
 Spectrum codec/client to Runtime's real `AppDataFiles.cpp`, with byte-identical
-API headers required. Normal and ASan/UBSan runs exercise two maximum banks,
+API headers and the exact clean Runtime commit required. Remote CI runs this
+fixture against that published pin. Normal and ASan/UBSan runs exercise two maximum banks,
 namespace isolation and cross-namespace CAS invalidation, committed-byte quota
 and injected ENOSPC retry, actual rename-before/after uncertain outcomes,
 same-bank conflicts and explicit discard, reopening the host-directory backend,

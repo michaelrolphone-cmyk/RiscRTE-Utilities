@@ -76,6 +76,15 @@ jobs:
           python scripts/test_spectrum_renderer.py --system-apps .dependencies/audio-system-apps
           python scripts/test_spectrum_temporal_renderer.py --system-apps .dependencies/audio-system-apps
           python scripts/test_audio_service_lifecycle.py --system-apps .dependencies/audio-system-apps --runtime .dependencies/audio-runtime
+      - name: Exact Spectrum app-data Runtime source
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 1d9bcb204a0b12ac6483511f32ba56da47699404
+          path: .dependencies/spectrum-runtime
+          persist-credentials: false
+      - name: Exercise Spectrum saves against the real Runtime backend
+        run: bash scripts/test_spectrum_app_data.sh .dependencies/spectrum-runtime
       - name: Install pinned public compiler
         run: |
           python -m pip install platformio==6.1.19

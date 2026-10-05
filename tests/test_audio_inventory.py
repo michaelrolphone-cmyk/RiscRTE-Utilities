@@ -60,12 +60,22 @@ class AudioInventory(unittest.TestCase):
         self.assertIn('controls_scroll',controls)
         self.assertNotIn('SOURCE',controls)
 
-    def test_temporal_backend_is_explicitly_pending(self):
+    def test_temporal_backend_and_verified_watch_profile_are_pinned(self):
         import hashlib
         dependency=json.loads((ROOT/'sdk/spectrum-temporal-sources.json').read_text())
         self.assertEqual(dependency['namespace'],2)
         self.assertEqual(dependency['required_layout_abi'],2)
-        self.assertFalse(dependency['watch_installable'])
-        self.assertIsNone(dependency['runtime_commit'])
+        self.assertTrue(dependency['watch_installable'])
+        self.assertEqual(dependency['runtime_publication'],'published')
+        self.assertRegex(dependency['runtime_commit'],r'^[0-9a-f]{40}$')
+        workflow=(ROOT/'.github/workflows/build.yml').read_text()
+        self.assertIn('ref: '+dependency['runtime_commit'],workflow)
+        self.assertIn('bash scripts/test_spectrum_app_data.sh .dependencies/spectrum-runtime',workflow)
+        profile=dependency['validated_watch_profile']
+        self.assertEqual(profile['name'],'watch-current-apps-v1')
+        self.assertEqual((profile['requirements'],profile['grants']),(12,12))
+        self.assertRegex(profile['system_apps_commit'],r'^[0-9a-f]{40}$')
+        for field in ('spectrum_manifest_sha256','spectrum_policy_sha256'):
+            self.assertRegex(profile[field],r'^[0-9a-f]{64}$')
         self.assertEqual(dependency['api_header_sha256'],hashlib.sha256((ROOT/'Apps/RiscAppDataV1.h').read_bytes()).hexdigest())
         self.assertEqual(dependency['preserved_key_value_namespaces'],{'spectrum_api2':7,'shared_preferences_api1':1})
