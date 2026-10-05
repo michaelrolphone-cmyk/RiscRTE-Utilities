@@ -9,7 +9,8 @@
 typedef struct { uint32_t deadline,parent_day; uint8_t slot,edge,kind,mode; } points_event;
 typedef struct { points_event previous,next[POINTS_NEXT_COUNT]; uint32_t count,flags; bool has_previous; } points_projection;
 static inline bool points_calendar(uint32_t seconds,twatch_rtc_time_v1 *out) {
-    if(!out||seconds>ALARM_RTC_MAX)return false;\n    uint32_t days=seconds/86400;unsigned y=2000,m=1;
+    if(!out||seconds>ALARM_RTC_MAX)return false;
+    uint32_t days=seconds/86400;unsigned y=2000,m=1;
     while(y<2099&&days>=(y%4?365u:366u)){days-=y%4?365u:366u;++y;}
     while(m<12&&days>=watch_month_days(y,m)){days-=watch_month_days(y,m);++m;}
     *out=(twatch_rtc_time_v1){(uint16_t)y,(uint8_t)m,(uint8_t)(days+1),(uint8_t)watch_weekday(y,m,days+1),
@@ -52,7 +53,8 @@ static inline bool points_event_before(const points_event *a,const points_event 
     return a->deadline<b->deadline||(a->deadline==b->deadline&&points_token_kind(a->slot,a->edge)<points_token_kind(b->slot,b->edge));
 }
 static inline bool points_project(const points_config *c,uint32_t now,points_projection *out) {
-    if(!c||!out)return false;\n    memset(out,0,sizeof(*out));uint32_t today;
+    if(!c||!out)return false;
+    memset(out,0,sizeof(*out));uint32_t today;
     if(!c->revision)return true;
     if(!points_config_valid(c)||!points_local_day(now,&today)){out->flags=POINTS_FLAG_RANGE;return false;}
     for(int offset=-7;offset<=8;offset++) {
@@ -76,7 +78,8 @@ static inline bool points_latest_for_edge(const points_config *c,const points_le
     }return found;
 }
 static inline bool points_due(const points_config *c,const points_ledger *l,uint32_t now,points_event *out) {
-    if(!c||!l||!out)return false;\n    bool found=false;
+    if(!c||!l||!out)return false;
+    bool found=false;
     for(unsigned slot=0;slot<POINTS_MAX;slot++)for(unsigned edge=0;edge<POINTS_EDGE_COUNT;edge++) {
         points_event latest;if(points_latest_for_edge(c,l,now,slot,edge,&latest)&&(!found||points_event_before(&latest,out))){*out=latest;found=true;}
     }return found;
