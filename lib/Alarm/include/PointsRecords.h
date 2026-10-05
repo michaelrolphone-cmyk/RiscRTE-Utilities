@@ -76,7 +76,8 @@ static inline bool points_config_decode(points_config *c,const uint8_t *b,uint32
     }if(!points_config_valid(&v))return false;*c=v;return true;
 }
 static inline bool points_custom_name_valid(const char *name) {
-    if(!name)return false;\n    unsigned n=0;
+    if(!name)return false;
+    unsigned n=0;
     while(n<POINTS_CUSTOM_NAME_MAX&&name[n]){unsigned c=(unsigned char)name[n];if(c<32||c>126)return false;n++;}
     return !name[n];
 }
@@ -139,7 +140,8 @@ static inline bool points_ledger_decode(points_ledger *l,const uint8_t *b,uint32
             if(v.day[i]){if(s==v.day[i])v.delivered[i]|=1u<<POINTS_EDGE_START;if(e==v.day[i])v.delivered[i]|=1u<<POINTS_EDGE_END;}
         }
     } else return false;
-    if(!points_ledger_valid(&v))return false;\n    *l=v;return true;
+    if(!points_ledger_valid(&v))return false;
+    *l=v;return true;
 }
 static inline bool points_ledger_handled(const points_ledger *l,unsigned slot,uint32_t parent_day,unsigned edge) {
     if(!l||slot>=POINTS_MAX||edge>=POINTS_EDGE_COUNT||!parent_day)return true;
