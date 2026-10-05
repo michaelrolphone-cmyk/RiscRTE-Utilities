@@ -7,6 +7,9 @@
 #include "portable_settings_test.c"
 #undef main
 #include "AlarmRecords.h"
+#ifdef POINTS_IN_TIME_SERVICE
+#include "PointsRecords.h"
+#endif
 #include "AlarmOutputV1.h"
 #include "RiscProviderV2.h"
 #include "RiscPlatformClockV1.h"
@@ -14,13 +17,13 @@
 #include <setjmp.h>
 extern const risc_driver_v2 *t5_driver_get(uint32_t);
 static bool app_audio=true, close_fails, uncertain, expect_preempt;
-static unsigned app_close_attempts, app_closes, dep_calls, storage_calls, audio_opens, audio_closes;
+static unsigned app_close_attempts, app_closes, dep_calls, storage_calls, audio_opens, audio_closes, cue_haptics;
 static unsigned sleep_calls, cleanup_io, deps_at_failed_close;
 static int sleep_result;
 static jmp_buf retained;
 static const alarm_service_v1 *real_alarm;
-static uint8_t values[5][ALARM_RECORD_SIZE];
-static uint32_t sizes[5];
+static uint8_t values[7][64];
+static uint32_t sizes[7];
 
 bool portable_audio_services_safe(void) { return !uncertain; }
 bool portable_audio_suspend(void) {
@@ -33,8 +36,8 @@ bool portable_audio_suspend(void) {
 static void review_yield(uint32_t ms) { if(uncertain&&failed)longjmp(retained,1);test_yield(ms); }
 static void normal_dependency(void){assert(!uncertain);dep_calls++;}
 static int key_index(const char *key) {
- const char *keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY};
- for(int i=0;i<5;i++)if(!strcmp(keys[i],key))return i;
+ const char *keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY,"points_cfg","points_occ"};
+ for(int i=0;i<7;i++)if(!strcmp(keys[i],key))return i;
  return -1; /* The Points build's absent optional records. */
 }
 static int32_t review_kv_get(void*c,const char*k,void*b,uint32_t cap,uint32_t*n) {
@@ -43,7 +46,7 @@ static int32_t review_kv_get(void*c,const char*k,void*b,uint32_t cap,uint32_t*n)
  assert(sizes[i]<=cap);memcpy(b,values[i],sizes[i]);*n=sizes[i];return RISC_BOUND_KEY_VALUE_OK;
 }
 static int32_t review_kv_put(void*c,const char*k,const void*b,uint32_t n) {
- (void)c;normal_dependency();storage_calls++;int i=key_index(k);assert(i==3||i==4);assert(n<=sizeof(values[i]));
+ (void)c;normal_dependency();storage_calls++;int i=key_index(k);assert(i==3||i==4||i==6);assert(n<=sizeof(values[i]));
  memcpy(values[i],b,n);sizes[i]=n;return RISC_BOUND_KEY_VALUE_OK;
 }
 static uint64_t clock_read(void*c){(void)c;return ticks;}
@@ -51,7 +54,7 @@ static bool alarm_rtc_read(void*c,twatch_rtc_time_v1*out){
  (void)c;normal_dependency();if(expect_preempt)assert(!app_audio);
  unsigned s=101+ticks/1000;*out=(twatch_rtc_time_v1){2000,1,1,6,0,(uint8_t)(s/60),(uint8_t)(s%60)};return true;
 }
-static bool haptic_effect(void*c,uint8_t e){(void)c;(void)e;normal_dependency();assert(!app_audio);return true;}
+static bool haptic_effect(void*c,uint8_t e){(void)c;(void)e;normal_dependency();assert(!app_audio);cue_haptics++;return true;}
 static bool haptic_stop(void*c){(void)c;normal_dependency();assert(!app_audio);cleanup_io++;return true;}
 static bool alarm_audio_open(void*c,uint32_t rate,uint8_t channels){(void)c;normal_dependency();assert(rate==8000&&channels==1&&!app_audio);audio_opens++;return true;}
 static bool alarm_audio_write(void*c,const int16_t*p,size_t n){(void)c;(void)p;normal_dependency();assert(n==256&&!app_audio);return true;}
@@ -80,12 +83,34 @@ int main(int argc,char**argv){
  const risc_driver_v2 *driver=t5_driver_get(2);assert(driver);real_alarm=driver->capability;
  alarm_config config={1,101,100,0,ALARM_KIND_ALARM,1};
  if(test<4){alarm_config_encode(&config,values[0]);sizes[0]=ALARM_RECORD_SIZE;values[2][0]=ALARM_MODE_SOUND;sizes[2]=1;}
+#ifdef POINTS_IN_TIME_SERVICE
+ if(test>=10){
+  points_config c={.revision=1,.created=100};c.points[0]=(points_item){.kind=POINTS_BREAK,.enabled=1,.mode=3,.weekdays=127,.hour=0,.minute=2};
+  assert(points_config_valid(&c));points_config_encode(&c,values[5]);sizes[5]=64;ticks=19000;
+  if(test==12)app_audio=false;
+ }
+#endif
  assert(driver->start(dependencies,5));
  risc_runtime_api_v1 r=runtime_api;r.acquire=acquire_review;r.yield_ms=review_yield;
  rt=&r;dg.struct_size=sizeof(dg);bg.struct_size=sizeof(bg);
  assert(acquire_review("display.output",1,0,&dg));display=dg.api;assert(display_info(NULL,&info));
  assert(portable_touch_open(&touch,&r));display_settled=true;alarm_pixels=malloc(sizeof(framebuffer));assert(alarm_pixels);assert(portable_alarm_open(&alarms,&r));
  clear();fill(0,0,240,240,0x1234);present(false);assert(alarm_pixels_valid);
+#ifdef POINTS_IN_TIME_SERVICE
+ if(test>=10){
+  uint16_t prior[sizeof(framebuffer)/sizeof(uint16_t)];memcpy(prior,framebuffer,sizeof(prior));
+  if(test==11){close_fails=true;unsigned live=grants;
+   if(!setjmp(retained)){bool consumed;alarm_foreground(&consumed);assert(!"cue must retain after failed app close");}
+   check_failed_cleanup(deps_at_failed_close,live);assert(!audio_opens&&!cue_haptics);puts("Points preemption close failure performs no cue output or further dependency I/O PASS");return 0;
+  }
+  bool consumed=false;assert(alarm_foreground(&consumed)&&consumed);assert(!alarm_modal&&!memcmp(prior,framebuffer,sizeof(prior)));
+  assert(audio_opens==1&&audio_closes==1&&cue_haptics==1&&!app_audio&&app_closes==(test==12?0u:1u));
+  assert(!alarms.status.output_uncertain&&!alarms.status.occurrence.generation);
+  for(unsigned i=0;i<12;i++)assert(alarm_foreground(&consumed));
+  assert(audio_opens==1&&audio_closes==1&&cue_haptics==1&&!alarm_modal&&!memcmp(prior,framebuffer,sizeof(prior)));
+  app_module_fini();assert(!grants);puts("Real due Points cue preempts app audio, preserves frame/no modal, commits once and does not resume audio PASS");return 0;
+ }
+#endif
  if(test==0||test==1){
   if(test==1){pump_to_alert_direct();expect_preempt=true;}
   unsigned steps=0;

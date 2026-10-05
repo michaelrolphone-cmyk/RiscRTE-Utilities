@@ -5,6 +5,7 @@
 #include <stdint.h>
 #define ALARM_SERVICE_CAPABILITY "alarm.service"
 #define ALARM_SERVICE_API_V1 1u
+#define ALARM_STATUS_CUE_SUPPORTED 1u
 #define ALARM_KIND_ALARM 1u
 #define ALARM_KIND_COUNTDOWN 2u
 #define ALARM_MODE_VIBRATE 1u
@@ -14,7 +15,11 @@ enum { ALARM_OK=0, ALARM_PENDING=1, ALARM_BUSY=-1, ALARM_INVALID=-2,
        ALARM_STALE=-3, ALARM_STORAGE=-4, ALARM_RTC=-5, ALARM_OUTPUT=-6,
        ALARM_EXHAUSTED=-7, ALARM_FOREGROUND=-8 };
 enum { ALARM_STATE_LOADING, ALARM_STATE_READY, ALARM_STATE_ALERT,
-       ALARM_STATE_DISMISSING, ALARM_STATE_BLOCKED };
+       ALARM_STATE_DISMISSING, ALARM_STATE_BLOCKED,
+       /* Additive copied status: non-modal output reservation, before open and
+        * through cleanup. Updated clients must drain it without painting an
+        * alarm overlay. Earlier clients reject unknown states safely. */
+       ALARM_STATE_CUE };
 enum { ALARM_SCHEDULE_OFF, ALARM_SCHEDULE_ARMED, ALARM_SCHEDULE_DUE,
        ALARM_SCHEDULE_DISMISSED, ALARM_SCHEDULE_EXPIRED };
 typedef struct {

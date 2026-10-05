@@ -1,6 +1,9 @@
 /* Ordinary singleton ELF. All policy/persistence/UI-facing state belongs here;
  * Runtime only resolves opaque dependencies. No poll callback, task or ISR. */
 #include "AlarmRecords.h"
+#ifdef ALARM_VOLUME_CONTROL
+#include "AlarmVolume.h"
+#endif
 #ifdef POINTS_IN_TIME_SERVICE
 #include "PointsSchedule.h"
 #endif
@@ -16,6 +19,9 @@ typedef enum { LOAD_ALARM,LOAD_TIMER,LOAD_MODE,LOAD_ALARM_OCC,LOAD_TIMER_OCC,
                READ_RTC,EVALUATE,IDLE,WRITE_OCC,VERIFY_OCC,ACTIVATE_RTC,START_AUDIO,
                START_HAPTIC,PLAYING,CLEAN_HAPTIC,CLEAN_SILENCE,CLEAN_AUDIO,
                BLOCKED
+#ifdef ALARM_VOLUME_CONTROL
+               ,LOAD_VOLUME,SET_AUDIO_GAIN
+#endif
 #ifdef POINTS_IN_TIME_SERVICE
                ,LOAD_POINTS_CFG,LOAD_POINTS_OCC
 #endif
@@ -33,12 +39,22 @@ static points_ledger points_occ,points_staged_occ,points_desired;
 #endif
 static alarm_status_v1 view;
 static phase_t phase;
+static unsigned selected;
+#ifdef ALARM_VOLUME_CONTROL
+static unsigned staged_volume;
+static bool volume_sound_enabled(void) {
+#ifdef POINTS_IN_TIME_SERVICE
+    if(selected==2)return true; /* Brief Points cues retain their independent output. */
+#endif
+    return staged_volume!=0;
+}
+#endif
 static uint32_t staged_mode, seconds, previous_seconds, sleep_snapshot, alert_limit_ms;
 static uint64_t previous_ms, sample_ms, next_reconcile, alert_started, next_pulse;
 static bool started, in_call, refreshed, anchored, sleep_waiting;
 static bool active, dismiss, haptic_uncertain, audio_uncertain, cleanup_failed;
 static bool persistence_pending, foreground_failed;
-static unsigned selected;
+
 static int32_t error;
 static const char *const cfg_keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY};
 static const char *const occ_keys[]={ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY};
@@ -56,7 +72,7 @@ static void update_view(void) {
     bool point_cue=false;
 #endif
     view.state=phase==BLOCKED?ALARM_STATE_BLOCKED:active&&!point_cue?(dismiss?ALARM_STATE_DISMISSING:ALARM_STATE_ALERT):
-        point_cue||phase==IDLE?ALARM_STATE_READY:ALARM_STATE_LOADING;
+        point_cue?ALARM_STATE_CUE:phase==IDLE?ALARM_STATE_READY:ALARM_STATE_LOADING;
     for(unsigned i=0;i<2;i++) {
         alarm_schedule_status_v1 *s=&view.schedules[i];
         s->revision=config[i].revision;s->deadline=config[i].deadline;s->state=ALARM_SCHEDULE_OFF;
@@ -263,6 +279,14 @@ static int32_t do_step(void) {
         if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND)staged_mode=ALARM_MODE_VIBRATE;
         else if(r!=RISC_BOUND_KEY_VALUE_OK||n!=1||b<1||b>3)return fail(ALARM_STORAGE);
         else staged_mode=b;
+#ifdef ALARM_VOLUME_CONTROL
+        phase=LOAD_VOLUME;break;
+    }
+    case LOAD_VOLUME: {
+        uint8_t b=0;uint32_t n=0;int32_t r=kv->get(kv->context,ALARM_VOLUME_KEY,&b,1,&n);
+        if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND)staged_volume=ALARM_VOLUME_DEFAULT;
+        else if(r!=RISC_BOUND_KEY_VALUE_OK||!alarm_volume_decode(&b,n,&staged_volume))return fail(ALARM_STORAGE);
+#endif
         phase=LOAD_ALARM_OCC;break;
     }
     case LOAD_ALARM_OCC:if(!read_occurrence(0))return fail(ALARM_STORAGE);phase=LOAD_TIMER_OCC;break;
@@ -379,23 +403,47 @@ static int32_t do_step(void) {
         }
 #endif
         if(now_ms()-alert_started>=alert_limit_ms){begin_cleanup();break;}
-        if(desired.mode&ALARM_MODE_SOUND) {
+        if((desired.mode&ALARM_MODE_SOUND)
+#ifdef ALARM_VOLUME_CONTROL
+           &&volume_sound_enabled()
+#endif
+          ) {
             audio_uncertain=true;
             if(!audio->open(audio->context,8000,1)){error=ALARM_OUTPUT;begin_cleanup();break;}
-#ifdef POINTS_IN_TIME_SERVICE
+#if defined(POINTS_IN_TIME_SERVICE) && !defined(ALARM_VOLUME_CONTROL)
             if(selected==2) {
                 int16_t pcm[256];for(unsigned i=0;i<256;i++)pcm[i]=(i&4)?1600:-1600;
                 if(!audio->write(audio->context,pcm,256)){error=ALARM_OUTPUT;begin_cleanup();break;}
             }
 #endif
+#ifdef ALARM_VOLUME_CONTROL
+            phase=SET_AUDIO_GAIN;break;
+#endif
             phase=desired.mode&ALARM_MODE_VIBRATE?START_HAPTIC:PLAYING;
         } else {
-            haptic_uncertain=true;
-            if(!haptic->effect(haptic->context,47)){error=ALARM_OUTPUT;begin_cleanup();break;}
+            if(desired.mode&ALARM_MODE_VIBRATE) {
+                haptic_uncertain=true;
+                if(!haptic->effect(haptic->context,47)){error=ALARM_OUTPUT;begin_cleanup();break;}
+            }
             phase=PLAYING;
         }
         break;
     }
+#ifdef ALARM_VOLUME_CONTROL
+    case SET_AUDIO_GAIN:
+        if(dismiss||now-alert_started>=alert_limit_ms){begin_cleanup();break;}
+        /* Speaker gain survives close/open. Keep the shared device at unity;
+         * alarm volume scales full-range source PCM, never another app's gain. */
+        if(!audio->set_gain(audio->context,
+                           100,100)){error=ALARM_OUTPUT;begin_cleanup();break;}
+#ifdef POINTS_IN_TIME_SERVICE
+        if(selected==2) {
+            int16_t pcm[256];for(unsigned i=0;i<256;i++)pcm[i]=(i&4)?1600:-1600;
+            if(!audio->write(audio->context,pcm,256)){error=ALARM_OUTPUT;begin_cleanup();break;}
+        }
+#endif
+        phase=desired.mode&ALARM_MODE_VIBRATE?START_HAPTIC:PLAYING;break;
+#endif
     case START_HAPTIC:
         if(dismiss){begin_cleanup();break;}
         if(desired.mode&ALARM_MODE_VIBRATE) {
@@ -410,8 +458,17 @@ static int32_t do_step(void) {
 #endif
         if(now>=next_pulse) {
             next_pulse=now+500;
-            if(desired.mode&ALARM_MODE_SOUND) {
-                int16_t pcm[256];for(unsigned i=0;i<256;i++)pcm[i]=(i&4)?1600:-1600;
+            if((desired.mode&ALARM_MODE_SOUND)
+#ifdef ALARM_VOLUME_CONTROL
+           &&volume_sound_enabled()
+#endif
+          ) {
+                int16_t pcm[256];for(unsigned i=0;i<256;i++)pcm[i]=(i&4)?
+#ifdef ALARM_VOLUME_CONTROL
+                    (int16_t)(ALARM_VOLUME_PCM_PEAK*staged_volume/100u):-(int16_t)(ALARM_VOLUME_PCM_PEAK*staged_volume/100u);
+#else
+                    1600:-1600;
+#endif
                 if(!audio->write(audio->context,pcm,256)){error=ALARM_OUTPUT;begin_cleanup();}
                 else if(desired.mode&ALARM_MODE_VIBRATE)phase=START_HAPTIC;
             } else if(desired.mode&ALARM_MODE_VIBRATE) {
@@ -565,7 +622,11 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
     haptic=dependency(deps,count,"haptic.effect",1,sizeof(*haptic));
     audio=dependency(deps,count,"audio.output",1,sizeof(*audio));
     if(!kv||!kv->get||!kv->put||!clock_api||!clock_api->monotonic_ms||!rtc||!rtc->read||
-       !haptic||!haptic->effect||!haptic->stop||!audio||!audio->open||!audio->write||!audio->silence||!audio->close) {
+       !haptic||!haptic->effect||!haptic->stop||!audio||!audio->open||!audio->write||!audio->silence||!audio->close
+#ifdef ALARM_VOLUME_CONTROL
+       ||!audio->set_gain
+#endif
+       ) {
         kv=NULL;clock_api=NULL;rtc=NULL;haptic=NULL;audio=NULL;return false;
     }
 #ifdef POINTS_IN_TIME_SERVICE

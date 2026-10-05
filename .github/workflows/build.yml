@@ -40,15 +40,25 @@ jobs:
         run: |
           python scripts/test_alarm_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           python scripts/test_points_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
+          python scripts/test_alarm_volume.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           bash scripts/test_alarm_runtime.sh .dependencies/runtime .dependencies/system-apps
           SANITIZE=1 bash scripts/test_alarm_runtime.sh .dependencies/runtime .dependencies/system-apps
+      - name: Exact non-modal cue-aware client
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 13f32d3e5fee262a960f5fe0add63db835381893
+          path: .dependencies/cue-system-apps
+          persist-credentials: false
+      - name: Exercise actual Points cues against app-owned audio
+        run: python scripts/test_points_audio_cues.py --system-apps .dependencies/cue-system-apps --runtime .dependencies/runtime
       - name: Exercise shared Calculator and Stopwatch
         run: python scripts/test_daily_apps.py --system-apps .dependencies/system-apps
       - name: Exact shared audio lifecycle adapter
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 7dde3720f1aa22aef8d8276eff279a7089219670
+          ref: 13f32d3e5fee262a960f5fe0add63db835381893
           path: .dependencies/audio-system-apps
           persist-credentials: false
       - name: Exact current audio Runtime source
@@ -98,11 +108,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 06bb53cb46c815ef9796eb7999fb36e34420ff0b
+          ref: 13f32d3e5fee262a960f5fe0add63db835381893
           path: .dependencies/nova-system
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -119,7 +129,7 @@ jobs:
       - run: python scripts/build_nova_utility.py --app ${{ matrix.app }} --system-apps .dependencies/nova-system
       - uses: actions/upload-artifact@v4
         with:
-          name: nova-${{ matrix.app }}-${{ github.event.pull_request.head.sha || github.sha }}
+          name: nova-${{ matrix.app }}-${{ github.sha }}
           path: dist/nova/
           if-no-files-found: error
           retention-days: 14
