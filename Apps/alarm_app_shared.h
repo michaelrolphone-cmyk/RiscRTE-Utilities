@@ -19,7 +19,12 @@ static const risc_runtime_api_v1 *runtime;
 static const risc_key_value_v1 *storage;
 static const twatch_rtc_api_v1 *rtc;
 static const alarm_service_v1 *service;
-static risc_runtime_capability_v1 grants[3];
+static risc_runtime_capability_v1 grants[4];
+#if defined(DAILY_NOVA_APP) && DAILY_ALARM_KIND == 1
+#include "PortableTimeFormat.h"
+static const risc_key_value_v1 *alarm_preferences;
+static unsigned alarm_time_format;
+#endif
 static unsigned acquired, values[3];
 static alarm_writer writer;
 static alarm_status_v1 service_state;
@@ -100,8 +105,22 @@ static bool open_dependencies(void) {
     runtime=risc_runtime_get_api(1);acquired=0;
     if(!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms)return false;
     const char *names[]={"storage.key-value","rtc.clock",ALARM_SERVICE_CAPABILITY};const uint32_t apis[]={1,2,1};
-    for(unsigned i=0;i<3;i++){grants[i]=(risc_runtime_capability_v1){.struct_size=sizeof(grants[i])};if(!runtime->acquire(names[i],apis[i],0,&grants[i]))return false;acquired++;}
+    for(unsigned i=0;i<3;i++){grants[i]=(risc_runtime_capability_v1){.struct_size=sizeof(grants[i])};if(!runtime->acquire(names[i],apis[i],
+#ifdef DAILY_NOVA_APP
+        i==0?3:0,
+#else
+        0,
+#endif
+        &grants[i])){return false;}
+        acquired++;
+    }
     storage=grants[0].api;rtc=grants[1].api;service=grants[2].api;
+#if defined(DAILY_NOVA_APP) && DAILY_ALARM_KIND == 1
+    alarm_preferences=NULL;alarm_time_format=PORTABLE_TIME_FORMAT_12;
+    grants[3]=(risc_runtime_capability_v1){.struct_size=sizeof(grants[3])};
+    if(runtime->acquire("storage.key-value",1,1,&grants[3])) {acquired++;alarm_preferences=grants[3].api;}
+    (void)portable_time_format_load(alarm_preferences,&alarm_time_format);
+#endif
     return storage&&storage->api_version==1&&storage->struct_size>=sizeof(*storage)&&storage->get&&storage->put&&
         rtc&&rtc->api_version==2&&rtc->struct_size>=sizeof(*rtc)&&rtc->read&&
         service&&service->api_version==1&&service->struct_size>=sizeof(*service)&&service->status&&service->step&&service->refresh&&service->acknowledge&&service->stop_only;
@@ -109,7 +128,13 @@ static bool open_dependencies(void) {
 static void close_dependencies(void) {
     if(runtime)while(acquired)runtime->release(&grants[--acquired]);
     runtime=NULL;storage=NULL;rtc=NULL;service=NULL;
+#if defined(DAILY_NOVA_APP) && DAILY_ALARM_KIND == 1
+    alarm_preferences=NULL;
+#endif
 }
+#ifdef DAILY_NOVA_APP
+#include "alarm_nova.inc"
+#else
 static void draw(void) {
     int w=app->screen_width(),h=app->screen_height();app->clear();app->draw_text(8,16,"BACK");
     app->draw_label(52,16,w-104,DAILY_ALARM_KIND==1?"ALARM":"COUNTDOWN");
@@ -151,7 +176,14 @@ static void draw(void) {
     app->draw_label(w/2+4,h-45,w/2-12,writer.uncertain?"WAIT":"CANCEL");
     app->draw_label(8,h-15,w-16,"RETRY / REFRESH");app->present(false);
 }
+#endif
 void app_main(void) {
+#ifdef DAILY_NOVA_APP
+    alarm_page=alarm_field=0;
+#if DAILY_ALARM_KIND == 1
+    volume_uncertain=false;volume_message="";
+#endif
+#endif
     app=t5_app_get_api(1);notice="";editing=false;writer=(alarm_writer){0};service_valid=false;service_state=(alarm_status_v1){0};values[0]=0;values[1]=5;values[2]=0;
     if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->draw_text||!app->draw_label||!app->fill_rect||!app->present)return;
     if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
@@ -167,6 +199,9 @@ void app_main(void) {
     }
 #else
     if(writer.saved.duration){values[0]=writer.saved.duration/3600;values[1]=writer.saved.duration/60%60;values[2]=writer.saved.duration%60;}
+#endif
+#if defined(DAILY_NOVA_APP) && DAILY_ALARM_KIND == 1
+    volume_load();
 #endif
     refresh_status();draw();uint32_t last_draw=app->millis();
     for(;;) {
@@ -200,14 +235,24 @@ void app_main(void) {
         (void)service->step(service->context);
 #endif
         refresh_status();
+#ifndef DAILY_NOVA_APP
         bool alert=service_valid&&service_state.occurrence.generation;
+#endif
         if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)) {
+#ifdef DAILY_NOVA_APP
+            if(alarm_back())break;
+            draw();continue;
+#else
             if(!alert)break;
             notice="DISMISS ALERT BEFORE BACK";draw();
             continue;
+#endif
         }
         bool dirty=false;
         if(input.tapped) {
+#ifdef DAILY_NOVA_APP
+            dirty=alarm_tap(input.touch_x,input.touch_y);
+#else
             int x=input.touch_x,y=input.touch_y,w=app->screen_width(),h=app->screen_height();
             if(x>=8&&x<w-8&&y>=h-62&&y<h-28) {
                 if(x<w/2-4){if(alert)service->acknowledge(service->context,&service_state.occurrence);else save_action(false);}
@@ -220,6 +265,7 @@ void app_main(void) {
                 unsigned columns=DAILY_ALARM_KIND==1?2:3;unsigned column=(unsigned)(x-8)*columns/(unsigned)(w-16);
                 unsigned max=column?59:(DAILY_ALARM_KIND==1?23:99);values[column]=(values[column]+(y<63?1:max))%(max+1);notice="EDITED - NOT SAVED";editing=true;dirty=true;
             }
+        #endif
         }
         if(dirty||(uint32_t)(app->millis()-last_draw)>=250){draw();last_draw=app->millis();}
     }
