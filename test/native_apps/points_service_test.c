@@ -5,12 +5,12 @@
 #include <string.h>
 #include "../../Services/alarm_service/service.c"
 static uint8_t blobs[7][64];static uint32_t sizes[7];
-static uint64_t ms;static uint32_t rtc_base;static int opens,writes,effects,stops,silences,closes,puts;
+static uint64_t ms;static uint32_t rtc_base;static int opens,writes,effects,stops,silences,closes,put_calls;
 static bool put_fail,put_persists,write_fail,effect_fail,revoked;
 static const alarm_service_v1 *client;static const risc_driver_v2 *driver_api;
 static int index_key(const char *key){const char *keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY,POINTS_CONFIG_KEY,POINTS_OCCURRENCE_KEY};for(int i=0;i<7;i++)if(!strcmp(keys[i],key))return i;assert(0);return 0;}
 static int32_t get_blob(void*c,const char*k,void*b,uint32_t cap,uint32_t*n){(void)c;assert(!revoked);int i=index_key(k);*n=0;if(!sizes[i])return -1;if(cap<sizes[i])return -2;memcpy(b,blobs[i],sizes[i]);*n=sizes[i];return 0;}
-static int32_t put_blob(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(!revoked);int i=index_key(k);assert(i==3||i==4||i==6);puts++;if(!put_fail||put_persists){memcpy(blobs[i],b,n);sizes[i]=n;}return put_fail?-5:0;}
+static int32_t put_blob(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(!revoked);int i=index_key(k);assert(i==3||i==4||i==6);put_calls++;if(!put_fail||put_persists){memcpy(blobs[i],b,n);sizes[i]=n;}return put_fail?-5:0;}
 static uint64_t mono(void*c){(void)c;return ms;}
 static bool read_rtc(void*c,twatch_rtc_time_v1*out){(void)c;return points_calendar(rtc_base+(uint32_t)(ms/1000),out);}
 static bool h_effect(void*c,uint8_t e){(void)c;assert(e);effects++;return !effect_fail;}
@@ -28,7 +28,7 @@ static const twatch_audio_out_api_v1 aapi={1,sizeof(aapi),NULL,a_open,a_write,a_
 static const risc_provider_dependency_v1 deps[]={{"storage.key-value.bound",1,&bound},{"platform.clock",1,&clk},{"rtc.clock",2,&rtc_api},{"haptic.effect",1,&hapi},{"audio.output",1,&aapi}};
 static alarm_status_v1 snapshot(void){alarm_status_v1 s={.struct_size=sizeof(s)};assert(client->status(NULL,&s)==0);return s;}
 static void pump(unsigned n){while(n--){(void)client->step(NULL);alarm_status_v1 s=snapshot();if(active&&selected==2){assert(s.state!=ALARM_STATE_ALERT&&s.state!=ALARM_STATE_DISMISSING);assert(!s.occurrence.generation&&!s.label[0]);}ms++;}}
-static void boot(bool clear){if(driver_api)assert(driver_api->quiesce());if(clear){memset(blobs,0,sizeof(blobs));memset(sizes,0,sizeof(sizes));ms=0;}put_fail=put_persists=write_fail=effect_fail=revoked=false;opens=writes=effects=stops=silences=closes=puts=0;driver_api=t5_driver_get(2);client=driver_api->capability;assert(driver_api->start(deps,5));}
+static void boot(bool clear){if(driver_api)assert(driver_api->quiesce());if(clear){memset(blobs,0,sizeof(blobs));memset(sizes,0,sizeof(sizes));ms=0;}put_fail=put_persists=write_fail=effect_fail=revoked=false;opens=writes=effects=stops=silences=closes=put_calls=0;driver_api=t5_driver_get(2);client=driver_api->capability;assert(driver_api->start(deps,5));}
 static uint32_t civil(unsigned y,unsigned m,unsigned d,unsigned h,unsigned minute){twatch_rtc_time_v1 t={(uint16_t)y,(uint8_t)m,(uint8_t)d,0,(uint8_t)h,(uint8_t)minute,0};portable_time_candidate c[2];assert(portable_time_inverse(&t,c)==1);uint32_t out;assert(alarm_calendar_seconds(c[0].rtc.year,c[0].rtc.month,c[0].rtc.day,c[0].rtc.hour,c[0].rtc.minute,0,&out));return out;}
 static points_config catalog(uint32_t now,unsigned kind,unsigned duration,unsigned mode,bool end,bool warn){points_config c={.revision=1,.created=now-3600};c.points[0]=(points_item){.kind=(uint8_t)kind,.enabled=1,.mode=(uint8_t)mode,.weekdays=127,.hour=12,.minute=0,.duration_minutes=(uint16_t)duration,.notify_end=end,.warn3=warn};return c;}
 static void save(points_config c){assert(points_config_valid(&c));points_config_encode(&c,blobs[5]);sizes[5]=64;}
