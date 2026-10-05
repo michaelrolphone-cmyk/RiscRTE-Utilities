@@ -1,0 +1,58 @@
+{
+  "release": "Watch1.0.1",
+  "repository": "michaelrolphone-cmyk/RiscRTE-Utilities",
+  "source_sha": "9f2e60221198f53646f05050720d92dc19895f3b",
+  "required_workflows": [
+    ".github/workflows/build.yml"
+  ],
+  "components": [
+    {
+      "kind": "app",
+      "id": "calculator",
+      "version": "0.1.4",
+      "manifest": "Apps/calculator.json"
+    },
+    {
+      "kind": "app",
+      "id": "stopwatch",
+      "version": "0.1.4",
+      "manifest": "Apps/stopwatch.json"
+    },
+    {
+      "kind": "app",
+      "id": "battery",
+      "version": "1.0.9",
+      "manifest": "Apps/battery.json"
+    },
+    {
+      "kind": "app",
+      "id": "alarms",
+      "version": "0.2.0",
+      "manifest": "Apps/alarms.json"
+    },
+    {
+      "kind": "app",
+      "id": "countdown",
+      "version": "0.1.3",
+      "manifest": "Apps/countdown.json"
+    },
+    {
+      "kind": "app",
+      "id": "frequency_generator",
+      "version": "0.1.2",
+      "manifest": "Apps/frequency_generator.json"
+    },
+    {
+      "kind": "app",
+      "id": "audio_spectrum",
+      "version": "0.2.2",
+      "manifest": "Apps/audio_spectrum.json"
+    },
+    {
+      "kind": "service",
+      "id": "alarm-service",
+      "version": "0.4.0",
+      "manifest": "Services/alarm_service/points-manifest.json"
+    }
+  ]
+}
