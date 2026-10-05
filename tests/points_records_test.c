@@ -13,7 +13,7 @@ int main(void){
  c.created=now;assert(points_project(&c,now,&p)&&p.next[0].edge==0); /* no orphan old end */
  c=example();c.created=raw(2026,10,1,0,0);c.points[0]=(points_item){.kind=POINTS_BREAK,.enabled=1,.mode=1,.weekdays=2,.hour=9,.minute=0};now=raw(2026,10,4,12,0);assert(points_project(&c,now,&p)&&p.next[0].deadline==raw(2026,10,5,9,0));
 #ifdef PORTABLE_RTC_UTC8_DENVER
- c.created=raw(2026,3,1,0,0);c.points[0]=(points_item){POINTS_BREAK,1,1,127,2,30,0};now=raw(2026,3,8,0,0);assert(points_project(&c,now,&p)&&(p.flags&POINTS_FLAG_GAP));assert(p.next[0].deadline==raw(2026,3,9,2,30));
+ c.created=raw(2026,3,1,0,0);c.points[0]=(points_item){.kind=POINTS_BREAK,.enabled=1,.mode=1,.weekdays=127,.hour=2,.minute=30};now=raw(2026,3,8,0,0);assert(points_project(&c,now,&p)&&(p.flags&POINTS_FLAG_GAP));assert(p.next[0].deadline==raw(2026,3,9,2,30));
  c.created=raw(2026,10,1,0,0);c.points[0].hour=1;c.points[0].minute=30;now=raw(2026,11,1,0,0);assert(points_project(&c,now,&p)&&(p.flags&POINTS_FLAG_FOLD));assert(p.next[0].deadline==raw(2026,11,2,1,30));
 #endif
  points_ledger l={.revision=1,.generation=1,.slot=0,.edge=POINTS_EDGE_START,.state=ALARM_OCC_PENDING,.mode=3,.deadline=800000100,.recovery_until=800000160};
