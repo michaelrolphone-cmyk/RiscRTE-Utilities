@@ -1,100 +1,76 @@
-# Audio Spectrum 0.1.1
+# Audio Spectrum 0.2.2
 
-One shared Audio Tools application toggles between a live microphone spectrum and
-scrolling spectrogram. This is original Utilities app source, reused by Watch
-without an app fork. It does not implement a driver or a new Runtime capability.
+The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
+and saved frequency labels on the Watch's 240 × 240 display. The supplied design
+was implemented in the native app and shared NOVA renderer, not a web view.
 
-## Interaction and privacy
+## Signal and measurement
 
-- Capture is off at entry. Only **Start** (or Confirm) opens the microphone.
-- **Stop** closes capture and preserves the last plot. **Freeze** (or Down) also
-  closes capture, retaining the plot with an explicit `FROZEN / MIC OFF` label.
-  Start begins a fresh plot/history; Freeze does not keep recording in the back.
-- Tap the Spectrum or Spectrogram tab to change the view. Left/Right toggle it.
-  Changing views while stopped does not activate the microphone.
-- The on-screen Back region and the deployment's crown Back close capture before
-  returning. The current display/touch rotation remains the shared adapter's job.
-- Alarm preemption and idle sleep close capture. Wake and alarm dismissal never
-  restart it; another explicit Start is required.
-- There is no recording file, storage grant, network access, permission prompt,
-  saved history, microphone auto-start, or automatic recovery after read failure.
-  PCM and plots exist only in bounded application RAM.
+- Explicit Start opens `audio.input@1` at 16,000 mono signed-16 samples/second.
+  The upper range is 8 kHz, as requested. The app never displays frequencies beyond the captured Nyquist limit.
+- FFT size: 256, 512, 1024, 2048, 4096 or 8192 samples. The corresponding bin
+  spacing is 62.5 to 1.953125 Hz. Larger transforms take longer to gather a frame.
+- Windows: Rectangular, Hann, Hamming, Blackman and Flat Top.
+- Integer-only radix-2 FFT, coherent-gain correction, single-sided peak amplitude,
+  with distinct DC/Nyquist scaling. Displayed level is dBFS plus selected display
+  gain, not calibrated sound-pressure level. Gain does not alter microphone gain.
+- Logarithmic or linear frequency and amplitude axes; low/high range controls;
+  display gain from −24 to +60 dB; label detection threshold −90 to −20 dB.
+- Peak trace and five palettes: NOVA, Inferno, Viridis, Gray and Jet.
+- The only source is the live microphone. Synthetic PCM exists only in test
+  fixtures; the app has no demo generator or demo source selection. Legacy saved
+  demo preferences are read as microphone mode while preserving other settings.
 
-## Provider and DSP contract
+## Interaction
 
-The app acquires existing `audio.input@1` only on Start. `Apps/AudioInputV1.h` is a
-consumer-only declaration of the Watch `twatch_audio_in_api_v1` layout. Its `level`
-member is retained for ABI compatibility and is unused. The app opens mono 16 kHz
-PCM and requests at most 256 signed 16-bit frames per read. The existing Watch
-`twatch-mic` provider supplies decimated PDM PCM with a 40 ms native read bound.
-The runtime prerequisite is the separately reviewed bounded PDM RX work based on
-Runtime 0.1.16; this app alone does not make older hardware backends functional.
+SPEC, FALL and LABELS select the view. On SPEC, drag the vertical frequency
+cursor; on FALL, drag its horizontal equivalent. The waterfall runs low to high
+frequency from top to bottom, with newest time on the right. Tap away to dismiss
+the cursor; tap its pill to name that frequency. The tag button toggles markers.
 
-Successful short reads are assembled until 256 samples exist. An empty successful
-read contributes no samples; eight consecutive empty reads stop capture. A false
-read or `got > 256` stops immediately and discards the partial window. Failed
-opens are closed because a native failure can still leave an owned cleanup token.
-The app never closes a stream unless it attempted its own open. Cleanup is
-idempotent. A failed close or grant release retains the invocation in a yield-only
-loop rather than returning, retrying provider I/O, or releasing potentially live
-resources. Native-retained sleep returns immediately without app cleanup or grant
-release, honoring the shared adapter's separate native ownership barrier.
+The label editor supports up to eight labels, sixteen printable ASCII characters
+per name, and eight colors. Saved labels can be renamed, recolored or deleted;
+a short Undo action restores the last deleted label. The active-label list shows
+frequencies above the chosen threshold, sorted by level. Edit mode includes
+inactive labels. Paging keeps controls visible on the small screen.
 
-The fixed radix-2 FFT uses 256 samples, per-block DC removal and a symmetric Hann
-window, Q15 integer twiddles, and scaling by two at each of eight stages. Magnitude
-uses an integer square root. No ESP-DSP, floating point, libm, heap allocation or
-new firmware import is required by the DSP. The underlying frequency spacing is
-62.5 Hz. Bins 1 through 128 cover 62.5 Hz through 8 kHz; DC is excluded. Maximum
-magnitude reduction maps these 128 bins into 112 display columns. The 0 label marks
-the left frequency-axis endpoint, not a plotted DC measurement.
+The gear opens one continuously scrolling controls view with fixed header and
+Back footer. Range/scale, color/gain and window/FFT/detection settings use larger
+native-raster lettering. The plots recover screen width previously lost to
+unnecessary side gutters. The standard Points/Watch 32-key keyboard covers all
+95 printable ASCII characters on three pages, with ABC/#, DELETE and DONE. Its
+32 hit cells, navigation and action geometry are shared unchanged; the rejected
+eight-key pager is not used. Back and Cancel retain nested
+navigation ownership. Stop and Freeze close the microphone. Resuming requires
+another explicit Start.
 
-Bars are logarithmically quantized relative PCM magnitude. The spectrogram stores
-112 intensity bytes per row in a 64-row ring, with the newest row at the top and
-older rows moving down. Plot/history updates are limited to at most 10 per second
-and require a new complete transform. The history therefore spans at least about
-6.4 seconds when full, longer if capture or rendering is slower. The renderer uses
-three gray levels plus white, with a monochrome dither fallback. These are relative
-visual levels, not calibrated sound-pressure levels, calibrated dB, precise peak
-frequency measurements, or hardware-qualified audio analysis.
+## Persistence and grants
 
-The complete fixed DSP/history state occupies 9,964 bytes. A read buffer uses 512
-additional stack bytes. Shared adapter framebuffers and provider DMA are separate.
-The app's coordinate bounds are checked for displays from 240×240 to 1024×1024;
-the actual Watch layout uses a centered 224×128 plot, separate tabs, axis, status
-and Start/Freeze controls without overlap.
+Spectrum alone receives `storage.key-value@1` namespace 7. Namespace 6 remains
+Wi-Fi's private storage. Settings and individual label slots use independently
+versioned, checksummed 32-byte records. Deletion writes an explicit tombstone;
+there is no multi-key transaction or hidden reset. Missing records use defaults;
+invalid/unreadable records and uncertain writes are surfaced, with explicit retry.
+Retry rereads unresolved records without writing defaults over them. Unresolved
+label slots stay reserved, and errors remain visible until their own records are
+read successfully. Capture stops before restored source/settings are applied.
+Saved data is not guaranteed to survive a full-device erase/reflash.
 
-## Build and verification
+The microphone retains the existing safe acquisition/cleanup behavior. Alarm,
+sleep, Back, read failure and interrupted ownership stop capture. Unconfirmed
+cleanup keeps ownership retained rather than returning to another app. No audio
+automatically resumes after an alarm or sleep.
 
-The shared audio build/inventory is coordinated with Frequency Generator. This
-change supplies the app source, consumer header, DSP, manifest, docs and focused
-fixtures; it does not alter the legacy portable-app inventory or release parity.
-Its common-adapter build must opt into `PORTABLE_AUDIO_SESSION` together with
-`PORTABLE_ALARM_CLIENT`. Watch adds its existing navigation and local sleep glue.
-Do not omit the lifecycle hook when integrating the app into an alarm deployment.
+## Verification and limits
 
-Run from the repository root:
+The test suite runs production DSP and controller code with deterministic PCM,
+partial reads, errors, persistence faults and touch events in normal and
+ASan/UBSan builds. The capture fixture runs the production app through the real
+shared adapter and RGB565 rasterizer, with stride guards and grant cleanup checks.
+Target ELF validation checks architecture, imports, exports and bounded memory.
 
-```sh
-python scripts/test_audio_spectrum.py --system-apps /path/to/system-apps
-```
-
-The script runs the real source in normal and ASan/UBSan builds. On ptrace-based
-executors where LeakSanitizer cannot run, use `ASAN_OPTIONS=detect_leaks=0`; the DSP
-and app do not allocate heap memory, and address/undefined-behavior checks remain
-active. Fixtures emit 240×240 PGM frames into `build/audio-spectrum-tests` for
-visual inspection.
-
-Tests cover all 127 interior bin-centered synthetic tones, direct floating-point
-DFT comparisons in the test only, zero and DC at both signed extremes, alternating
-full scale, 2,000 deterministic random blocks, segmentation-equivalent partial
-reads, ring wrap/order, and malformed inputs. Fake-provider app tests cover user
-Start, both views, Stop/Freeze, repeated use, partial/empty/oversize/failed reads,
-API denial/malformed tables, failed open/close/release, UI failure, Back, alarm or
-sleep stop without restart, native-retained return, and geometry bounds in several
-sizes. The shared adapter's independent tests cover actual modal/sleep ordering.
-
-These tests and target ELF/import validation are software-only evidence. Physical
-microphone capture, PDM clock behavior, displayed noise floor, execution cost on
-hardware, rotation/crown/touch interaction on the real Watch, and alarm/sleep
-interaction on a powered device remain unverified. No physical microphone,
-speaker, flashing, RF code, persistent-storage or network/update code is touched.
+Host tests and captures are software evidence. They do not qualify physical
+microphone frequency response, acoustic calibration, dropped DMA samples,
+latency, battery current or real-device touch feel. The original HTML could be
+read fully, but its browser rendering was unavailable in this execution session;
+no pixel-identical browser-reference comparison is claimed.

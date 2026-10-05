@@ -135,7 +135,7 @@
     {
       "id": "frequency_generator",
       "display_name": "Frequency Generator",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/frequency_generator.c",
@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.1.1",
+      "version": "0.2.2",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -159,8 +159,10 @@
       "file_name": "audio_spectrum.elf",
       "additional_sources": [
         "Apps/AudioInputV1.h",
-        "Apps/spectrum_core.h",
-        "Apps/daily_draw.h"
+        "Apps/spectrum_dsp.h",
+        "Apps/spectrum_store.h",
+        "Apps/daily_draw.h",
+        "Apps/spectrum_controls.inc"
       ],
       "min_firmware_version": "0.1.16"
     }

@@ -14,7 +14,7 @@ system = a.system_apps.resolve()
 validate_manifest(ROOT / 'Apps/audio_spectrum.c', 'audio_spectrum.elf')
 out = ROOT / 'build/audio-spectrum-tests'
 out.mkdir(parents=True, exist_ok=True)
-for fixture in ('tests/spectrum_core_test.c', 'test/native_apps/audio_spectrum_test.c'):
+for fixture in ('tests/spectrum_core_test.c', 'tests/spectrum_dsp_test.c', 'tests/spectrum_store_test.c', 'test/native_apps/audio_spectrum_test.c', 'test/native_apps/spectrum_recovery_test.c', 'test/native_apps/spectrum_keyboard_test.c'):
     for sanitizer in (False, True):
         target = out / (Path(fixture).stem + ('-san' if sanitizer else ''))
         flags = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer'] if sanitizer else []
