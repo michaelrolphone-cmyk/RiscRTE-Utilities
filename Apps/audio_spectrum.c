@@ -45,7 +45,7 @@ static int16_t label_db[SPECTRUM_LABEL_MAX];
 static uint16_t spec_levels[PLOT_W],fall_levels[PLOT_H],peak_levels[PLOT_W];
 static int16_t spec_db[PLOT_W],fall_db[PLOT_H];
 static uint8_t history[PLOT_W][PLOT_H];
-static uint16_t history_next,history_count,pending_save;
+static uint16_t history_next,history_count,pending_save,load_errors;
 static uint32_t rendered,recorded_transform,sample_rate,demo_clock,demo_remainder,demo_samples;
 static uint32_t demo_phase[6],demo_noise;
 static unsigned empty_reads,view,page,list_scroll,key_page;
@@ -128,20 +128,36 @@ static bool acquire_storage(void){
  const risc_key_value_v1 *p=store_grant.api;if(!p||p->api_version!=1||p->struct_size<sizeof(*p)||!p->get||!p->put)return false;storage=p;return true;
 }
 static void label_key(unsigned slot,char out[16]){snprintf(out,16,"spectrum_l%u",slot);}
-static void restore(void){
- prefs=spectrum_preferences_default();for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)labels[i]=spectrum_label_default(i);
+/* Unread records remain authoritative. A failed read is never permission to
+ * replace a saved record with launch defaults. Retry only unresolved reads. */
+static void reload_storage(void){
+ if(!load_errors)return;
  if(!acquire_storage()){store_message="STORAGE UNAVAILABLE";return;}
- uint8_t bytes[32];uint32_t n=0;int32_t r=storage->get(storage->context,"spectrum_cfg",bytes,sizeof(bytes),&n);
- if(r!=RISC_KEY_VALUE_NOT_FOUND && (r!=RISC_KEY_VALUE_OK||!spectrum_preferences_decode(&prefs,bytes,n)))store_message="SAVED SETTINGS INVALID";
- for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++){char key[16];label_key(i,key);n=0;r=storage->get(storage->context,key,bytes,sizeof(bytes),&n);if(r!=RISC_KEY_VALUE_NOT_FOUND&&(r!=RISC_KEY_VALUE_OK||!spectrum_label_decode(&labels[i],bytes,n))){labels[i]=(spectrum_label){0};store_message="SAVED LABEL INVALID";}}
+ uint8_t bytes[32];uint32_t n=0;int32_t r;
+ if(load_errors&1u){
+  spectrum_preferences loaded=spectrum_preferences_default();
+  r=storage->get(storage->context,"spectrum_cfg",bytes,sizeof(bytes),&n);
+  if(r==RISC_KEY_VALUE_NOT_FOUND || (r==RISC_KEY_VALUE_OK && spectrum_preferences_decode(&loaded,bytes,n))){prefs=loaded;load_errors&=(uint16_t)~1u;}
+ }
+ for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(load_errors&(2u<<i)){
+  char key[16];label_key(i,key);n=0;spectrum_label loaded=spectrum_label_default(i);
+  r=storage->get(storage->context,key,bytes,sizeof(bytes),&n);
+  if(r==RISC_KEY_VALUE_NOT_FOUND || (r==RISC_KEY_VALUE_OK && spectrum_label_decode(&loaded,bytes,n))){labels[i]=loaded;load_errors&=(uint16_t)~(2u<<i);}
+ }
+ store_message=load_errors?"SAVED DATA UNREAD / RETRY":pending_save?"UNSAVED CHANGES":NULL;
+}
+static void restore(void){
+ prefs=spectrum_preferences_default();memset(labels,0,sizeof(labels));
+ load_errors=(uint16_t)((1u<<(SPECTRUM_LABEL_MAX+1u))-1u);reload_storage();
 }
 static void persist(void){
  if(!pending_save)return;
+ if(pending_save&load_errors){store_message="RETRY STORAGE FIRST";notify(store_message);return;}
  if(!acquire_storage()){store_message="UNSAVED / NO STORAGE";notify("UNSAVED / NO STORAGE");return;}
  uint8_t bytes[32];bool failed=false;
  if(pending_save&1){spectrum_preferences_encode(&prefs,bytes);if(storage->put(storage->context,"spectrum_cfg",bytes,sizeof(bytes))==RISC_KEY_VALUE_OK)pending_save&=(uint16_t)~1u;else failed=true;}
  for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(pending_save&(2u<<i)){char key[16];label_key(i,key);spectrum_label_encode(&labels[i],bytes);if(storage->put(storage->context,key,bytes,sizeof(bytes))==RISC_KEY_VALUE_OK)pending_save&=(uint16_t)~(2u<<i);else failed=true;}
- if(failed){store_message="SAVE UNCONFIRMED";notify("SAVE UNCONFIRMED");}else store_message=NULL;
+ if(failed){store_message="SAVE UNCONFIRMED";notify("SAVE UNCONFIRMED");}else store_message=load_errors?"SAVED DATA UNREAD / RETRY":NULL;
 }
 static void clear_analysis(void){memset(history,0,sizeof(history));memset(spec_levels,0,sizeof(spec_levels));memset(fall_levels,0,sizeof(fall_levels));memset(peak_levels,0,sizeof(peak_levels));memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));for(unsigned i=0;i<PLOT_W;i++)spec_db[i]=-12000;for(unsigned i=0;i<PLOT_H;i++)fall_db[i]=-12000;history_next=history_count=0;recorded_transform=0;}
 static void configure_dsp(void){
@@ -321,16 +337,18 @@ static void set_page(unsigned next){page=next;contact_down=contact_plot=false;if
 static void save_label(void){
  unsigned start=0,end=(unsigned)strlen(editing.name);while(start<end&&editing.name[start]==' ')start++;while(end>start&&editing.name[end-1]==' ')end--;if(start)for(unsigned i=0;i<end-start;i++)editing.name[i]=editing.name[start+i];editing.name[end-start]=0;
  if(!spectrum_label_valid(&editing)){notify("ENTER A LABEL NAME");return;}
- int slot=edit_slot;if(slot<0)for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(!labels[i].present){slot=(int)i;break;}if(slot<0){notify("8 LABEL LIMIT / DELETE ONE");return;}
+ int slot=edit_slot;if(slot<0)for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(!labels[i].present && !(load_errors&(2u<<i))){slot=(int)i;break;}if(slot<0){notify(load_errors?"RETRY STORAGE FIRST":"8 LABEL LIMIT / DELETE ONE");return;}
+ if(load_errors&(2u<<(unsigned)slot)){notify("RETRY STORAGE FIRST");return;}
  labels[slot]=editing;label_active[slot]=level_valid[slot]=false;pending_save|=(uint16_t)(2u<<slot);persist();set_page(PAGE_MAIN);
 }
 static void delete_label(int slot){
  if(slot<0||slot>=(int)SPECTRUM_LABEL_MAX||!labels[slot].present)return;
+ if(load_errors&(2u<<(unsigned)slot)){notify("RETRY STORAGE FIRST");return;}
  deleted=labels[slot];undo_slot=slot;labels[slot]=(spectrum_label){0};label_active[slot]=level_valid[slot]=false;pending_save|=(uint16_t)(2u<<slot);persist();set_page(PAGE_MAIN);notify(pending_save?"DELETE NOT SAVED":"LABEL DELETED");
 }
 static void undo_delete(void){
  if(undo_slot<0)return;
- int slot=undo_slot;if(labels[slot].present){slot=-1;for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(!labels[i].present){slot=(int)i;break;}}
+ int slot=undo_slot;if(labels[slot].present){slot=-1;for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(!labels[i].present && !(load_errors&(2u<<i))){slot=(int)i;break;}}
  if(slot<0){notify("8 LABEL LIMIT / CANNOT UNDO");return;}labels[slot]=deleted;pending_save|=(uint16_t)(2u<<slot);undo_slot=-1;toast_message=NULL;persist();dirty=true;
 }
 static void open_label(int slot,uint16_t frequency){
@@ -340,11 +358,12 @@ static void open_label(int slot,uint16_t frequency){
  toast_message=NULL;set_page(PAGE_LABEL);
 }
 static void settings_change(unsigned setting,int direction,int segment){
+ if(setting!=11 && (load_errors&1u)){notify("RETRY STORAGE FIRST");return;}
  bool was_running=running;bool source_changed=false;static const uint16_t lows[]={0,20,50,100,200,500,1000},highs[]={1000,2000,5000,8000};
  switch(setting){
  case 0:if(prefs.source!=(uint8_t)segment){stop();prefs.source=(uint8_t)segment;source_changed=true;}else return;break;
  case 1:case 2:{const uint16_t *values=setting==1?lows:highs;unsigned count=setting==1?7:4,current=setting==1?prefs.low_hz:prefs.high_hz,i=0;for(;i<count&&values[i]!=current;i++);int next=clamp_int((int)i+direction,0,(int)count-1);uint16_t value=values[next];if((setting==1&&value>=prefs.high_hz)||(setting==2&&value<=prefs.low_hz))return;if(setting==1)prefs.low_hz=value;else prefs.high_hz=value;break;}
- case 3:prefs.log_frequency=segment==0;break;case 4:prefs.log_amplitude=segment==0;break;case 5:prefs.show_labels=segment==0;break;case 6:prefs.palette=(uint8_t)clamp_int((int)prefs.palette+direction,0,4);build_palette();break;case 7:prefs.gain_db=(int8_t)clamp_int(prefs.gain_db+direction*3,-24,60);break;case 8:prefs.window=(uint8_t)clamp_int((int)prefs.window+direction,0,4);break;case 9:prefs.fft_size=(uint16_t)clamp_int(direction>0?prefs.fft_size*2:prefs.fft_size/2,256,8192);break;case 10:prefs.threshold_db=(int8_t)clamp_int(prefs.threshold_db+direction*5,-90,-20);break;case 11:if(!pending_save)pending_save=1;persist();dirty=true;return;default:return;
+ case 3:prefs.log_frequency=segment==0;break;case 4:prefs.log_amplitude=segment==0;break;case 5:prefs.show_labels=segment==0;break;case 6:prefs.palette=(uint8_t)clamp_int((int)prefs.palette+direction,0,4);build_palette();break;case 7:prefs.gain_db=(int8_t)clamp_int(prefs.gain_db+direction*3,-24,60);break;case 8:prefs.window=(uint8_t)clamp_int((int)prefs.window+direction,0,4);break;case 9:prefs.fft_size=(uint16_t)clamp_int(direction>0?prefs.fft_size*2:prefs.fft_size/2,256,8192);break;case 10:prefs.threshold_db=(int8_t)clamp_int(prefs.threshold_db+direction*5,-90,-20);break;case 11:if(load_errors){stop();reload_storage();configure_dsp();build_palette();}persist();notify(store_message?store_message:"SAVED DATA LOADED");dirty=true;return;default:return;
  }
  configure_dsp();pending_save|=1;persist();if(source_changed&&was_running)toggle();dirty=true;
 }
@@ -374,7 +393,7 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(page==PAGE_LABEL){if(hit(x,y,31,104,178,32)){memcpy(keyboard_before,editing.name,sizeof(editing.name));key_page=0;set_page(PAGE_KEYBOARD);}else if(y>=140&&y<166&&x>=28&&x<216){editing.color=(uint8_t)clamp_int((x-28)/23,0,7);dirty=true;}else if(y>=169&&y<203){if(x>=24&&x<89)set_page(PAGE_MAIN);else if(edit_slot>=0&&x>=89&&x<152)delete_label(edit_slot);else if(x>=(edit_slot>=0?152:122)&&x<218)save_label();}return false;}
  if(page==PAGE_CONTROLS){if(y>=197&&y<233){if(x>=20&&x<66){if(list_scroll)list_scroll--;dirty=true;}else if(x>=174&&x<220){if(list_scroll<2)list_scroll++;dirty=true;}else if(x>=79&&x<161){list_scroll=0;set_page(PAGE_MAIN);}return false;}if(y>=47&&y<191&&x>=103&&x<221){unsigned setting=list_scroll*4+(unsigned)(y-47)/36;bool segment=setting==0||setting==3||setting==4||setting==5;if(segment){if(x>=120&&x<168)settings_change(setting,0,0);else if(x>=171)settings_change(setting,0,1);}else if(setting==11)settings_change(setting,0,0);else if(x<=132)settings_change(setting,-1,0);else if(x>=190)settings_change(setting,1,0);}return false;}
  if(!started){if(hit(x,y,68,98,104,46))*toggle_requested=true;else if(hit(x,y,72,190,98,40)){list_scroll=0;set_page(PAGE_CONTROLS);}else if(hit(x,y,6,4,50,34))return request_root_exit();return false;}
- if(y>=8&&y<42){if(x>=18&&x<60){view=0;list_scroll=0;lab_edit=false;}else if(x>=64&&x<104){view=1;list_scroll=0;lab_edit=false;}else if(x>=108&&x<164){view=2;list_scroll=0;lab_edit=false;}else if(x>=168&&x<192&&view!=2){prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}else if(x>=194&&x<226){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
+ if(y>=8&&y<42){if(x>=18&&x<60){view=0;list_scroll=0;lab_edit=false;}else if(x>=64&&x<104){view=1;list_scroll=0;lab_edit=false;}else if(x>=108&&x<164){view=2;list_scroll=0;lab_edit=false;}else if(x>=168&&x<192&&view!=2){if(load_errors&1u)notify("RETRY STORAGE FIRST");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=194&&x<226){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
  if(view==2){if(hit(x,y,161,44,64,37)){lab_edit=!lab_edit;list_scroll=0;set_page(PAGE_MAIN);return false;}unsigned order[8],n=ordered_labels(order);if(lab_edit&&y>=88&&y<198){unsigned row=(unsigned)(y-88)/55+list_scroll;if(row<n){if(x>=182&&x<220)delete_label((int)order[row]);else if(x>=20&&x<181)open_label((int)order[row],0);}}if(y>=200&&y<235){if(x>=16&&x<68&&list_scroll)list_scroll--;else if(x>=173&&x<224&&list_scroll+2<n)list_scroll++;}dirty=true;return false;}
  if(cursor_visible&&hit(x,y,pill_x,pill_y,pill_w,pill_h)){open_label(-1,cursor_hz);return false;}
  if(hit(x,y,PLOT_X,PLOT_Y,PLOT_W,PLOT_H)){int coordinate=view==1?y-PLOT_Y:x-PLOT_X;int current=(int)spectrum_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);if(cursor_visible&&abs_int(current-coordinate)>14)cursor_visible=false;else{cursor_visible=true;cursor_hz=spectrum_dsp_frequency_at(&dsp_config,(unsigned)coordinate,view==1?PLOT_H:PLOT_W);}dirty=true;return false;}
@@ -386,7 +405,7 @@ void app_main(void){
  if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
  microphone=NULL;storage=NULL;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};memset(&spectrum,0,sizeof(spectrum));
  capture_error=acquired=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=true;
- pending_save=0;page=PAGE_MAIN;view=list_scroll=empty_reads=key_page=0;edit_slot=undo_slot=-1;message="READY / MIC OFF";store_message=toast_message=NULL;rendered=recorded_transform=toast_until=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;
+ pending_save=load_errors=0;page=PAGE_MAIN;view=list_scroll=empty_reads=key_page=0;edit_slot=undo_slot=-1;message="READY / MIC OFF";store_message=toast_message=NULL;rendered=recorded_transform=toast_until=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;
  restore();configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
  for(;;){
   if(dirty)draw();

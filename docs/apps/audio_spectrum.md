@@ -1,4 +1,4 @@
-# Audio Spectrum 0.2.0
+# Audio Spectrum 0.2.1
 
 The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
 and saved frequency labels on the Watch's 240 × 240 display. The supplied design
@@ -47,6 +47,9 @@ Wi-Fi's private storage. Settings and individual label slots use independently
 versioned, checksummed 32-byte records. Deletion writes an explicit tombstone;
 there is no multi-key transaction or hidden reset. Missing records use defaults;
 invalid/unreadable records and uncertain writes are surfaced, with explicit retry.
+Retry rereads unresolved records without writing defaults over them. Unresolved
+label slots stay reserved, and errors remain visible until their own records are
+read successfully. Capture stops before restored source/settings are applied.
 Saved data is not guaranteed to survive a full-device erase/reflash.
 
 The microphone retains the existing safe acquisition/cleanup behavior. Alarm,
