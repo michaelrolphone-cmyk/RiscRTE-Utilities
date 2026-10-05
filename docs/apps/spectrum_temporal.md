@@ -185,4 +185,13 @@ positive/negative/ambiguous matching, malformed and CRC-correct mutation cases,
 full/stale/uncertain/conflicting saves, retained cleanup, and the actual app's
 keyboard/capture/review/retry/discard flows. Native Nova raster tests inspect
 ordinary, clipped, explicitly completed, full-storage and recovery screens.
+`bash scripts/test_spectrum_app_data.sh RUNTIME_CHECKOUT` also links the production
+Spectrum codec/client to Runtime's real `AppDataFiles.cpp`, with byte-identical
+API headers required. Normal and ASan/UBSan runs exercise two maximum banks,
+namespace isolation and cross-namespace CAS invalidation, committed-byte quota
+and injected ENOSPC retry, actual rename-before/after uncertain outcomes,
+same-bank conflicts and explicit discard, reopening the host-directory backend,
+malformed-bank reservation, and a retained stage-close fault with no further
+consumer I/O. This is host filesystem evidence; Runtime's own authority/ELF,
+LittleFS recovery and layout suites provide the corresponding lower-layer checks.
 No physical microphone, acoustic or device qualification is implied.
