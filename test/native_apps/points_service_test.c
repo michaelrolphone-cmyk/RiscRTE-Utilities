@@ -34,7 +34,71 @@ static points_config catalog(uint32_t now,unsigned kind,unsigned duration,unsign
 static void save(points_config c){assert(points_config_valid(&c));points_config_encode(&c,blobs[5]);sizes[5]=64;}
 static void settle_edge(unsigned edge,uint32_t deadline){for(unsigned i=0;i<3000;i++){pump(1);if(points_occ.state==ALARM_OCC_ACKED&&points_occ.edge==edge&&points_occ.deadline==deadline&&!active&&phase==IDLE)return;}fprintf(stderr,"edge=%u phase=%d active=%d state=%u deadline=%u\n",edge,phase,active,points_occ.state,points_occ.deadline);assert(0);}
 static alarm_sleep_v1 sleep_plan(void){alarm_sleep_v1 p={.struct_size=sizeof(p)};for(unsigned i=0;i<200;i++){int r=client->prepare_sleep(NULL,&p);if(!r)return p;assert(r==ALARM_PENDING);pump(1);}assert(0);return p;}
+static void test_default_cues(void){
+ static const struct {unsigned slot,edge,hour,minute;} cues[]={
+  {0,POINTS_EDGE_START,4,30},
+  {1,POINTS_EDGE_START,5,30},
+  {2,POINTS_EDGE_START,6,0},
+  {3,POINTS_EDGE_START,9,0},
+  {3,POINTS_EDGE_WARNING,9,12},
+  {4,POINTS_EDGE_START,12,0},
+  {4,POINTS_EDGE_WARNING,12,27},
+  {5,POINTS_EDGE_START,14,15},
+  {5,POINTS_EDGE_WARNING,14,27},
+  {6,POINTS_EDGE_START,16,30}
+ };
+ rtc_base=civil(2026,10,5,4,30);boot(true);
+ /* No saved catalog: exercise the virtual defaults through real provider
+  * output and persistence, including the final cancellation check. */
+ for(unsigned date=5;date<=8;date++)for(unsigned i=0;i<sizeof(cues)/sizeof(cues[0]);i++){
+  uint32_t deadline=civil(2026,10,date,cues[i].hour,cues[i].minute);
+  ms=(uint64_t)(deadline-rtc_base)*1000;
+  settle_edge(cues[i].edge,deadline);
+  assert(points_occ.slot==cues[i].slot&&points_occ.mode==3&&points_occ.revision==1);
+  assert(opens==1&&writes==1&&effects==1&&closes>=1);
+  assert(!sizes[5]); /* Factory selection must never create a config record. */
+  uint32_t next=i+1<sizeof(cues)/sizeof(cues[0])?
+   civil(2026,10,date,cues[i+1].hour,cues[i+1].minute):civil(2026,10,date==8?12:date+1,4,30);
+  assert(sleep_plan().deadline==next); /* No extra duration-end cue. */
+  uint8_t persisted[POINTS_RECORD_SIZE];memcpy(persisted,blobs[6],sizeof(persisted));
+  uint32_t generation=points_occ.generation;
+  boot(false);pump(1000);
+  assert(!opens&&!writes&&!effects&&!put_calls&&!sizes[5]);
+  assert(points_occ.generation==generation&&points_occ.slot==cues[i].slot&&points_occ.edge==cues[i].edge);
+  assert(!memcmp(persisted,blobs[6],sizeof(persisted))&&sleep_plan().deadline==next);
+ }
+ /* Friday, Saturday and Sunday stay silent and all point to Monday. */
+ for(unsigned date=9;date<=11;date++){
+  ms=(uint64_t)(civil(2026,10,date,12,0)-rtc_base)*1000;pump(1000);
+  assert(!opens&&!writes&&!effects&&!sizes[5]);
+  assert(sleep_plan().deadline==civil(2026,10,12,4,30));
+ }
+}
+static void test_existing_catalog_wins(void){
+ rtc_base=civil(2026,10,5,4,30);boot(true);
+ points_config empty={.revision=11};save(empty);uint8_t saved[POINTS_RECORD_SIZE];memcpy(saved,blobs[5],sizeof(saved));
+ pump(1000);assert(phase==IDLE&&points_configured.revision==11);
+ assert(!opens&&!writes&&!effects&&!put_calls&&sleep_plan().deadline==0);
+ for(unsigned slot=0;slot<POINTS_MAX;slot++)assert(points_configured.points[slot].kind==POINTS_EMPTY);
+ boot(false);pump(1000);
+ assert(phase==IDLE&&points_configured.revision==11&&sleep_plan().deadline==0);
+ assert(!opens&&!writes&&!effects&&!put_calls&&!memcmp(saved,blobs[5],sizeof(saved)));
+ /* Truncated, checksum-invalid and semantically invalid records must fail
+  * closed, never replace user data or silently enable the factory cues. */
+ for(unsigned corrupt=0;corrupt<3;corrupt++){
+  boot(true);save(points_default_config());
+  if(corrupt==0)sizes[5]--;
+  else if(corrupt==1)blobs[5][60]^=1;
+  else {blobs[5][14]=25;alarm_write32(blobs[5]+60,points_checksum(blobs[5]));}
+  memcpy(saved,blobs[5],sizeof(saved));uint32_t size=sizes[5];
+  pump(1000);assert(phase==BLOCKED&&error==ALARM_STORAGE&&!points_configured.revision);
+  assert(!opens&&!writes&&!effects&&!put_calls&&sizes[5]==size&&!memcmp(saved,blobs[5],sizeof(saved)));
+  boot(false);pump(1000);assert(phase==BLOCKED&&error==ALARM_STORAGE&&!points_configured.revision);
+  assert(!opens&&!writes&&!effects&&!put_calls&&sizes[5]==size&&!memcmp(saved,blobs[5],sizeof(saved)));
+ }
+}
 int main(void){
+ test_default_cues();test_existing_catalog_wins();
  uint32_t noon=civil(2026,10,4,12,0);rtc_base=noon;
  /* Start, warning and end each produce one short non-modal tap/beep. */
  boot(true);blobs[2][0]=3;sizes[2]=1;save(catalog(noon,POINTS_LUNCH,30,3,true,true));settle_edge(POINTS_EDGE_START,noon);
@@ -59,5 +123,5 @@ int main(void){
  /* Config bits round-trip and the ledger tracks three independent delivered bits. */
  points_config c=catalog(noon,POINTS_LUNCH,30,1,true,true);uint8_t b[64];points_config_encode(&c,b);points_config d;assert(points_config_decode(&d,b,64)&&d.points[0].notify_end&&d.points[0].warn3);
  points_ledger l={.revision=1,.generation=1};assert(points_ledger_mark(&l,0,100,POINTS_EDGE_START));assert(points_ledger_mark(&l,0,100,POINTS_EDGE_WARNING));assert(!points_ledger_handled(&l,0,100,POINTS_EDGE_END));
- puts("Points short non-modal start/warning/end cues, custom kinds, modes, sleep and replay passed");return 0;
+ puts("Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed");return 0;
 }

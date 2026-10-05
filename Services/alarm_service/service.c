@@ -127,7 +127,7 @@ static void prepare_occurrence(unsigned i,bool replay) {
 static bool read_points_config(void) {
     uint8_t b[POINTS_RECORD_SIZE];uint32_t n=0;
     int32_t r=kv->get(kv->context,POINTS_CONFIG_KEY,b,sizeof(b),&n);
-    if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){points_staging=(points_config){0};return true;}
+    if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){points_staging=points_default_config();return true;}
     return r==RISC_BOUND_KEY_VALUE_OK&&points_config_decode(&points_staging,b,n);
 }
 static bool read_points_occ(void) {
@@ -363,7 +363,8 @@ static int32_t do_step(void) {
             uint8_t expected[POINTS_RECORD_SIZE],actual[POINTS_RECORD_SIZE];uint32_t n=0;
             points_config_encode(&points_configured,expected);
             int32_t r=kv->get(kv->context,POINTS_CONFIG_KEY,actual,sizeof(actual),&n);points_config latest;
-            if(r!=RISC_BOUND_KEY_VALUE_OK||!points_config_decode(&latest,actual,n))return fail(ALARM_STORAGE);
+            if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){latest=points_default_config();points_config_encode(&latest,actual);}
+            else if(r!=RISC_BOUND_KEY_VALUE_OK||!points_config_decode(&latest,actual,n))return fail(ALARM_STORAGE);
             if(memcmp(expected,actual,sizeof(actual))){active=false;begin_reconcile();break;}
         } else {
 #endif

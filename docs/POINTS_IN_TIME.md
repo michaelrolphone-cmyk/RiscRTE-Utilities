@@ -140,3 +140,28 @@ initializers; no warning is disabled. Shared Points headers, app helpers, ABI an
 storage formats are unchanged. Pinned GCC8.4 produces changed service ELF bytes,
 so this correction uses a new0.2.1 identity. Existing shared apps retain their
 versions because their inputs and bytes are unaffected.
+
+## Temporary factory schedule
+
+Only a missing `points_cfg` uses the shared virtual revision-one defaults. A
+present catalog, including an intentionally empty one, is never replaced. Invalid
+or unavailable storage remains an error. Startup does not write catalog/metadata;
+the service continues its ordinary durable occurrence bookkeeping. The first
+user catalog edit is revision two and verifies missing default metadata before
+saving the catalog; cancelling an edit writes nothing. Existing metadata wins.
+
+Monday–Thursday only, all with sound and vibration (normal volume policy):
+
+- 04:30 Wakeup, point event
+- 05:30 Drive to Work, 15 minutes
+- 06:00 Work, point event
+- 09:00 Break, 15 minutes, warning at 09:12
+- 12:00 Lunch, 30 minutes, warning at 12:27
+- 14:15 Break, 15 minutes, warning at 14:27
+- 16:30 Work End, point event
+
+End notifications remain off. Duration ends remain visible in the schedule faces.
+Drive to Work and Wakeup occupy the two default custom types. Metadata still has
+64 bytes: existing PTM1 records retain their 12-character layout; PTM2 supports
+13-character names, including the exact Drive to Work label. Old PTM1 metadata
+remains readable. This does not change flash-storage overwrite behavior.
