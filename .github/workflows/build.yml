@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -58,7 +58,7 @@ jobs:
           bash scripts/test_alarm_target_loader.sh .dependencies/runtime
       - uses: actions/upload-artifact@v4
         with:
-          name: utilities-development-${{ github.event.pull_request.head.sha || github.sha }}
+          name: utilities-development-${{ github.sha }}
           path: |
             dist/apps/
             dist/portable-apps/
