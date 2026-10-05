@@ -20,7 +20,7 @@ static bool audio_open(void*c,uint32_t rate,uint8_t channels) {
 }
 static bool audio_write(void*c,const int16_t*pcm,size_t n) {
     (void)c;assert(live&&!alarm_live&&n==256&&pcm);writes++;
-    for(size_t i=0;i<n;i++)assert(pcm[i]>=-8191&&pcm[i]<=8191);
+    for(size_t i=0;i<n;i++)assert(pcm[i]>=-32767&&pcm[i]<=32767);
     if(scenario==3||scenario==4)return false;
     return true;
 }
@@ -61,7 +61,7 @@ static bool poll(t5_app_input_t *in,uint32_t wait) {
     if(scenario==8&&polls==2){ms+=60000;return true;}
     if(scenario==11&&polls==2){in->tapped=true;in->touch_x=232-1;in->touch_y=138;return true;}
     if(scenario==11&&polls<14){in->buttons=T5_APP_BUTTON_RIGHT;return true;}
-    if(scenario==12&&polls<10){in->tapped=true;in->touch_x=30;in->touch_y=170;return true;}
+    if(scenario==12&&polls==2){volume=1;in->tapped=true;in->touch_x=30;in->touch_y=170;return true;}
     if(polls<4)return true;
     in->buttons=T5_APP_BUTTON_BACK;return true;
 }
