@@ -20,7 +20,7 @@ int main(void){
  assert(points_ledger_mark(&l,0,100,POINTS_EDGE_START));points_ledger m;points_ledger_encode(&l,bytes);assert(points_ledger_decode(&m,bytes,64));
  assert(m.day[0]==100&&(m.delivered[0]&(1u<<POINTS_EDGE_START)));
  for(unsigned i=0;i<64;i++){memcpy(copy,bytes,64);copy[i]^=1;assert(!points_ledger_decode(&m,copy,64));}
- c=example();c.points[0]=(points_item){.kind=POINTS_CUSTOM_1,.enabled=1,.mode=1,.weekdays=127,.hour=12,.minute=0,.duration_minutes=30,.notify_end=1,.warn3=1};
+ c=example();c.created=0;c.points[0]=(points_item){.kind=POINTS_CUSTOM_1,.enabled=1,.mode=1,.weekdays=127,.hour=12,.minute=0,.duration_minutes=30,.notify_end=1,.warn3=1};
  assert(points_config_valid(&c));points_config_encode(&c,bytes);assert(points_config_decode(&d,bytes,64));assert(d.points[0].notify_end&&d.points[0].warn3);
  points_event w={0},e={0};assert(points_event_for_day(&c,0,100,POINTS_EDGE_WARNING,&w,NULL));assert(points_event_for_day(&c,0,100,POINTS_EDGE_END,&e,NULL));assert(w.deadline+180==e.deadline);
  points_meta meta={.revision=1};meta.custom[0].color=6;memcpy(meta.custom[0].name,"MEDICINE",9);assert(points_meta_valid(&meta));points_meta_encode(&meta,bytes);points_meta decoded;assert(points_meta_decode(&decoded,bytes,64));assert(!strcmp(decoded.custom[0].name,"MEDICINE")&&decoded.custom[0].color==6);
