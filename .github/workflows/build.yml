@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 7723df25aacbf299f1e24551eddd35afc58e059f
+          ref: ec5249eb4a5818fbe3f0ea81c9a3b6eb1ed694e8
           path: .dependencies/audio-system-apps
           persist-credentials: false
       - name: Exact current audio Runtime source
@@ -62,6 +62,7 @@ jobs:
         run: |
           python scripts/test_frequency_generator.py --system-apps .dependencies/audio-system-apps
           python scripts/test_audio_spectrum.py --system-apps .dependencies/audio-system-apps
+          python scripts/test_spectrum_renderer.py --system-apps .dependencies/audio-system-apps
           python scripts/test_audio_service_lifecycle.py --system-apps .dependencies/audio-system-apps --runtime .dependencies/audio-runtime
       - name: Install pinned public compiler
         run: |
