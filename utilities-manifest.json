@@ -183,5 +183,22 @@
       ],
       "min_firmware_version": "0.1.27"
     }
+  ],
+  "ble_apps": [
+    {
+      "id": "ble_scanner",
+      "display_name": "BLE Scanner",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/ble_scanner.c",
+      "manifest_path": "Apps/ble_scanner.json",
+      "file_name": "ble_scanner.elf",
+      "additional_sources": [
+        "Apps/ble_scan_core.h",
+        "lib/Bluetooth/include/PortableBluetoothHost.h"
+      ],
+      "min_firmware_version": "0.1.27"
+    }
   ]
 }
