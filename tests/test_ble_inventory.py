@@ -12,12 +12,12 @@ class BleInventory(unittest.TestCase):
   self.assertEqual({r['capability'] for r in side['optional']},{'rtc.clock','net.wifi'})
  def test_no_new_keyboard_or_settings_pages(self):
   source=(ROOT/'Apps/ble_scanner.c').read_text()
-  for expected in ('take_touch_swipe','detail_scroll','PORTABLE_RADIO_AIRPLANE','portable_radio_suspend','retain()','scrollbar'):
+  for expected in ('touch_contact','detail_scroll','PORTABLE_RADIO_AIRPLANE','portable_radio_suspend','retain()','scrollbar'):
    self.assertIn(expected,source)
   self.assertNotIn('keyboard',source.lower())
  def test_pinned_radio_hooks_and_notices(self):
   source=(ROOT/'scripts/build_ble_apps.py').read_text()
-  for expected in ('PORTABLE_RADIO_SESSION','PORTABLE_QUICK_RADIOS','PortableRadioSession.h','LICENSE-Utilities.txt','LICENSE-FontAwesome.txt','Wrong target ABI'):
+  for expected in ('PORTABLE_RADIO_SESSION','PORTABLE_APP_OWNS_TOUCH_CHROME','PORTABLE_QUICK_RADIOS','PortableRadioSession.h','LICENSE-Utilities.txt','LICENSE-FontAwesome.txt','Wrong target ABI'):
    self.assertIn(expected,source)
   pin=json.loads((ROOT/'sdk/ble-sources.json').read_text())['system_apps']
   self.assertIn(pin,(ROOT/'.github/workflows/ble-scanner.yml').read_text())

@@ -39,13 +39,17 @@ The scanner does not change the saved Bluetooth/Airplane preference.
 - `python scripts/test_ble_scanner.py --system-apps PATH` runs parser/host and
   real app-controller fixtures in ordinary and ASan/UBSan modes, plus production
   Nova pixel frames. Includes 50,000 deterministic malformed packet inputs.
+- `python scripts/test_ble_renderer.py --system-apps PATH` additionally links
+  the actual scanner, adapter and Nova renderer to verify supported callbacks,
+  scrolling, nested header Back, return handoff and radio-control ownership.
 - `python scripts/build_ble_apps.py --system-apps PATH` emits the structurally
   validated Xtensa ELF, manifest, exact-source evidence and font licence notices.
 - The Watch deployment must add `ble_scanner` to the current app inventory,
   launcher catalog and boot policy; grant display, touch, alarm, Bluetooth
   instance 16, preferences namespace 1, and the existing quick-control RTC/Wi-Fi
   capabilities. Use the standard Nova/alarm/navigation/sleep/quick-control flags
-  plus `PORTABLE_RADIO_SESSION` and `lib/Bluetooth/include`.
+  plus `PORTABLE_RADIO_SESSION`, `PORTABLE_APP_OWNS_TOUCH_CHROME`, an explicit
+  `PORTABLE_RETURN_APP` destination, and `lib/Bluetooth/include`.
 - The new unique launcher glyph is `solid:f7c0` (satellite-dish).
 
 This is source/target verification, not physical qualification. Before release,

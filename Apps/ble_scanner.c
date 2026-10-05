@@ -7,6 +7,12 @@
 #include "PortableAppSleep.h"
 #include "ble_scan_core.h"
 #include <stdio.h>
+#ifndef PORTABLE_APP_OWNS_TOUCH_CHROME
+#error "BLE Scanner requires application-owned touch chrome"
+#endif
+#ifndef PORTABLE_RETURN_APP
+#error "BLE Scanner requires an explicit launcher return destination"
+#endif
 static const t5_app_api_v1 *app;
 static const risc_runtime_api_v1 *runtime;
 static const portable_bluetooth_host_v1 *host;
@@ -15,6 +21,8 @@ static uint64_t token;
 static ble_scan scan;
 static bool acquired,uncertain,dirty,detail,sensors,restore_failed;
 static unsigned selected,scroll,detail_scroll;
+static bool contact_down,contact_list,contact_moved;
+static int contact_y;
 static const char *message;
 static bool active(void){return scan.phase==BLE_STARTING||scan.phase==BLE_SCANNING;}
 static void retain(void){runtime->diagnostic("BLE cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
@@ -48,6 +56,12 @@ static void start_scan(void){
  if(!host->claim(host->controls.context,&token)||!token){message="Bluetooth busy - retry";stop();return;}
  ble_begin(&scan);selected=scroll=detail_scroll=0;detail=false;message="Starting scan";dirty=true;
 }
+static bool navigate_back(void){
+ if(detail){detail=false;dirty=true;return true;}
+ stop();
+ if(!runtime->request_launch||!runtime->request_launch(PORTABLE_RETURN_APP)){message="Return failed - retry";dirty=true;return true;}
+ return false;
+}
 static void pump(void){
  if(!active())return;
  uint32_t now=app->millis();uint8_t command[16];size_t size=ble_command(&scan,command,now);
@@ -73,6 +87,15 @@ static void move(int delta){
  if(selected<scroll)scroll=selected;
  if(selected>=scroll+3)scroll=selected-2;
  dirty=true;
+}
+static bool drag(void){
+ t5_app_contact_t sample={0};if(!app->touch_contact(&sample))return false;
+ if(sample.down){
+  if(!contact_down){contact_down=true;contact_list=sample.y>=60&&sample.y<196;contact_moved=false;contact_y=sample.y;}
+  else if(contact_list){int dy=sample.y-contact_y;if(dy>=20||dy<=-20){move(dy<0?1:-1);contact_y=sample.y;contact_moved=true;}}
+  return contact_list&&contact_moved;
+ }
+ bool consumed=contact_down&&contact_list&&contact_moved;contact_down=contact_list=contact_moved=false;return consumed;
 }
 static void line(unsigned index,const char *s){
  if(index>=detail_scroll&&index<detail_scroll+6)portable_nova_text(1,12,61+(int)(index-detail_scroll)*21,216,s,NOVA_TEXT);
@@ -122,17 +145,16 @@ static void draw(void){
 }
 void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
- if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,take_touch_swipe)+sizeof(app->take_touch_swipe)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!app->take_touch_swipe||app->screen_width()!=240||app->screen_height()!=240||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
+ if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!app->touch_contact||app->screen_width()!=240||app->screen_height()!=240||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
  scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=restore_failed=false;selected=scroll=detail_scroll=0;dirty=true;message="Tap Scan to discover";
- app->set_back_exits_app(true);uint32_t rendered=0;
+ contact_down=contact_list=contact_moved=false;contact_y=0;
+ app->set_back_exits_app(false);uint32_t rendered=0;
  for(;;){
   if((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250)){draw();rendered=app->millis();}
-  app->set_back_exits_app(!detail);
   t5_app_input_t input={0};if(!app->poll(&input,20)){if(portable_app_sleep_retained())return;break;}
   if(input.exit_requested)break;
-  if(input.buttons&T5_APP_BUTTON_BACK){if(detail){detail=false;dirty=true;continue;}break;}
-  t5_app_swipe_t swipe={0};bool swiped=app->take_touch_swipe(&swipe);
-  if(swiped){int dy=swipe.end_y-swipe.start_y;if(dy>20)move(-1);else if(dy<-20)move(1);}
+  if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44))){if(!navigate_back())break;continue;}
+  bool swiped=drag();
   if(input.buttons&T5_APP_BUTTON_UP)move(-1);
   if(input.buttons&T5_APP_BUTTON_DOWN)move(1);
   bool action=false;

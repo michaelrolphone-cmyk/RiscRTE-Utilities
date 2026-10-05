@@ -1,10 +1,12 @@
+#define PORTABLE_APP_OWNS_TOUCH_CHROME
+#define PORTABLE_RETURN_APP "springboard.elf"
 #define PORTABLE_ALARM_CLIENT
 #define PORTABLE_APP_SLEEP_LOCAL
 #include "../Apps/ble_scanner.c"
 #include <assert.h>
 #include <setjmp.h>
 #include <stdlib.h>
-static unsigned input_mode,input_step;static bool back_enabled;
+static unsigned input_mode,input_step,launches;static bool back_enabled;
 static uint32_t tick;static unsigned grants,claims,closes,sends;static bool close_bad,send_bad,release_bad,claim_bad;static int restore_result=1;
 static uint8_t policy=3,queued[64];static size_t queued_size;static char drawn[4000];static jmp_buf retention;
 static uint32_t millis(void){return tick;}
@@ -13,10 +15,10 @@ static bool poll_input(t5_app_input_t*i,uint32_t t){
  tick+=t;if(!input_mode)return false;input_step++;
  if(input_step==1){scan.count=1;strcpy(scan.devices[0].name,"Navigation fixture");i->buttons=T5_APP_BUTTON_CONFIRM;return true;}
  if(input_step==2){assert(detail&&!back_enabled);i->buttons=T5_APP_BUTTON_BACK;return true;}
- assert(input_step==3&&!detail&&back_enabled);i->exit_requested=true;return true;
+ assert(input_step==3&&!detail&&!back_enabled);i->buttons=T5_APP_BUTTON_BACK;return true;
 }
 static void back(bool b){back_enabled=b;}
-static bool swipe(t5_app_swipe_t*s){(void)s;return false;}
+static bool contact(t5_app_contact_t*s){*s=(t5_app_contact_t){0};return true;}
 static void present(bool full){(void)full;}
 static bool claim(void*c,uint64_t*out){(void)c;claims++;*out=1;return !claim_bad;}
 static int32_t close_host(void*c,uint64_t t){(void)c;assert(t==1);closes++;return close_bad?-1:restore_result;}
@@ -28,10 +30,11 @@ static int32_t put(void*c,const char*k,const void*v,uint32_t n){(void)c;(void)k;
 static risc_key_value_v1 kv={1,sizeof(kv),NULL,get,put};
 static bool acquire(const char*n,uint32_t v,uint64_t inst,risc_runtime_capability_v1*g){assert(v==1);if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(inst==1);g->api=&kv;}else{assert(!strcmp(n,"bluetooth.hci")&&inst==16);g->api=&fake_host;}grants++;return true;}
 static bool release(risc_runtime_capability_v1*g){assert(g->api&&grants);if(release_bad)return false;grants--;return true;}
+static bool launch(const char*s){assert(!strcmp(s,"springboard.elf")&&!token&&!acquired);launches++;return true;}
 static bool diagnostic(const char*s){assert(s);return true;}
 static void yield(uint32_t ms){(void)ms;longjmp(retention,1);}
-static const t5_app_api_v1 fake_app={.abi_version=1,.struct_size=sizeof(fake_app),.screen_width=screen,.screen_height=screen,.millis=millis,.poll=poll_input,.present=present,.set_back_exits_app=back,.take_touch_swipe=swipe};
-static const risc_runtime_api_v1 fake_rt={.api_version=1,.struct_size=sizeof(fake_rt),.acquire=acquire,.release=release,.diagnostic=diagnostic,.yield_ms=yield};
+static const t5_app_api_v1 fake_app={.abi_version=1,.struct_size=sizeof(fake_app),.screen_width=screen,.screen_height=screen,.millis=millis,.poll=poll_input,.present=present,.set_back_exits_app=back,.touch_contact=contact};
+static const risc_runtime_api_v1 fake_rt={.api_version=1,.struct_size=sizeof(fake_rt),.acquire=acquire,.release=release,.request_launch=launch,.diagnostic=diagnostic,.yield_ms=yield};
 const t5_app_api_v1*t5_app_get_api(uint32_t v){assert(v==1);return &fake_app;}
 const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){assert(v==1);return &fake_rt;}
 bool portable_app_sleep_retained(void){return false;}
@@ -58,7 +61,7 @@ static void snapshot(const char *name){
  for(unsigned i=0;i<240*240;i++){uint16_t v=pixels[i];uint8_t rgb[]={(uint8_t)((v>>11)*255/31),(uint8_t)(((v>>5)&63)*255/63),(uint8_t)((v&31)*255/31)};assert(fwrite(rgb,1,3,f)==3);}fclose(f);
 }
 #endif
-static void reset(void){app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=false;selected=scroll=detail_scroll=0;dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=0;back_enabled=true;}
+static void reset(void){app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=false;selected=scroll=detail_scroll=0;dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=launches=0;back_enabled=true;}
 #ifdef BLE_RENDER
 int main(void){
  reset();message="Enable Bluetooth in controls";draw();snapshot("empty");
@@ -84,7 +87,7 @@ int main(void){
  reset();start_scan();restore_result=0;start_scan();assert(!token&&!grants&&restore_failed&&strstr(message,"restore failed"));
  reset();start_scan();restore_result=0;for(unsigned i=0;i<5;i++)pump();tick+=BLE_SCAN_MS;pump();assert(!token&&!grants&&restore_failed&&strstr(message,"restore failed"));
  reset();app_main();assert(!claims&&!grants);
- reset();input_mode=1;app_main();assert(input_step==3&&back_enabled&&!claims&&!grants);
+ reset();input_mode=1;app_main();assert(input_step==3&&back_enabled&&launches==1&&!claims&&!grants);
  puts("BLE real app: policy, results/details/scroll, stop/retry, no implicit RF and retained cleanup passed");
 }
 
