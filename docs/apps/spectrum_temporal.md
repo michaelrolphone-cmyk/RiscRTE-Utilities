@@ -1,4 +1,4 @@
-# Spectrum 0.4.0: temporal event examples
+# Spectrum 0.4.1: temporal event examples and Monitor context
 
 The `storage.app-data@1` backend is pinned to published Runtime 0.1.30 commit
 `1d9bcb204a0b12ac6483511f32ba56da47699404` ([Runtime PR22](https://github.com/michaelrolphone-cmyk/RiscRTE/pull/22)).
@@ -50,6 +50,23 @@ window. Back cannot silently abandon an armed or reviewed example. Individual
 examples and whole labels use two-tap deletion. A failed transaction stays
 visible with Retry Save and Discard; pending deleted labels do not become an
 unreachable recovery state. Storage errors never delete legacy room profiles.
+
+## Monitor context
+
+The third main tab is **MONITOR**, replacing the former LABELS presentation while
+retaining frequency-label editing behind **EDIT**. Room identity is read from the
+raw room tracker, not from the currently selected filter, so a saved room can be
+identified while the plot remains RAW or while another room is manually selected.
+The accepted room, a still-stabilizing candidate, ambiguity and no-match states
+are distinguished explicitly.
+
+The ranked detection list combines the accepted temporal event with every active
+frequency label. Temporal confidence is the matcher's 0..100% heuristic
+similarity. Frequency-label confidence maps local background SNR to a bounded
+ranking score: 6 dB is 50% and 12 dB or more is 100%. Both are heuristic ranking
+values rather than calibrated probabilities. Event amplitude is the matched
+window's peak residual dBFS; frequency-label amplitude is its canonical excess
+dBFS. These values are independent of display gain and selected plot FFT.
 
 ## Background-relative detection
 
