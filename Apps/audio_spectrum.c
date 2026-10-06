@@ -240,7 +240,7 @@ static void tab(int x,int width,const char *name,bool selected){
  round_rect(x,14,width,24,12,selected?NOVA_CYAN:NOVA_DIM);if(!selected)round_rect(x+1,15,width-2,22,11,0);center(0,x+3,17,width-6,name,selected?0x001418u:NOVA_CYAN);
 }
 static void draw_tabs(void){
- tab(4,51,"SPEC",view==0);tab(58,50,"FALL",view==1);tab(111,74,"LABELS",view==2);
+ tab(4,51,"SPEC",view==0);tab(58,50,"FALL",view==1);tab(111,74,"MONITOR",view==2);
  if(view!=2){round_rect(188,14,22,24,11,prefs.show_labels?NOVA_CYAN:NOVA_DIM);if(!prefs.show_labels)round_rect(189,15,20,22,10,0);uint32_t c=prefs.show_labels?0x001418u:NOVA_CYAN;line(193,20,201,20,c);line(201,20,206,26,c);line(206,26,200,32,c);line(200,32,193,25,c);line(193,25,193,20,c);fill(195,22,2,2,c);}
  draw_gear();
 }
@@ -287,19 +287,52 @@ static void draw_plot(void){
 }
 static unsigned saved_count(void){unsigned n=0;for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)n+=labels[i].present;return n;}
 static unsigned ordered_labels(unsigned order[8]){
- unsigned n=0;for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(labels[i].present&&(lab_edit||label_active[i]))order[n++]=i;
- for(unsigned i=1;i<n;i++){unsigned key=order[i],j=i;while(j&&(lab_edit?labels[order[j-1]].frequency_hz>labels[key].frequency_hz:label_db[order[j-1]]<label_db[key])){order[j]=order[j-1];j--;}order[j]=key;}return n;
+ unsigned n=0;for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(labels[i].present)order[n++]=i;
+ for(unsigned i=1;i<n;i++){unsigned key=order[i],j=i;while(j&&labels[order[j-1]].frequency_hz>labels[key].frequency_hz){order[j]=order[j-1];j--;}order[j]=key;}return n;
 }
-static void draw_labels(void){
- unsigned order[8],n=ordered_labels(order);char header[40];text(0,20,46,143,lab_edit?"EDIT LABELS":"LABELS",NOVA_CYAN);if(pending_save)snprintf(header,sizeof(header),"UNSAVED CHANGES");else if(!running&&!lab_edit)snprintf(header,sizeof(header),"%s / %u SAVED",frozen?"FROZEN":"STOPPED",saved_count());else snprintf(header,sizeof(header),lab_edit?"%u SAVED":"%u ACTIVE / %u SAVED",lab_edit?saved_count():n,saved_count());text(1,20,64,145,header,NOVA_CAP);pill(166,48,54,28,lab_edit?"DONE":"EDIT",false);fill(20,84,200,1,NOVA_DIM);
- if(!n){const char *a=saved_count()?"NOTHING HEARD RIGHT NOW":"NO LABELS SAVED";center(1,20,102,200,a,NOVA_CAP);center(1,20,123,200,saved_count()?"ABOVE BACKGROUND + FLOOR":"DRAG A FREQUENCY LINE",NOVA_CAP);center(1,20,144,200,saved_count()?"TRY LOWERING FLOOR":"THEN TAP ITS PILL TO NAME",NOVA_CAP);}
- if(list_scroll>=n)list_scroll=n>2?n-2:0;
- for(unsigned row=0;row<2 && row+list_scroll<n;row++){unsigned slot=order[row+list_scroll];spectrum_label *l=&labels[slot];int y=88+(int)row*55;uint32_t c=label_colors[l->color];fill(20,y,2,50,c);text(1,30,y,lab_edit?152:184,l->name,NOVA_WHITE);char f[20];freq_text(l->frequency_hz,f);text(1,30,y+20,117,f,NOVA_CAP);
-  if(lab_edit)pill(184,y+4,32,32,"X",false);
-  else{for(unsigned k=0;k<10;k++){bool on=(int)k<(label_db[slot]+9000)/900;round_rect(30+(int)k*12,y+39,10,5,1,on?c:fade(c,40));}char db[16];snprintf(db,sizeof(db),"+%d dB BG",label_snr[slot]/100);text(1,161,y+29,59,db,NOVA_TEXT);}
-  fill(30,y+51,190,1,NOVA_LINE);
+typedef struct {const char *name;uint32_t color;unsigned confidence;int16_t amplitude_db;uint8_t kind;} monitor_item;
+enum {MONITOR_EVENT=1,MONITOR_LABEL=2};
+static unsigned monitor_label_confidence(unsigned slot){
+ int snr=label_snr[slot];if(snr<=0)return 0;unsigned confidence=(unsigned)snr/12u;return confidence>100u?100u:confidence;
+}
+static int16_t monitor_scene_db(void){return spectrum_background_db(spectrum_signature_total(ambient.raw));}
+static unsigned monitor_room_count(void){unsigned n=0;for(unsigned i=0;i<SPECTRUM_SIGNATURE_SLOTS;i++)if(signatures[i].kind==SPECTRUM_SIGNATURE_ROOM)n++;return n;}
+static unsigned monitor_items(monitor_item items[10]){
+ unsigned n=0;
+ if(event_match.complete&&event_match.reason==ST_RESULT_MATCH&&event_match.selected>=0){
+  items[n++]=(monitor_item){event_library.labels[event_match.selected].name,0x3dff9au,event_match.score/10u,event_match.query.peak_db,MONITOR_EVENT};
+ }else if(event_slot>=0&&event_slot<(int)SPECTRUM_SIGNATURE_SLOTS&&signatures[event_slot].kind==SPECTRUM_SIGNATURE_EVENT){
+  items[n++]=(monitor_item){signatures[event_slot].name,0x3dff9au,event_confidence,spectrum_background_db(spectrum_signature_total(foreground_power)),MONITOR_EVENT};
  }
- if(n>2){pill(21,204,44,24,"<",false);char count[24];snprintf(count,sizeof(count),"%u-%u / %u",list_scroll+1,list_scroll+2<n?list_scroll+2:n,n);center(1,66,207,108,count,NOVA_CAP);pill(176,204,44,24,">",false);}
+ for(unsigned i=0;i<SPECTRUM_LABEL_MAX;i++)if(labels[i].present&&label_active[i]){
+  items[n++]=(monitor_item){labels[i].name,label_colors[labels[i].color],monitor_label_confidence(i),label_db[i],MONITOR_LABEL};
+ }
+ for(unsigned i=1;i<n;i++){monitor_item key=items[i];unsigned j=i;while(j&&(items[j-1].confidence<key.confidence||(items[j-1].confidence==key.confidence&&items[j-1].amplitude_db<key.amplitude_db))){items[j]=items[j-1];j--;}items[j]=key;}
+ return n;
+}
+static void draw_monitor(void){
+ if(lab_edit){
+  unsigned order[8],n=ordered_labels(order);char header[40];text(0,20,46,143,"EDIT LABELS",NOVA_CYAN);if(pending_save)snprintf(header,sizeof(header),"UNSAVED CHANGES");else snprintf(header,sizeof(header),"%u SAVED",saved_count());text(1,20,64,145,header,NOVA_CAP);pill(166,48,54,28,"DONE",false);fill(20,84,200,1,NOVA_DIM);
+  if(!n){center(1,20,112,200,"NO LABELS SAVED",NOVA_CAP);center(1,20,133,200,"DRAG A FREQUENCY LINE",NOVA_CAP);center(1,20,154,200,"THEN TAP ITS PILL TO NAME",NOVA_CAP);}
+  if(list_scroll>=n)list_scroll=n>2?n-2:0;
+  for(unsigned row=0;row<2&&row+list_scroll<n;row++){unsigned slot=order[row+list_scroll];spectrum_label *l=&labels[slot];int y=88+(int)row*55;uint32_t color=label_colors[l->color];fill(20,y,2,50,color);text(1,30,y,152,l->name,NOVA_WHITE);char frequency[20];freq_text(l->frequency_hz,frequency);text(1,30,y+20,117,frequency,NOVA_CAP);pill(184,y+4,32,32,"X",false);fill(30,y+51,190,1,NOVA_LINE);}
+  if(n>2){pill(21,204,44,24,"<",false);char count[24];snprintf(count,sizeof(count),"%u-%u / %u",list_scroll+1,list_scroll+2<n?list_scroll+2:n,n);center(1,66,207,108,count,NOVA_CAP);pill(176,204,44,24,">",false);}return;
+ }
+ monitor_item items[10];unsigned n=monitor_items(items),rooms=monitor_room_count();char header[48],room_detail[48];text(0,20,46,143,"MONITOR",NOVA_CYAN);
+ if(!running)snprintf(header,sizeof(header),"%s / LAST CONTEXT",frozen?"FROZEN":"STOPPED");else if(!ambient.ready)snprintf(header,sizeof(header),"LEARNING ROOM / %u%%",ambient.frames*100u/SPECTRUM_BG_WARMUP);else snprintf(header,sizeof(header),"%u DETECTION%s",n,n==1?"":"S");
+ text(1,20,64,145,header,NOVA_CAP);pill(166,48,54,28,"EDIT",false);fill(20,84,200,1,NOVA_DIM);
+ text(1,20,89,38,"ROOM",NOVA_CAP);int room=room_tracker.selected>=0?room_tracker.selected:room_tracker.candidate;
+ const char *room_name=!rooms?"NO ROOM SAMPLES":!ambient.ready?"LEARNING...":room>=0&&room<(int)SPECTRUM_SIGNATURE_SLOTS&&signatures[room].kind==SPECTRUM_SIGNATURE_ROOM?signatures[room].name:room_tracker.ambiguous?"AMBIGUOUS":"UNKNOWN";
+ text(0,62,88,158,room_name,room>=0?NOVA_WHITE:NOVA_TEXT);
+ if(!rooms)snprintf(room_detail,sizeof(room_detail),"CAPTURE ROOM IN CONTROLS > SAMPLES");
+ else if(!ambient.ready)snprintf(room_detail,sizeof(room_detail),"RAW ROOM PROFILE / WAIT FOR BASELINE");
+ else if(room>=0)snprintf(room_detail,sizeof(room_detail),"%s %u%%  AMP %d dB",room_tracker.selected>=0?(room_tracker.ambiguous?"HOLD":"MATCH"):"VERIFY",room_tracker.confidence,monitor_scene_db()/100);
+ else snprintf(room_detail,sizeof(room_detail),"%s %u%%  AMP %d dB",room_tracker.ambiguous?"AMBIGUOUS":"NO MATCH",room_tracker.confidence,monitor_scene_db()/100);
+ text(1,20,106,200,room_detail,NOVA_CAP);fill(20,126,200,1,NOVA_DIM);
+ if(!n){center(1,20,145,200,running?"NO EVENTS OR LABELS":"START MIC TO MONITOR",NOVA_CAP);center(1,20,166,200,running?"ABOVE BACKGROUND + FLOOR":"ROOM / EVENT / LABEL CONTEXT",NOVA_CAP);list_scroll=0;return;}
+ if(list_scroll>=n)list_scroll=n>3?n-3:0;
+ for(unsigned row=0;row<3&&row+list_scroll<n;row++){monitor_item *item=&items[row+list_scroll];int y=132+(int)row*26;fill(20,y+1,2,22,item->color);text(1,28,y,40,item->kind==MONITOR_EVENT?"EVENT":"LABEL",NOVA_CAP);text(1,70,y,99,item->name,NOVA_WHITE);char confidence[12],amplitude[20];snprintf(confidence,sizeof(confidence),"%u%%",item->confidence);snprintf(amplitude,sizeof(amplitude),"AMP %d dB",item->amplitude_db/100);text(1,176,y,44,confidence,item->color);text(1,70,y+13,100,amplitude,NOVA_CAP);}
+ if(n>3){char count[32];snprintf(count,sizeof(count),"<  %u-%u / %u  >",list_scroll+1,list_scroll+3<n?list_scroll+3:n,n);center(1,20,218,200,count,NOVA_CAP);}
 }
 static void draw_footer(void){
  if(view==2)return;
@@ -338,7 +371,7 @@ static void draw(void){
 #else
  app->clear();
 #endif
- if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();else if(page==PAGE_KEYBOARD)draw_keyboard();else if(!started)draw_start();else{draw_tabs();if(view==2)draw_labels();else draw_plot();draw_footer();if(capture_error){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
+ if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();else if(page==PAGE_KEYBOARD)draw_keyboard();else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
  if(toast_message&&page!=PAGE_KEYBOARD){int y=toast_top();round_rect(14,y,212,28,14,NOVA_DIM);round_rect(15,y+1,210,26,13,0);text(1,23,y+5,undo_slot>=0?145:194,toast_message,NOVA_TEXT);if(undo_slot>=0)text(1,174,y+5,45,"UNDO",NOVA_CYAN);}
  app->present(false);dirty=false;
 }
@@ -424,7 +457,7 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(page==PAGE_CONTROLS){if(hit(x,y,79,201,82,32)){set_page(PAGE_MAIN);return false;}if(y<CONTROLS_TOP||y>=CONTROLS_BOTTOM)return false;unsigned position=(unsigned)(y-CONTROLS_TOP+controls_scroll),setting=position/CONTROLS_ROW_HEIGHT+1;int row_y=(int)(position%CONTROLS_ROW_HEIGHT);if(setting>CONTROLS_COUNT||row_y<4||row_y>=44)return false;if(controls_segment(setting)){if(x>=110&&x<165)settings_change(setting,0,0);else if(x>=171&&x<232)settings_change(setting,0,1);}else if(setting==11||setting==12||setting==13){if(x>=110&&x<232)settings_change(setting,0,0);}else if(x>=90&&x<122)settings_change(setting,-1,0);else if(x>=200&&x<232)settings_change(setting,1,0);return false;}
  if(!started){if(hit(x,y,68,102,104,48))*toggle_requested=true;else if(hit(x,y,72,196,98,38)){list_scroll=0;set_page(PAGE_CONTROLS);}else if(hit(x,y,6,4,50,34))return request_root_exit();return false;}
  if(y>=8&&y<42){if(x>=4&&x<55){view=0;list_scroll=0;lab_edit=false;}else if(x>=58&&x<108){view=1;list_scroll=0;lab_edit=false;}else if(x>=111&&x<185){view=2;list_scroll=0;lab_edit=false;}else if(x>=188&&x<210&&view!=2){if(load_errors&1u)notify("RETRY STORAGE FIRST");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=213&&x<240){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
- if(view==2){if(hit(x,y,161,44,64,37)){lab_edit=!lab_edit;list_scroll=0;set_page(PAGE_MAIN);return false;}unsigned order[8],n=ordered_labels(order);if(lab_edit&&y>=88&&y<198){unsigned row=(unsigned)(y-88)/55+list_scroll;if(row<n){if(x>=182&&x<220)delete_label((int)order[row]);else if(x>=20&&x<181)open_label((int)order[row],0);}}if(y>=200&&y<235){if(x>=16&&x<68&&list_scroll)list_scroll--;else if(x>=173&&x<224&&list_scroll+2<n)list_scroll++;}dirty=true;return false;}
+ if(view==2){if(hit(x,y,161,44,64,37)){lab_edit=!lab_edit;list_scroll=0;set_page(PAGE_MAIN);return false;}if(lab_edit){unsigned order[8],n=ordered_labels(order);if(y>=88&&y<198){unsigned row=(unsigned)(y-88)/55+list_scroll;if(row<n){if(x>=182&&x<220)delete_label((int)order[row]);else if(x>=20&&x<181)open_label((int)order[row],0);}}if(y>=200&&y<235){if(x>=16&&x<68&&list_scroll)list_scroll--;else if(x>=173&&x<224&&list_scroll+2<n)list_scroll++;}}else if(y>=212){monitor_item items[10];unsigned n=monitor_items(items);if(x<96&&list_scroll)list_scroll--;else if(x>144&&list_scroll+3<n)list_scroll++;}dirty=true;return false;}
  if(cursor_visible&&hit(x,y,pill_x,pill_y,pill_w,pill_h)){open_label(-1,cursor_hz);return false;}
  if(hit(x,y,PLOT_X,PLOT_Y,PLOT_W,PLOT_H)){int coordinate=view==1?y-PLOT_Y:x-PLOT_X;int current=(int)spectrum_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);if(cursor_visible&&abs_int(current-coordinate)>14)cursor_visible=false;else{cursor_visible=true;cursor_hz=spectrum_dsp_frequency_at(&dsp_config,(unsigned)coordinate,view==1?PLOT_H:PLOT_W);}dirty=true;return false;}
  if(y>=216&&y<240){if(x>=6&&x<150)*toggle_requested=true;else if(x>=154&&x<240){if(running)*freeze_requested=true;else return request_root_exit();}}return false;
