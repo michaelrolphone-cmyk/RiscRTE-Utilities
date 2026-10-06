@@ -9,8 +9,10 @@ for n in (60,70,80,90,100):menu +=[(n,150,175),(n+1,150,65)]
 menu += [(130,178,166)]
 name=menu+[(160,120,204),(180,90,54),(200,52,84),(210,79,84)]
 saved=name+[(220,190,190),(240,200,54)]
-record=saved+[(260,200,87),(430,60,120)]
+record=saved+[(430,60,120)]
 scenes={
+ 'monitor-learn-record-save': ([(3,120,120),(60,136,26),(80,152,222),(100,120,202),(120,52,84),(130,79,84),(140,190,190),(160,60,120),(550,60,193)],580,{'SPECTRUM_TEMPORAL_SIGNAL':'1','SPECTRUM_EXPECT_EVENT_EXAMPLES':'1','SPECTRUM_EXPECT_EVENT_WRITES':'2'}),
+ 'live-idle-empty-recovery': ([(3,120,120)],9000,{'SPECTRUM_CONTINUOUS_TEST':'1'}),
  'events-empty':(menu,260,{}),
  'events-keyboard':(name,220,{}),
  'events-label':(name+[(220,190,190)],240,{}),
@@ -25,7 +27,7 @@ scenes={
  'events-stopped-before-onset':(record+[(450,50,202)],500,{'SPECTRUM_EXPECT_EVENT_EXAMPLES':'0','SPECTRUM_EXPECT_EVENT_WRITES':'1'}),
  'events-whole-review':(record+[(495,50,202),(515,120,163)],530,{'SPECTRUM_TEMPORAL_SIGNAL':'1','SPECTRUM_EXPECT_EVENT_EXAMPLES':'0','SPECTRUM_EXPECT_EVENT_WRITES':'1'}),
  'events-whole-saved':(record+[(495,50,202),(515,120,163),(535,50,202)],575,{'SPECTRUM_TEMPORAL_SIGNAL':'1','SPECTRUM_EXPECT_EVENT_EXAMPLES':'1','SPECTRUM_EXPECT_EVENT_WRITES':'2','SPECTRUM_EXPECT_CONFIRMED_END':'1'}),
- 'events-match':(record+[(550,60,193),(600,200,87),(625,176,219),(630,40,232),(635,120,214)],910,{'SPECTRUM_TEMPORAL_SIGNAL':'1','SPECTRUM_EXPECT_EVENT_EXAMPLES':'1','SPECTRUM_EXPECT_EVENT_WRITES':'2'}),
+ 'events-match':(record+[(550,60,193),(625,176,219),(630,40,232),(635,120,214)],910,{'SPECTRUM_TEMPORAL_SIGNAL':'1','SPECTRUM_EXPECT_EVENT_EXAMPLES':'1','SPECTRUM_EXPECT_EVENT_WRITES':'2'}),
 }
 for sanitized in (False,True):
  for name,(actions,polls,options) in scenes.items():
@@ -44,4 +46,4 @@ for sanitized in (False,True):
   if name=='events-keyboard':
    def rgb(x,y):return tuple(pixels[(y*240+x)*3:(y*240+x+1)*3])
    assert any(rgb(12+k*27,76)[1]>150 for k in range(8))
-print('Temporal Nova:15 actual-app/adapter scenes x normal/ASan+UBSan, live synthetic onset/capture/review/save, standard keyboard, examples/capacity/full/unknown-retry/retained, cleanup and raster bounds passed')
+print('Temporal Nova:17 actual-app/adapter scenes x normal/ASan+UBSan, live synthetic onset/capture/review/save, standard keyboard, examples/capacity/full/unknown-retry/retained, cleanup and raster bounds passed')

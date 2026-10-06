@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "runtime_repository": "michaelrolphone-cmyk/RiscRTE",
-  "runtime_minimum": "0.1.30",
-  "runtime_commit": "1d9bcb204a0b12ac6483511f32ba56da47699404",
+  "runtime_minimum": "0.1.32",
+  "runtime_commit": "da92aef5174b9279de1bad0ec05f7234ba587169",
   "runtime_publication": "published",
   "watch_installable": true,
   "required_layout_abi": 2,
@@ -17,8 +17,8 @@
   "note": "Compatible with the validated explicit Watch profile and opt-in ABI2 app-data layout using the pinned Runtime. Final source-bound Watch assembly is verified in the Watch repository; this metadata does not install, flash, format or authorize a release.",
   "validated_watch_profile": {
     "name": "watch-current-apps-v1",
-    "system_apps_commit": "dbd358746bc8f1254619ca42073e1d44f6ad45df",
-    "spectrum_manifest_sha256": "787687ccf43c893e6798b1514d43ec9ff3f627d5ae209dba9f0474d451609570",
+    "system_apps_commit": "fdc15395928a1fa8eee62a2823b3c8777dcf0fa0",
+    "spectrum_manifest_sha256": "6f5c7751e4e001359e23f96ad29aee3bbd67d4013c96e23a3857ba0b337845f2",
     "spectrum_policy_sha256": "d5b9b0fb46e8263bb841edf7639577d42c19e5ad77b2bc65b234b606d4251646",
     "requirements": 12,
     "grants": 12

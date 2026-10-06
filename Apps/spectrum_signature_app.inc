@@ -81,6 +81,7 @@ static void signature_open(int slot,unsigned kind){
  toast_message=NULL;set_page(PAGE_SIGNATURE_EDIT);
 }
 static void signature_capture_begin(void){
+ if(signature_goal){notify("ROOM CAPTURE IN PROGRESS");set_page(PAGE_SIGNATURES);return;}
  if(editing.color!=SPECTRUM_SIGNATURE_ROOM&&editing.color!=SPECTRUM_SIGNATURE_EVENT){notify("CHOOSE ROOM OR EVENT");set_page(PAGE_SIGNATURES);return;}
  if(signature_slot<0||signature_slot>=(int)SPECTRUM_SIGNATURE_SLOTS)return;
  unsigned slot=(unsigned)signature_slot;
@@ -88,10 +89,11 @@ static void signature_capture_begin(void){
  if(signature_pending&(1u<<slot)){signature_save();if(signature_pending&(1u<<slot)){notify("RETRY SAVE FIRST");return;}}
  unsigned start=0,end=(unsigned)strlen(editing.name);while(start<end&&editing.name[start]==' ')++start;while(end>start&&editing.name[end-1]==' ')--end;for(unsigned i=0;i<end-start;i++)editing.name[i]=editing.name[i+start];editing.name[end-start]=0;
  if(!spectrum_signature_name_valid(editing.name)){notify("ENTER A SAMPLE NAME");return;}
- if(!signature_audio.available||(editing.color==SPECTRUM_SIGNATURE_ROOM&&!running)){notify("START MIC / WAIT FOR AUDIO");return;}
  unsigned needed=editing.color==SPECTRUM_SIGNATURE_ROOM?SPECTRUM_SIGNATURE_ROOM_FRAMES:1u;
  if(signatures[slot].frames>SPECTRUM_SIGNATURE_MAX_FRAMES-needed){notify("SAMPLE LIMIT / USE NEW LABEL");return;}
- if(last_capture[slot]==signature_audio.transforms){notify("WAIT FOR A NEW FRAME");return;}
+ if(editing.color==SPECTRUM_SIGNATURE_ROOM){if(!running)toggle();if(!running){notify("MIC FAILED / TAP ADD TO RETRY");return;}}
+ else if(!signature_audio.available){notify("START MIC / WAIT FOR AUDIO");return;}
+ if(needed==1&&last_capture[slot]==signature_audio.transforms){notify("WAIT FOR A NEW FRAME");return;}
  signature_capture=(spectrum_signature){.kind=editing.color};memcpy(signature_capture.name,editing.name,17);signature_capture_slot=(int)slot;
  signature_goal=editing.color==SPECTRUM_SIGNATURE_ROOM?SPECTRUM_SIGNATURE_ROOM_FRAMES:1;
  if(signature_goal>1)signature_audio.used=0;

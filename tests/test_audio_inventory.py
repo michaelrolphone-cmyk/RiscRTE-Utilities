@@ -38,13 +38,31 @@ class AudioInventory(unittest.TestCase):
         for name in ('LICENSE-FontAwesome.txt','LICENSE-Orbitron.txt','LICENSE-Rajdhani.txt','SOURCES.json','LICENSE-Utilities.txt'):
             self.assertIn(name,code)
 
+    def test_speech_sources_and_host_only_fixture(self):
+        import hashlib
+        root=ROOT/'lib/VoiceActivity'
+        source=json.loads((root/'SOURCES.json').read_text())
+        for name,digest in source['vendored_files_sha256'].items():
+            self.assertEqual(hashlib.sha256((root/name).read_bytes()).hexdigest(),digest,name)
+        fixture=ROOT/'tests/fixtures/voice'
+        record=json.loads((fixture/'SOURCES.json').read_text())
+        pcm=(fixture/'jfk16.pcm').read_bytes()
+        self.assertEqual(len(pcm),2*record['samples'])
+        self.assertEqual(hashlib.sha256(pcm).hexdigest(),record['fixture_sha256'])
+        app=next(a for a in inventory() if a['id']=='audio_spectrum')
+        self.assertNotIn('jfk',json.dumps(app))
+        self.assertIn('Copyright (c) 2022 OpenAI',(fixture/'LICENSE-Whisper.txt').read_text())
+        build=(ROOT/'scripts/build_audio_apps.py').read_text()
+        for name in ('LICENSE','AUTHORS','PATENTS','SOURCES.json','PATCHES.md'):
+            self.assertIn(name,build)
+
     def test_spectrum_declares_alarm_and_input(self):
         side=json.loads((ROOT/'Apps/audio_spectrum.json').read_text())
         self.assertEqual(side['category'],['Audio Tools'])
-        self.assertEqual(side['version'],'0.4.1')
+        self.assertEqual(side['version'],'0.4.2')
         self.assertEqual(side['requires'][-2]['api'],'>=2')
         self.assertEqual(side['requires'][-1],{'capability':'storage.app-data','api':'>=1'})
-        self.assertEqual(side['min_firmware_version'],'0.1.30')
+        self.assertEqual(side['min_firmware_version'],'0.1.32')
         self.assertEqual([r['capability'] for r in side['requires']],
             ['display.output','input.touch.raw','audio.input','alarm.service','storage.key-value','storage.app-data'])
 
@@ -61,7 +79,7 @@ class AudioInventory(unittest.TestCase):
         self.assertNotIn('SOURCE',controls)
         self.assertIn('tab(111,74,"MONITOR",view==2)',code)
         self.assertNotIn('tab(111,74,"LABELS",view==2)',code)
-        self.assertIn('monitor_items(monitor_item items[16])',code)
+        self.assertIn('monitor_items(monitor_item items[17])',code)
         self.assertIn('"AMP %d dB"',code)
 
     def test_temporal_backend_and_verified_watch_profile_are_pinned(self):

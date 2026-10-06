@@ -43,6 +43,8 @@ static void check_controls1(void){assert(page==PAGE_CONTROLS&&controls_scroll==5
 static void check_controls2(void){assert(page==PAGE_CONTROLS&&controls_scroll==CONTROLS_MAX_SCROLL&&puts_count==0);}
 static void check_live_only(void){assert(prefs.source==0&&running&&owned&&opens==1);}
 static void check_live_data(void){assert(spectrum.transforms>0&&history_count>0&&prefs.source==0&&reads>600);}
+static void check_waiting_audio(void){assert(running&&owned&&portable_audio_capture_active()&&input_waiting&&!capture_error&&closes==0);read_count=256;}
+static void check_audio_resumed(void){assert(running&&owned&&!input_waiting&&!capture_error&&opens==1&&!closes&&spectrum.transforms>0);}
 static void check_cursor(void){assert(cursor_visible&&cursor_hz>=100&&cursor_hz<=8000);}
 static void check_no_cursor(void){assert(!cursor_visible);}
 static void check_popup(void){assert(page==PAGE_LABEL&&!back_exits&&editing.present);}
@@ -80,7 +82,7 @@ int main(void){
  reset();start();add(EVENT_INPUT,T5_APP_BUTTON_DOWN,1);start();back();run();clean(2,2,2);
  reset();start();tap(84,26,1);for(unsigned i=0;i<450;i++)add(EVENT_INPUT,0,1);tap(185,228,1);back();run();clean(1,452,1);assert(view==1&&history_count>40&&frozen);
  reset();read_count=17;start();for(unsigned i=0;i<120;i++)add(EVENT_INPUT,0,1);back();run();clean(1,121,1);assert(spectrum.transforms==1);
- reset();read_count=0;start();for(unsigned i=0;i<7;i++)add(EVENT_INPUT,0,1);add(EVENT_INPUT,0,0);back();run();clean(1,8,1);assert(!strcmp(message,"NO MICROPHONE DATA"));
+ reset();read_count=0;start();for(unsigned i=0;i<260;i++)add(EVENT_INPUT,0,1);check(check_waiting_audio);for(unsigned i=0;i<20;i++)add(EVENT_INPUT,0,1);check(check_audio_resumed);back();run();clean(1,283,1);
  reset();read_count=257;start();back();run();clean(1,1,1);assert(spectrum.transforms==0&&!strcmp(message,"MIC READ FAILED"));
  reset();read_count=SIZE_MAX;start();back();run();clean(1,1,1);
  reset();read_count=17;fail_read=true;start();back();run();clean(1,1,1);assert(!spectrum.used&&!spectrum.transforms);

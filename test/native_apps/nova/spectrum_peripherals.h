@@ -22,7 +22,7 @@ void app_main(void);int app_module_init(void);void app_module_fini(void);
 static unsigned ticks,polls,grants,frames,subs,presents;
 static unsigned stop_poll=240;
 static bool mic_opened; static unsigned mic_rate, mic_frame, launches,writes;
-static unsigned last_navigation_poll;
+static unsigned last_navigation_poll,mic_opens,mic_closes,last_mic_poll;
 static uint16_t pixels[240*244];
 static const char *directory;
 static struct {unsigned at;int x,y;} actions[256];static unsigned action_count;
@@ -35,7 +35,7 @@ static void save_frame(void) {
 }
 static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;return polls<stop_poll;}
 static void fake_yield(uint32_t n){ticks+=n;}
-static bool fake_diag(const char*s){fprintf(stderr,"%s\n",s);return true;}
+static bool fake_diag(const char*s){if(getenv("SPECTRUM_CONTINUOUS_TEST"))assert(!strstr(s,"sleep=idle"));fprintf(stderr,"%s\n",s);return true;}
 static bool fake_launch(const char*s){assert(!mic_opened);launches++;if(getenv("SPECTRUM_LAUNCH_REFUSE_ONCE")&&launches==1)return false;if(getenv("SPECTRUM_EXIT_POLL"))assert(polls==(unsigned)strtoul(getenv("SPECTRUM_EXIT_POLL"),NULL,10));printf("launch=%s\n",s);stop_poll=polls;return true;}
 static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=240,.height=240,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565)};return true;}
 static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=240,.height=240,.stride_bytes=488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
@@ -70,10 +70,10 @@ static const risc_input_navigation_api_v1 nav_api={1,sizeof(nav_api),NULL,fake_n
 const risc_input_navigation_api_v1 *portable_input_navigation_open(const risc_runtime_api_v1*r){(void)r;return &nav_api;}
 void portable_input_navigation_close(const risc_runtime_api_v1*r){(void)r;}
 int portable_app_alarm_sleep(const risc_runtime_api_v1*r,const risc_display_output_api_v1*d,const risc_battery_gauge_api_v1*b,const alarm_service_v1*a){(void)r;(void)d;(void)b;(void)a;assert(!"Unexpected hardware sleep in audit");return 0;}
-static bool fake_mic_open(void*c,uint32_t rate){(void)c;assert(!mic_opened);assert(rate==16000);mic_opened=true;mic_rate=rate;mic_frame=0;return true;}
-static bool fake_mic_read(void*c,int16_t*pcm,size_t n,size_t*got){(void)c;assert(mic_opened&&n<=256);for(size_t i=0;i<n;i++,mic_frame++){double t=(double)mic_frame/mic_rate;bool event=getenv("SPECTRUM_TEMPORAL_SIGNAL")&&((polls>=470&&polls<510)||(polls>=780&&polls<820));if(getenv("SPECTRUM_TEMPORAL_LONG")&&polls>=470)event=true;pcm[i]=(int16_t)(8000*sin(6.283185307179586*440*t)+(3500+(event?9000:0))*sin(6.283185307179586*1000*t)+1500*sin(6.283185307179586*3200*t));}*got=n;ticks+=(uint32_t)(n*1000/mic_rate);return true;}
+static bool fake_mic_open(void*c,uint32_t rate){(void)c;assert(!mic_opened);assert(rate==16000);mic_opened=true;mic_opens++;mic_rate=rate;mic_frame=0;return true;}
+static bool fake_mic_read(void*c,int16_t*pcm,size_t n,size_t*got){(void)c;assert(mic_opened&&n<=256);last_mic_poll=polls;if(getenv("SPECTRUM_CONTINUOUS_TEST")&&polls>=700&&polls<1000){*got=0;ticks+=40;return true;}for(size_t i=0;i<n;i++,mic_frame++){double t=(double)mic_frame/mic_rate;bool event=getenv("SPECTRUM_TEMPORAL_SIGNAL")&&((polls>=470&&polls<510)||(polls>=780&&polls<820));if(getenv("SPECTRUM_TEMPORAL_LONG")&&polls>=470)event=true;pcm[i]=(int16_t)(8000*sin(6.283185307179586*440*t)+(3500+(event?9000:0))*sin(6.283185307179586*1000*t)+1500*sin(6.283185307179586*3200*t));}*got=n;ticks+=(uint32_t)(n*1000/mic_rate);return true;}
 static bool fake_mic_level(void*c,uint16_t*v){(void)c;*v=5000;return mic_opened;}
-static bool fake_mic_close(void*c){(void)c;assert(mic_opened);mic_opened=false;return true;}
+static bool fake_mic_close(void*c){(void)c;assert(mic_opened);mic_opened=false;mic_closes++;return true;}
 static const twatch_audio_in_api_v1 mic_api={1,sizeof(mic_api),NULL,fake_mic_open,fake_mic_read,fake_mic_level,fake_mic_close};
 static uint8_t temporal_disk[2][ST_BANK_MAX];static uint32_t temporal_sizes[2];static uint64_t temporal_revision=1;static unsigned temporal_writes;static bool temporal_retained;
 static unsigned temporal_bank(const char*n){assert(!strcmp(n,"spectrum-events-a.sqt")||!strcmp(n,"spectrum-events-b.sqt"));return !strcmp(n,"spectrum-events-b.sqt");}
@@ -101,4 +101,4 @@ static void seed_signature_fixture(void){
 static void check_signature_fixture(void){
  const char *value=getenv("SPECTRUM_EXPECT_SAMPLE");if(!value)return;unsigned expected=(unsigned)strtoul(value,NULL,10);spectrum_signature profile;bool found=false;for(unsigned i=0;i<32;i++)if(!strcmp(cells[i].key,"spectrum_s0")){assert(spectrum_signature_decode(&profile,cells[i].bytes,cells[i].size));assert(profile.kind==expected&&profile.frames==(expected==1?64u:1u));found=true;}assert(found&&writes==1);
 }
-int main(int argc,char**argv){assert(argc>=2);directory=argv[1];if(getenv("SPECTRUM_CAPTURE_POLLS")){unsigned n=(unsigned)strtoul(getenv("SPECTRUM_CAPTURE_POLLS"),NULL,10);assert(n>=10&&n<=10000);stop_poll=n;}memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}seed_signature_fixture();seed_temporal_fixture();assert(app_module_init()==0);app_main();if(temporal_retained){assert(grants&&!mic_opened&&!frames);verify_temporal_fixture();puts("Runtime retained barrier modeled: app returned, no further UI/I/O/fini/release");return 0;}app_module_fini();check_signature_fixture();verify_temporal_fixture();assert(!grants&&!frames&&!subs&&!mic_opened);if(getenv("SPECTRUM_EXPECT_NO_WRITES"))assert(!writes);if(getenv("SPECTRUM_EXIT_POLL"))assert(launches==(getenv("SPECTRUM_LAUNCH_REFUSE_ONCE")?2u:1u));printf("Production app/adapter capture: %u frames, %u polls, %u ms; all grants released; stride guards intact\n",presents,polls,ticks);return 0;}
+int main(int argc,char**argv){assert(argc>=2);directory=argv[1];if(getenv("SPECTRUM_CAPTURE_POLLS")){unsigned n=(unsigned)strtoul(getenv("SPECTRUM_CAPTURE_POLLS"),NULL,10);assert(n>=10&&n<=10000);stop_poll=n;}memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}seed_signature_fixture();seed_temporal_fixture();assert(app_module_init()==0);app_main();if(temporal_retained){assert(grants&&!mic_opened&&!frames);verify_temporal_fixture();puts("Runtime retained barrier modeled: app returned, no further UI/I/O/fini/release");return 0;}app_module_fini();if(getenv("SPECTRUM_CONTINUOUS_TEST")){assert(ticks>120000&&mic_opens==1&&mic_closes==1&&last_mic_poll+2>=stop_poll);}check_signature_fixture();verify_temporal_fixture();assert(!grants&&!frames&&!subs&&!mic_opened);if(getenv("SPECTRUM_EXPECT_NO_WRITES"))assert(!writes);if(getenv("SPECTRUM_EXIT_POLL"))assert(launches==(getenv("SPECTRUM_LAUNCH_REFUSE_ONCE")?2u:1u));printf("Production app/adapter capture: %u frames, %u polls, %u ms; all grants released; stride guards intact\n",presents,polls,ticks);return 0;}

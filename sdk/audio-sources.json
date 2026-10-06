@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "system_apps": "13f32d3e5fee262a960f5fe0add63db835381893",
+  "system_apps": "fdc15395928a1fa8eee62a2823b3c8777dcf0fa0",
   "watch_audio_abi": "f649a161314997a4affab4f813d702d434b8184e",
   "runtime_minimum": "0.1.16",
   "purpose": "Audio Tools integration with NOVA spectrum presentation and current foreground lifecycle"

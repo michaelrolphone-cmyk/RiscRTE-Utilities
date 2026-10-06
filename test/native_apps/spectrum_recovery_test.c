@@ -42,13 +42,13 @@ static void corrupt_config_retry(void){
 static void recover_live_capture(void){
  assert(running&&owned&&live&&load_errors==3u);
  kv.get=get_value;settings_change(11,0,0);
- assert(!running&&!owned&&!live&&closes==1&&!puts_count&&!load_errors&&prefs.source==0);
+ assert(running&&owned&&live&&closes==1&&opens==2&&!puts_count&&!load_errors&&prefs.source==0);
 }
 int main(void){
  spectrum_preferences p=spectrum_preferences_default();p.gain_db=24;spectrum_preferences_encode(&p,saved_config);saved_config[12]=1;spectrum_store_put16(saved_config+30,spectrum_store_checksum(saved_config));
  spectrum_label l={true,600,2,"Saved label"};spectrum_label_encode(&l,saved_label);
  reset();preload("spectrum_cfg",saved_config);preload("spectrum_l0",saved_label);kv.get=fail_startup_get;check(recover_reads);back();run();clean(0,0,0);
- reset();preload("spectrum_cfg",saved_config);preload("spectrum_l0",saved_label);kv.get=fail_startup_get;start();check(recover_live_capture);back();run();clean(1,1,1);
+ reset();preload("spectrum_cfg",saved_config);preload("spectrum_l0",saved_label);kv.get=fail_startup_get;start();check(recover_live_capture);back();run();clean(2,2,2);
  uint8_t invalid[32];memset(invalid,255,32);
  reset();preload("spectrum_l0",invalid);check(corrupt_label_retry);back();run();clean(0,0,0);
  reset();preload("spectrum_cfg",invalid);check(corrupt_config_retry);back();run();clean(0,0,0);

@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 13f32d3e5fee262a960f5fe0add63db835381893
+          ref: fdc15395928a1fa8eee62a2823b3c8777dcf0fa0
           path: .dependencies/audio-system-apps
           persist-credentials: false
       - name: Exact current audio Runtime source
@@ -80,7 +80,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: 1d9bcb204a0b12ac6483511f32ba56da47699404
+          ref: da92aef5174b9279de1bad0ec05f7234ba587169
           path: .dependencies/spectrum-runtime
           persist-credentials: false
       - name: Exercise Spectrum saves against the real Runtime backend

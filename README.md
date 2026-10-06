@@ -109,8 +109,10 @@ input provider and foreground lifecycle. It provides explicitly captured, labele
 room/event power signatures with bounded durable records, optional background
 subtraction and conservative room matching. The MONITOR tab identifies the
 current saved room and ranks detected events/frequency labels by detector
-confidence with canonical amplitude. It stops for alarms/sleep/Back and never
-resumes capture automatically. Raw display remains the default.
+confidence with canonical amplitude and uncertain speech activity. Requested
+live monitoring continues across idle deadlines and transient input waits, and
+resumes after safe alarm/storage pauses. Explicit Stop, Freeze and Exit close
+the microphone. Raw display remains the default.
 
 ## LoRa Messages
 
@@ -124,8 +126,8 @@ utility and its published-byte parity remain unchanged.
 
 ## Temporal audio development increment
 
-[Audio Spectrum 0.4.1](docs/apps/spectrum_temporal.md) adds explicit positive and
+[Audio Spectrum 0.4.2](docs/apps/spectrum_temporal.md) adds explicit positive and
 negative short-event examples, background-relative labels, temporal matching and
-bounded frequency-shift tolerance. Its app-data backend is pinned to published Runtime 0.1.30; the Watch repository
+bounded frequency-shift tolerance. Its app-data backend is pinned to published Runtime 0.1.32; the Watch repository
 owns the final ABI2 image assembly and physical qualification. No new layout is
 formatted or installed by this repo.

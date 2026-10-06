@@ -19,7 +19,7 @@ def inventory():
         if name not in ('frequency_generator','audio_spectrum') or app['source_path']!=f'Apps/{name}.c' or app['manifest_path']!=f'Apps/{name}.json' or app['file_name']!=name+'.elf':raise ValueError('Invalid audio source identity')
         validate_manifest(ROOT/app['source_path'],name+'.elf')
         side=json.loads((ROOT/app['manifest_path']).read_text())
-        if app['version']!=side['version'] or side['runtime_profile']!='portable-riscrte-v1' or side['min_firmware_version']!=('0.1.30' if name=='audio_spectrum' else '0.1.16'):raise ValueError('Audio version/profile mismatch')
+        if app['version']!=side['version'] or side['runtime_profile']!='portable-riscrte-v1' or side['min_firmware_version']!=('0.1.32' if name=='audio_spectrum' else '0.1.16'):raise ValueError('Audio version/profile mismatch')
         if any(not(ROOT/p).is_file() for p in app['additional_sources']):raise ValueError('Missing audio source')
     return apps
 def build(system):
@@ -35,7 +35,7 @@ def build(system):
     rows=[]
     for app in inventory():
         name=app['id'];elf=out/(name+'.elf')
-        subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror','-DPORTABLE_FORCE_FULL_FRAMES','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_AUDIO_SESSION',*(['-DPORTABLE_NOVA_UI','-DPORTABLE_APP_OWNS_TOUCH_CHROME'] if name=='audio_spectrum' else []),*['-I'+str(p) for p in (ROOT/'Apps',ROOT/'lib/Alarm/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include')],str(ROOT/app['source_path']),str(system/'lib/PortableApps/src/adapter.c'),str(catalog),'-lgcc','-o',str(elf)],check=True)
+        subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror','-DPORTABLE_FORCE_FULL_FRAMES','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_AUDIO_SESSION',*(['-DPORTABLE_NOVA_UI','-DPORTABLE_APP_OWNS_TOUCH_CHROME','-DPORTABLE_AUDIO_CONTINUOUS_CAPTURE'] if name=='audio_spectrum' else []),*['-I'+str(p) for p in (ROOT/'Apps',ROOT/'lib/Alarm/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include')],str(ROOT/app['source_path']),str(system/'lib/PortableApps/src/adapter.c'),str(catalog),'-lgcc','-o',str(elf)],check=True)
         symbols=subprocess.check_output([cc.removesuffix('gcc')+'nm','-D',str(elf)],text=True)
         imports={s.split()[-1] for s in symbols.splitlines() if ' U ' in ' '+s}
         exports={s.split()[-1] for s in symbols.splitlines() if len(s.split())>=3 and s.split()[-2] in ('T','D','B','R')}
@@ -52,6 +52,8 @@ def build(system):
     for name in ('LICENSE-FontAwesome.txt','LICENSE-Orbitron.txt','LICENSE-Rajdhani.txt','SOURCES.json'):
         (out/name).write_bytes((system/'lib/PortableApps/fonts'/name).read_bytes())
     (out/'LICENSE-Utilities.txt').write_bytes((ROOT/'LICENSE').read_bytes())
+    for name in ('LICENSE','AUTHORS','PATENTS','SOURCES.json','PATCHES.md'):
+        (out/('VoiceActivity-'+name)).write_bytes((ROOT/'lib/VoiceActivity'/name).read_bytes())
     print('Validated shared Audio Tools target ELFs')
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);a=p.parse_args();build(a.system_apps.resolve())

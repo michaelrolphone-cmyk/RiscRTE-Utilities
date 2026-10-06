@@ -83,18 +83,24 @@ static inline bool spectrum_signature_combine(spectrum_signature *s,const spectr
  for(unsigned i=0;i<SPECTRUM_SIGNATURE_BANDS;i++)s->sums[i]+=add->sums[i];
  s->frames+=add->frames;return true;
 }
-/* Similarity is normalized L1 power overlap, 0..1000, with an independent
- * +/-6 dB total-level gate. Silence never identifies a room or event. */
+/* Room identity compares normalized spectral shape, not capture loudness.
+ * Averaging a louder example of the same shape must not erase its identity.
+ * The saved raw-power mean remains unchanged for background subtraction. */
+static inline unsigned spectrum_signature_shape_score(const uint32_t *a,const uint32_t *b){
+ uint64_t ta=spectrum_signature_total(a),tb=spectrum_signature_total(b);if(ta<SPECTRUM_SIGNATURE_FLOOR||tb<SPECTRUM_SIGNATURE_FLOOR)return 0;
+ unsigned sa=0,sb=0;while((ta>>sa)>UINT32_MAX)++sa;while((tb>>sb)>UINT32_MAX)++sb;
+ uint32_t da=(uint32_t)(ta>>sa),db=(uint32_t)(tb>>sb);unsigned distance=0;
+ for(unsigned i=0;i<SPECTRUM_SIGNATURE_BANDS;i++){uint32_t na=(uint32_t)spectrum_dsp_div_u64_u32((uint64_t)a[i]*65536u,da),nb=(uint32_t)spectrum_dsp_div_u64_u32((uint64_t)b[i]*65536u,db);na>>=sa;nb>>=sb;distance+=na>nb?na-nb:nb-na;}
+ unsigned penalty=(distance*1000u+65536u)/131072u;return penalty>=1000?0:1000-penalty;
+}
+/* Legacy single-frame events retain their independent +/-6dB level gate. */
 static inline unsigned spectrum_signature_score(const uint32_t *a,const uint32_t *b){
- uint64_t ta=spectrum_signature_total(a),tb=spectrum_signature_total(b);if(ta<SPECTRUM_SIGNATURE_FLOOR||tb<SPECTRUM_SIGNATURE_FLOOR||ta>tb*4||tb>ta*4)return 0;
- unsigned shift=0;uint64_t max=ta>tb?ta:tb;while(max>UINT32_MAX){max>>=1;++shift;}
- uint32_t da=(uint32_t)(ta>>shift),db=(uint32_t)(tb>>shift);unsigned distance=0;
- for(unsigned i=0;i<SPECTRUM_SIGNATURE_BANDS;i++){uint32_t na=(uint32_t)spectrum_dsp_div_u64_u32((uint64_t)a[i]*1000u,da),nb=(uint32_t)spectrum_dsp_div_u64_u32((uint64_t)b[i]*1000u,db);na>>=shift;nb>>=shift;distance+=na>nb?na-nb:nb-na;}
- return distance>=2000?0:1000-distance/2;
+ uint64_t ta=spectrum_signature_total(a),tb=spectrum_signature_total(b);if(ta>tb*4||tb>ta*4)return 0;
+ return spectrum_signature_shape_score(a,b);
 }
 static inline int spectrum_signature_best(const uint32_t *power,const spectrum_signature *profiles,const uint32_t means[SPECTRUM_SIGNATURE_SLOTS][SPECTRUM_SIGNATURE_BANDS],unsigned kind,unsigned *confidence,bool *ambiguous){
  unsigned best=0,second=0;int slot=-1;
- for(unsigned i=0;i<SPECTRUM_SIGNATURE_SLOTS;i++)if(profiles[i].kind==kind&&profiles[i].frames>=(kind==SPECTRUM_SIGNATURE_ROOM?SPECTRUM_SIGNATURE_ROOM_FRAMES:1u)){unsigned score=spectrum_signature_score(power,means[i]);if(score>best){second=best;best=score;slot=(int)i;}else if(score>second)second=score;}
+ for(unsigned i=0;i<SPECTRUM_SIGNATURE_SLOTS;i++)if(profiles[i].kind==kind&&profiles[i].frames>=(kind==SPECTRUM_SIGNATURE_ROOM?SPECTRUM_SIGNATURE_ROOM_FRAMES:1u)){unsigned score=kind==SPECTRUM_SIGNATURE_ROOM?spectrum_signature_shape_score(power,means[i]):spectrum_signature_score(power,means[i]);if(score>best){second=best;best=score;slot=(int)i;}else if(score>second)second=score;}
  *confidence=best/10;*ambiguous=best>=80*10&&best-second<80;
  return best>=80*10&&!*ambiguous?slot:-1;
 }
@@ -108,7 +114,6 @@ static inline void spectrum_room_observe(spectrum_room_tracker *t,const uint32_t
  bool transient=louder&&t->transient_frames<=8;
  if(!transient)for(unsigned i=0;i<SPECTRUM_SIGNATURE_BANDS;i++)t->mean[i]=t->frames==1?power[i]:(uint32_t)(((uint64_t)t->mean[i]*31+power[i]+16)/32);
  bool ambiguous=false;unsigned confidence=0;int best=transient||total<SPECTRUM_SIGNATURE_FLOOR?-1:spectrum_signature_best(t->mean,profiles,means,SPECTRUM_SIGNATURE_ROOM,&confidence,&ambiguous);
- if(best>=0){uint64_t reference=spectrum_signature_total(means[best]);if(total>reference*4||reference>total*4)best=-1;}
  t->confidence=confidence;t->ambiguous=ambiguous;
  if(best<0){t->candidate=-1;t->stable=0;if(++t->misses>=64)t->selected=-1;return;}
  t->misses=0;if(best!=t->candidate){t->candidate=best;t->stable=1;}else if(t->stable<64)++t->stable;

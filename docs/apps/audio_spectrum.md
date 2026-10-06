@@ -1,4 +1,4 @@
-# Audio Spectrum 0.4.1 (development source)
+# Audio Spectrum 0.4.2 (development source)
 
 The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
 and saved frequency labels on the Watch's 240 × 240 display. The supplied design
@@ -36,7 +36,8 @@ VERIFY until room hysteresis accepts it; held ambiguity and no-match states stay
 explicit. The room row includes signature-match confidence and current canonical
 amplitude.
 
-Below the room, credible temporal event candidates and active frequency labels share one
+Below the room, credible temporal event candidates, active frequency labels and
+uncertain speech activity share one
 ranked list. Event candidates at or above the classifier's 80% match threshold
 remain visible even when two candidates are close enough to make the result
 ambiguous. Event confidence is the temporal classifier similarity. Frequency
@@ -45,6 +46,10 @@ background ratio (6 dB maps to 50%, 12 dB or more to 100%); it is a ranking
 heuristic, not a calibrated probability. Amplitude is the detector's canonical
 background-excess dB value, independent of display gain. Higher confidence sorts
 first, with amplitude breaking ties. EDIT opens the frequency-label editor.
+LEARN opens event learning, START/STOP controls live monitoring, and the room
+row opens saved room samples. MAYBE SPEECH reports voice-like activity from a
+fixed-point voice detector with background, periodicity and modulation gates.
+Its score is recent detector support, not a probability or speaker identity.
 
 The label editor still supports up to eight labels, sixteen printable ASCII
 characters per name, and eight colors. Saved labels can be renamed, recolored or
@@ -58,8 +63,14 @@ unnecessary side gutters. The standard Points/Watch 32-key keyboard covers all
 95 printable ASCII characters on three pages, with ABC/#, DELETE and DONE. Its
 32 hit cells, navigation and action geometry are shared unchanged; the rejected
 eight-key pager is not used. Back and Cancel retain nested
-navigation ownership. Stop and Freeze close the microphone. Resuming requires
-another explicit Start.
+navigation ownership. Explicit Stop, Freeze and Exit close the microphone and
+clear capture intent. Live monitoring otherwise continues across idle deadlines
+and successful partial/empty input reads. After two seconds without PCM, WAITING
+FOR AUDIO is visible; new input resumes analysis without reopening the stream.
+An input gap of 128 ms clears stale detection evidence and marks a collected
+temporal window interrupted. Temporary alarm and file-operation pauses resume
+previously requested monitoring after safe completion; fatal errors and retained
+cleanup do not restart capture.
 
 ## Temporal event examples introduced in 0.4.0
 
@@ -67,7 +78,7 @@ another explicit Start.
 impact spacing, multiple positive/nonmatch examples, bounded time alignment and
 frequency-shift tolerance. Controls → Events opens this separate collection.
 Existing room and single-frame KV records remain untouched. The current source
-is pinned to published Runtime 0.1.30 with `storage.app-data@1`; final Watch
+is pinned to published Runtime 0.1.32 with `storage.app-data@1`; final Watch
 assembly and hardware qualification remain owned by the Watch repository.
 
 ## Persistence and grants
@@ -81,11 +92,12 @@ there is no multi-key transaction or hidden reset. Missing records use defaults;
 invalid/unreadable records and uncertain writes are surfaced, with explicit retry.
 Retry rereads unresolved records without writing defaults over them. Unresolved
 label slots stay reserved, and errors remain visible until their own records are
-read successfully. Capture stops before restored source/settings are applied.
+read successfully. Capture pauses before restored source/settings are applied and resumes only if
+live monitoring was previously requested.
 Saved data is not guaranteed to survive a full-device erase/reflash.
 
 Temporal example files additionally require `storage.app-data@1`, namespace 2,
-and Runtime 0.1.30 with the explicit opt-in app-data layout. Shared adapter
+and Runtime 0.1.32 with the explicit opt-in app-data layout. Shared adapter
 preferences remain `storage.key-value@1` namespace 1.
 
 The microphone retains the existing safe acquisition/cleanup behavior. Alarm,
@@ -103,9 +115,11 @@ Target ELF validation checks architecture, imports, exports and bounded memory.
 
 ## Saved room and event samples
 
-Controls → Samples opens the sample library. Start the microphone explicitly.
+Controls → Samples, or the Monitor room row, opens the sample library.
 Choose ROOM + or EVENT + and enter a label with the same standard Points/Watch
-keyboard. A room capture averages 64 new frames (2.048 seconds of live audio);
+keyboard. Room CAPTURE / ADD SAMPLE starts the microphone when needed, or
+resumes a paused collection; failed starts expose a retry on the same screen.
+A room capture averages 64 new frames (2.048 seconds of live audio);
 keep the room quiet. An event capture takes the current 32 ms canonical frame,
 including a frame held by Freeze. Open an existing label and use ADD SAMPLE to
 combine more observations. The saved frame count is visible. Eight labels are
@@ -150,8 +164,12 @@ the samples. Matching and event templates use raw canonical power, even while
 the display is filtered.
 
 Both classifiers use normalized L1 power overlap. A match needs at least 80%
-similarity, an eight-percentage-point lead over the next candidate and total
-power within a factor of four (approximately ±6 dB). Silence is rejected. Room
+similarity and an eight-percentage-point lead over the next candidate. Room
+identity uses independently normalized spectral shape; adding a louder sample
+of the same background no longer invalidates a quieter observation. Raw power
+sums and means used for subtraction remain unchanged. Legacy snapshot events
+also require total power within a factor of four (approximately ±6 dB). Silence
+is rejected. Room
 selection additionally uses a 32-frame moving power average and 64 consecutive
 matching frames before switching. Sixty-four misses remove an old filter. A
 short burst more than four times the previous room power is excluded for up to
@@ -207,7 +225,8 @@ New normal and ASan/UBSan tests cover canonical identity across all display
 FFT/window choices, bounded zero-floor subtraction and retained transient energy, exact averaging, hostile
 schema/count/CRC inputs, identical-room ambiguity, quiet/unknown inputs, transient
 rejection, sustained room changes, record capacity, uncertain writes and retry,
-paused/cancelled sampling, frozen event capture, nested standard-keyboard
+repeated louder room additions, interrupted and resumed live input, automatic
+room-capture start/retry, paused/cancelled sampling, frozen event capture, nested standard-keyboard
 navigation, explicit discard and grant cleanup.
 
 Host tests and captures are software evidence. They do not qualify physical

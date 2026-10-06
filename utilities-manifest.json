@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -171,9 +171,35 @@
         "Apps/spectrum_temporal.h",
         "Apps/spectrum_temporal_store.h",
         "Apps/spectrum_temporal_files.h",
-        "Apps/spectrum_temporal_app.inc"
+        "Apps/spectrum_temporal_app.inc",
+        "Apps/spectrum_speech.h",
+        "Apps/spectrum_vad_impl.inc",
+        "lib/VoiceActivity/AUTHORS",
+        "lib/VoiceActivity/LICENSE",
+        "lib/VoiceActivity/PATCHES.md",
+        "lib/VoiceActivity/PATENTS",
+        "lib/VoiceActivity/SOURCES.json",
+        "lib/VoiceActivity/src/common.h",
+        "lib/VoiceActivity/src/signal_processing/division_operations.c",
+        "lib/VoiceActivity/src/signal_processing/energy.c",
+        "lib/VoiceActivity/src/signal_processing/get_scaling_square.c",
+        "lib/VoiceActivity/src/signal_processing/resample_48khz.c",
+        "lib/VoiceActivity/src/signal_processing/resample_by_2_internal.c",
+        "lib/VoiceActivity/src/signal_processing/resample_by_2_internal.h",
+        "lib/VoiceActivity/src/signal_processing/resample_fractional.c",
+        "lib/VoiceActivity/src/signal_processing/signal_processing_library.h",
+        "lib/VoiceActivity/src/signal_processing/spl_inl.c",
+        "lib/VoiceActivity/src/signal_processing/spl_inl.h",
+        "lib/VoiceActivity/src/vad/vad_core.c",
+        "lib/VoiceActivity/src/vad/vad_core.h",
+        "lib/VoiceActivity/src/vad/vad_filterbank.c",
+        "lib/VoiceActivity/src/vad/vad_filterbank.h",
+        "lib/VoiceActivity/src/vad/vad_gmm.c",
+        "lib/VoiceActivity/src/vad/vad_gmm.h",
+        "lib/VoiceActivity/src/vad/vad_sp.c",
+        "lib/VoiceActivity/src/vad/vad_sp.h"
       ],
-      "min_firmware_version": "0.1.30"
+      "min_firmware_version": "0.1.32"
     }
   ],
   "lora_apps": [

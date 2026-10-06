@@ -1,7 +1,7 @@
-# Spectrum 0.4.1: temporal event examples and Monitor context
+# Spectrum 0.4.2: live monitoring and simpler sound learning
 
-The `storage.app-data@1` backend is pinned to published Runtime 0.1.30 commit
-`1d9bcb204a0b12ac6483511f32ba56da47699404` ([Runtime PR22](https://github.com/michaelrolphone-cmyk/RiscRTE/pull/22)).
+The `storage.app-data@1` backend is pinned to published Runtime 0.1.32 commit
+`da92aef5174b9279de1bad0ec05f7234ba587169` ([Runtime PR23](https://github.com/michaelrolphone-cmyk/RiscRTE/pull/23)).
 `sdk/spectrum-temporal-sources.json` records the API-header hash and validated
 Watch profile fingerprints. That profile has 12 requirements/grants, app-data
 namespace 2, legacy KV@2 namespace 7 and preference KV@1 namespace 1. Its actual
@@ -13,22 +13,27 @@ format is performed by these builds or compatibility metadata.
 
 ## Capture and review
 
-Controls → Events opens the new library. It is separate from the existing
-Controls → Samples room/snapshot library, whose KV records are left intact.
+Monitor → Learn or Controls → Events opens the event library. Controls → Samples
+and the Monitor room row open the existing room/snapshot library.
 
-1. Choose New Event, name the label with the standard Points/Watch keyboard and
-   press Save. Name and shift changes require Save before recording.
-2. Use MIC to start live 16 kHz input. Allow 2.048 seconds for the current ambient
-   background to settle. Recording never starts or resumes by itself.
-3. Record + learns an example; Record − records a confusing nonmatch for this
-   label. Wait for the quiet prompt, then perform the action. Four 64 ms columns
-   of pre-onset context are retained.
+1. Choose New Event. The standard Points/Watch keyboard opens immediately.
+   Enter a name and press Done.
+2. Press Record Sound. It saves a changed name/shift setting and starts the mic
+   when needed. Background preparation and quiet-wait progress are shown.
+3. At Make the sound now, perform the action, then pause. Not This Sound records
+   a confusing nonmatch for the current label. Four 64 ms columns of pre-onset
+   context are retained.
 4. Four quiet columns finish the example. Review duration, attack, decay,
-   frequency evidence and impact count, then Save or Cancel. Save stops the
-   microphone before touching ordinary files.
+   frequency evidence and impact count, then Save or Cancel. File operations
+   safely pause the mic; previously requested live monitoring resumes afterward.
 5. Repeat for gentle/hard, near/far or other variations. Examples stay separate;
-   they are never collapsed into a mean. Each label has six shared positive or
-   negative slots. Capacity is checked before arming, with no silent eviction.
+   they are never collapsed into a mean. Each label has six shared sound or
+   nonmatch slots. Capacity is checked before arming, with no silent eviction.
+
+If name/shift saving fails, recording does not arm under an old setting. The
+Retry Save / Discard screen remains reachable. Explicit Stop and Exit clear
+live capture intent; temporary storage/alarm pauses preserve it. Retained
+cleanup and fatal microphone errors always require recovery before any restart.
 
 Eight event labels are supported. There is no automatic training, export,
 background recording, speech understanding or semantic guarantee that a learned
@@ -61,7 +66,8 @@ The accepted room, a still-stabilizing candidate, ambiguity and no-match states
 are distinguished explicitly.
 
 The ranked detection list combines every credible temporal event candidate at or
-above the 80% match threshold with every active frequency label. Confusing-negative
+above the 80% match threshold with every active frequency label and a MAYBE
+SPEECH row when voice-like activity is detected. Confusing-negative
 examples still veto their candidate. Close candidates remain visible when the
 classifier result is ambiguous. Temporal confidence is the matcher's 0..100% heuristic
 similarity. Frequency-label confidence maps local background SNR to a bounded
@@ -188,9 +194,11 @@ explicitly opt-in, requires layout ABI2 and has no autoformat/grow behavior.
 The example library uses 118472 bytes; file safety keeps three bounded 59652-byte
 snapshots, plus fixed detector/matcher state. Target ELF builds measure the whole
 app rather than claiming only the DSP arrays are its RAM cost. The strict
-pinned Xtensa development build measures 475396 bytes BSS, 9960 bytes data and
-114823 bytes text, excluding runtime-owned display surfaces. Ordinary file
-transactions run with the microphone closed.
+pinned Xtensa development build measures 477724 bytes BSS, 9996 bytes data and
+129187 bytes text, excluding runtime-owned display surfaces. Ordinary file
+transactions run with the microphone closed, then resume previously requested
+monitoring after safe completion. The current
+build evidence records the complete 0.4.2 ELF.
 
 A matcher tick offers 64 work units. Coarse preparation is an atomic eight-unit
 operation; a DTW row costs one. A new template cannot begin with insufficient
@@ -220,3 +228,34 @@ malformed-bank reservation, and a retained stage-close fault with no further
 consumer I/O. This is host filesystem evidence; Runtime's own authority/ELF,
 LittleFS recovery and layout suites provide the corresponding lower-layer checks.
 No physical microphone, acoustic or device qualification is implied.
+
+## Continuous input and speech qualification
+
+Successful partial/empty RX reads remain live. The native provider treats an RX
+deadline as a bounded wait; fatal SDK failures still close safely. Spectrum opts
+out of idle sleep only while a requested stream is active. A 128 ms input gap
+resets stale room/event/frequency/speech evidence and marks an in-progress event
+as an interrupted window. After two seconds, WAITING FOR AUDIO is shown. Saved
+room collection retains its explicitly resumable partial average.
+
+Speech uses the vendored WebRTC fixed-point GMM from libfvad, 20 ms live PCM,
+plus background-excess FLOOR, bandwidth, modulation and periodicity gates.
+It has no neural training, transcription or speaker identity. MAYBE SPEECH is
+intentionally uncertain; modulated voice-like machinery may still resemble
+speech. Confidence is recent detector support. Raw, manual and automatic
+filters, plot FFT and display gain produce identical speech state traces.
+The detector uses a fixed 2320-byte state and a bounded 60-lag × 160-sample
+periodicity search per 20 ms frame; no heap allocation or growing history.
+
+Host tests include an 11-second public-domain JFK speech excerpt at three
+intensities, synthetic voiced syllables, silence/DC, steady/alternating tones,
+fan harmonics, impacts, and white/low-pass noise. Whole-clip detection counts are
+coverage checks, not population accuracy measures. Fixture provenance and license
+are in tests/fixtures/voice; the PCM is never included in device builds. The
+library's LICENSE, AUTHORS, PATENTS and source/patch record accompany artifacts.
+
+0.4.2 leaves all record formats and names unchanged: SPSGv1 room/snapshot records,
+SQT2v1 temporal banks and 32-byte preferences/labels. It reads 0.4.0/0.4.1 records;
+its writes remain readable by those versions on rollback. Room power averaging
+and subtraction are unchanged; recognition now normalizes intensity independently
+so adding a louder same-shape sample does not erase a quieter room match.
