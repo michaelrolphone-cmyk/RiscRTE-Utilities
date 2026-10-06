@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish only reviewed Watch1.0.1 component tags; never move refs or release assets."""
+"""Publish reviewed Watch component tags; never move refs or release assets."""
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -9,7 +9,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-CONFIG = Path('release/watch-1.0.1-components.json')
+RELEASE_CONFIGS = {
+    'Watch1.0.1': Path('release/watch-1.0.1-components.json'),
+    'Watch1.0.2': Path('release/watch-1.0.2-components.json'),
+}
 REPOSITORIES = {
     'michaelrolphone-cmyk/RiscRTE-System-Apps',
     'michaelrolphone-cmyk/RiscRTE-Utilities',
@@ -48,10 +51,11 @@ class GitHub:
             raise
 
 
-def validate_config(config, repository):
+def validate_config(config, repository, release='Watch1.0.1'):
     require(repository in REPOSITORIES and config['repository'] == repository,
             'Unexpected owning repository')
-    require(config['release'] == 'Watch1.0.1', 'Only Watch1.0.1 is authorized')
+    require(release in RELEASE_CONFIGS and config['release'] == release,
+            'Unexpected Watch component release')
     require(re.fullmatch('[0-9a-f]{40}', config['source_sha']), 'Require immutable source SHA')
     require(config['required_workflows'], 'Require integrated-source CI')
     for path in config['required_workflows']:
@@ -125,8 +129,8 @@ def tag_target(api, tag):
     raise ValueError('Excessive annotated tag nesting: ' + tag)
 
 
-def publish(config, repository, default_branch, api, git_command=git):
-    tags = validate_config(config, repository)
+def publish(config, repository, default_branch, api, git_command=git, release='Watch1.0.1'):
+    tags = validate_config(config, repository, release)
     verify_source(config, default_branch, git_command)
     verify_ci(config, default_branch, api)
     # Preflight ALL refs first so a known later collision never causes partial writes.
@@ -159,9 +163,11 @@ def main():
             run['status'] == 'completed' and run['conclusion'] == 'success',
             'Only successful owning default-branch push CI may publish')
     require(git('rev-parse', 'HEAD') == run['head_sha'], 'Checkout is not the trusted CI head')
-    config = json.loads(CONFIG.read_text())
+    release = os.environ.get('WATCH_COMPONENT_RELEASE', 'Watch1.0.1')
+    require(release in RELEASE_CONFIGS, 'Unknown Watch component release')
+    config = json.loads(RELEASE_CONFIGS[release].read_text())
     api = GitHub(repository, os.environ['GH_TOKEN'])
-    publish(config, repository, default_branch, api)
+    publish(config, repository, default_branch, api, release=release)
 
 
 if __name__ == '__main__':

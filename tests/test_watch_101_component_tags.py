@@ -60,6 +60,48 @@ def git(*args):
 
 
 class PublisherTests(unittest.TestCase):
+    def test_watch_102_requires_explicit_selection(self):
+        c = config()
+        c['release'] = 'Watch1.0.2'
+        api = API()
+        with self.assertRaisesRegex(ValueError, 'Unexpected Watch'):
+            p.publish(c, REPO, 'main', api, git)
+        self.assertEqual([], api.created)
+        p.publish(c, REPO, 'main', api, git, release='Watch1.0.2')
+        self.assertEqual(2, len(api.created))
+        p.publish(c, REPO, 'main', api, git, release='Watch1.0.2')
+        self.assertEqual(2, len(api.created))
+
+    def test_unknown_future_release_is_not_admitted(self):
+        c = config()
+        c['release'] = 'Watch9.9.9'
+        with self.assertRaisesRegex(ValueError, 'Unexpected Watch'):
+            p.validate_config(c, REPO, release='Watch9.9.9')
+
+    def test_watch_102_keeps_collision_and_ci_guards(self):
+        c = config()
+        c['release'] = 'Watch1.0.2'
+        api = API()
+        api.run['conclusion'] = 'failure'
+        with self.assertRaisesRegex(ValueError, 'CI not successful'):
+            p.publish(c, REPO, 'main', api, git, release='Watch1.0.2')
+        self.assertEqual([], api.created)
+        api.run['conclusion'] = 'success'
+        api.refs['service-alarm-service-v0.4.0'] = {'object': {'type': 'commit', 'sha': OTHER}}
+        with self.assertRaisesRegex(ValueError, 'collision'):
+            p.publish(c, REPO, 'main', api, git, release='Watch1.0.2')
+        self.assertEqual([], api.created)
+
+    def test_watch_102_manifest_uses_two_verified_workflows(self):
+        import json
+        c = json.loads((Path(__file__).parents[1] / p.RELEASE_CONFIGS['Watch1.0.2']).read_text())
+        tags = p.validate_config(c, REPO, release='Watch1.0.2')
+        self.assertEqual(10, len(tags))
+        self.assertIn('app-audio_spectrum-v0.4.2', tags)
+        self.assertIn('app-ble_scanner-v0.1.0', tags)
+        self.assertEqual(c['source_sha'], '186a1a9a44c0286ec3f742de1b7cace8951f1399')
+        self.assertEqual(c['required_workflows'], ['.github/workflows/build.yml', '.github/workflows/ble-scanner.yml'])
+
     def test_create_and_repeat_are_idempotent(self):
         api = API()
         p.publish(config(), REPO, 'main', api, git)

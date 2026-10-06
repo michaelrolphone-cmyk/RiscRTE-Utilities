@@ -1,0 +1,36 @@
+name: Tag Watch1.0.2 components
+on:
+  workflow_run:
+    workflows: ["Independent utility build"]
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: watch-1.0.2-component-tags
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == github.event.repository.default_branch &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify source and CI, then publish missing immutable component tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WATCH_COMPONENT_RELEASE: Watch1.0.2
+        run: python scripts/publish_watch_101_components.py
