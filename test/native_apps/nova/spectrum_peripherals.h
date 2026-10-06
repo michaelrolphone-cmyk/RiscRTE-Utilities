@@ -12,6 +12,8 @@
 #include "AudioInputV1.h"
 #include "spectrum_signature_store.h"
 #include "spectrum_temporal_store.h"
+#include "spectrum_neural_store.h"
+#include "../../../tests/spectrum_neural_fixture.h"
 #include "RiscAppDataV1.h"
 #include <math.h>
 #include <assert.h>
@@ -75,15 +77,21 @@ static bool fake_mic_read(void*c,int16_t*pcm,size_t n,size_t*got){(void)c;assert
 static bool fake_mic_level(void*c,uint16_t*v){(void)c;*v=5000;return mic_opened;}
 static bool fake_mic_close(void*c){(void)c;assert(mic_opened);mic_opened=false;mic_closes++;return true;}
 static const twatch_audio_in_api_v1 mic_api={1,sizeof(mic_api),NULL,fake_mic_open,fake_mic_read,fake_mic_level,fake_mic_close};
-static uint8_t temporal_disk[2][ST_BANK_MAX];static uint32_t temporal_sizes[2];static uint64_t temporal_revision=1;static unsigned temporal_writes;static bool temporal_retained;
-static unsigned temporal_bank(const char*n){assert(!strcmp(n,"spectrum-events-a.sqt")||!strcmp(n,"spectrum-events-b.sqt"));return !strcmp(n,"spectrum-events-b.sqt");}
+static uint8_t temporal_disk[3][ST_BANK_MAX];static uint32_t temporal_sizes[3];static uint64_t temporal_revision=1;static unsigned temporal_writes;static bool temporal_retained;
+static unsigned temporal_bank(const char*n){if(!strcmp(n,"spectrum-neural.snn"))return 2;assert(!strcmp(n,"spectrum-events-a.sqt")||!strcmp(n,"spectrum-events-b.sqt"));return !strcmp(n,"spectrum-events-b.sqt");}
 static int32_t temporal_stat(void*c,const char*n,uint32_t*s,uint64_t*r){(void)c;assert(!temporal_retained);unsigned b=temporal_bank(n);*s=temporal_sizes[b];*r=*s?temporal_revision:0;return *s?0:RISC_APP_DATA_NOT_FOUND;}
 static int32_t temporal_read(void*c,const char*n,uint64_t expected,void*out,uint32_t cap,uint32_t*s,uint64_t*r){(void)c;assert(!temporal_retained);*s=0;*r=0;if(expected!=temporal_revision)return RISC_APP_DATA_STALE;unsigned b=temporal_bank(n);assert(cap>=temporal_sizes[b]);memcpy(out,temporal_disk[b],temporal_sizes[b]);*s=temporal_sizes[b];*r=temporal_revision;return 0;}
 static int32_t temporal_replace(void*c,const char*n,uint64_t expected,const void*in,uint32_t size){(void)c;assert(!mic_opened&&!temporal_retained);unsigned b=temporal_bank(n);assert(expected==(temporal_sizes[b]?temporal_revision:0)&&size<=ST_BANK_MAX);temporal_writes++;const char*failure=getenv("SPECTRUM_EVENT_STORAGE");if(failure&&!strcmp(failure,"full"))return RISC_APP_DATA_NO_SPACE;if(failure&&!strcmp(failure,"retained")){temporal_retained=true;return RISC_APP_DATA_RETAINED;}memcpy(temporal_disk[b],in,size);temporal_sizes[b]=size;temporal_revision++;return failure&&!strcmp(failure,"unknown")&&temporal_writes==1?RISC_APP_DATA_COMMIT_UNKNOWN:0;}
 static const risc_app_data_v1 temporal_api={1,sizeof(temporal_api),NULL,temporal_stat,temporal_read,temporal_replace};
 static st_library temporal_fixture_library;
 static void seed_temporal_fixture(void){
- const char*fixture=getenv("SPECTRUM_TEMPORAL_FIXTURE");if(!fixture)return;st_label*l=&temporal_fixture_library.labels[0];l->present=true;l->shift_limit=1;strcpy(l->name,"Door");unsigned count=!strcmp(fixture,"full")?6u:3u;l->next_id=count+1;
+ const char*fixture=getenv("SPECTRUM_TEMPORAL_FIXTURE");if(!fixture)return;
+ if(!strcmp(fixture,"neural-learning")||!strcmp(fixture,"neural-ready")){
+  for(unsigned slot=0;slot<2;slot++){st_label*l=&temporal_fixture_library.labels[slot];l->present=true;l->next_id=6;strcpy(l->name,slot?"Window":"Door");for(unsigned i=0;i<3;i++)l->examples[i]=sn_fixture_example(slot,i,ST_POSITIVE);for(unsigned i=3;i<5;i++)l->examples[i]=sn_fixture_example(2,i,ST_NEGATIVE);}
+  uint32_t crc[2];for(unsigned bank=0;bank<2;bank++){temporal_sizes[bank]=(uint32_t)st_bank_encode(&temporal_fixture_library,bank,temporal_disk[bank],ST_BANK_MAX);assert(temporal_sizes[bank]);crc[bank]=spectrum_signature_u32(temporal_disk[bank]+temporal_sizes[bank]-4);}
+  if(!strcmp(fixture,"neural-ready")){sn_trainer model;sn_reset(&model,&temporal_fixture_library,255);while(model.state>=SN_PREPARING&&model.state<=SN_CHECKING)sn_tick(&model,&temporal_fixture_library);assert(model.has_active);assert(sn_record_encode(&model,&temporal_fixture_library,crc,temporal_disk[2],ST_BANK_MAX));temporal_sizes[2]=SN_RECORD_SIZE;}return;
+ }
+ st_label*l=&temporal_fixture_library.labels[0];l->present=true;l->shift_limit=1;strcpy(l->name,"Door");unsigned count=!strcmp(fixture,"full")?6u:3u;l->next_id=count+1;
  for(unsigned ex=0;ex<count;ex++){st_example*e=&l->examples[ex];e->id=ex+1;e->kind=ex==1?ST_NEGATIVE:ST_POSITIVE;e->count=20;e->pre=4;for(unsigned i=0;i<20;i++){e->frames[i].level_db=-12000;if(i>=4&&i<16){e->frames[i].flags=ST_ACTIVE|ST_TONAL;e->frames[i].level_db=(int16_t)(-1800-(int)(i-4)*200);e->frames[i].peak_hz=ex==1?1400:1000;e->frames[i].flux=i==4?255:0;st_set_nibble(&e->frames[i],40,15);}}st_summarize(e);assert(st_example_valid(e));}
  temporal_sizes[0]=(uint32_t)st_bank_encode(&temporal_fixture_library,0,temporal_disk[0],sizeof(temporal_disk[0]));assert(temporal_sizes[0]);
 }

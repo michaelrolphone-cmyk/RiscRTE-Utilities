@@ -242,3 +242,11 @@ microphone frequency response, acoustic calibration, dropped DMA samples,
 latency, battery current or real-device touch feel. The original HTML could be
 read fully, but its browser rendering was unavailable in this execution session;
 no pixel-identical browser-reference comparison is claimed.
+
+## 0.4.5 trained matching and room transitions
+
+See [the neural/room increment](spectrum_neural.md) for the guarded on-watch
+classifier, explicit ambiguous-event presentation and unchanged sample formats.
+Room identity now uses its own slow raw-power tracker instead of the event
+learner's upward-protected floor. New quiet bands and old low-level bands also
+converge without integer averaging dead zones.

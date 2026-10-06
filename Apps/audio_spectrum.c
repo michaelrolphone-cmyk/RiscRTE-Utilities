@@ -6,6 +6,7 @@
 #include "spectrum_store.h"
 #include "spectrum_signature_store.h"
 #include "spectrum_temporal_files.h"
+#include "spectrum_neural_store.h"
 #include "spectrum_speech.h"
 #include "PortableWatchKeyboard.h"
 #include <stddef.h>
@@ -320,7 +321,7 @@ static unsigned ordered_labels(unsigned order[8]){
  for(unsigned i=1;i<n;i++){unsigned key=order[i],j=i;while(j&&labels[order[j-1]].frequency_hz>labels[key].frequency_hz){order[j]=order[j-1];j--;}order[j]=key;}return n;
 }
 typedef struct {const char *name;uint32_t color;unsigned confidence;int16_t amplitude_db;uint8_t kind;} monitor_item;
-enum {MONITOR_EVENT=1,MONITOR_LABEL=2,MONITOR_VOICE=3};
+enum {MONITOR_EVENT=1,MONITOR_LABEL=2,MONITOR_VOICE=3,MONITOR_CANDIDATE=4};
 static unsigned monitor_label_confidence(unsigned slot){
  int snr=label_snr[slot];if(snr<=0)return 0;unsigned confidence=(unsigned)snr/12u;return confidence>100u?100u:confidence;
 }
@@ -328,8 +329,9 @@ static int16_t monitor_scene_db(void){return spectrum_background_db(spectrum_sig
 static unsigned monitor_room_count(void){unsigned n=0;for(unsigned i=0;i<SPECTRUM_SIGNATURE_SLOTS;i++)if(signatures[i].kind==SPECTRUM_SIGNATURE_ROOM)n++;return n;}
 static unsigned monitor_items(monitor_item items[17]){
  unsigned n=0,temporal=0;
- if(event_match.complete)for(unsigned i=0;i<ST_LABELS;i++)if(event_library.labels[i].present&&event_match.positive[i]>=ST_MATCH_MIN&&event_match.negative[i]+60u<event_match.positive[i]){
-  items[n++]=(monitor_item){event_library.labels[i].name,0x3dff9au,event_match.positive[i]/10u,event_match.query.peak_db,MONITOR_EVENT};temporal++;
+ if(event_match.complete)for(unsigned i=0;i<ST_LABELS;i++)if(event_library.labels[i].present&&event_match.positive[i]>=ST_MATCH_MIN&&((event_match.reason==ST_RESULT_MATCH&&event_match.selected==(int)i)||event_match.negative[i]+60u<event_match.positive[i])&&(event_match.selected<0||event_match.selected==(int)i)){
+  bool confirmed=event_match.reason==ST_RESULT_MATCH&&event_match.selected==(int)i;
+  items[n++]=(monitor_item){event_library.labels[i].name,confirmed?0x3dff9au:0xffd24au,event_match.positive[i]/10u,event_match.query.peak_db,confirmed?MONITOR_EVENT:MONITOR_CANDIDATE};temporal++;
  }
  if(!temporal&&event_slot>=0&&event_slot<(int)SPECTRUM_SIGNATURE_SLOTS&&signatures[event_slot].kind==SPECTRUM_SIGNATURE_EVENT){
   items[n++]=(monitor_item){signatures[event_slot].name,0x3dff9au,event_confidence,spectrum_background_db(spectrum_signature_total(foreground_power)),MONITOR_EVENT};
@@ -350,7 +352,7 @@ static void draw_monitor(void){
   if(n>2){pill(21,204,44,24,"<",false);char count[24];snprintf(count,sizeof(count),"%u-%u / %u",list_scroll+1,list_scroll+2<n?list_scroll+2:n,n);center(1,66,207,108,count,NOVA_CAP);pill(176,204,44,24,">",false);}return;
  }
  monitor_item items[17];unsigned n=monitor_items(items),rooms=monitor_room_count();char header[48],room_detail[48];text(0,20,46,143,"MONITOR",NOVA_CYAN);
- if(!running)snprintf(header,sizeof(header),"%s / LAST CONTEXT",frozen?"FROZEN":"STOPPED");else if(!ambient.ready)snprintf(header,sizeof(header),"LEARNING ROOM / %u%%",ambient.frames*100u/SPECTRUM_BG_WARMUP);else snprintf(header,sizeof(header),"%u DETECTION%s",n,n==1?"":"S");
+ if(!running)snprintf(header,sizeof(header),"%s / LAST CONTEXT",frozen?"FROZEN":"STOPPED");else if(!ambient.ready)snprintf(header,sizeof(header),"LEARNING ROOM / %u%%",ambient.frames*100u/SPECTRUM_BG_WARMUP);else if(event_match.complete&&event_match.reason==ST_RESULT_AMBIGUOUS)snprintf(header,sizeof(header),"EVENT / AMBIGUOUS");else if(event_match.complete&&event_match.reason==ST_RESULT_NEGATIVE)snprintf(header,sizeof(header),"EVENT / NONMATCH");else snprintf(header,sizeof(header),"%u SOUND%s%s",n,n==1?"":"S",event_neural_used&&event_match.complete?" / NEURAL":"");
  text(1,20,64,145,header,NOVA_CAP);pill(166,48,54,28,"EDIT",false);fill(20,84,200,1,NOVA_DIM);
  text(1,20,89,38,"ROOM",NOVA_CAP);bool verifying=room_tracker.candidate>=0&&room_tracker.candidate!=room_tracker.selected;bool holding=room_tracker.selected>=0&&(room_tracker.misses||room_tracker.ambiguous);int room=verifying?room_tracker.candidate:room_tracker.selected;
  const char *room_name=!rooms?"NO ROOM SAMPLES":!ambient.ready?"LEARNING...":room>=0&&room<(int)SPECTRUM_SIGNATURE_SLOTS&&signatures[room].kind==SPECTRUM_SIGNATURE_ROOM?signatures[room].name:room_tracker.ambiguous?"AMBIGUOUS":"UNKNOWN";
@@ -364,7 +366,7 @@ static void draw_monitor(void){
  pill(10,211,28,27,"<",false);pill(45,211,65,27,running?"STOP":"START",running);pill(117,211,78,27,"LEARN",false);pill(202,211,28,27,">",false);
  if(!n){center(1,20,145,200,input_waiting?"WAITING FOR AUDIO":running?"NO SOUND IDENTIFIED":"START MIC TO MONITOR",NOVA_CAP);center(1,20,166,200,running?"LEARN A SOUND BELOW":"ROOM / EVENTS / VOICE",NOVA_CAP);list_scroll=0;return;}
  if(list_scroll>=n)list_scroll=n>3?n-3:0;
- for(unsigned row=0;row<3&&row+list_scroll<n;row++){monitor_item *item=&items[row+list_scroll];int y=132+(int)row*26;fill(20,y+1,2,22,item->color);text(1,28,y,40,item->kind==MONITOR_EVENT?"EVENT":item->kind==MONITOR_VOICE?"VOICE":"LABEL",NOVA_CAP);text(1,70,y,99,item->name,NOVA_WHITE);char confidence[12],amplitude[20];snprintf(confidence,sizeof(confidence),"%u%%",item->confidence);snprintf(amplitude,sizeof(amplitude),"AMP %d dB",item->amplitude_db/100);text(1,176,y,44,confidence,item->color);text(1,70,y+13,100,amplitude,NOVA_CAP);}
+ for(unsigned row=0;row<3&&row+list_scroll<n;row++){monitor_item *item=&items[row+list_scroll];int y=132+(int)row*26;fill(20,y+1,2,22,item->color);text(1,28,y,40,item->kind==MONITOR_EVENT?"EVENT":item->kind==MONITOR_CANDIDATE?"MAYBE":item->kind==MONITOR_VOICE?"VOICE":"LABEL",NOVA_CAP);text(1,70,y,99,item->name,NOVA_WHITE);char confidence[12],amplitude[20];snprintf(confidence,sizeof(confidence),"%u%%",item->confidence);snprintf(amplitude,sizeof(amplitude),"AMP %d dB",item->amplitude_db/100);text(1,176,y,44,confidence,item->color);text(1,70,y+13,100,amplitude,NOVA_CAP);}
 }
 static void draw_footer(void){
  if(view==2)return;
@@ -531,6 +533,7 @@ void app_main(void){
   if(temporal_retained())return;
   /* Coalesced touch/navigation events represent one action. Stop/freeze wins. */
   if(freeze_requested)freeze();else if(toggle_requested)toggle();if(running)capture();if(running)temporal_tick();
+  if(!input.buttons&&!input.tapped&&!contact_down&&!consumed)event_neural_tick();
  }
  if(temporal_retained())return;
  stop();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;if(acquired&&!runtime->release(&grant))retain();if(store_acquired&&!runtime->release(&store_grant))retain();acquired=store_acquired=false;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};microphone=NULL;storage=NULL;

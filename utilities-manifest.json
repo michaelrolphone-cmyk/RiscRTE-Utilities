@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.4.4",
+      "version": "0.4.5",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -172,6 +172,8 @@
         "Apps/spectrum_temporal_store.h",
         "Apps/spectrum_temporal_files.h",
         "Apps/spectrum_temporal_app.inc",
+        "Apps/spectrum_neural.h",
+        "Apps/spectrum_neural_store.h",
         "Apps/spectrum_speech.h",
         "Apps/spectrum_vad_impl.inc",
         "lib/VoiceActivity/AUTHORS",

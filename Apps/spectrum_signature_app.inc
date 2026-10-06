@@ -61,7 +61,12 @@ static void signature_observe(void){
  if(signature_display_frames<512){for(unsigned i=0;i<SPECTRUM_SIGNATURE_BANDS;i++)signature_display_sums[i]+=signature_audio.power[i];++signature_display_frames;}
  if(signature_goal){if(!spectrum_signature_add(&signature_capture,signature_audio.power)){signature_goal=0;notify("SAMPLE LIMIT");}else if(signature_capture.frames>=signature_goal)signature_commit_capture();}
  int previous_filter=signature_filter();
- if(ambient.ready)spectrum_room_observe(&room_tracker,ambient.slow,signatures,signature_means);
+ /* Room identity already has its own slow average, transient rejection and
+  * switching hysteresis. The event floor deliberately holds upward learning
+  * for up to 1,024 frames (or a recognized ongoing event); feeding that floor
+  * here can hide a genuine room transition indefinitely. Keep both learners
+  * independent consumers of the same unfiltered canonical observations. */
+ if(ambient.ready)spectrum_room_observe(&room_tracker,signature_audio.power,signatures,signature_means);
  if(previous_filter!=signature_filter())clear_analysis();
  for(unsigned slot=0;slot<8;slot++)for(unsigned band=0;band<128;band++)legacy_event_excess[slot][band]=spectrum_signature_residual(signature_means[slot][band],ambient.slow[band]);
  unsigned confidence=0;bool ambiguous=false;int found=ambient.ready&&ambient.foreground&&spectrum_background_db(spectrum_signature_total(foreground_power))>=prefs.threshold_db*100?spectrum_signature_best(foreground_power,signatures,legacy_event_excess,SPECTRUM_SIGNATURE_EVENT,&confidence,&ambiguous):-1;

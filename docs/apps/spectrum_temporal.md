@@ -286,3 +286,10 @@ SQT2v1 temporal banks and 32-byte preferences/labels. It reads 0.4.0/0.4.1 recor
 its writes remain readable by those versions on rollback. Room power averaging
 and subtraction are unchanged; recognition now normalizes intensity independently
 so adding a louder same-shape sample does not erase a quieter room match.
+
+## 0.4.5 neural and room-channel increment
+
+[Neural candidate and independent room tracking](spectrum_neural.md) documents
+idle-time positive/negative training, held-out and full-collection checks,
+validated-model caching, explicit Monitor ambiguity, and room transitions
+independent of the event-floor hold. Existing saved formats remain unchanged.

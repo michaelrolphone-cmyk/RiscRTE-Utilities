@@ -112,7 +112,14 @@ static inline void spectrum_room_observe(spectrum_room_tracker *t,const uint32_t
  bool louder=t->frames>8&&prior>=SPECTRUM_SIGNATURE_FLOOR&&total>prior*4;
  if(louder){if(t->transient_frames<9)++t->transient_frames;}else t->transient_frames=0;
  bool transient=louder&&t->transient_frames<=8;
- if(!transient)for(unsigned i=0;i<SPECTRUM_SIGNATURE_BANDS;i++)t->mean[i]=t->frames==1?power[i]:(uint32_t)(((uint64_t)t->mean[i]*31+power[i]+16)/32);
+ /* Move at least one unit toward an observed change. Rounded integer EMA
+  * otherwise leaves up to 16 units in every old band forever and never learns
+  * a new quiet band, so accumulating room history destroys quiet matches. */
+ if(!transient)for(unsigned i=0;i<SPECTRUM_SIGNATURE_BANDS;i++){
+  if(t->frames==1)t->mean[i]=power[i];
+  else if(power[i]<t->mean[i])t->mean[i]-=(t->mean[i]-power[i]+31u)/32u;
+  else if(power[i]>t->mean[i])t->mean[i]+=(power[i]-t->mean[i]+31u)/32u;
+ }
  bool ambiguous=false;unsigned confidence=0;int best=transient||total<SPECTRUM_SIGNATURE_FLOOR?-1:spectrum_signature_best(t->mean,profiles,means,SPECTRUM_SIGNATURE_ROOM,&confidence,&ambiguous);
  t->confidence=confidence;t->ambiguous=ambiguous;
  if(best<0){t->candidate=-1;t->stable=0;if(++t->misses>=64)t->selected=-1;return;}
