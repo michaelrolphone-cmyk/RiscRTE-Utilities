@@ -36,7 +36,7 @@
     {
       "id": "battery",
       "display_name": "Battery Status",
-      "version": "1.0.9",
+      "version": "1.0.10",
       "min_firmware_version": "1.1.18",
       "file_name": "battery.elf",
       "classification": "utility",
@@ -54,7 +54,7 @@
     {
       "id": "calculator",
       "display_name": "Calculator",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/calculator.c",
@@ -69,7 +69,7 @@
     {
       "id": "stopwatch",
       "display_name": "Stopwatch",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/stopwatch.c",
@@ -85,7 +85,7 @@
     {
       "id": "alarms",
       "display_name": "Alarms",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/alarms.c",
@@ -104,7 +104,7 @@
     {
       "id": "countdown",
       "display_name": "Countdown",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/countdown.c",
@@ -135,7 +135,7 @@
     {
       "id": "frequency_generator",
       "display_name": "Frequency Generator",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/frequency_generator.c",
@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.2.2",
+      "version": "0.4.2",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -162,9 +162,78 @@
         "Apps/spectrum_dsp.h",
         "Apps/spectrum_store.h",
         "Apps/daily_draw.h",
-        "Apps/spectrum_controls.inc"
+        "Apps/spectrum_controls.inc",
+        "Apps/spectrum_signatures.h",
+        "Apps/spectrum_signature_store.h",
+        "Apps/spectrum_signature_app.inc",
+        "Apps/RiscAppDataV1.h",
+        "Apps/spectrum_background.h",
+        "Apps/spectrum_temporal.h",
+        "Apps/spectrum_temporal_store.h",
+        "Apps/spectrum_temporal_files.h",
+        "Apps/spectrum_temporal_app.inc",
+        "Apps/spectrum_speech.h",
+        "Apps/spectrum_vad_impl.inc",
+        "lib/VoiceActivity/AUTHORS",
+        "lib/VoiceActivity/LICENSE",
+        "lib/VoiceActivity/PATCHES.md",
+        "lib/VoiceActivity/PATENTS",
+        "lib/VoiceActivity/SOURCES.json",
+        "lib/VoiceActivity/src/common.h",
+        "lib/VoiceActivity/src/signal_processing/division_operations.c",
+        "lib/VoiceActivity/src/signal_processing/energy.c",
+        "lib/VoiceActivity/src/signal_processing/get_scaling_square.c",
+        "lib/VoiceActivity/src/signal_processing/resample_48khz.c",
+        "lib/VoiceActivity/src/signal_processing/resample_by_2_internal.c",
+        "lib/VoiceActivity/src/signal_processing/resample_by_2_internal.h",
+        "lib/VoiceActivity/src/signal_processing/resample_fractional.c",
+        "lib/VoiceActivity/src/signal_processing/signal_processing_library.h",
+        "lib/VoiceActivity/src/signal_processing/spl_inl.c",
+        "lib/VoiceActivity/src/signal_processing/spl_inl.h",
+        "lib/VoiceActivity/src/vad/vad_core.c",
+        "lib/VoiceActivity/src/vad/vad_core.h",
+        "lib/VoiceActivity/src/vad/vad_filterbank.c",
+        "lib/VoiceActivity/src/vad/vad_filterbank.h",
+        "lib/VoiceActivity/src/vad/vad_gmm.c",
+        "lib/VoiceActivity/src/vad/vad_gmm.h",
+        "lib/VoiceActivity/src/vad/vad_sp.c",
+        "lib/VoiceActivity/src/vad/vad_sp.h"
       ],
-      "min_firmware_version": "0.1.16"
+      "min_firmware_version": "0.1.32"
+    }
+  ],
+  "lora_apps": [
+    {
+      "id": "lora_messages",
+      "display_name": "LoRa Messages",
+      "version": "0.1.1",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/lora_messages.c",
+      "manifest_path": "Apps/lora_messages.json",
+      "file_name": "lora_messages.elf",
+      "additional_sources": [
+        "Apps/PortableLoRaV2.h",
+        "Apps/lora_messages_model.h"
+      ],
+      "min_firmware_version": "0.1.27"
+    }
+  ],
+  "ble_apps": [
+    {
+      "id": "ble_scanner",
+      "display_name": "BLE Scanner",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/ble_scanner.c",
+      "manifest_path": "Apps/ble_scanner.json",
+      "file_name": "ble_scanner.elf",
+      "additional_sources": [
+        "Apps/ble_scan_core.h",
+        "lib/Bluetooth/include/PortableBluetoothHost.h"
+      ],
+      "min_firmware_version": "0.1.27"
     }
   ]
 }

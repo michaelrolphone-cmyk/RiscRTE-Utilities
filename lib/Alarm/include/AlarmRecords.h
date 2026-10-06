@@ -15,7 +15,7 @@
 #define ALARM_MODE_KEY "alert_mode"
 enum { ALARM_OCC_NONE, ALARM_OCC_PENDING, ALARM_OCC_ACKED, ALARM_OCC_EXPIRED };
 typedef struct { uint32_t revision, deadline, created, duration; uint8_t kind, enabled; } alarm_config;
-typedef struct { uint32_t revision, deadline, generation, recovery_until; uint8_t kind, state, mode; } alarm_occurrence;
+typedef struct { uint32_t revision, deadline, generation, recovery_until; uint8_t kind, state, mode, silenced; } alarm_occurrence;
 static inline uint32_t alarm_read32(const uint8_t *p) {
     return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);
 }
@@ -42,17 +42,18 @@ static inline bool alarm_config_decode(alarm_config *r,const uint8_t *b,uint32_t
 }
 static inline bool alarm_occurrence_valid(const alarm_occurrence *r) {
     return r&&r->kind>=1&&r->kind<=2&&r->state>=ALARM_OCC_PENDING&&r->state<=ALARM_OCC_EXPIRED&&
-        r->mode>=1&&r->mode<=3&&r->revision&&r->generation&&r->deadline&&r->deadline<=ALARM_RTC_MAX-ALARM_RECOVERY_SECONDS&&
+        r->mode>=1&&r->mode<=3&&r->silenced<=1&&r->revision&&r->generation&&r->deadline&&r->deadline<=ALARM_RTC_MAX-ALARM_RECOVERY_SECONDS&&
         r->recovery_until==r->deadline+ALARM_RECOVERY_SECONDS;
 }
 static inline void alarm_occurrence_encode(const alarm_occurrence *r,uint8_t b[ALARM_RECORD_SIZE]) {
-    memset(b,0,ALARM_RECORD_SIZE);memcpy(b,"SAO1",4);b[4]=r->kind;b[5]=r->state;b[6]=r->mode;
+    memset(b,0,ALARM_RECORD_SIZE);memcpy(b,r->silenced?"SAO2":"SAO1",4);b[4]=r->kind;b[5]=r->state;b[6]=r->mode;b[7]=r->silenced;
     alarm_write32(b+8,r->revision);alarm_write32(b+12,r->deadline);alarm_write32(b+16,r->generation);
     alarm_write32(b+20,r->recovery_until);alarm_write32(b+28,alarm_checksum(b));
 }
 static inline bool alarm_occurrence_decode(alarm_occurrence *r,const uint8_t *b,uint32_t n,uint8_t kind) {
-    if(!r||!b||n!=ALARM_RECORD_SIZE||memcmp(b,"SAO1",4)||b[4]!=kind||b[7]||alarm_read32(b+24)||alarm_read32(b+28)!=alarm_checksum(b))return false;
-    alarm_occurrence v={alarm_read32(b+8),alarm_read32(b+12),alarm_read32(b+16),alarm_read32(b+20),b[4],b[5],b[6]};
+    if(!r||!b||n!=ALARM_RECORD_SIZE||b[4]!=kind||alarm_read32(b+24)||alarm_read32(b+28)!=alarm_checksum(b))return false;
+    if(!memcmp(b,"SAO1",4)?b[7]!=0:memcmp(b,"SAO2",4)||b[7]!=1)return false;
+    alarm_occurrence v={alarm_read32(b+8),alarm_read32(b+12),alarm_read32(b+16),alarm_read32(b+20),b[4],b[5],b[6],b[7]};
     if(!alarm_occurrence_valid(&v))return false;
     *r=v;return true;
 }

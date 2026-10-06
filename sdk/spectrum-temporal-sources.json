@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "runtime_repository": "michaelrolphone-cmyk/RiscRTE",
+  "runtime_minimum": "0.1.32",
+  "runtime_commit": "da92aef5174b9279de1bad0ec05f7234ba587169",
+  "runtime_publication": "published",
+  "watch_installable": true,
+  "required_layout_abi": 2,
+  "capability": "storage.app-data",
+  "api": 1,
+  "namespace": 2,
+  "api_header_sha256": "49ced12bd617ce9e29626f97ee21d824edcf5f8272524a7da8780c60979df201",
+  "preserved_key_value_namespaces": {
+    "spectrum_api2": 7,
+    "shared_preferences_api1": 1
+  },
+  "note": "Compatible with the validated explicit Watch profile and opt-in ABI2 app-data layout using the pinned Runtime. Final source-bound Watch assembly is verified in the Watch repository; this metadata does not install, flash, format or authorize a release.",
+  "validated_watch_profile": {
+    "name": "watch-current-apps-v1",
+    "system_apps_commit": "fdc15395928a1fa8eee62a2823b3c8777dcf0fa0",
+    "spectrum_manifest_sha256": "6f5c7751e4e001359e23f96ad29aee3bbd67d4013c96e23a3857ba0b337845f2",
+    "spectrum_policy_sha256": "d5b9b0fb46e8263bb841edf7639577d42c19e5ad77b2bc65b234b606d4251646",
+    "requirements": 12,
+    "grants": 12
+  }
+}

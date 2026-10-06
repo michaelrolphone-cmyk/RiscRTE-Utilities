@@ -1,6 +1,6 @@
 {
   "min_firmware_version": "0.1.5",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "display_name": "Stopwatch",
   "file_name": "stopwatch.elf",
   "icon": "solid:f2f2",

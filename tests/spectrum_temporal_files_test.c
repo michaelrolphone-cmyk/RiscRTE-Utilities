@@ -1,0 +1,22 @@
+#include <assert.h>
+#include <stdio.h>
+#include "../Apps/spectrum_temporal_files.h"
+static st_files files;static st_library library,other;
+static uint8_t disk[2][ST_BANK_MAX];static uint32_t sizes[2];static uint64_t revision=1;static unsigned calls,writes;static int32_t fail_stat,fail_read,fail_replace;static bool commit_then_unknown,stale_replace;
+static unsigned bank(const char*n){assert(!strcmp(n,"spectrum-events-a.sqt")||!strcmp(n,"spectrum-events-b.sqt"));return !strcmp(n,"spectrum-events-b.sqt");}
+static int32_t stat_file(void*c,const char*n,uint32_t*s,uint64_t*r){(void)c;calls++;*s=0;*r=0;if(fail_stat)return fail_stat;unsigned b=bank(n);if(!sizes[b])return RISC_APP_DATA_NOT_FOUND;*s=sizes[b];*r=revision;return 0;}
+static int32_t read_file(void*c,const char*n,uint64_t expected,void*out,uint32_t cap,uint32_t*s,uint64_t*r){(void)c;calls++;*s=0;*r=0;if(fail_read)return fail_read;if(expected!=revision)return RISC_APP_DATA_STALE;unsigned b=bank(n);assert(cap>=sizes[b]);memcpy(out,disk[b],sizes[b]);*s=sizes[b];*r=revision;return 0;}
+static int32_t replace_file(void*c,const char*n,uint64_t expected,const void*in,uint32_t size){(void)c;calls++;writes++;unsigned b=bank(n);if(stale_replace){++revision;stale_replace=false;return RISC_APP_DATA_STALE;}if(expected!=(sizes[b]?revision:0))return RISC_APP_DATA_STALE;if(fail_replace)return fail_replace;memcpy(disk[b],in,size);sizes[b]=size;++revision;return commit_then_unknown?RISC_APP_DATA_COMMIT_UNKNOWN:0;}
+static risc_app_data_v1 api={1,sizeof(api),NULL,stat_file,read_file,replace_file};
+static void rename_to(const char *name){assert(st_files_begin(&files,&library,0)==0);st_label*l=&library.labels[0];l->present=true;l->shift_limit=1;l->next_id=1;strcpy(l->name,name);assert(st_files_freeze(&files,&library));}
+int main(void){
+ st_files_init(&files,&api);assert(st_files_load(&files,&library,0,false)==0&&files.ready==1&&!writes);assert(st_files_load(&files,&library,1,false)==0&&files.ready==3);rename_to("Door");assert(st_files_save(&files)==0&&files.pending==-1&&writes==1);
+ rename_to("Changed");fail_replace=RISC_APP_DATA_NO_SPACE;assert(st_files_save(&files)==RISC_APP_DATA_NO_SPACE&&files.pending==0);assert(st_files_load(&files,&other,0,false)==ST_FILES_BUSY);fail_replace=0;assert(st_files_save(&files)==0&&files.pending<0);assert(st_bank_decode(&other,0,disk[0],sizes[0])&&!strcmp(other.labels[0].name,"Changed"));
+ rename_to("Unknown");commit_then_unknown=true;assert(st_files_save(&files)==RISC_APP_DATA_COMMIT_UNKNOWN&&files.pending==0);unsigned before=writes;commit_then_unknown=false;assert(st_files_save(&files)==0&&writes==before&&files.pending<0);assert(st_files_load(&files,&library,0,false)==0&&!strcmp(library.labels[0].name,"Unknown"));
+ rename_to("After other app");revision++;assert(st_files_save(&files)==0);rename_to("Stale");stale_replace=true;assert(st_files_save(&files)==RISC_APP_DATA_STALE&&files.pending==0);assert(st_files_save(&files)==0);
+ rename_to("Keep draft");other=library;strcpy(other.labels[0].name,"External change");other.generation[0]++;sizes[0]=(uint32_t)st_bank_encode(&other,0,disk[0],sizeof(disk[0]));revision++;before=writes;assert(st_files_save(&files)==ST_FILES_CONFLICT&&writes==before&&!strcmp(library.labels[0].name,"Keep draft"));assert(st_files_load(&files,&library,0,true)==0&&!strcmp(library.labels[0].name,"External change")&&files.pending<0);
+ rename_to("Failed new");fail_replace=RISC_APP_DATA_IO;assert(st_files_save(&files)==RISC_APP_DATA_IO);fail_read=RISC_APP_DATA_IO;assert(st_files_load(&files,&library,0,true)==RISC_APP_DATA_IO&&files.pending==0&&!strcmp(library.labels[0].name,"Failed new"));fail_read=fail_replace=0;assert(st_files_load(&files,&library,0,true)==0&&files.pending<0);
+ disk[0][5]^=1;other=library;assert(st_files_load(&files,&library,0,false)==ST_FILES_CORRUPT&&!memcmp(&other,&library,sizeof(library)));assert(st_files_begin(&files,&library,0)==ST_FILES_CORRUPT);disk[0][5]^=1;assert(st_files_load(&files,&library,0,false)==0);
+ rename_to("Retain");fail_replace=RISC_APP_DATA_RETAINED;assert(st_files_save(&files)==RISC_APP_DATA_RETAINED&&files.retained);before=calls;assert(st_files_save(&files)==RISC_APP_DATA_RETAINED&&calls==before);assert(st_files_load(&files,&library,0,true)==RISC_APP_DATA_RETAINED&&calls==before);
+ puts("Temporal files: exact-snapshot CAS, absent/create, all-namespace revision invalidation, stale/full/IO, commit-unknown reconciliation without duplicate write, conflicts, explicit discard, corruption reservation and retained no-further-IO passed");
+}

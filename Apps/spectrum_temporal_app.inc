@@ -1,0 +1,179 @@
+/* Temporal examples are an independent app-data collection. Legacy KV room
+ * and single-frame profiles remain intact; missing/new files never replace them. */
+static st_library event_library;
+static st_files event_files;
+static st_segmenter event_segment,event_training;
+static st_matcher event_match;
+static risc_runtime_capability_v1 event_data_grant;
+static bool event_data_acquired,event_initialized,event_armed,event_wait_quiet,event_known_hold,event_previous_active;
+static uint64_t event_pair_power[128];
+static uint32_t event_previous_power[128];
+static unsigned event_pair_count,event_quiet,event_wait_count,event_capture_kind,event_list_scroll,event_example_scroll,event_edit_shift,event_missed;
+static bool event_pair_active;
+static int event_edit_slot,event_delete_slot,event_delete_example;
+static uint32_t event_armed_at,event_result_at;
+static const char *event_message;
+_Static_assert(sizeof(event_library)+sizeof(event_files)+sizeof(event_segment)+sizeof(event_training)+sizeof(event_match)<315000,"bounded temporal state and three file snapshots");
+static const char *event_error(int32_t code){switch(code){case RISC_APP_DATA_OK:return "SAVED";case RISC_APP_DATA_UNAVAILABLE:return "APP DATA UNAVAILABLE";case RISC_APP_DATA_NO_SPACE:return "STORAGE FULL / KEEP DRAFT";case RISC_APP_DATA_COMMIT_UNKNOWN:return "SAVE UNKNOWN / RETRY";case RISC_APP_DATA_STALE:return "STORAGE CHANGED / RETRY";case ST_FILES_CONFLICT:return "COLLECTION CHANGED / DISCARD?";case ST_FILES_CORRUPT:return "COLLECTION UNREAD / RETRY";case RISC_APP_DATA_RETAINED:return "STORAGE CLEANUP UNCONFIRMED";default:return "STORAGE ERROR / RETRY";}}
+static bool event_acquire(void){
+ if(event_files.api)return true;
+ if(event_data_acquired)return false;
+ event_data_grant=(risc_runtime_capability_v1){.struct_size=sizeof(event_data_grant)};
+ if(!runtime->acquire("storage.app-data",1,2,&event_data_grant))return false;
+ event_data_acquired=true;
+ const risc_app_data_v1 *api=event_data_grant.api;if(!api||api->api_version!=1||api->struct_size<sizeof(*api)||!api->stat||!api->read||!api->replace)return false;event_files.api=api;return true;
+}
+static void event_load(void){
+ if(event_files.retained)return;
+ if(!event_acquire()){event_message="APP DATA UNAVAILABLE";return;}
+ for(unsigned bank=0;bank<2;bank++)if(!(event_files.ready&(1u<<bank))&&event_files.pending!=(int)bank){int32_t result=st_files_load(&event_files,&event_library,bank,false);if(result)event_message=event_error(result);if(event_files.retained)return;}
+ if(event_files.ready==3&&event_files.pending<0)event_message=NULL;
+}
+static void event_restore(void){
+ spectrum_speech_reset(&speech);
+ memset(&event_library,0,sizeof(event_library));st_files_init(&event_files,NULL);st_segment_reset(&event_segment);st_segment_reset(&event_training);memset(&event_match,0,sizeof(event_match));event_match.selected=-1;
+ event_data_grant=(risc_runtime_capability_v1){0};event_data_acquired=false;event_initialized=true;event_armed=event_wait_quiet=event_known_hold=event_previous_active=false;event_pair_count=event_quiet=event_wait_count=event_missed=event_list_scroll=event_example_scroll=0;event_pair_active=false;event_edit_slot=event_delete_slot=event_delete_example=-1;event_capture_kind=ST_POSITIVE;event_edit_shift=1;event_armed_at=event_result_at=0;event_message=NULL;event_keyboard=false;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));event_load();
+}
+static bool temporal_retained(void){return event_initialized&&event_files.retained;}
+static bool temporal_exit_blocked(void){return event_initialized&&(event_files.pending>=0||event_armed||event_training.ready);}
+static void temporal_suspend(void){
+ if(!event_initialized)return;
+ if(event_armed){st_segment_stop(&event_training);event_armed=false;event_message=event_training.ready?"INTERRUPTED WINDOW / REVIEW":"STOPPED / NO SOUND SAVED";}
+ event_match.running=false;st_segment_rearm(&event_segment);event_pair_count=0;event_pair_active=false;memset(event_pair_power,0,sizeof(event_pair_power));
+}
+static void temporal_start(void){
+ spectrum_speech_reset(&speech);
+ spectrum_background_reset(&ambient);event_known_hold=false;event_previous_active=false;event_pair_count=0;event_pair_active=false;event_quiet=0;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));st_segment_reset(&event_segment);event_match.running=false;
+}
+static void event_retry(void){
+ pause_capture();if(temporal_retained())return;
+ if(event_files.pending>=0){int32_t result=st_files_save(&event_files);event_message=event_error(result);if(!temporal_retained())portable_audio_capture_resume();if(!temporal_retained())notify(result?event_message:running?"SAVED / LIVE":"SAVED / MIC OFF");}
+ else{event_load();if(!temporal_retained())portable_audio_capture_resume();if(!temporal_retained())notify(event_message?event_message:"EVENT COLLECTIONS LOADED");}
+ dirty=true;
+}
+static void event_discard(void){
+ if(event_files.pending<0)return;
+ pause_capture();unsigned bank=(unsigned)event_files.pending;int32_t result=st_files_load(&event_files,&event_library,bank,true);event_message=event_error(result);if(!temporal_retained())portable_audio_capture_resume();if(!temporal_retained())notify(result?event_message:"UNSAVED EDIT DISCARDED");event_delete_slot=event_delete_example=-1;dirty=true;
+}
+static bool event_begin_edit(unsigned slot){
+ if(slot>=8||event_files.pending>=0||event_armed||event_training.ready||signature_goal){notify("SAVE OR DISCARD CURRENT EDIT");return false;}
+ pause_capture();int32_t result=st_files_begin(&event_files,&event_library,slot/4);if(result){if(!temporal_retained())portable_audio_capture_resume();notify(event_error(result));return false;}event_match.running=false;event_match.selected=-1;return true;
+}
+static void event_finish_edit(void){
+ if(!st_files_freeze(&event_files,&event_library)){portable_audio_capture_resume();notify("INVALID EVENT EDIT");return;}int32_t result=st_files_save(&event_files);event_message=event_error(result);if(!temporal_retained())portable_audio_capture_resume();if(!temporal_retained()){notify(result?event_message:running?"SAVED / LIVE":"SAVED / MIC OFF");if(event_files.pending>=0)set_page(PAGE_EVENTS);}dirty=true;
+}
+static void event_open(int slot){
+ if(temporal_exit_blocked()){notify("SAVE OR DISCARD CURRENT EDIT");return;}
+ bool naming=slot<0;
+ if(slot<0){for(unsigned i=0;i<8;i++)if((event_files.ready&(1u<<(i/4)))&&!event_library.labels[i].present){slot=(int)i;break;}if(slot<0){notify(event_files.ready!=3?"RETRY EVENT STORAGE":"8 EVENT LABELS FULL");return;}}
+ event_edit_slot=slot;editing=(spectrum_label){0};const st_label*l=&event_library.labels[slot];if(l->present)memcpy(editing.name,l->name,17);event_edit_shift=l->present?l->shift_limit:1;event_delete_slot=event_delete_example=-1;event_example_scroll=0;event_keyboard=true;toast_message=NULL;set_page(PAGE_EVENT_LABEL);
+ if(naming)keyboard_begin();
+}
+static void event_save_name(void){
+ if(event_edit_slot<0)return;
+ unsigned start=0,end=(unsigned)strlen(editing.name);while(start<end&&editing.name[start]==' ')start++;while(end>start&&editing.name[end-1]==' ')end--;for(unsigned i=0;i<end-start;i++)editing.name[i]=editing.name[start+i];editing.name[end-start]=0;
+ if(!spectrum_signature_name_valid(editing.name)){notify("ENTER AN EVENT NAME");return;}
+ if(!event_begin_edit((unsigned)event_edit_slot))return;
+ st_label*l=&event_library.labels[event_edit_slot];l->present=true;l->shift_limit=(uint8_t)event_edit_shift;if(!l->next_id)l->next_id=1;memcpy(l->name,editing.name,17);event_finish_edit();
+}
+static void event_arm(unsigned kind){
+ if(event_edit_slot<0||kind<ST_POSITIVE||kind>ST_NEGATIVE)return;
+ if(event_files.pending>=0||event_training.ready||signature_goal){notify("SAVE OR DISCARD CURRENT EDIT");return;}
+ if(event_armed){set_page(PAGE_EVENT_CAPTURE);return;}
+ if(!event_library.labels[event_edit_slot].present||event_edit_shift!=event_library.labels[event_edit_slot].shift_limit||strcmp(editing.name,event_library.labels[event_edit_slot].name)){
+  event_save_name();if(temporal_retained())return;
+  if(event_files.pending>=0){toast_message=NULL;set_page(PAGE_EVENTS);return;}
+  if(!event_library.labels[event_edit_slot].present||event_edit_shift!=event_library.labels[event_edit_slot].shift_limit||strcmp(editing.name,event_library.labels[event_edit_slot].name))return;
+ }
+ st_label*l=&event_library.labels[event_edit_slot];if(st_example_count(l,0)>=6||l->next_id==UINT32_MAX){notify("6 EXAMPLES FULL / DELETE ONE");return;}
+ if(!running){toggle();}if(!running){notify("MIC FAILED / TAP RECORD AGAIN");return;}
+ st_segment_reset(&event_training);event_capture_kind=kind;event_armed=true;event_wait_quiet=true;event_wait_count=0;event_armed_at=app->millis();event_message="WAIT FOR QUIET / THEN ACT";event_delete_slot=event_delete_example=-1;toast_message=NULL;set_page(PAGE_EVENT_CAPTURE);
+}
+static void event_cancel_capture(void){event_armed=false;st_segment_reset(&event_training);event_message="CAPTURE CANCELLED";set_page(PAGE_EVENT_LABEL);}
+static void event_save_capture(void){
+ if(!event_training.ready||event_edit_slot<0)return;
+ st_label*l=&event_library.labels[event_edit_slot];unsigned index=0;for(;index<6&&l->examples[index].id;index++);if(index==6||l->next_id==UINT32_MAX){notify("6 EXAMPLES FULL / KEEP WINDOW");return;}
+ pause_capture();int32_t result=st_files_begin(&event_files,&event_library,(unsigned)event_edit_slot/4);if(result){if(!temporal_retained())portable_audio_capture_resume();notify(event_error(result));return;}
+ st_example example=event_training.event;example.kind=(uint8_t)event_capture_kind;example.id=l->next_id++;l->examples[index]=example;st_segment_reset(&event_training);event_armed=false;event_finish_edit();if(!temporal_retained())set_page(event_files.pending>=0?PAGE_EVENTS:PAGE_EVENT_LABEL);
+}
+static void event_delete_label(unsigned slot){
+ if(event_delete_slot!=(int)slot||event_delete_example!=-2){event_delete_slot=(int)slot;event_delete_example=-2;toast_message=NULL;dirty=true;return;}
+ if(!event_begin_edit(slot))return;
+ memset(&event_library.labels[slot],0,sizeof(st_label));event_finish_edit();event_delete_slot=event_delete_example=-1;
+}
+static void event_delete_saved(unsigned index){
+ if(event_edit_slot<0||index>=6||!event_library.labels[event_edit_slot].examples[index].id)return;
+ if(event_delete_slot!=event_edit_slot||event_delete_example!=(int)index){event_delete_slot=event_edit_slot;event_delete_example=(int)index;toast_message=NULL;dirty=true;return;}
+ if(!event_begin_edit((unsigned)event_edit_slot))return;
+ memset(&event_library.labels[event_edit_slot].examples[index],0,sizeof(st_example));event_finish_edit();event_delete_slot=event_delete_example=-1;
+}
+static void temporal_observe(void){
+ ambient.freeze_upward=event_armed||event_training.ready||event_match.running||event_known_hold;
+ spectrum_background_observe(&ambient,signature_audio.power);
+ uint64_t active_power=spectrum_background_salient(&ambient,foreground_power);
+ bool voice_before=speech.active;unsigned voice_confidence=speech.confidence;
+ spectrum_speech_observe(&speech,signature_audio.power,foreground_power,ambient.ready,prefs.threshold_db);
+ if(speech.active!=voice_before||speech.confidence!=voice_confidence)dirty=true;
+ detect_frequency_labels();
+ for(unsigned i=0;i<128;i++)event_pair_power[i]+=foreground_power[i];
+ event_pair_active|=ambient.foreground&&spectrum_background_db(active_power)>=prefs.threshold_db*100;if(++event_pair_count<2)return;
+ uint32_t power[128];for(unsigned i=0;i<128;i++){power[i]=(uint32_t)(event_pair_power[i]/2u);event_pair_power[i]=0;}event_pair_count=0;
+ st_frame frame=st_frame_make(power,event_previous_power,event_pair_active);memcpy(event_previous_power,power,sizeof(power));event_pair_active=false;
+ if(!ambient.ready){st_segment_reset(&event_segment);if(event_armed){event_armed_at=app->millis();dirty=true;}return;}
+ if(!(frame.flags&ST_ACTIVE)){if(event_quiet<4)event_quiet++;if(event_quiet>=4)event_known_hold=false;}else event_quiet=0;
+ if(event_segment.ready&&event_match.running&&(frame.flags&ST_ACTIVE)&&!event_previous_active)event_missed++;
+ event_previous_active=!!(frame.flags&ST_ACTIVE);
+ if(!event_segment.ready)st_segment_observe(&event_segment,&frame);
+ if(event_armed){
+  if(event_wait_quiet){event_training.pre[event_training.next]=frame;event_training.next=(event_training.next+1u)%ST_PRE;if(event_training.used<ST_PRE)event_training.used++;if(frame.flags&ST_ACTIVE)event_wait_count=0;else if(++event_wait_count>=ST_PRE){event_wait_quiet=false;event_armed_at=app->millis();event_message="MAKE THE SOUND NOW";}}
+  else{st_segment_observe(&event_training,&frame);if(event_training.ready){event_armed=false;event_message=event_training.event.flags&ST_CLIPPED?"WINDOW LIMIT / REVIEW":"EXAMPLE READY / REVIEW";dirty=true;}}
+  if(event_armed&&!event_training.collecting&&(uint32_t)(app->millis()-event_armed_at)>=8000u){event_armed=false;event_message="NO NEW SOUND / RECORD AGAIN";set_page(PAGE_EVENT_LABEL);notify(event_message);}
+ }
+ if(event_segment.ready&&!event_match.running){st_match_begin(&event_match,&event_segment.event);event_match.allowed_labels=(uint8_t)((event_files.ready&1?15u:0u)|(event_files.ready&2?240u:0u));st_segment_rearm(&event_segment);}
+ if(page==PAGE_EVENTS||page==PAGE_EVENT_CAPTURE)dirty=true;
+}
+static void temporal_tick(void){
+ if(event_match.running){st_match_tick(&event_match,&event_library,64);if(event_match.complete){event_result_at=app->millis();event_known_hold=event_match.reason==ST_RESULT_MATCH;dirty=true;}}
+ if(event_match.complete&&(uint32_t)(app->millis()-event_result_at)>4000u){event_match.complete=false;dirty=true;}
+}
+static bool temporal_exit_ready(void){
+ if(!temporal_exit_blocked())return true;
+ event_message=event_files.pending>=0?"RETRY SAVE OR DISCARD":"SAVE OR CANCEL THE WINDOW";notify(event_message);set_page(event_training.ready||event_armed?PAGE_EVENT_CAPTURE:PAGE_EVENTS);return false;
+}
+static void draw_events(void){
+ text(0,12,7,216,"LEARN SOUNDS",NOVA_CYAN);char caption[64];
+ if(event_files.pending>=0)snprintf(caption,sizeof(caption),"%s",event_error(event_files.errors[event_files.pending]));else if(event_files.ready!=3)snprintf(caption,sizeof(caption),"STORAGE UNAVAILABLE / RETRY");else if(!ambient.ready)snprintf(caption,sizeof(caption),"%s",running?"LEARNING AMBIENT / 2.1 sec":"START MIC TO DETECT");else if(event_match.running)snprintf(caption,sizeof(caption),"MATCHING / %u EXAMPLES",event_match.compared);else if(event_match.complete&&event_match.selected>=0)snprintf(caption,sizeof(caption),"%.16s %u%%",event_library.labels[event_match.selected].name,event_match.score/10);else if(event_match.complete)snprintf(caption,sizeof(caption),"%s",event_match.reason==ST_RESULT_NEGATIVE?"CONFUSING NONMATCH":event_match.reason==ST_RESULT_AMBIGUOUS?"AMBIGUOUS / NO LABEL":"UNKNOWN EVENT");else snprintf(caption,sizeof(caption),"BACKGROUND RELATIVE / READY");text(1,12,33,216,caption,NOVA_CAP);
+ for(unsigned row=0;row<2;row++){unsigned slot=event_list_scroll+row;st_label*l=&event_library.labels[slot];int y=64+(int)row*49;snprintf(caption,sizeof(caption),"%u %.16s",slot+1,l->present?l->name:"EMPTY");text(1,14,y,151,caption,NOVA_WHITE);snprintf(caption,sizeof(caption),"%u SOUND / %u OTHER",st_example_count(l,1),st_example_count(l,2));text(1,14,y+20,156,caption,NOVA_CAP);if(l->present)pill(183,y,45,32,event_delete_slot==(int)slot&&event_delete_example==-2?"SURE":"X",false);}
+ if(event_missed){snprintf(caption,sizeof(caption),"BUSY / %u ONSETS MISSED",event_missed);text(1,12,163,216,caption,0xffd24au);}else text(1,12,163,216,"6 EXAMPLES / SOUND / UP TO 4.1 sec",NOVA_CAP);
+ if(event_files.pending>=0){pill(12,188,103,30,"RETRY SAVE",false);pill(125,188,103,30,event_delete_example==-3?"CONFIRM":"DISCARD",false);}else{pill(12,188,34,30,"<",false);pill(57,188,125,30,"NEW EVENT",true);pill(194,188,34,30,">",false);}
+ text(1,12,225,65,"BACK",NOVA_CYAN);text(1,88,225,91,running?"STOP MIC":"START MIC",NOVA_CYAN);text(1,181,225,55,"RETRY",NOVA_CYAN);
+}
+static void draw_event_label(void){
+ text(0,12,7,216,"TEACH A SOUND",NOVA_CYAN);round_rect(12,38,155,32,9,NOVA_DIM);text(1,21,46,139,editing.name[0]?editing.name:"TAP TO NAME",NOVA_WHITE);pill(174,38,54,32,"SAVE",false);
+ const st_label*l=&event_library.labels[event_edit_slot];char caption[64];if(running&&!ambient.ready)snprintf(caption,sizeof(caption),"WARMING %u / 64",ambient.frames);else snprintf(caption,sizeof(caption),"%u SOUND / %u OTHER / 6",st_example_count(l,1),st_example_count(l,2));text(1,12,80,154,caption,NOVA_CAP);pill(174,76,54,24,running?"STOP":"MIC",false);
+ pill(12,104,104,34,"RECORD SOUND",true);pill(124,104,104,34,"NOT THIS SOUND",false);text(1,12,151,60,"SHIFT",NOVA_CAP);pill(76,145,29,32,"-",false);snprintf(caption,sizeof(caption),event_edit_shift?"+/- %u.%u st":"OFF",event_edit_shift*15/10,event_edit_shift*15%10);center(1,108,152,84,caption,NOVA_WHITE);pill(199,145,29,32,"+",false);
+ if(event_match.selected==event_edit_slot){int shift=event_match.shift[event_edit_slot]*15;snprintf(caption,sizeof(caption),"LAST %+d.%d st  %u / %u Hz",shift/10,abs_int(shift%10),event_match.observed_hz,event_match.reference_hz[event_edit_slot]);text(1,12,180,216,caption,NOVA_CAP);}
+ pill(12,205,104,29,"EXAMPLES",false);pill(124,205,104,29,"BACK",false);
+}
+static void draw_event_capture(void){
+ text(0,12,7,216,event_capture_kind==ST_NEGATIVE?"SOUND TO EXCLUDE":"RECORD YOUR SOUND",NOVA_CYAN);center(1,12,35,216,event_library.labels[event_edit_slot].name,NOVA_WHITE);char caption[64];
+ if(!event_armed&&!event_training.ready){center(1,12,85,216,"CAPTURE STOPPED",NOVA_CAP);center(1,12,117,216,"NO EXAMPLE SAVED",NOVA_CAP);pill(68,183,104,36,"BACK",false);return;}
+ if(event_training.ready){const st_example*e=&event_training.event;center(1,12,63,216,e->flags&ST_CONFIRMED_END?"WHOLE EVENT / END CONFIRMED":e->flags&ST_CLIPPED?"END NOT VERIFIED / REVIEW":"READY TO SAVE",e->flags&ST_CLIPPED?0xffd24au:NOVA_CYAN);snprintf(caption,sizeof(caption),"%u ms / %u IMPACTS",e->duration_ms,e->impacts);center(1,12,90,216,caption,NOVA_TEXT);snprintf(caption,sizeof(caption),"ATTACK %u / DECAY %u ms",e->attack_ms,e->decay_ms);center(1,12,112,216,caption,NOVA_CAP);snprintf(caption,sizeof(caption),"PEAK %u Hz / %u COLUMNS",e->peak_hz,e->count);center(1,12,134,216,caption,NOVA_CAP);if(e->flags&ST_CLIPPED)pill(12,151,216,25,e->flags&ST_CONFIRMED_END?"UNDO WHOLE EVENT":"USE AS WHOLE EVENT",!!(e->flags&ST_CONFIRMED_END));int buttons=e->flags&ST_CLIPPED?188:175;pill(12,buttons,104,36,st_partial(e)?"SAVE WINDOW":"SAVE",true);pill(124,buttons,104,36,"CANCEL",false);}
+ else{center(1,12,71,216,!ambient.ready?"KEEP QUIET / PREPARING":event_wait_quiet?"A MOMENT OF QUIET":event_training.collecting?"RECORDING YOUR SOUND":"MAKE THE SOUND NOW",NOVA_CYAN);if(!ambient.ready)snprintf(caption,sizeof(caption),"BACKGROUND %u%%",ambient.frames*100u/SPECTRUM_BG_WARMUP);else snprintf(caption,sizeof(caption),"%u.%02u / 4.10 sec",event_training.event.count*64u/1000u,event_training.event.count*64u%1000u/10u);center(1,12,104,216,caption,NOVA_WHITE);center(1,12,129,216,event_capture_kind==ST_NEGATIVE?"MAKE A SOUND TO EXCLUDE":"PAUSE AFTER THE SOUND",NOVA_CAP);center(1,12,151,216,"THEN REVIEW AND SAVE",NOVA_CAP);pill(12,185,104,36,"STOP",false);pill(124,185,104,36,"CANCEL",false);}
+}
+static void draw_event_examples(void){
+ text(0,12,7,216,"SAVED EXAMPLES",NOVA_CYAN);text(1,12,32,216,event_library.labels[event_edit_slot].name,NOVA_WHITE);
+ for(unsigned row=0;row<2;row++){unsigned ex=event_example_scroll+row;const st_example*e=&event_library.labels[event_edit_slot].examples[ex];int y=62+(int)row*58;char caption[64];snprintf(caption,sizeof(caption),e->id?"%u %s / %u ms":"%u EMPTY",ex+1,e->kind==1?"POSITIVE":"NONMATCH",e->duration_ms);text(1,12,y,166,caption,NOVA_WHITE);if(e->id){snprintf(caption,sizeof(caption),"%s%u Hz / %u HITS",e->flags&ST_CONFIRMED_END?"END SET / ":e->flags&ST_CLIPPED?"CLIP / ":"",e->peak_hz,e->impacts);text(1,12,y+22,172,caption,NOVA_CAP);pill(184,y,44,34,event_delete_example==(int)ex?"SURE":"X",false);}}
+ pill(12,189,40,33,"<",false);pill(68,189,104,33,"BACK",false);pill(188,189,40,33,">",false);
+}
+static void event_tap(int x,int y,bool *toggle_requested){
+ if(page==PAGE_EVENTS){
+  if(y>=223){if(x<76){toast_message=NULL;set_page(PAGE_CONTROLS);}else if(x<179)*toggle_requested=true;else event_retry();return;}
+  if(event_files.pending>=0&&y>=185&&y<220){if(x<120)event_retry();else if(event_delete_example==-3)event_discard();else{event_delete_example=-3;toast_message=NULL;dirty=true;}return;}
+  if(y>=64&&y<164){unsigned slot=event_list_scroll+(unsigned)(y-64)/49;if(slot<8&&event_library.labels[slot].present){if(x>=180)event_delete_label(slot);else event_open((int)slot);}return;}
+  if(y>=185&&y<221){if(x<53&&event_list_scroll)event_list_scroll--;else if(x>=188&&event_list_scroll<6)event_list_scroll++;else if(x>=57&&x<183)event_open(-1);dirty=true;}return;
+ }
+ if(page==PAGE_EVENT_LABEL){if(hit(x,y,12,38,155,32)){event_keyboard=true;keyboard_begin();}else if(hit(x,y,174,38,54,32))event_save_name();else if(hit(x,y,174,76,54,24))*toggle_requested=true;else if(hit(x,y,12,104,104,34))event_arm(1);else if(hit(x,y,124,104,104,34))event_arm(2);else if(hit(x,y,76,145,29,32)){if(event_edit_shift)event_edit_shift--;dirty=true;}else if(hit(x,y,199,145,29,32)){if(event_edit_shift<2)event_edit_shift++;dirty=true;}else if(hit(x,y,12,205,104,29)){event_example_scroll=0;set_page(PAGE_EVENT_EXAMPLES);}else if(hit(x,y,124,205,104,29)){toast_message=NULL;set_page(PAGE_EVENTS);}return;}
+ if(page==PAGE_EVENT_CAPTURE){if(!event_armed&&!event_training.ready){if(hit(x,y,68,183,104,36))set_page(PAGE_EVENT_LABEL);return;}if(event_training.ready){bool clipped=!!(event_training.event.flags&ST_CLIPPED);int buttons=clipped?188:175;if(clipped&&hit(x,y,12,151,216,25)){event_training.event.flags^=ST_CONFIRMED_END;dirty=true;}else if(hit(x,y,12,buttons,104,36))event_save_capture();else if(hit(x,y,124,buttons,104,36))event_cancel_capture();}else if(hit(x,y,12,185,104,36)){st_segment_stop(&event_training);event_armed=false;if(!event_training.ready){event_message="NO ONSET / NOTHING SAVED";set_page(PAGE_EVENT_LABEL);notify(event_message);}dirty=true;}else if(hit(x,y,124,185,104,36))event_cancel_capture();return;}
+ if(page==PAGE_EVENT_EXAMPLES){if(y>=62&&y<178&&x>=180){unsigned ex=event_example_scroll+(unsigned)(y-62)/58;event_delete_saved(ex);}else if(y>=187&&y<224){if(x<55&&event_example_scroll)event_example_scroll--;else if(x>=185&&event_example_scroll<4)event_example_scroll++;else if(x>=68&&x<173)set_page(PAGE_EVENT_LABEL);dirty=true;}}
+}

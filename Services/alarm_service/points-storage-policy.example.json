@@ -30,5 +30,9 @@
   "alarm_volume": {
     "namespace": 1,
     "access": "read"
+  },
+  "alert_dnd": {
+    "namespace": 1,
+    "access": "read"
   }
 }

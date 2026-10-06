@@ -1,0 +1,12 @@
+/* Fixed-point WebRTC VAD from pinned libfvad; see lib/VoiceActivity. */
+#include "../lib/VoiceActivity/src/signal_processing/division_operations.c"
+#include "../lib/VoiceActivity/src/signal_processing/energy.c"
+#include "../lib/VoiceActivity/src/signal_processing/get_scaling_square.c"
+#include "../lib/VoiceActivity/src/signal_processing/resample_48khz.c"
+#include "../lib/VoiceActivity/src/signal_processing/resample_by_2_internal.c"
+#include "../lib/VoiceActivity/src/signal_processing/resample_fractional.c"
+#include "../lib/VoiceActivity/src/signal_processing/spl_inl.c"
+#include "../lib/VoiceActivity/src/vad/vad_core.c"
+#include "../lib/VoiceActivity/src/vad/vad_filterbank.c"
+#include "../lib/VoiceActivity/src/vad/vad_gmm.c"
+#include "../lib/VoiceActivity/src/vad/vad_sp.c"

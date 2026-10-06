@@ -9,7 +9,7 @@ int main(void){
   for(unsigned n=0;n<64;n++)if(n!=32)assert(!alarm_config_decode(&out,b,n,kind));
  }
  for(unsigned state=1;state<=3;state++)for(unsigned mode=1;mode<=3;mode++){
-  alarm_occurrence o={1,ALARM_RTC_MAX-60,UINT32_MAX,ALARM_RTC_MAX,1,(uint8_t)state,(uint8_t)mode},out;
+  alarm_occurrence o={1,ALARM_RTC_MAX-60,UINT32_MAX,ALARM_RTC_MAX,1,(uint8_t)state,(uint8_t)mode,0},out;
   assert(alarm_occurrence_valid(&o));uint8_t b[32];alarm_occurrence_encode(&o,b);assert(alarm_occurrence_decode(&out,b,32,1));
   for(unsigned byte=0;byte<32;byte++)for(unsigned bit=0;bit<8;bit++){b[byte]^=(uint8_t)(1u<<bit);assert(!alarm_occurrence_decode(&out,b,32,1));b[byte]^=(uint8_t)(1u<<bit);}
  }

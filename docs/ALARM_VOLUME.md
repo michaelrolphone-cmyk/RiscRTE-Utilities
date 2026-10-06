@@ -1,10 +1,11 @@
 # Persisted alarm sound volume
 
-The opt-in Points-enabled alarm service is version 0.4.0. It retains the
+The opt-in Points-enabled alarm service is version 0.4.1. It retains the
 current non-modal Points start/warning/end cues and their three-edge ledger.
-No Points codec, custom type, notification flag, duration, label or UI changes.
+DND adds a persistent per-occurrence muted marker; custom types, notification
+flags, pulse duration, labels and the Points UI remain unchanged.
 
-Alarms and Countdown read `alarm_volume` through one additional exact read-only
+Alarms, Countdown and Points read `alarm_volume` through one additional exact read-only
 namespace-1 binding. The stored value is one byte from 0 through 100. A missing
 value means 50%; it is never implicitly written. Invalid bytes or a read error
 block output with the existing storage error rather than replacing the value.
@@ -20,13 +21,13 @@ skips the speaker entirely, while vibration remains independently controlled by
 alert mode. The percentage describes linear digital amplitude, not measured
 acoustic loudness. Physical loudness and amplifier behavior remain unqualified.
 
-Points cues retain their existing short beep amplitude, one wrist tap and
-non-modal completion. Since speaker gain survives close/open, every Points beep
-explicitly restores unity gain before writing its original quiet PCM. Neither
-Points nor Frequency Generator inherits a previous alarm volume. The output/control ABI remains unchanged.
+Points cues use the selected notification volume with their existing single
+pulse, one wrist tap and non-modal completion. They restore unity device gain
+and scale source PCM by the selected percentage. Frequency Generator retains
+its separate local level. The output/control ABI remains unchanged.
 Legacy builds without `ALARM_VOLUME_CONTROL` retain their former dependencies;
 `build_points_service.py` explicitly enables the new profile. Deployments must
-include all eight keys in `points-storage-policy.example.json`; a UI-only update
+include all nine keys in `points-storage-policy.example.json`; a UI-only update
 cannot supply the new backend gain behavior.
 
 `test_alarm_volume.py` runs the real provider with default, persisted, zero,
@@ -57,3 +58,8 @@ Observed alarm peaks are3276 and29490 respectively, with unity device gain.
 No overlapping stream or leaked grant remains. New-phase acknowledgment, expiry,
 stop-only, close failure and a read failure specifically at LOAD_VOLUME are
 also covered. These are software/model observations, not acoustic measurements.
+
+Service0.4.1 applies the same selected percentage and32767 PCM basis to Points
+in Time, preserving its350ms cue reservation and single256-frame pulse. Zero
+mutes sound; DND independently suppresses both sound and vibration for all
+three sources. Frequency Generator retains its own level.
