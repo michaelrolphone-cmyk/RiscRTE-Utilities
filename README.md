@@ -126,7 +126,7 @@ utility and its published-byte parity remain unchanged.
 
 ## Temporal audio development increment
 
-[Audio Spectrum 0.4.2](docs/apps/spectrum_temporal.md) adds explicit positive and
+[Audio Spectrum 0.4.3](docs/apps/spectrum_temporal.md) adds explicit positive and
 negative short-event examples, background-relative labels, temporal matching and
 bounded frequency-shift tolerance. Its app-data backend is pinned to published Runtime 0.1.32; the Watch repository
 owns the final ABI2 image assembly and physical qualification. No new layout is

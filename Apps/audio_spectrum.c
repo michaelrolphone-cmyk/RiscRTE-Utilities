@@ -53,7 +53,7 @@ static uint16_t spec_levels[PLOT_W],fall_levels[PLOT_H],peak_levels[PLOT_W];
 static int16_t spec_db[PLOT_W],fall_db[PLOT_H];
 static uint8_t history[PLOT_W][PLOT_H];
 static uint16_t history_next,history_count,pending_save,load_errors;
-static uint32_t rendered,recorded_transform,sample_rate;
+static uint32_t rendered,recorded_transform,sample_rate,painted;
 static int controls_scroll,controls_touch_y,controls_touch_scroll;
 static bool contact_controls;
 static unsigned view,page,list_scroll,key_page,key_choice;
@@ -405,7 +405,7 @@ static void draw(void){
 #endif
  if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();else if(page==PAGE_KEYBOARD)draw_keyboard();else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error||input_waiting){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
  if(toast_message&&page!=PAGE_KEYBOARD){int y=toast_top();round_rect(14,y,212,28,14,NOVA_DIM);round_rect(15,y+1,210,26,13,0);text(1,23,y+5,undo_slot>=0?145:194,toast_message,NOVA_TEXT);if(undo_slot>=0)text(1,174,y+5,45,"UNDO",NOVA_CYAN);}
- app->present(false);dirty=false;
+ app->present(false);painted=app->millis();dirty=false;
 }
 
 static char keyboard_before[17];
@@ -500,15 +500,17 @@ void app_main(void){
  if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
  microphone=NULL;storage=NULL;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};memset(&spectrum,0,sizeof(spectrum));
  capture_requested=input_gap=input_waiting=capture_error=acquired=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=true;
- pending_save=load_errors=0;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / MIC OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;
+ pending_save=load_errors=0;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / MIC OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;
  controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
  restore();signature_restore();event_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
  for(;;){
   if(temporal_retained())return;
-  /* Never let repeated slow paints split every canonical room frame. Input
-   * is still polled each turn; an empty-input interruption releases the paint
-   * gate, and Stop/Freeze/Exit remain immediately available. */
-  if(dirty&&(!running||!signature_audio.used||input_gap))draw();
+  /* Paint between complete analysis windows, not between their RX chunks.
+   * Otherwise each slow paint can discard the same unfinished FFT forever.
+   * Plots wait for their selected FFT; other pages need only the 512-sample
+   * room frame. Keep polling controls and bound paint deferral for sparse RX. */
+  bool paint_boundary=!signature_audio.used&&(page!=PAGE_MAIN||view==2||lab_edit||!spectrum.used);
+  if(dirty&&(!running||input_gap||paint_boundary||(uint32_t)(app->millis()-painted)>=600u))draw();
   t5_app_input_t input={0};
   if(!app->poll(&input,running?1:30)){
 #ifdef PORTABLE_ALARM_CLIENT

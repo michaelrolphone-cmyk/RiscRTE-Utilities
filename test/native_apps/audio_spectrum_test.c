@@ -9,7 +9,10 @@
 
 typedef enum {EVENT_INPUT,EVENT_END,EVENT_SUSPEND,EVENT_RETAIN,EVENT_CALL} event_kind;
 typedef struct {event_kind kind;t5_app_input_t input;int running_before;void (*check)(void);t5_app_contact_t contact;} event;
-static event events[1600];
+#ifndef SPECTRUM_TEST_EVENTS
+#define SPECTRUM_TEST_EVENTS 1600
+#endif
+static event events[SPECTRUM_TEST_EVENTS];
 static unsigned launches;static bool fail_launch;
 static unsigned count,index_event,opens,reads,closes,acquires,releases,polls,frames,yields,store_acquires,store_releases,puts_count;
 static int width,height;static uint32_t now;static bool deny_acquire,fail_open,fail_read,fail_close,fail_release,retained,present_failure,ui_failed,live,grant_live,escaped,store_live,deny_store,fail_put,back_exits;
@@ -31,7 +34,7 @@ static bool diagnostic(const char *s){assert(strstr(s,"retained"));return true;}
 static bool poll(t5_app_input_t *out,uint32_t wait){assert(wait==(running?1u:30u));polls++;now+=wait;if(ui_failed)return false;assert(index_event<count);event e=events[index_event++];if(e.running_before>=0)assert(running==(e.running_before!=0));if(e.check)e.check();if(e.kind==EVENT_END)return false;if(e.kind==EVENT_SUSPEND||e.kind==EVENT_RETAIN){assert(portable_audio_suspend());assert(!running&&!owned);if(e.kind==EVENT_RETAIN){retained=true;return false;}}current_contact=e.contact;*out=e.input;return true;}
 const t5_app_api_v1 *t5_app_get_api(uint32_t v){assert(v==1);return &api;}const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){assert(v==1);return &rt;}
 static void reset(void){launches=0;fail_launch=false;count=index_event=opens=reads=closes=acquires=releases=polls=frames=yields=store_acquires=store_releases=puts_count=0;width=height=240;now=0;deny_acquire=fail_open=fail_read=fail_close=fail_release=retained=present_failure=ui_failed=live=grant_live=escaped=store_live=deny_store=fail_put=false;read_count=256;malformed=0;memset(cells,0,sizeof(cells));current_contact=(t5_app_contact_t){0};api=(t5_app_api_v1){.abi_version=1,.struct_size=sizeof(api),.screen_width=screen_width,.screen_height=screen_height,.clear=clear,.fill_rect=rect,.present=present,.poll=poll,.millis=millis,.set_back_exits_app=set_back,.touch_contact=contact};rt=(risc_runtime_api_v1){.api_version=1,.struct_size=sizeof(rt),.acquire=acquire,.release=release,.yield_ms=yield_ms,.diagnostic=diagnostic,.request_launch=launch};mic=(twatch_audio_in_api_v1){.api_version=1,.struct_size=sizeof(mic),.context=&mic,.open=open_mic,.read=read_mic,.close=close_mic};kv=(risc_key_value_v1){2,sizeof(kv),&kv,get_value,put_value};}
-static void add(event_kind kind,uint32_t buttons,int before){assert(count<1600);events[count++]=(event){.kind=kind,.input={.buttons=buttons},.running_before=before};}
+static void add(event_kind kind,uint32_t buttons,int before){assert(count<SPECTRUM_TEST_EVENTS);events[count++]=(event){.kind=kind,.input={.buttons=buttons},.running_before=before};}
 static void tap(int x,int y,int before){add(EVENT_INPUT,0,before);events[count-1].input=(t5_app_input_t){.tapped=true,.touch_x=(int16_t)x,.touch_y=(int16_t)y};}
 static void touch(int x,int y,bool down){add(EVENT_INPUT,0,-1);events[count-1].contact=(t5_app_contact_t){down,(int16_t)x,(int16_t)y};}
 static void check(void (*fn)(void)){add(EVENT_CALL,0,-1);events[count-1].check=fn;}

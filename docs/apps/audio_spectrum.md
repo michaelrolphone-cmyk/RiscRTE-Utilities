@@ -1,4 +1,4 @@
-# Audio Spectrum 0.4.2 (development source)
+# Audio Spectrum 0.4.3 (development source)
 
 The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
 and saved frequency labels on the Watch's 240 × 240 display. The supplied design
@@ -35,6 +35,14 @@ even when the display itself is in RAW or MANUAL mode. A candidate is shown as
 VERIFY until room hysteresis accepts it; held ambiguity and no-match states stay
 explicit. The room row includes signature-match confidence and current canonical
 amplitude.
+
+Room warm-up counts 64 complete observed 512-sample frames. Slow display work
+can discard contiguous audio history, but no longer clears this accumulated room
+estimate or the room matcher's observed-frame stability. Genuine empty-input
+interruptions and microphone restart still clear the live scene. SPEC/FALL
+redraw between completed plot FFTs; other pages redraw between canonical room
+frames. Input remains polled each turn, and paint deferral is bounded to 600 ms
+for sparse input. These are scheduling rules, not a lossless-capture guarantee.
 
 Below the room, credible temporal event candidates, active frequency labels and
 uncertain speech activity share one
