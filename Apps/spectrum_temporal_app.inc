@@ -41,10 +41,11 @@ static void temporal_suspend(void){
  if(event_armed){st_segment_stop(&event_training);event_armed=false;event_message=event_training.ready?"INTERRUPTED WINDOW / REVIEW":"STOPPED / NO SOUND SAVED";}
  event_match.running=false;st_segment_rearm(&event_segment);event_pair_count=0;event_pair_active=false;memset(event_pair_power,0,sizeof(event_pair_power));
 }
-static void temporal_start(void){
+static void temporal_reset_context(void){
  spectrum_speech_reset(&speech);
- spectrum_background_reset(&ambient);event_known_hold=false;event_previous_active=false;event_pair_count=0;event_pair_active=false;event_quiet=0;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));st_segment_reset(&event_segment);event_match.running=false;
+ event_known_hold=false;event_previous_active=false;event_pair_count=0;event_pair_active=false;event_quiet=0;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));st_segment_reset(&event_segment);event_match.running=false;
 }
+static void temporal_start(void){spectrum_background_reset(&ambient);temporal_reset_context();}
 static void event_retry(void){
  pause_capture();if(temporal_retained())return;
  if(event_files.pending>=0){int32_t result=st_files_save(&event_files);event_message=event_error(result);if(!temporal_retained())portable_audio_capture_resume();if(!temporal_retained())notify(result?event_message:running?"SAVED / LIVE":"SAVED / MIC OFF");}

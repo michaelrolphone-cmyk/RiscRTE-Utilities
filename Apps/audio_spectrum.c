@@ -222,11 +222,16 @@ static void refresh_analysis(void){
 
  signature_display_reset();recorded_transform=spectrum.transforms;rendered=now;dirty=true;
 }
-static void capture_discontinuity(void){
- /* Preserve the user's live stream but never splice a missing interval into
-  * a supposedly complete event. A room collection remains explicitly resumable. */
- spectrum.used=0;signature_suspend();temporal_suspend();temporal_start();
- spectrum_room_reset(&room_tracker);event_slot=-1;event_match.complete=false;
+static void capture_discontinuity(bool lost_input){
+ /* A late consumer read is not evidence that the room changed. Screen work
+  * can outlast the bounded RX buffers: discard contiguous signal history, but
+  * retain statistics of complete room frames. Empty input is a real loss of
+  * scene evidence and must restart learning. Saved samples are never changed. */
+ spectrum.used=0;signature_suspend();signature_display_reset();temporal_suspend();
+ temporal_reset_context();
+ if(lost_input){spectrum_background_reset(&ambient);spectrum_room_reset(&room_tracker);}
+ else spectrum_background_interrupt(&ambient);
+ event_slot=-1;event_match.complete=false;
  memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));
  input_gap=true;dirty=true;
 }
@@ -234,7 +239,7 @@ static void capture(void){
  int16_t pcm[256];size_t got=0;
  bool ok=microphone->read(microphone->context,pcm,256,&got);
  if(!ok||got>256){stop();message="MIC READ FAILED";capture_error=true;notify(message);return;}
- if(!input_gap&&(uint32_t)(app->millis()-last_pcm_at)>=128u)capture_discontinuity();
+ if(!input_gap&&(uint32_t)(app->millis()-last_pcm_at)>=128u)capture_discontinuity(!got);
  /* A successful short/empty read is a bounded RX wait, not end-of-stream. */
  if(!got){if(!input_waiting&&(uint32_t)(app->millis()-last_pcm_at)>=2000u){input_waiting=true;message="WAITING FOR AUDIO";dirty=true;}return;}
  if(!spectrum_dsp_feed(&spectrum,pcm,got)||!spectrum_signature_feed(&signature_audio,pcm,got)){stop();message="MIC READ FAILED";capture_error=true;notify(message);return;}
@@ -500,7 +505,10 @@ void app_main(void){
  restore();signature_restore();event_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
  for(;;){
   if(temporal_retained())return;
-  if(dirty)draw();
+  /* Never let repeated slow paints split every canonical room frame. Input
+   * is still polled each turn; an empty-input interruption releases the paint
+   * gate, and Stop/Freeze/Exit remain immediately available. */
+  if(dirty&&(!running||!signature_audio.used||input_gap))draw();
   t5_app_input_t input={0};
   if(!app->poll(&input,running?1:30)){
 #ifdef PORTABLE_ALARM_CLIENT
