@@ -1,4 +1,4 @@
-# Audio Spectrum 0.4.0 (development source)
+# Audio Spectrum 0.4.1 (development source)
 
 The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
 and saved frequency labels on the Watch's 240 × 240 display. The supplied design
@@ -24,18 +24,30 @@ was implemented in the native app and shared NOVA renderer, not a web view.
 
 ## Interaction
 
-SPEC, FALL and LABELS select the view. On SPEC, drag the vertical frequency
+SPEC, FALL and MONITOR select the view. On SPEC, drag the vertical frequency
 cursor; on FALL, drag its horizontal equivalent. The waterfall runs low to high
 frequency from top to bottom, with newest time on the right. Tap away to dismiss
 the cursor; tap its pill to name that frequency. The tag button toggles markers.
 
-The label editor supports up to eight labels, sixteen printable ASCII characters
-per name, and eight colors. Saved labels can be renamed, recolored or deleted;
-a short Undo action restores the last deleted label. The active-label list shows
-recent-frame frequencies above background and the chosen excess floor, sorted
-by excess level. Their values show dB above background; steady ambient tones
-do not activate merely because their absolute level is high. Edit mode includes
-inactive labels. Paging keeps controls visible on the small screen.
+MONITOR is the live acoustic-context view. The top row identifies the current
+saved room from the same raw canonical room profile used by background filtering,
+even when the display itself is in RAW or MANUAL mode. A candidate is shown as
+VERIFY until room hysteresis accepts it; held ambiguity and no-match states stay
+explicit. The room row includes signature-match confidence and current canonical
+amplitude.
+
+Below the room, accepted temporal events and active frequency labels share one
+ranked list. Event confidence is the temporal classifier similarity. Frequency
+label confidence is a bounded detector score derived from local signal-to-
+background ratio (6 dB maps to 50%, 12 dB or more to 100%); it is a ranking
+heuristic, not a calibrated probability. Amplitude is the detector's canonical
+background-excess dB value, independent of display gain. Higher confidence sorts
+first, with amplitude breaking ties. EDIT opens the frequency-label editor.
+
+The label editor still supports up to eight labels, sixteen printable ASCII
+characters per name, and eight colors. Saved labels can be renamed, recolored or
+deleted; a short Undo action restores the last deleted label. In edit mode,
+inactive labels remain visible and are ordered by frequency.
 
 The gear opens one continuously scrolling controls view with fixed header and
 Back footer. Range/scale, color/gain and window/FFT/detection settings use larger
@@ -47,14 +59,14 @@ eight-key pager is not used. Back and Cancel retain nested
 navigation ownership. Stop and Freeze close the microphone. Resuming requires
 another explicit Start.
 
-## Temporal event examples in 0.4.0
+## Temporal event examples introduced in 0.4.0
 
 [Temporal event examples](spectrum_temporal.md) add attack/decay/duration, flux,
 impact spacing, multiple positive/nonmatch examples, bounded time alignment and
 frequency-shift tolerance. Controls → Events opens this separate collection.
-Existing room and single-frame KV records remain untouched. This source increment
-requires an unpublished Runtime app-data dependency and is not an installable
-Watch cohort yet; the existing 0.3.0 cohort remains unchanged.
+Existing room and single-frame KV records remain untouched. The current source
+is pinned to published Runtime 0.1.30 with `storage.app-data@1`; final Watch
+assembly and hardware qualification remain owned by the Watch repository.
 
 ## Persistence and grants
 
@@ -100,7 +112,10 @@ There is no automatic recording, implicit training, eviction or relabeling.
 
 Room collection can be stopped and explicitly resumed, or cancelled without
 changing its saved profile. A pending room collection blocks normal app exit
-until completed or cancelled. Event profiles are spectral templates: temporal
+until completed or cancelled.
+ Room recognition continues in the background while the
+microphone is active, independent of whether the saved room is currently being
+used as the display filter. MONITOR surfaces that recognition directly. Event profiles are spectral templates: temporal
 ordering (opening versus closing sequences), source identity and sound meaning
 are not inferred. Collect representative frames under the correct label.
 
