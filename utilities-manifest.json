@@ -253,5 +253,39 @@
       ],
       "min_firmware_version": "0.1.34"
     }
+  ],
+  "hid_apps": [
+    {
+      "id": "ble_touchpad",
+      "display_name": "BLE Touchpad",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/ble_touchpad.c",
+      "manifest_path": "Apps/ble_touchpad.json",
+      "file_name": "ble_touchpad.elf",
+      "additional_sources": [
+        "Apps/ble_hid_app.inc",
+        "Apps/ble_hid_model.h",
+        "lib/Bluetooth/include/RiscBluetoothHidV1.h"
+      ],
+      "min_firmware_version": "0.1.34"
+    },
+    {
+      "id": "ble_buttons",
+      "display_name": "BLE Buttons",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/ble_buttons.c",
+      "manifest_path": "Apps/ble_buttons.json",
+      "file_name": "ble_buttons.elf",
+      "additional_sources": [
+        "Apps/ble_hid_app.inc",
+        "Apps/ble_hid_model.h",
+        "lib/Bluetooth/include/RiscBluetoothHidV1.h"
+      ],
+      "min_firmware_version": "0.1.34"
+    }
   ]
 }

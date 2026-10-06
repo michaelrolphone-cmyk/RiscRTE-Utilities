@@ -1,0 +1,51 @@
+{
+  "min_firmware_version": "0.1.34",
+  "version": "0.1.0",
+  "display_name": "BLE Touchpad",
+  "file_name": "ble_touchpad.elf",
+  "icon": "solid:f245",
+  "category": [
+    "Utilities"
+  ],
+  "runtime_profile": "portable-riscrte-v1",
+  "requires": [
+    {
+      "capability": "display.output",
+      "api": ">=1"
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": ">=1"
+    },
+    {
+      "capability": "bluetooth.hid",
+      "api": ">=1"
+    },
+    {
+      "capability": "alarm.service",
+      "api": ">=1"
+    },
+    {
+      "capability": "storage.key-value",
+      "api": ">=1"
+    }
+  ],
+  "optional": [
+    {
+      "capability": "rtc.clock",
+      "api": ">=2"
+    },
+    {
+      "capability": "net.wifi",
+      "api": ">=1"
+    },
+    {
+      "capability": "bluetooth.hci",
+      "api": ">=1"
+    },
+    {
+      "capability": "board.battery",
+      "api": ">=1"
+    }
+  ]
+}

@@ -131,3 +131,14 @@ negative short-event examples, background-relative labels, temporal matching and
 bounded frequency-shift tolerance. Its app-data backend is pinned to published Runtime 0.1.32; the Watch repository
 owns the final ABI2 image assembly and physical qualification. No new layout is
 formatted or installed by this repo.
+
+## BLE HID controls
+
+[BLE Touchpad](docs/apps/ble_touchpad.md) and
+[BLE Buttons](docs/apps/ble_buttons.md), both 0.1.0, add a separate `hid_apps`
+profile: genuine raw one/two-contact mouse input and four durable configurable
+keyboard/mouse controls. They use the generic secure-comparison HID provider,
+shared Nova7 controls and checked interruption/cleanup. The standalone build and
+[later Watch integration requirements](docs/BLE_HID_INTEGRATION.md) leave the
+scanner, SDR and existing migration profiles unchanged. Target validation and
+software-rendered screenshots do not establish physical qualification.
