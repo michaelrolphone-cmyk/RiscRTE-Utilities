@@ -122,7 +122,7 @@ utility and its published-byte parity remain unchanged.
 
 ## Temporal audio development increment
 
-[Audio Spectrum 0.4.0](docs/apps/spectrum_temporal.md) adds explicit positive and
+[Audio Spectrum 0.4.1](docs/apps/spectrum_temporal.md) adds explicit positive and
 negative short-event examples, background-relative labels, temporal matching and
 bounded frequency-shift tolerance. Its app-data backend dependency is not yet
 published; `sdk/spectrum-temporal-sources.json` records that state explicitly.
