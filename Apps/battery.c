@@ -1,3 +1,6 @@
+#if defined(PORTABLE_NOVA_UI) && defined(PORTABLE_POWER_STATUS)
+#include "battery_power.inc"
+#else
 #include "T5AppApi.h"
 #include "T5BatteryApi.h"
 #include "T5UiApi.h"
@@ -236,3 +239,5 @@ void app_main(void) {
         }
     }
 }
+
+#endif
