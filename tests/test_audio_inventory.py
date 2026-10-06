@@ -41,7 +41,7 @@ class AudioInventory(unittest.TestCase):
     def test_spectrum_declares_alarm_and_input(self):
         side=json.loads((ROOT/'Apps/audio_spectrum.json').read_text())
         self.assertEqual(side['category'],['Audio Tools'])
-        self.assertEqual(side['version'],'0.4.0')
+        self.assertEqual(side['version'],'0.4.1')
         self.assertEqual(side['requires'][-2]['api'],'>=2')
         self.assertEqual(side['requires'][-1],{'capability':'storage.app-data','api':'>=1'})
         self.assertEqual(side['min_firmware_version'],'0.1.30')
@@ -59,6 +59,10 @@ class AudioInventory(unittest.TestCase):
         controls=(ROOT/'Apps/spectrum_controls.inc').read_text()
         self.assertIn('controls_scroll',controls)
         self.assertNotIn('SOURCE',controls)
+        self.assertIn('tab(111,74,"MONITOR",view==2)',code)
+        self.assertNotIn('tab(111,74,"LABELS",view==2)',code)
+        self.assertIn('monitor_items(monitor_item items[10])',code)
+        self.assertIn('"AMP %d dB"',code)
 
     def test_temporal_backend_and_verified_watch_profile_are_pinned(self):
         import hashlib
