@@ -63,7 +63,7 @@ static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;assert(n>0&&n<5&&subscribers[n].live);
  if(getenv("HID_RENDER_GAP")&&n==2&&polls>=40&&!gap_given){gap_given=true;subscribers[n].sequence=touch_sequence;return -1;}
  if(subscribers[n].sequence==touch_sequence)return 0;
- e->sequence=++subscribers[n].sequence;return 1;
+ *e=(risc_touch_event_v1){.sequence=++subscribers[n].sequence};return 1;
 }
 static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;current_touch(s);return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};

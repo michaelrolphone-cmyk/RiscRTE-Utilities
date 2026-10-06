@@ -31,7 +31,7 @@ static risc_bluetooth_hid_v1 fake_hid={1,sizeof(fake_hid),NULL,hid_open,hid_poll
 static uint64_t sub(void*c){(void)c;if(fail_sub)return 0;raw_subs++;return 33;}
 static bool unsub(void*c,uint64_t t){(void)c;assert(t==33&&raw_subs);if(unsub_fail){unsub_fail--;return false;}raw_subs--;return true;}
 static bool touch_poll(void*c,size_t n){(void)c;assert(n==1);return true;}
-static int32_t touch_next(void*c,uint64_t t,risc_touch_event_v1*e){(void)c;assert(t==33);if(raw_fault)return -2;if(raw_gap){raw_gap=false;drained=raw_seq;return -1;}if(drained==raw_seq)return 0;e->sequence=++drained;return 1;}
+static int32_t touch_next(void*c,uint64_t t,risc_touch_event_v1*e){(void)c;assert(t==33);if(raw_fault)return -2;if(raw_gap){raw_gap=false;drained=raw_seq;return -1;}if(drained==raw_seq)return 0;*e=(risc_touch_event_v1){.sequence=++drained};return 1;}
 static bool snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;if(fail_snapshot)return false;*s=sample;s->sequence=raw_seq;return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,sub,unsub,touch_poll,touch_next,snapshot};
 static int32_t get(void*c,const char*k,void*b,uint32_t cap,uint32_t*n){(void)c;if(!strcmp(k,"quick_radio")){assert(cap==4);uint8_t v[]={0x51,1,policy,(uint8_t)(policy^0xa5)};memcpy(b,v,4);*n=4;return 0;}assert(!strcmp(k,HID_BUTTONS_KEY)&&cap==40);if(!saved_size)return RISC_KEY_VALUE_NOT_FOUND;memcpy(b,saved,saved_size);*n=saved_size;return 0;}
