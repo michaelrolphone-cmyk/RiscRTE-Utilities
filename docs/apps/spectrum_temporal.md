@@ -1,4 +1,4 @@
-# Spectrum 0.4.2: live monitoring and simpler sound learning
+# Spectrum 0.4.3: stable room learning across slow display work
 
 The `storage.app-data@1` backend is pinned to published Runtime 0.1.32 commit
 `da92aef5174b9279de1bad0ec05f7234ba587169` ([Runtime PR23](https://github.com/michaelrolphone-cmyk/RiscRTE/pull/23)).
@@ -195,10 +195,10 @@ The example library uses 118472 bytes; file safety keeps three bounded 59652-byt
 snapshots, plus fixed detector/matcher state. Target ELF builds measure the whole
 app rather than claiming only the DSP arrays are its RAM cost. The strict
 pinned Xtensa development build measures 477724 bytes BSS, 9996 bytes data and
-129187 bytes text, excluding runtime-owned display surfaces. Ordinary file
+129363 bytes text, excluding runtime-owned display surfaces. Ordinary file
 transactions run with the microphone closed, then resume previously requested
 monitoring after safe completion. The current
-build evidence records the complete 0.4.2 ELF.
+build evidence records the complete 0.4.3 ELF.
 
 A matcher tick offers 64 work units. Coarse preparation is an atomic eight-unit
 operation; a DTW row costs one. A new template cannot begin with insufficient
@@ -233,10 +233,37 @@ No physical microphone, acoustic or device qualification is implied.
 
 Successful partial/empty RX reads remain live. The native provider treats an RX
 deadline as a bounded wait; fatal SDK failures still close safely. Spectrum opts
-out of idle sleep only while a requested stream is active. A 128 ms input gap
-resets stale room/event/frequency/speech evidence and marks an in-progress event
-as an interrupted window. After two seconds, WAITING FOR AUDIO is shown. Saved
+out of idle sleep only while a requested stream is active. A read delayed by 128 ms still discards partial FFT, temporal, frequency and
+speech history and marks an in-progress event as an interrupted window. When
+that read returns PCM, complete-frame room statistics, adaptation age/hysteresis
+and room-selection stability are retained. A display delay is not evidence that
+the room changed. No missing interval counts as an observed frame. An empty read
+after that interval resets the live room scene; after two seconds, WAITING FOR
+AUDIO is shown. Explicit microphone restart resets the scene as before. Saved
 room collection retains its explicitly resumable partial average.
+
+The application paints between complete canonical frames, or complete selected
+plot FFTs on SPEC/FALL, instead of repeatedly splitting the same analysis window.
+Input is polled every turn and a 600 ms paint-deferral limit keeps sparse-input
+screens responsive. The Watch native RX still has two 256-frame DMA buffers
+(32 ms nominal capacity at 16 kHz); API1 provides no dropped-frame count or
+capture timestamps. This correction makes statistical room learning progress
+on complete observed frames. It does not make display stalls lossless or claim
+continuous temporal capture through a dropped interval. Collecting 64 room
+frames includes 2.048 seconds of observed PCM but may take longer wall-clock
+time under display load. Matching thresholds, ambiguity margin, 64-observation
+selection hysteresis and record formats are unchanged.
+
+The clocked two-buffer fixture models PCM production during 160 ms blocking
+paints and discards overwritten input. The old code fails its warm-up completion
+assertion. The corrected app completes warm-up and identifies either of two
+saved rooms across every selectable FFT size, non-divisor/partial reads, RAW
+and an unrelated manual filter. It retains ambiguity/silence rejection, adapts
+a real room change, clips interrupted training, recovers from empty/fatal input,
+handles Stop/Freeze, and preserves exact saved record bytes. Its independent
+background check compares every observed adaptation step with an uninterrupted
+control. Host timing models and sanitizer checks do not replace Watch microphone
+and display qualification.
 
 Speech uses the vendored WebRTC fixed-point GMM from libfvad, 20 ms live PCM,
 plus background-excess FLOOR, bandwidth, modulation and periodicity gates.
@@ -254,7 +281,7 @@ coverage checks, not population accuracy measures. Fixture provenance and licens
 are in tests/fixtures/voice; the PCM is never included in device builds. The
 library's LICENSE, AUTHORS, PATENTS and source/patch record accompany artifacts.
 
-0.4.2 leaves all record formats and names unchanged: SPSGv1 room/snapshot records,
+0.4.3 leaves all record formats and names unchanged: SPSGv1 room/snapshot records,
 SQT2v1 temporal banks and 32-byte preferences/labels. It reads 0.4.0/0.4.1 records;
 its writes remain readable by those versions on rollback. Room power averaging
 and subtraction are unchanged; recognition now normalizes intensity independently

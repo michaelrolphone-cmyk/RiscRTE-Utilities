@@ -14,6 +14,14 @@ typedef struct {
  bool active[128],ready,foreground,freeze_upward;
 } spectrum_background;
 static inline void spectrum_background_reset(spectrum_background *b){memset(b,0,sizeof(*b));}
+/* Room power is statistical evidence from complete frames, not a contiguous
+ * event window. Keep its accumulated mean across a consumer scheduling gap;
+ * raw/foreground output is invalid until the next complete frame. Adaptation
+ * age and hysteresis count observed frames, never elapsed missing time. */
+static inline void spectrum_background_interrupt(spectrum_background *b){
+ memset(b->raw,0,sizeof(b->raw));memset(b->excess,0,sizeof(b->excess));
+ b->foreground=b->freeze_upward=false;
+}
 static inline int16_t spectrum_background_db(uint64_t power){
  if(power>UINT32_MAX)power=UINT32_MAX;
  return spectrum_dsp_amplitude_db(spectrum_dsp_sqrt(power<<18),0);
