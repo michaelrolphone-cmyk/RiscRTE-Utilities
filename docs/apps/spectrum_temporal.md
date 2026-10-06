@@ -60,8 +60,10 @@ identified while the plot remains RAW or while another room is manually selected
 The accepted room, a still-stabilizing candidate, ambiguity and no-match states
 are distinguished explicitly.
 
-The ranked detection list combines the accepted temporal event with every active
-frequency label. Temporal confidence is the matcher's 0..100% heuristic
+The ranked detection list combines every credible temporal event candidate at or
+above the 80% match threshold with every active frequency label. Confusing-negative
+examples still veto their candidate. Close candidates remain visible when the
+classifier result is ambiguous. Temporal confidence is the matcher's 0..100% heuristic
 similarity. Frequency-label confidence maps local background SNR to a bounded
 ranking score: 6 dB is 50% and 12 dB or more is 100%. Both are heuristic ranking
 values rather than calibrated probabilities. Event amplitude is the matched
