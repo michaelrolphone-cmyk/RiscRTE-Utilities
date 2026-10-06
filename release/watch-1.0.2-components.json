@@ -1,7 +1,7 @@
 {
   "release": "Watch1.0.2",
   "repository": "michaelrolphone-cmyk/RiscRTE-Utilities",
-  "source_sha": "186a1a9a44c0286ec3f742de1b7cace8951f1399",
+  "source_sha": "6b8a92ab9bc416873b1ab29c6e3c98afb96ea947",
   "required_workflows": [
     ".github/workflows/build.yml",
     ".github/workflows/ble-scanner.yml"
@@ -9,63 +9,9 @@
   "components": [
     {
       "kind": "app",
-      "id": "alarms",
-      "version": "0.2.1",
-      "manifest": "Apps/alarms.json"
-    },
-    {
-      "kind": "app",
       "id": "audio_spectrum",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "manifest": "Apps/audio_spectrum.json"
-    },
-    {
-      "kind": "app",
-      "id": "battery",
-      "version": "1.0.10",
-      "manifest": "Apps/battery.json"
-    },
-    {
-      "kind": "app",
-      "id": "ble_scanner",
-      "version": "0.1.0",
-      "manifest": "Apps/ble_scanner.json"
-    },
-    {
-      "kind": "app",
-      "id": "calculator",
-      "version": "0.1.5",
-      "manifest": "Apps/calculator.json"
-    },
-    {
-      "kind": "app",
-      "id": "countdown",
-      "version": "0.1.4",
-      "manifest": "Apps/countdown.json"
-    },
-    {
-      "kind": "app",
-      "id": "frequency_generator",
-      "version": "0.1.3",
-      "manifest": "Apps/frequency_generator.json"
-    },
-    {
-      "kind": "app",
-      "id": "lora_messages",
-      "version": "0.1.1",
-      "manifest": "Apps/lora_messages.json"
-    },
-    {
-      "kind": "app",
-      "id": "stopwatch",
-      "version": "0.1.5",
-      "manifest": "Apps/stopwatch.json"
-    },
-    {
-      "kind": "service",
-      "id": "alarm-service",
-      "version": "0.4.1",
-      "manifest": "Services/alarm_service/points-manifest.json"
     }
   ]
 }
