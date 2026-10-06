@@ -105,10 +105,12 @@ declare an untested Watch installation ready.
 
 [Audio Spectrum](docs/apps/audio_spectrum.md) adds the second Audio Tools app: a
 user-started microphone spectrum and scrolling spectrogram, sharing the existing
-input provider and foreground lifecycle. It provides explicitly captured, labeled room/event power signatures with
-bounded durable records, optional background subtraction and conservative
-room matching. It stops for alarms/sleep/Back and never resumes capture
-automatically. Raw display remains the default.
+input provider and foreground lifecycle. It provides explicitly captured, labeled
+room/event power signatures with bounded durable records, optional background
+subtraction and conservative room matching. The MONITOR tab identifies the
+current saved room and ranks detected events/frequency labels by detector
+confidence with canonical amplitude. It stops for alarms/sleep/Back and never
+resumes capture automatically. Raw display remains the default.
 
 ## LoRa Messages
 
@@ -124,7 +126,6 @@ utility and its published-byte parity remain unchanged.
 
 [Audio Spectrum 0.4.1](docs/apps/spectrum_temporal.md) adds explicit positive and
 negative short-event examples, background-relative labels, temporal matching and
-bounded frequency-shift tolerance. Its app-data backend dependency is not yet
-published; `sdk/spectrum-temporal-sources.json` records that state explicitly.
-These owner-repository development artifacts do not replace the tested Watch
-cohort using Spectrum 0.3.0. No new layout is formatted or installed by this repo.
+bounded frequency-shift tolerance. Its app-data backend is pinned to published Runtime 0.1.30; the Watch repository
+owns the final ABI2 image assembly and physical qualification. No new layout is
+formatted or installed by this repo.
