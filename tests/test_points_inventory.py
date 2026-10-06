@@ -5,11 +5,11 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 class PointsInventory(unittest.TestCase):
  def test_copied_service_status_contract(self):
-  self.assertEqual(hashlib.sha256((ROOT/'lib/Alarm/include/AlarmServiceV1.h').read_bytes()).hexdigest(),'ff037fb52c46bace9d18dc2c7688094a2cbea3ceda964f84a001ea671dac8c9c')
+  self.assertEqual(hashlib.sha256((ROOT/'lib/Alarm/include/AlarmServiceV1.h').read_bytes()).hexdigest(),'c70c087550306c123255e1ace41aeb504809e16b0193e382ec8dfbd7cb5531f5')
  def test_distinct_opt_in_identity(self):
   old=json.loads((ROOT/'Services/alarm_service/manifest.json').read_text())
   new=json.loads((ROOT/'Services/alarm_service/points-manifest.json').read_text())
-  self.assertEqual((old['version'],new['version']),('0.1.0','0.4.1'))
+  self.assertEqual((old['version'],new['version']),('0.1.1','0.4.2'))
   self.assertEqual(old['requires'],new['requires']);self.assertEqual(new['provides'],[{'capability':'alarm.service','api':1}])
   self.assertIn('-DPOINTS_IN_TIME_SERVICE',(ROOT/'scripts/build_points_service.py').read_text())
  def test_bound_namespace_mapping(self):

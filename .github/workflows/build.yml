@@ -39,6 +39,7 @@ jobs:
       - name: Exercise staged Alarm and Countdown production source
         run: |
           python scripts/test_alarm_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
+          python scripts/test_alarm_sleep_resume.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           python scripts/test_points_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           python scripts/test_alarm_volume.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           python scripts/test_dnd_service.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
