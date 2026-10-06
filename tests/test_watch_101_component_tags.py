@@ -96,10 +96,9 @@ class PublisherTests(unittest.TestCase):
         import json
         c = json.loads((Path(__file__).parents[1] / p.RELEASE_CONFIGS['Watch1.0.2']).read_text())
         tags = p.validate_config(c, REPO, release='Watch1.0.2')
-        self.assertEqual(10, len(tags))
-        self.assertIn('app-audio_spectrum-v0.4.2', tags)
-        self.assertIn('app-ble_scanner-v0.1.0', tags)
-        self.assertEqual(c['source_sha'], '186a1a9a44c0286ec3f742de1b7cace8951f1399')
+        self.assertEqual(1, len(tags))
+        self.assertEqual(['app-audio_spectrum-v0.4.3'], tags)
+        self.assertEqual(c['source_sha'], '6b8a92ab9bc416873b1ab29c6e3c98afb96ea947')
         self.assertEqual(c['required_workflows'], ['.github/workflows/build.yml', '.github/workflows/ble-scanner.yml'])
 
     def test_create_and_repeat_are_idempotent(self):
