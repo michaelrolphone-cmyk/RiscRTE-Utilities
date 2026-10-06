@@ -39,8 +39,8 @@ static void use_slow_display(void){prefs.fft_size=8192;configure_dsp();}
 static void check_monitor_context(void){
  signatures[1]=(spectrum_signature){.frames=SPECTRUM_SIGNATURE_ROOM_FRAMES,.kind=SPECTRUM_SIGNATURE_ROOM};strcpy(signatures[1].name,"Office");room_tracker.selected=room_tracker.candidate=1;room_tracker.confidence=93;ambient.ready=true;ambient.raw[0]=100000;
  labels[2]=(spectrum_label){.present=true,.frequency_hz=1000,.color=2};strcpy(labels[2].name,"Hum");label_active[2]=true;label_snr[2]=840;label_db[2]=-3300;
- event_library.labels[0].present=true;strcpy(event_library.labels[0].name,"Door");event_match.complete=true;event_match.reason=ST_RESULT_MATCH;event_match.selected=0;event_match.score=910;event_match.query.peak_db=-1800;
- monitor_item items[10];unsigned n=monitor_items(items);assert(n==2);assert(items[0].kind==MONITOR_EVENT&&!strcmp(items[0].name,"Door")&&items[0].confidence==91&&items[0].amplitude_db==-1800);assert(items[1].kind==MONITOR_LABEL&&!strcmp(items[1].name,"Hum")&&items[1].confidence==70&&items[1].amplitude_db==-3300);assert(monitor_room_count()==1&&monitor_scene_db()>-12000);view=2;lab_edit=false;draw_monitor();
+ event_library.labels[0].present=true;strcpy(event_library.labels[0].name,"Door");event_library.labels[1].present=true;strcpy(event_library.labels[1].name,"Window");event_match.complete=true;event_match.reason=ST_RESULT_AMBIGUOUS;event_match.selected=-1;event_match.positive[0]=910;event_match.positive[1]=860;event_match.query.peak_db=-1800;
+ monitor_item items[16];unsigned n=monitor_items(items);assert(n==3);assert(items[0].kind==MONITOR_EVENT&&!strcmp(items[0].name,"Door")&&items[0].confidence==91&&items[0].amplitude_db==-1800);assert(items[1].kind==MONITOR_EVENT&&!strcmp(items[1].name,"Window")&&items[1].confidence==86);assert(items[2].kind==MONITOR_LABEL&&!strcmp(items[2].name,"Hum")&&items[2].confidence==70&&items[2].amplitude_db==-3300);assert(monitor_room_count()==1&&monitor_scene_db()>-12000);view=2;lab_edit=false;draw_monitor();
 }
 static void advance(unsigned n){for(unsigned i=0;i<n;i++)add(EVENT_INPUT,0,-1);}
 int main(void){
