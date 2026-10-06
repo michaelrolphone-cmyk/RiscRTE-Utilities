@@ -36,6 +36,12 @@ static void snapshot_ambient_legacy(void){signature_open(-1,SPECTRUM_SIGNATURE_E
 static void assert_ambient_is_not_event(void){assert(event_slot<0&&!event_segment.collecting&&!event_segment.ready);for(unsigned i=0;i<8;i++)assert(!label_active[i]);}
 static void assert_short_frequency_peak(void){assert(prefs.fft_size==8192&&label_active[2]);}
 static void use_slow_display(void){prefs.fft_size=8192;configure_dsp();}
+static void check_monitor_context(void){
+ signatures[1]=(spectrum_signature){.frames=SPECTRUM_SIGNATURE_ROOM_FRAMES,.kind=SPECTRUM_SIGNATURE_ROOM};strcpy(signatures[1].name,"Office");room_tracker.selected=room_tracker.candidate=1;room_tracker.confidence=93;ambient.ready=true;ambient.raw[0]=100000;
+ labels[2]=(spectrum_label){.present=true,.frequency_hz=1000,.color=2};strcpy(labels[2].name,"Hum");label_active[2]=true;label_snr[2]=840;label_db[2]=-3300;
+ event_library.labels[0].present=true;strcpy(event_library.labels[0].name,"Door");event_match.complete=true;event_match.reason=ST_RESULT_MATCH;event_match.selected=0;event_match.score=910;event_match.query.peak_db=-1800;
+ monitor_item items[10];unsigned n=monitor_items(items);assert(n==2);assert(items[0].kind==MONITOR_EVENT&&!strcmp(items[0].name,"Door")&&items[0].confidence==91&&items[0].amplitude_db==-1800);assert(items[1].kind==MONITOR_LABEL&&!strcmp(items[1].name,"Hum")&&items[1].confidence==70&&items[1].amplitude_db==-3300);assert(monitor_room_count()==1&&monitor_scene_db()>-12000);view=2;lab_edit=false;draw_monitor();
+}
 static void advance(unsigned n){for(unsigned i=0;i<n;i++)add(EVENT_INPUT,0,-1);}
 int main(void){
  fresh();check(create_label);start();advance(164);check(arm_positive);advance(20);check(sound_on);advance(40);check(sound_off);advance(24);check(check_review);check(save_positive);start();advance(164);check(arm_negative);advance(20);check(sound_on);advance(40);check(sound_off);advance(24);check(check_review);check(save_negative);check(rejected_event_releases_background);back();run();assert(!files_live&&!store_live&&!live&&file_writes==3&&file_releases==1);
@@ -50,6 +56,7 @@ int main(void){
  fresh();check(create_label);start();advance(164);check(arm_positive);advance(20);check(sound_on);advance(20);check(confirm_manual_whole_event);back();run();assert(!files_live&&!live&&file_writes==2);
  fresh();base_mix=true;start();advance(164);check(snapshot_ambient_legacy);for(unsigned n=0;n<60;n++){advance(16);check(assert_ambient_is_not_event);}back();run();assert(!files_live&&!live);
  fresh();start();advance(164);check(use_slow_display);extra_audio=false;check(sound_on);advance(4);check(assert_short_frequency_peak);check(sound_off);back();run();assert(!files_live&&!live);
+ fresh();check(check_monitor_context);back();run();assert(!files_live&&!store_live&&!live);
  fresh();check(create_label);check(retained_save);run();assert(file_retained&&files_live&&store_live&&!file_releases&&!store_releases&&!running&&!live);
- puts("Temporal app: live onset/precontext positive+negative capture, multi-example save/reload, clipping/cancel, keyboard nesting, pending exit guard, full/unknown/retry/discard, reserved corrupt banks, mic-off file transactions and retained return without UI/release passed");
+ puts("Temporal app: live onset/precontext positive+negative capture, multi-example save/reload, clipping/cancel, keyboard nesting, ranked room/event/label Monitor context, pending exit guard, full/unknown/retry/discard, reserved corrupt banks, mic-off file transactions and retained return without UI/release passed");
 }
