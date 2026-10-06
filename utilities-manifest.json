@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.4.5",
+      "version": "0.4.4",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -172,8 +172,6 @@
         "Apps/spectrum_temporal_store.h",
         "Apps/spectrum_temporal_files.h",
         "Apps/spectrum_temporal_app.inc",
-        "Apps/spectrum_neural.h",
-        "Apps/spectrum_neural_store.h",
         "Apps/spectrum_speech.h",
         "Apps/spectrum_vad_impl.inc",
         "lib/VoiceActivity/AUTHORS",
@@ -225,15 +223,17 @@
     {
       "id": "ble_scanner",
       "display_name": "BLE Scanner",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_scanner.c",
       "manifest_path": "Apps/ble_scanner.json",
       "file_name": "ble_scanner.elf",
       "additional_sources": [
-        "Apps/ble_scan_core.h",
-        "lib/Bluetooth/include/PortableBluetoothHost.h"
+        "Apps/ble_scan_model.h",
+        "Apps/ble_sensor_names.h",
+        "lib/Bluetooth/include/RiscBluetoothSensorsV1.h",
+        "lib/Bluetooth/include/RiscTelemetryV1.h"
       ],
       "min_firmware_version": "0.1.27"
     }
