@@ -36,8 +36,10 @@ VERIFY until room hysteresis accepts it; held ambiguity and no-match states stay
 explicit. The room row includes signature-match confidence and current canonical
 amplitude.
 
-Below the room, accepted temporal events and active frequency labels share one
-ranked list. Event confidence is the temporal classifier similarity. Frequency
+Below the room, credible temporal event candidates and active frequency labels share one
+ranked list. Event candidates at or above the classifier's 80% match threshold
+remain visible even when two candidates are close enough to make the result
+ambiguous. Event confidence is the temporal classifier similarity. Frequency
 label confidence is a bounded detector score derived from local signal-to-
 background ratio (6 dB maps to 50%, 12 dB or more to 100%); it is a ranking
 heuristic, not a calibrated probability. Amplitude is the detector's canonical
