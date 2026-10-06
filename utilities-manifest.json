@@ -235,5 +235,23 @@
       ],
       "min_firmware_version": "0.1.27"
     }
+  ],
+  "sdr_apps": [
+    {
+      "id": "waterfall",
+      "display_name": "Waterfall",
+      "version": "0.1.2",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/waterfall.c",
+      "manifest_path": "Apps/waterfall.json",
+      "file_name": "waterfall.elf",
+      "additional_sources": [
+        "Apps/waterfall_core.h",
+        "Apps/radio_iq_v1.h",
+        "Apps/daily_draw.h"
+      ],
+      "min_firmware_version": "0.1.34"
+    }
   ]
 }
