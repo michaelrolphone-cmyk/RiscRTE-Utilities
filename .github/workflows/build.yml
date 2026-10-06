@@ -72,6 +72,7 @@ jobs:
       - name: Exercise shared Audio Tools and lifecycle
         run: |
           python scripts/test_frequency_generator.py --system-apps .dependencies/audio-system-apps
+          python scripts/test_frequency_renderer.py --system-apps .dependencies/audio-system-apps
           python scripts/test_audio_spectrum.py --system-apps .dependencies/audio-system-apps
           python scripts/test_spectrum_renderer.py --system-apps .dependencies/audio-system-apps
           python scripts/test_spectrum_temporal_renderer.py --system-apps .dependencies/audio-system-apps
@@ -107,6 +108,7 @@ jobs:
             dist/alarm-apps/
             dist/points-service/
             dist/audio-apps/
+            build/frequency-renderer/
           if-no-files-found: error
           retention-days: 14
 

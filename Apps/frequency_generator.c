@@ -3,6 +3,9 @@
 #include "AlarmOutputV1.h"
 #include "tone_core.h"
 #include "daily_draw.h"
+#ifdef PORTABLE_NOVA_UI
+#include "PortableNovaUi.h"
+#endif
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -58,7 +61,32 @@ static void toggle(void) {
     playing=true;started=app->millis();message="Sine - stops after 60 s";dirty=true;
 }
 static void draw(void) {
-    const int w=app->screen_width(),h=app->screen_height();char text[40];
+    char text[40];
+#ifdef PORTABLE_NOVA_UI
+    portable_nova_begin();portable_nova_header("FREQUENCY");
+    portable_nova_text(3,62,33,168,"20-7000 Hz / 16 kHz PCM",NOVA_CAP);
+    snprintf(text,sizeof(text),"%u",frequency);
+    int digits=portable_nova_measure(4,text),unit=portable_nova_measure(1,"Hz");
+    int left=8+(152-digits-unit-6)/2;
+    portable_nova_text(4,left,51,digits,text,NOVA_CYAN);
+    portable_nova_text(1,left+digits+6,63,unit,"Hz",NOVA_CYAN);
+    portable_nova_center(2,164,54,68,"LEVEL",NOVA_CAP);
+    snprintf(text,sizeof(text),"%u%%",volume);
+    portable_nova_center(1,164,69,68,text,NOVA_CYAN);
+    portable_nova_center(2,8,84,224,message?message:"",NOVA_TEXT);
+    snprintf(text,sizeof(text),"- %u Hz",steps[step_index]);
+    portable_nova_button(8,100,108,44,text,false);
+    snprintf(text,sizeof(text),"+ %u Hz",steps[step_index]);
+    portable_nova_button(124,100,108,44,text,false);
+    for(unsigned i=0;i<3;i++) {
+        snprintf(text,sizeof(text),"%u Hz",steps[i]);
+        portable_nova_button(8+(int)i*76,148,72,44,text,step_index==i);
+    }
+    portable_nova_button(8,196,60,44,"Level -",false);
+    portable_nova_button(72,196,96,44,playing?"Stop":"Start",playing);
+    portable_nova_button(172,196,60,44,"Level +",false);
+#else
+    const int w=app->screen_width(),h=app->screen_height();
     app->clear();app->draw_text(8,16,"BACK");app->draw_label(58,16,w-66,"FREQUENCY");
     snprintf(text,sizeof(text),"%u HZ",frequency);
     daily_draw_text(app,(w-daily_draw_width(text,3))/2,48,text,3);
@@ -76,7 +104,9 @@ static void draw(void) {
     snprintf(text,sizeof(text),"LESS  LEVEL %u%%  MORE",volume);app->draw_label(8,165,w-16,text);
     app->draw_label(6,192,w-12,message?message:"");
     app->fill_rect(8,h-36,w-16,32,true);app->fill_rect(10,h-34,w-20,28,false);
-    app->draw_label(10,h-24,w-20,playing?"STOP":"START");app->present(false);dirty=false;
+    app->draw_label(10,h-24,w-20,playing?"STOP":"START");
+#endif
+    app->present(false);dirty=false;
 }
 static void adjust_frequency(int delta) {
     frequency=tone_adjust(frequency,delta,TONE_MIN_HZ,TONE_MAX_HZ);
@@ -91,7 +121,12 @@ void app_main(void) {
        !runtime->acquire||!runtime->release||!runtime->diagnostic||!runtime->yield_ms)return;
     if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
     output=NULL;grant=(risc_runtime_capability_v1){0};tone=(tone_state){0};
-    frequency=440;volume=100;step_index=1;playing=owned=uncertain=false;dirty=true;message="100% level - tap Start";
+    frequency=440;volume=100;step_index=1;playing=owned=uncertain=false;dirty=true;
+#ifdef PORTABLE_NOVA_UI
+    message="Tap Start / 60 s maximum";
+#else
+    message="100% level - tap Start";
+#endif
     for(;;) {
         if(dirty)draw();
         t5_app_input_t input={0};
@@ -106,11 +141,22 @@ void app_main(void) {
         if(input.buttons&T5_APP_BUTTON_LEFT)adjust_frequency(-(int)steps[step_index]);
         if(input.buttons&T5_APP_BUTTON_RIGHT)adjust_frequency((int)steps[step_index]);
         if(input.tapped) {
-            int x=input.touch_x,y=input.touch_y,w=app->screen_width(),h=app->screen_height();
+            int x=input.touch_x,y=input.touch_y;
+#ifdef PORTABLE_NOVA_UI
+            if(portable_nova_hit(x,y,72,196,96,44))toggle_requested=true;
+            else if(portable_nova_hit(x,y,8,196,60,44)||portable_nova_hit(x,y,172,196,60,44)) {
+                volume=tone_adjust(volume,x<120?-1:1,0,TONE_MAX_PERCENT);
+                (void)tone_configure(&tone,frequency,volume);dirty=true;
+            } else if(portable_nova_hit(x,y,8,100,108,44)||portable_nova_hit(x,y,124,100,108,44))
+                adjust_frequency((x<120?-1:1)*(int)steps[step_index]);
+            else for(unsigned i=0;i<3;i++)if(portable_nova_hit(x,y,8+(int)i*76,148,72,44)){step_index=i;dirty=true;break;}
+#else
+            int w=app->screen_width(),h=app->screen_height();
             if(x>=8&&x<w-8&&y>=h-36&&y<h-4)toggle_requested=true;
             else if(x>=8&&x<w-8&&y>=94&&y<128)adjust_frequency((x<w/2?-1:1)*(int)steps[step_index]);
             else if(x>=8&&x<w-8&&y>=130&&y<155){step_index=(unsigned)((x-8)*3/(w-16));dirty=true;}
             else if(x>=8&&x<w-8&&y>=157&&y<180){volume=tone_adjust(volume,x<w/2?-1:1,0,TONE_MAX_PERCENT);(void)tone_configure(&tone,frequency,volume);dirty=true;}
+#endif
         }
         /* Touch and navigation may arrive in one frame. Coalesce a paired
          * Stop instead of stopping and immediately starting the speaker. */

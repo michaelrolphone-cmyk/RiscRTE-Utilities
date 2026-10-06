@@ -1,0 +1,42 @@
+name: NOVA battery power screens
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  battery-power:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 4cf36b1c46641b00d88535eb9a0e9b0797928aff
+          path: .dependencies/power-system
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Actual app and adapter, normal and ASan/UBSan
+        run: |
+          python scripts/test_battery_power.py --system-apps .dependencies/power-system
+          python scripts/test_apps.py
+      - name: Pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Target ELF and import/export verification
+        run: python scripts/build_battery_power.py --system-apps .dependencies/power-system
+      - uses: actions/upload-artifact@v4
+        with:
+          name: battery-power-${{ github.sha }}
+          path: |
+            dist/battery-power/
+            build/battery-power/frames-0-*/
+          retention-days: 14
+          if-no-files-found: error

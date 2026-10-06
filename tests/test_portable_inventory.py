@@ -7,7 +7,7 @@ class PortableInventory(unittest.TestCase):
   apps=inventory();self.assertEqual([x['id'] for x in apps],['calculator','stopwatch'])
   self.assertEqual(PIN,'911be9e8042f1bcc46038fb70189eebe4ca106c5')
   for app in apps:
-   self.assertEqual(app['version'],{'calculator':'0.1.5','stopwatch':'0.1.5'}[app['id']])
+   self.assertEqual(app['version'],{'calculator':'0.1.6','stopwatch':'0.1.6'}[app['id']])
    self.assertTrue(all((ROOT/path).is_file() for path in app['additional_sources']))
  def test_reader_release_cohort_is_preserved(self):
   root=json.loads((ROOT/'utilities-manifest.json').read_text())

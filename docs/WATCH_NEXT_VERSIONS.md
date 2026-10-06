@@ -1,0 +1,3 @@
+# Watch 1.0.5 component identities
+
+This integration preserves the completed Waterfall, battery power-screen and NOVA Frequency Generator source commits. The Watch tap preference changes its shared linked sleep client, so all affected utility apps receive distinct source versions before publication. New-feature versions remain Battery 1.1.0 and Frequency Generator 0.1.4. Other current clients advance to Calculator/Stopwatch 0.1.6, Alarms 0.2.2, Countdown 0.1.5, Spectrum 0.4.4, LoRa Messages 0.1.2, BLE Scanner 0.1.1 and Waterfall 0.1.3. Data schemas, private namespaces and existing release records are unchanged.

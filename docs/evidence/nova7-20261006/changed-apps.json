@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "scope": "Watch released 1.0.2 NOVA-7 UI audit and Frequency Generator migration",
+  "baseline": {
+    "watch_commit": "27876749f08deaa78910cbd16aa54345684b6bf7",
+    "cohort": "1.0.2",
+    "sources": {
+      "system-apps": {
+        "repository": "michaelrolphone-cmyk/RiscRTE-System-Apps",
+        "commit": "2d16d9dfa7abc50ce916eebc11d81423adef0000"
+      },
+      "utilities": {
+        "repository": "michaelrolphone-cmyk/RiscRTE-Utilities",
+        "commit": "ecc465ac2ff1bd92901e20631435bafa2d4ffb11"
+      },
+      "productivity": {
+        "repository": "michaelrolphone-cmyk/RiscRTE-Productivity",
+        "commit": "5acbd52d97d90c509e217a128b3ee5a6da30975c"
+      },
+      "runtime": {
+        "repository": "michaelrolphone-cmyk/RiscRTE",
+        "commit": "e08609b465d9368d4e6efc45e377adbdbbb706a1"
+      }
+    }
+  },
+  "apps": [
+    {
+      "id": "springboard",
+      "released_version": "1.4.9",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "settings",
+      "released_version": "1.2.5",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "wifi_settings",
+      "released_version": "1.1.3",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "ota_update",
+      "released_version": "1.1.2",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "app_store",
+      "released_version": "1.1.2",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "battery",
+      "released_version": "1.0.10",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "calculator",
+      "released_version": "0.1.5",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "stopwatch",
+      "released_version": "0.1.5",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "alarms",
+      "released_version": "0.2.1",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "countdown",
+      "released_version": "0.1.4",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "frequency_generator",
+      "released_version": "0.1.3",
+      "status": "migrate",
+      "changed": true,
+      "new_version": "0.1.4",
+      "required_defines": [
+        "PORTABLE_NOVA_UI"
+      ],
+      "adapter_owns_touch_chrome": true
+    },
+    {
+      "id": "audio_spectrum",
+      "released_version": "0.4.3",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "points_in_time",
+      "released_version": "0.4.3",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "default",
+      "released_version": "0.10.1",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "clock",
+      "released_version": "0.10.1",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "file_browser",
+      "released_version": "1.4.0",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "lora_messages",
+      "released_version": "0.1.1",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "ble_scanner",
+      "released_version": "0.1.0",
+      "status": "existing-nova",
+      "changed": false
+    },
+    {
+      "id": "timecard",
+      "released_version": "0.1.0",
+      "status": "existing-nova",
+      "changed": false
+    }
+  ],
+  "changed_apps": [
+    "frequency_generator"
+  ],
+  "shared_adapter_changed": false,
+  "runtime_abi_changed": false,
+  "persistent_data_changed": false,
+  "deferred_integration": "Watch 1.0.5+ owner consolidates source pins and per-ELF versions",
+  "separate_owners": [
+    "power-status",
+    "tap-calibration",
+    "springboard-focus",
+    "SDR-Waterfall",
+    "BLE-HID"
+  ],
+  "limits": [
+    "Production C rendered through host peripheral fixtures; no physical-device claim.",
+    "No BIN or installable firmware delivery in this change."
+  ]
+}
