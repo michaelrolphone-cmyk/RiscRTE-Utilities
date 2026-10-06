@@ -61,7 +61,7 @@ class AudioInventory(unittest.TestCase):
         self.assertNotIn('SOURCE',controls)
         self.assertIn('tab(111,74,"MONITOR",view==2)',code)
         self.assertNotIn('tab(111,74,"LABELS",view==2)',code)
-        self.assertIn('monitor_items(monitor_item items[10])',code)
+        self.assertIn('monitor_items(monitor_item items[16])',code)
         self.assertIn('"AMP %d dB"',code)
 
     def test_temporal_backend_and_verified_watch_profile_are_pinned(self):
