@@ -135,7 +135,7 @@
     {
       "id": "frequency_generator",
       "display_name": "Frequency Generator",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/frequency_generator.c",
