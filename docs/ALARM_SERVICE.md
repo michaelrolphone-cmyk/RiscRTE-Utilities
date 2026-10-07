@@ -65,8 +65,9 @@ This is a bounded count of synchronous operations, not a hard wall-clock bound:
 NVS has no hard latency guarantee. Existing RTC/output tables also contain
 bounded peripheral transactions whose total driver call may exceed the graph's
 8 ms poll allowance. Never place this step inside provider poll or call it from
-an in-flight display callback. Monotonic consistency samples require less than
-UINT32_MAX ms between reconciliation points; a longer gap fails visibly.
+an in-flight display callback. Awake monotonic consistency samples require less than
+UINT32_MAX ms between reconciliation points; a longer awake gap fails visibly.
+The explicit successful-Light boundary below starts a new awake comparison.
 
 ## Occurrence, recovery and cleanup
 
@@ -112,8 +113,9 @@ fresh RTC-backed decision is ready. No output or uncertain cleanup may be live.
 It returns the next raw-RTC deadline, or zero when none exists, and a copied
 snapshot number. The caller must enter owned timed sleep immediately on the
 same serialized task without another service or schedule-writer call. No
-suppression Boolean survives refusal. Light return simply resumes steps; Deep
-must instantiate the service and process due work before the normal intro.
+suppression Boolean survives refusal. A caller using the optional sleep suffix
+reports successful Light return before resuming reconciliation; Deep must
+instantiate the service and process due work before the normal intro.
 
 This API does not itself enter sleep. The reviewed owned crown + timer backend
 must be integrated by Clock. The common adapter must provide an in-place alert
@@ -139,6 +141,58 @@ barrier before normal step, Back interception before request_launch, and a
 verified backend guarantee that output cleanup owns its buffers and can safely
 stop while an unrelated display presentation is pending. Those are concrete
 integration contracts, not assumptions justified by host mocks.
+
+## Explicit Light-return clock boundary (0.1.1 / 0.4.2)
+
+The ordinary service is now 0.1.1 and the Points/volume/DND variant is 0.4.2.
+The existing `alarm.service@1` table remains exactly 36 bytes on the target.
+`alarm_service_sleep_v1` adds one optional callback at offset 36 and has a
+40-byte target size. The provider advertises that larger size in its unchanged
+base prefix. Old consumers continue using the 36-byte prefix; a sleep owner
+must check API version, `ALARM_SERVICE_SLEEP_V1_SIZE` and non-null `resume_sleep`
+before reading the suffix. No copied status, occurrence, sleep-decision,
+durable record, namespace or dependency layout changes.
+
+A valid external calendar and platform monotonic duration can diverge across
+Light sleep because they may use independent oscillators while the CPU is
+suspended. The awake two-second discrepancy check must not be applied across
+that boundary. This does not establish that any particular device has drifted.
+
+A successful `prepare_sleep` now retains its exact copied decision as a one-use
+ticket. The serialized sleep owner calls `resume_sleep(context, &decision)`
+only after native Light sleep returns OK, before another mutating service or
+schedule-writer call. Native refusal never grants this reanchor. The callback
+validates the ticket and makes exactly one fresh RTC read. Read failure, invalid
+calendar/weekday, RTC earlier than the pre-sleep sample, or backward monotonic
+time blocks with RTC error. On success it consumes the ticket, reanchors both
+clocks, starts full reconciliation and returns OK. It does not start output,
+write storage, acknowledge an occurrence, prove a deadline is due, or enter sleep.
+Hybrid must call it before obtaining its next sleep decision; a normal Light
+wake calls it before ordinary reconciliation. Deep reset retains the original
+fresh-service recovery path.
+
+Wrong/reused tickets return STALE before I/O. `step`, `refresh`, `acknowledge`,
+`stop_only`, another `prepare_sleep`, provider start/stop and failure invalidate
+an outstanding ticket. Memory-only `status` leaves it intact. Once reanchored,
+the existing READ_RTC and ACTIVATE_RTC two-second awake checks remain unchanged.
+Callers must preserve a failed resume/reconciliation rather than silently
+invoking the explicit-retry `refresh` path. Recovery-window expiry, cancellation
+checks and durable generation/acknowledgment logic are unchanged.
+
+A ticket is a serialized lifecycle contract, not proof from hardware or a
+security credential. A caller must not report an awake interval or refused
+sleep as successful sleep. Forward edits during suspension are indistinguishable
+from elapsed RTC time with the existing calendar-only interface; the pre-sleep
+backward bound remains enforced. No new RTC precision or hardware qualification
+is claimed.
+
+`test_alarm_sleep_resume.py` runs the actual provider in legacy and exact
+Points/Denver/volume/DND profiles, normal and ASan/UBSan. It covers divergent
+independent clocks, Hybrid's immediate second decision, one-use/stale tickets,
+reentry, every ticket invalidator, native-refusal behavior, invalid/backward RTC
+and monotonic rejection, awake and activation-time jumps, late expiry and a
+fresh Deep-style restart. Native Watch integration and physical timing checks
+are separate requirements.
 
 ## Concrete remaining integration gates
 

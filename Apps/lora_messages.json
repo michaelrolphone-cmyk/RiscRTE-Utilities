@@ -1,6 +1,6 @@
 {
   "min_firmware_version": "0.1.27",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "display_name": "LoRa Messages",
   "file_name": "lora_messages.elf",
   "icon": "solid:f27a",

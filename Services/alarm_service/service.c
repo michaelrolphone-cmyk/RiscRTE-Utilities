@@ -55,6 +55,8 @@ static bool volume_sound_enabled(void) {
 static uint32_t staged_mode, seconds, previous_seconds, sleep_snapshot, alert_limit_ms;
 static uint64_t previous_ms, sample_ms, next_reconcile, alert_started, next_pulse;
 static bool started, in_call, refreshed, anchored, sleep_waiting;
+static bool sleep_ticket_valid;
+static alarm_sleep_v1 sleep_ticket;
 static bool active, dismiss, haptic_uncertain, audio_uncertain, cleanup_failed;
 static bool persistence_pending, foreground_failed;
 #ifdef ALARM_DND_CONTROL
@@ -110,7 +112,7 @@ static void update_view(void) {
         memset(view.label,0,sizeof(view.label));
     }
 }
-static int32_t fail(int32_t e) { error=e;phase=BLOCKED;sleep_waiting=false;update_view();return e; }
+static int32_t fail(int32_t e) { error=e;phase=BLOCKED;sleep_waiting=sleep_ticket_valid=false;update_view();return e; }
 static const void *dependency(const risc_provider_dependency_v1 *d,size_t n,const char *name,uint32_t v,size_t size) {
     const void *out=NULL;
     for(size_t i=0;i<n;i++)if(d[i].capability_id&&!strcmp(d[i].capability_id,name)) {
@@ -133,6 +135,7 @@ static bool read_occurrence(unsigned i) {
     return r==RISC_BOUND_KEY_VALUE_OK&&alarm_occurrence_decode(&staged_occ[i],b,n,(uint8_t)(i+1));
 }
 static void begin_reconcile(void) {
+    sleep_ticket_valid=false;
     persistence_pending=false;foreground_failed=false;
     phase=LOAD_ALARM;refreshed=false;error=0;memset(staging,0,sizeof(staging));memset(staged_occ,0,sizeof(staged_occ));
 }
@@ -565,7 +568,7 @@ static int32_t do_step(void) {
 }
 static int32_t step(void *c) {
     (void)c;if(!started)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
-    in_call=true;int32_t result=do_step();update_view();in_call=false;return result;
+    in_call=true;sleep_ticket_valid=false;int32_t result=do_step();update_view();in_call=false;return result;
 }
 static int32_t status(void *c,alarm_status_v1 *out) {
     (void)c;if(!started||!out||out->struct_size<sizeof(*out))return ALARM_INVALID;
@@ -574,6 +577,7 @@ static int32_t status(void *c,alarm_status_v1 *out) {
 }
 static int32_t refresh(void *c) {
     (void)c;if(!started)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
+    sleep_ticket_valid=false;
     if(!haptic_uncertain&&!audio_uncertain&&(!active||
        (!dismiss&&desired.state==ALARM_OCC_PENDING&&(phase==ACTIVATE_RTC||phase==START_AUDIO||phase==BLOCKED)))) {
         /* No physical output began. Reconcile the latest durable schedule,
@@ -589,6 +593,7 @@ static int32_t refresh(void *c) {
 }
 static int32_t acknowledge(void *c,const alarm_token_v1 *value) {
     (void)c;if(!started||!value)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
+    sleep_ticket_valid=false;
     if(!active) {
         for(unsigned i=0;i<2;i++)if(occurrences[i].state==ALARM_OCC_ACKED&&alarm_same_occurrence(&occurrences[i],&config[i])) {
             alarm_token_v1 confirmed=token(&occurrences[i]);
@@ -632,12 +637,37 @@ static int32_t prepare_sleep_internal(alarm_sleep_v1 *out) {
         }
     }
 #endif
-    *out=(alarm_sleep_v1){sizeof(*out),view.snapshot,seconds,deadline};sleep_waiting=false;return ALARM_OK;
+    *out=(alarm_sleep_v1){sizeof(*out),view.snapshot,seconds,deadline};
+    sleep_ticket=*out;sleep_ticket_valid=true;sleep_waiting=false;return ALARM_OK;
 }
 static int32_t prepare_sleep(void *c,alarm_sleep_v1 *out) {
     (void)c;if(!started||!out||out->struct_size<sizeof(*out))return ALARM_INVALID;
     if(in_call)return ALARM_BUSY;
-    in_call=true;int32_t result=prepare_sleep_internal(out);in_call=false;return result;
+    in_call=true;sleep_ticket_valid=false;int32_t result=prepare_sleep_internal(out);in_call=false;return result;
+}
+static int32_t resume_sleep(void *c,const alarm_sleep_v1 *decision) {
+    (void)c;if(!started||!decision||decision->struct_size<sizeof(*decision))return ALARM_INVALID;
+    if(in_call)return ALARM_BUSY;
+    if(!sleep_ticket_valid||phase!=IDLE||active||haptic_uncertain||audio_uncertain||
+       decision->snapshot!=sleep_ticket.snapshot||decision->rtc_seconds!=sleep_ticket.rtc_seconds||
+       decision->deadline!=sleep_ticket.deadline)return ALARM_STALE;
+    in_call=true;sleep_ticket_valid=false;
+    twatch_rtc_time_v1 t;uint32_t current;int32_t result=ALARM_OK;
+    if(!rtc->read(rtc->context,&t)||t.weekday>6||
+       !alarm_calendar_seconds(t.year,t.month,t.day,t.hour,t.minute,t.second,&current))result=fail(ALARM_RTC);
+    else {
+        uint64_t at=now_ms();
+        /* Light sleep preserves this service but may estimate elapsed monotonic
+           time from a different oscillator. Only this explicit successful-sleep
+           boundary discards their cross-sleep rate comparison. Calendar bounds
+           and backward RTC/monotonic rejection remain mandatory. */
+        if(!anchored||current<sleep_ticket.rtc_seconds||at<previous_ms)result=fail(ALARM_RTC);
+        else {
+            seconds=previous_seconds=current;sample_ms=previous_ms=at;
+            begin_reconcile();update_view();
+        }
+    }
+    in_call=false;return result;
 }
 static int32_t stop_only_internal(void) {
     if(!active&&!haptic_uncertain&&!audio_uncertain) {
@@ -665,11 +695,11 @@ static int32_t stop_only_internal(void) {
 }
 static int32_t stop_only(void *c) {
     (void)c;if(!started)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
-    in_call=true;int32_t result=stop_only_internal();update_view();in_call=false;return result;
+    in_call=true;sleep_ticket_valid=false;int32_t result=stop_only_internal();update_view();in_call=false;return result;
 }
 static bool quiesce(void) {
     if(in_call)return false;
-    in_call=true;started=false;
+    in_call=true;started=false;sleep_ticket_valid=false;
     bool h=!haptic||haptic->stop(haptic->context);
     if(audio)(void)audio->silence(audio->context);
     bool a=!audio||audio->close(audio->context);
@@ -698,13 +728,14 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
 #endif
     memset(config,0,sizeof(config));memset(occurrences,0,sizeof(occurrences));memset(&view,0,sizeof(view));
     memset(&desired,0,sizeof(desired));
-    active=dismiss=anchored=sleep_waiting=persistence_pending=false;
+    active=dismiss=anchored=sleep_waiting=sleep_ticket_valid=persistence_pending=false;
+    memset(&sleep_ticket,0,sizeof(sleep_ticket));
 #ifdef ALARM_DND_CONTROL
     staged_dnd=muting_active=false;
 #endif
     seconds=0;staged_mode=ALARM_MODE_VIBRATE;started=true;begin_reconcile();return true;
 }
 static void stop(void) {(void)quiesce();}
-static const alarm_service_v1 api={1,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only};
+static const alarm_service_sleep_v1 api={{1,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},resume_sleep};
 static const risc_driver_v2 driver={2,sizeof(driver),"alarm-service",ALARM_SERVICE_CAPABILITY,1,&api,start,stop,quiesce};
 __attribute__((visibility("default"))) const risc_driver_v2 *t5_driver_get(uint32_t abi) {return abi==2?&driver:NULL;}

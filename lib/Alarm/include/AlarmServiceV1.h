@@ -2,6 +2,7 @@
 #define UTILITIES_ALARM_SERVICE_V1_H
 /* Utilities-owned, opaque-to-Runtime ordinary provider capability. */
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #define ALARM_SERVICE_CAPABILITY "alarm.service"
 #define ALARM_SERVICE_API_V1 1u
@@ -67,6 +68,21 @@ typedef struct {
        OUTPUT means retain the invocation/resources; no normal handoff. */
     int32_t (*stop_only)(void *);
 } alarm_service_v1;
+/* Optional append-only suffix. The original table remains an unchanged prefix,
+   so existing clients and providers keep their source and binary layouts. */
+#define ALARM_SERVICE_SLEEP_RESUME_SUPPORTED 1u
+typedef struct {
+    alarm_service_v1 base;
+    /* Only the serialized sleep owner may call this, exactly once after native
+       Light sleep returns OK, before another mutating service/writer call.
+       Pass the unchanged successful prepare_sleep decision. A refusal must not
+       call it. One RTC read rejects invalid/backward time, then reanchors the
+       independent awake monotonic clock and starts full reconciliation. OK
+       confirms this boundary only; due work still requires normal steps.
+       STALE rejects a wrong, reused or invalidated decision without I/O. */
+    int32_t (*resume_sleep)(void *, const alarm_sleep_v1 *);
+} alarm_service_sleep_v1;
+#define ALARM_SERVICE_SLEEP_V1_SIZE ((uint32_t)sizeof(alarm_service_sleep_v1))
 #if defined(__cplusplus)
 #define ALARM_STATIC_ASSERT static_assert
 #else
@@ -75,8 +91,11 @@ typedef struct {
 ALARM_STATIC_ASSERT(sizeof(alarm_token_v1)==16,"alarm occurrence token ABI");
 ALARM_STATIC_ASSERT(sizeof(alarm_status_v1)==104,"alarm copied status ABI");
 ALARM_STATIC_ASSERT(sizeof(alarm_sleep_v1)==16,"alarm sleep decision ABI");
+ALARM_STATIC_ASSERT(offsetof(alarm_service_sleep_v1,base)==0,"alarm sleep base prefix");
+ALARM_STATIC_ASSERT(offsetof(alarm_service_sleep_v1,resume_sleep)==sizeof(alarm_service_v1),"alarm sleep suffix offset");
 #if UINTPTR_MAX == UINT32_MAX
 ALARM_STATIC_ASSERT(sizeof(alarm_service_v1)==36,"alarm service target ABI");
+ALARM_STATIC_ASSERT(sizeof(alarm_service_sleep_v1)==40,"alarm sleep service target ABI");
 #endif
 #undef ALARM_STATIC_ASSERT
 #endif

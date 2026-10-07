@@ -169,7 +169,7 @@ typedef struct {
  st_example query;st_dtw work;
  unsigned label,example,positive[8],negative[8],compared,cells,work_units;
  int shift[8];uint16_t reference_hz[8],observed_hz;uint32_t example_id[8];
- bool running,complete,work_started;uint8_t allowed_labels;int selected;unsigned reason,score;
+ bool running,complete,work_started;uint8_t allowed_labels,excluded_examples[ST_LABELS];int selected;unsigned reason,score;
 } st_matcher;
 static inline void st_match_begin(st_matcher *m,const st_example *query){memset(m,0,sizeof(*m));m->selected=-1;if(!query||!st_example_valid(query)){m->complete=true;return;}m->query=*query;m->observed_hz=st_frequency_evidence(query);m->running=true;m->allowed_labels=255;}
 static inline void st_match_finish(st_matcher *m){
@@ -186,7 +186,7 @@ static inline void st_match_tick(st_matcher *m,const st_library *library,unsigne
  if(!m||!library||!m->running||budget<8u)return;
  while(m->label<ST_LABELS&&budget){const st_label *label=&library->labels[m->label];
   if(!(m->allowed_labels&(1u<<m->label))||!label->present||m->example==ST_EXAMPLES){m->label++;m->example=0;m->work_started=false;continue;}
-  const st_example *example=&label->examples[m->example];if(!example->id){m->example++;continue;}
+  const st_example *example=&label->examples[m->example];if(!example->id||(m->excluded_examples[m->label]&(1u<<m->example))){m->example++;continue;}
   if(!m->work_started){if(budget<8u)return;(void)st_dtw_start(&m->work,&m->query,example,label->shift_limit);m->work_started=true;budget-=8u;m->work_units+=8u;if(!budget&&!m->work.done)return;}
   unsigned before=m->work.i;st_dtw_step(&m->work,&m->query,example,budget);unsigned used=m->work.i-before+(m->work.done?1u:0u);if(!used)used=1;unsigned charged=used>budget?budget:used;m->work_units+=charged;budget=used>=budget?0:budget-used;
   if(!m->work.done)return;
