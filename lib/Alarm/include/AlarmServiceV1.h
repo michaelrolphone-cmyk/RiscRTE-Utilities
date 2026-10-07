@@ -14,10 +14,11 @@
 #define ALARM_MODE_BOTH 3u
 enum { ALARM_OK=0, ALARM_PENDING=1, ALARM_BUSY=-1, ALARM_INVALID=-2,
        ALARM_STALE=-3, ALARM_STORAGE=-4, ALARM_RTC=-5, ALARM_OUTPUT=-6,
-       ALARM_EXHAUSTED=-7, ALARM_FOREGROUND=-8,
-       /* New opt-in UTC profile: conservative invocation custody fence.
-        * Consumer must retain invocation and stop all normal activity. */
-       ALARM_RETAINED=-9 };
+       ALARM_EXHAUSTED=-7, ALARM_FOREGROUND=-8 };
+/* New opt-in UTC profile: conservative invocation custody fence.
+ * Consumer must retain invocation and stop all normal activity.
+ * Macro preserves legacy compiler symbol numbering and exact target bytes. */
+#define ALARM_RETAINED (-9)
 enum { ALARM_STATE_LOADING, ALARM_STATE_READY, ALARM_STATE_ALERT,
        ALARM_STATE_DISMISSING, ALARM_STATE_BLOCKED,
        /* Additive copied status: non-modal output reservation, before open and

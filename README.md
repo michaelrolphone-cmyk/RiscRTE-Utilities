@@ -131,3 +131,11 @@ negative short-event examples, background-relative labels, temporal matching and
 bounded frequency-shift tolerance. Its app-data backend is pinned to published Runtime 0.1.32; the Watch repository
 owns the final ABI2 image assembly and physical qualification. No new layout is
 formatted or installed by this repo.
+
+## Optional native UTC visual alarms
+
+The [native UTC visual alarm profile](docs/NATIVE_UTC_VISUAL_ALARMS.md) provides
+a separate development-only 0.4.3 service and pure Points timezone hooks. It
+uses the readonly native-time provider and nine explicit keys, with no product
+activation or migration. Existing Watch and raw-RTC visual ELF bytes remain
+exactly unchanged.
