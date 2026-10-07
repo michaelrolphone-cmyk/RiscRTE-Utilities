@@ -30,7 +30,8 @@ For each eligible label, the newest positive and newest negative recording are
 held out. Neither is used to train the model or normalize its inputs. The other
 examples train a candidate in interruptible one-example idle updates. Recording,
 ongoing event matching, touch/navigation, room capture, pending writes, audio
-warm-up and active foreground sound take precedence. The existing temporal
+warm-up and foreground sound above the user's event floor take precedence.
+Tiny high-SNR bins below that floor do not starve learning. The existing temporal
 matcher continues operating throughout preparation, training and checking.
 
 After 256 epochs, the candidate must improve on the simpler temporal matcher on
