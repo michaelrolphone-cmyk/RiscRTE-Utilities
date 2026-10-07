@@ -1,4 +1,4 @@
-# BLE Buttons 0.1.0
+# BLE Buttons 0.1.1
 
 Four configurable Nova7 remote controls sharing the same secure BLE HID session
 and driver bond as [BLE Touchpad](ble_touchpad.md). The host sees **Watch Buttons**.

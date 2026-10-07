@@ -7,7 +7,7 @@ by this work.
 
 ## Sources and outputs
 
-- `hid_apps` inventory: `ble_touchpad` and `ble_buttons`, both 0.1.0.
+- `hid_apps` inventory: `ble_touchpad` and `ble_buttons`, both 0.1.1.
 - Exact standalone System-Apps source: `d5b6c0fa7c06bb36a776e7ce501028a9827221e2`.
 - Generic `RiscBluetoothHidV1.h` is an exact copy of Drivers' public API and is
   SHA-256 locked in `sdk/hid-sources.json`.
@@ -86,3 +86,60 @@ teardown. Screenshots live in `build/hid-apps/*-frames` and
 Physical Watch touch latency, Bluetooth pairing/interoperability with actual
 hosts, actual disconnect/reconnect behavior, power/sleep and NVS/power-loss
 qualification remain deployment tests. No physical test is claimed here.
+
+## Pairing diagnostics and Watch touch regression
+
+HID 0.1.1 emits bounded serial diagnostics through the existing Runtime diagnostic
+API: connection state/error transitions, a fresh pairing contact's target and
+coordinates, ignored-contact reasons, and confirmation request/result. Pairing
+numbers, bond material and HID report contents are never logged. A held contact
+is logged once, with at most one contact-cancellation reason until neutral.
+Each continuous event-gap episode is reported once; ordinary polls are silent.
+
+The Watch deployment must use a touch provider whose snapshot sequence is the
+last emitted event sequence. The old FT6336U provider advanced its snapshot one
+event ahead, which the HID app correctly rejected as a gap, cancelling every
+Accept and Reject contact before confirmation reached the Bluetooth provider.
+The generic provider and previous API fakes already used matching sequences,
+so their isolated tests could not expose this deployment defect.
+
+Exercise both production HID apps, the real shared adapter and the production
+Watch FT6336U driver, replacing only its physical I2C/GPIO/time dependencies:
+
+```sh
+python scripts/test_hid_renderer.py --system-apps /exact/system-apps --watch /exact/watch
+```
+
+The optional `--scene pair-accept` or `--scene pair-reject` narrows this same
+normal and ASan/UBSan test to the reported failure. Use
+`--watch-touch-source drivers/twatch_touch/driver.c` to reproduce against the
+historical provider; the corrected `drivers/current/twatch_touch/driver.c` is
+selected automatically when available. The current Watch cohort
+owns the corrected driver version and runs this cross-repository regression;
+standalone Utilities CI continues to test the generic raw-touch API profile.
+
+Add `--runtime /exact/runtime` to link the production Runtime diagnostic logger
+and its existing host USB shim. This asserts live serial output and `diag`
+replay after the HID app returns; set `HID_RENDER_SERIAL_ABSENT=1` to verify
+retention while disconnected and replay after reconnect. This is host linkage
+evidence, not a physical Watch USB-capture claim.
+
+
+### HID 0.1.2 failure visibility and regression
+
+The app records its original stop reason and a copied state before teardown,
+then records the final close separately. A nonzero OFF error can describe the
+original transport failure; it no longer replaces that reason with a misleading
+cleanup-only message. With Drivers ble-hid 0.1.2, the optional API suffix adds
+numeric transport stage, disconnect/security/notification results, poll-gap
+maximum and independent host/native cleanup results. Codes, keys, addresses and
+input contents are never logged. Older API prefixes remain supported.
+
+The renderer fixture can use `--low-battery` with the delivered System adapter.
+It covers saved-session mouse reconnect, a missing mouse notification
+subscription, transport-error return and explicit Reconnect, and the below-10%
+policy hook. With `--watch` and `--runtime`, these use the production FT6336U
+backend and serial diagnostic journal over their existing host shims. The radio
+in this UI fixture remains a copied peripheral API fake; the Drivers protocol
+suite independently runs production NimBLE and cryptographic pairing/reconnect.
+Physical host/controller behavior is still unqualified.

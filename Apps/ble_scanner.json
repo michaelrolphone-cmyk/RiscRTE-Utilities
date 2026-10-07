@@ -1,6 +1,6 @@
 {
   "min_firmware_version": "0.1.27",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "display_name": "BLE Scanner",
   "file_name": "ble_scanner.elf",
   "icon": "solid:f7c0",
@@ -18,7 +18,7 @@
       "api": ">=1"
     },
     {
-      "capability": "bluetooth.hci",
+      "capability": "bluetooth.sensors",
       "api": ">=1"
     },
     {
@@ -27,6 +27,10 @@
     },
     {
       "capability": "storage.key-value",
+      "api": ">=1"
+    },
+    {
+      "capability": "bluetooth.hci",
       "api": ">=1"
     }
   ],

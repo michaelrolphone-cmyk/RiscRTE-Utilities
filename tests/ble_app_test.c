@@ -8,7 +8,7 @@
 #include <stdlib.h>
 static unsigned input_mode,input_step,launches;static bool back_enabled;
 static uint32_t tick;static unsigned grants,claims,closes,sends;static bool close_bad,send_bad,release_bad,claim_bad;static int restore_result=1;
-static uint8_t policy=3,queued[64];static size_t queued_size;static char drawn[4000];static jmp_buf retention;
+static uint8_t policy=3;static size_t queued_size;static char drawn[4000];static jmp_buf retention;
 static uint32_t millis(void){return tick;}
 static int32_t screen(void){return 240;}
 static bool poll_input(t5_app_input_t*i,uint32_t t){
@@ -20,15 +20,18 @@ static bool poll_input(t5_app_input_t*i,uint32_t t){
 static void back(bool b){back_enabled=b;}
 static bool contact(t5_app_contact_t*s){*s=(t5_app_contact_t){0};return true;}
 static void present(bool full){(void)full;}
-static bool claim(void*c,uint64_t*out){(void)c;claims++;*out=1;return !claim_bad;}
-static int32_t close_host(void*c,uint64_t t){(void)c;assert(t==1);closes++;return close_bad?-1:restore_result;}
-static bool send_host(void*c,uint64_t t,uint8_t type,const uint8_t*p,size_t n){(void)c;assert(t==1&&type==1&&n==3u+p[2]);sends++;if(send_bad)return false;uint8_t ack[]={0x0e,4,1,p[0],p[1],0};memcpy(queued,ack,6);queued_size=6;return true;}
-static int32_t next_host(void*c,uint64_t t,uint8_t*type,uint8_t*p,size_t cap,size_t*n){(void)c;assert(t==1&&cap>=1028);*n=queued_size;if(!*n)return 0;*type=4;memcpy(p,queued,*n);queued_size=0;return 1;}
-static portable_bluetooth_host_v1 fake_host={{1,sizeof(fake_host),NULL,NULL,NULL,NULL,NULL},claim,send_host,next_host,close_host};
-static int32_t get(void*c,const char*k,void*data,uint32_t cap,uint32_t*n){uint8_t*v=data;(void)c;assert(!strcmp(k,"quick_radio")&&cap==4);v[0]=0x51;v[1]=1;v[2]=policy;v[3]=(uint8_t)(policy^0xa5);*n=4;return 0;}
-static int32_t put(void*c,const char*k,const void*v,uint32_t n){(void)c;(void)k;(void)v;(void)n;assert(!"Scanner must not write policy");return -1;}
+static unsigned provider_phase,provider_polls,provider_count;static ble_device provider_devices[BLE_MAX_DEVICES];
+static bool provider_restore;static uint8_t name_record[40];static char name_key_saved[16];static bool name_present,name_write_bad;
+static bool claim(void*c,uint64_t*out){(void)c;claims++;*out=1;provider_polls=provider_count=0;provider_phase=BLE_STARTING;provider_restore=false;return !claim_bad;}
+static bool close_host(void*c,uint64_t t){(void)c;assert(t==1);closes++;if(close_bad)return false;provider_restore=restore_result==0;return true;}
+static bool poll_host(void*c,uint64_t t,uint32_t n){(void)c;assert(t==1&&n==6);sends++;if(send_bad){provider_phase=BLE_ERROR;return false;}if(++provider_polls>=5)provider_phase=BLE_SCANNING;if(tick>=15000)provider_phase=BLE_COMPLETE;return true;}
+static bool host_status(void*c,risc_ble_sensor_status_v1*out){(void)c;*out=(risc_ble_sensor_status_v1){.struct_size=sizeof(*out),.state=provider_phase,.count=provider_count,.restore_failed=provider_restore};if(send_bad)strcpy(out->error,"Send failed");return true;}
+static bool host_device(void*c,uint32_t i,ble_device*out){(void)c;if(i>=provider_count)return false;*out=provider_devices[i];return true;}
+static risc_bluetooth_sensors_v1 fake_host={1,sizeof(fake_host),NULL,claim,poll_host,host_status,host_device,close_host};
+static int32_t get(void*c,const char*k,void*data,uint32_t cap,uint32_t*n){uint8_t*v=data;(void)c;if(!strcmp(k,"quick_radio")){assert(cap==4);v[0]=0x51;v[1]=1;v[2]=policy;v[3]=(uint8_t)(policy^0xa5);*n=4;return 0;}assert(cap==40);if(!name_present||strcmp(k,name_key_saved))return -1;memcpy(data,name_record,40);*n=40;return 0;}
+static int32_t put(void*c,const char*k,const void*v,uint32_t n){(void)c;assert(strcmp(k,"quick_radio")&&n==40);if(name_write_bad)return -5;strcpy(name_key_saved,k);memcpy(name_record,v,40);name_present=true;return 0;}
 static risc_key_value_v1 kv={1,sizeof(kv),NULL,get,put};
-static bool acquire(const char*n,uint32_t v,uint64_t inst,risc_runtime_capability_v1*g){assert(v==1);if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(inst==1);g->api=&kv;}else{assert(!strcmp(n,"bluetooth.hci")&&inst==16);g->api=&fake_host;}grants++;return true;}
+static bool acquire(const char*n,uint32_t v,uint64_t inst,risc_runtime_capability_v1*g){assert(v==1);if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(inst==1);g->api=&kv;}else{assert(!strcmp(n,RISC_BLUETOOTH_SENSORS_CAPABILITY)&&inst==0);g->api=&fake_host;}grants++;return true;}
 static bool release(risc_runtime_capability_v1*g){assert(g->api&&grants);if(release_bad)return false;grants--;return true;}
 static bool launch(const char*s){assert(!strcmp(s,"springboard.elf")&&!token&&!acquired);launches++;return true;}
 static bool diagnostic(const char*s){assert(s);return true;}
@@ -41,7 +44,7 @@ bool portable_app_sleep_retained(void){return false;}
 #ifndef BLE_RENDER
 void portable_nova_begin(void){drawn[0]=0;}
 void portable_nova_header(const char*s){strcat(drawn,s);strcat(drawn,"\n");}
-void portable_nova_text(unsigned f,int x,int y,int w,const char*s,uint32_t color){(void)color;assert(f<=2&&x>=0&&y>=0&&x+w<=240&&y<196);assert(strlen(drawn)+strlen(s)+2<sizeof(drawn));strcat(drawn,s);strcat(drawn,"\n");}
+void portable_nova_text(unsigned f,int x,int y,int w,const char*s,uint32_t color){(void)color;assert(f<=2&&x>=0&&y>=0&&x+w<=240&&y<240);assert(strlen(drawn)+strlen(s)+2<sizeof(drawn));strcat(drawn,s);strcat(drawn,"\n");}
 void portable_nova_center(unsigned f,int x,int y,int w,const char*s,uint32_t c){portable_nova_text(f,x,y,w,s,c);}
 void portable_nova_fill(int x,int y,int w,int h,uint32_t c){(void)c;assert(x>=0&&y>=0&&x+w<=240&&y+h<=240);}
 void portable_nova_round(int x,int y,int w,int h,int radius,uint32_t c){(void)c;(void)radius;assert(x>=0&&y>=0&&x+w<=240&&y+h<=240);}
@@ -61,13 +64,13 @@ static void snapshot(const char *name){
  for(unsigned i=0;i<240*240;i++){uint16_t v=pixels[i];uint8_t rgb[]={(uint8_t)((v>>11)*255/31),(uint8_t)(((v>>5)&63)*255/63),(uint8_t)((v&31)*255/31)};assert(fwrite(rgb,1,3,f)==3);}fclose(f);
 }
 #endif
-static void reset(void){app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=false;selected=scroll=detail_scroll=0;dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=launches=0;back_enabled=true;}
+static void reset(void){app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=naming=name_save_failed=false;selected=scroll=detail_scroll=detail_index=0;memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=launches=0;back_enabled=true;provider_count=provider_polls=0;provider_phase=BLE_IDLE;provider_restore=false;name_present=name_write_bad=false;}
 #ifdef BLE_RENDER
 int main(void){
  reset();message="Enable Bluetooth in controls";draw();snapshot("empty");
  scan.count=8;for(unsigned i=0;i<8;i++){ble_device*d=&scan.devices[i];snprintf(d->name,32,"Sensor %u",i+1);d->rssi=-48-(int)i*6;d->bthome=true;d->bthome_version=2;d->seen=1000;d->measurement_seen=1000;d->service_count=1;d->services[0]=0xfcd2;}
  tick=2000;message="Passive scan - 15 seconds";draw();snapshot("results");
- detail=true;draw();snapshot("detail");detail_scroll=5;scan.devices[0].has_temperature=true;scan.devices[0].temperature=2250;scan.devices[0].has_humidity=true;scan.devices[0].humidity=5340;scan.devices[0].has_battery=true;scan.devices[0].battery=88;draw();snapshot("sensor");
+ detail=true;draw();snapshot("detail");detail_scroll=5;scan.devices[0].has_temperature=true;scan.devices[0].temperature=2250;scan.devices[0].has_humidity=true;scan.devices[0].humidity=5340;scan.devices[0].has_battery=true;scan.devices[0].battery=88;scan.devices[0].reading_count=3;scan.devices[0].readings[0]=(risc_ble_reading_v1){RISC_TELEMETRY_TEMPERATURE_CENTIC,2250};scan.devices[0].readings[1]=(risc_ble_reading_v1){RISC_TELEMETRY_HUMIDITY_CENTIPERCENT,5340};scan.devices[0].readings[2]=(risc_ble_reading_v1){RISC_TELEMETRY_BATTERY_PERCENT,88};draw();snapshot("sensor");begin_name();strcpy(editing,"Kitchen sensor");draw();snapshot("naming");
  puts("BLE production Nova pixels rendered");
 }
 #else
@@ -75,19 +78,30 @@ int main(void){
  reset();draw();assert(strstr(drawn,"Tap Scan"));assert(!claims);
  policy=4;start_scan();assert(!claims&&!grants&&strstr(message,"Airplane"));policy=1;start_scan();assert(!claims&&strstr(message,"Enable Bluetooth"));policy=3;
  start_scan();assert(token&&active()&&grants==1);for(unsigned i=0;i<5;i++){tick+=20;pump();}assert(scan.phase==BLE_SCANNING&&sends==5);
- for(unsigned i=0;i<8;i++){scan.devices[i].rssi=-60;snprintf(scan.devices[i].name,32,"Sensor %u",i);}scan.count=8;move(4);assert(selected==4&&scroll==2);draw();assert(strstr(drawn,"Sensor 4"));detail=true;draw();assert(strstr(drawn,"Sensor 4"));move(30);draw();draw();assert(detail_scroll<=32);
+ for(unsigned i=0;i<8;i++){scan.devices[i].rssi=-60;snprintf(scan.devices[i].name,32,"Sensor %u",i);}scan.count=8;move(4);assert(selected==4&&scroll==2);draw();assert(strstr(drawn,"Sensor 4"));detail=true;detail_index=4;draw();assert(strstr(drawn,"Sensor 4"));move(30);draw();draw();assert(detail_scroll<=32);
  assert(portable_radio_suspend()&&!active()&&!token&&!grants&&closes==1);assert(portable_radio_suspend()&&closes==1);
  start_scan();assert(active());start_scan();assert(!active()&&!grants&&closes==2);
  start_scan();send_bad=true;pump();assert(scan.phase==BLE_ERROR&&!token&&!grants&&strstr(message,"Send"));send_bad=false;
- start_scan();for(unsigned i=0;i<5;i++)pump();tick+=BLE_SCAN_MS;pump();assert(scan.phase==BLE_COMPLETE&&!token&&!grants);
+ start_scan();for(unsigned i=0;i<5;i++)pump();tick+=15000;pump();assert(scan.phase==BLE_COMPLETE&&!token&&!grants);
  claim_bad=true;start_scan();assert(!token&&!grants&&strstr(message,"busy"));claim_bad=false;
- fake_host.controls.struct_size=sizeof(portable_bluetooth_control_v1);start_scan();assert(!token&&!grants&&strstr(message,"update"));fake_host.controls.struct_size=sizeof(fake_host);
+ fake_host.struct_size=1;start_scan();assert(!token&&!grants&&strstr(message,"update"));fake_host.struct_size=sizeof(fake_host);
  start_scan();close_bad=true;unsigned prior=closes;if(!setjmp(retention)){stop();assert(!"Expected retained cleanup");}assert(uncertain&&token&&grants==1&&closes==prior+1);assert(!portable_radio_suspend()&&closes==prior+1);
  reset();start_scan();release_bad=true;if(!setjmp(retention)){stop();assert(!"Expected retained grant");}assert(uncertain&&!token&&grants==1);
  reset();start_scan();restore_result=0;start_scan();assert(!token&&!grants&&restore_failed&&strstr(message,"restore failed"));
- reset();start_scan();restore_result=0;for(unsigned i=0;i<5;i++)pump();tick+=BLE_SCAN_MS;pump();assert(!token&&!grants&&restore_failed&&strstr(message,"restore failed"));
+ reset();start_scan();restore_result=0;for(unsigned i=0;i<5;i++)pump();tick+=15000;pump();assert(!token&&!grants&&restore_failed&&strstr(message,"restore failed"));
  reset();app_main();assert(!claims&&!grants);
  reset();input_mode=1;app_main();assert(input_step==3&&back_enabled&&launches==1&&!claims&&!grants);
+ reset();scan.count=3;for(unsigned i=0;i<3;i++){scan.devices[i].address[0]=(uint8_t)i;scan.devices[i].bthome=true;}detail=true;detail_index=2;
+ begin_name();assert(naming);strcpy(editing,"Kitchen");save_name();assert(!naming&&!strcmp(aliases[2],"Kitchen")&&name_present);
+ unsigned list[BLE_MAX_DEVICES];assert(indexes(list)==3&&list[0]==2&&selected==0);assert(detail_index==2);
+ memset(aliases,0,sizeof(aliases));load_alias(2);assert(!strcmp(aliases[2],"Kitchen"));
+ begin_name();strcpy(editing,"Canceled");assert(navigate_back()&&!naming&&!strcmp(aliases[2],"Kitchen"));
+ begin_name();strcpy(editing,"Failed");name_write_bad=true;save_name();assert(naming&&name_save_failed&&!strcmp(aliases[2],"Kitchen"));name_write_bad=false;
+ editing[0]=0;save_name();assert(!naming&&!aliases[2][0]);memset(aliases,0,sizeof(aliases));load_alias(2);assert(!aliases[2][0]);
+ begin_name();key_page=2;name_key(1);assert(editing[0]=='a');name_key(PWK_DELETE);assert(!editing[0]);name_key(PWK_PAGE);assert(key_page==0);draw();assert(strstr(drawn,"SENSOR NAME"));
+ naming=false;detail=false;sensors=true;scan.devices[1].bthome=false;assert(indexes(list)==2);
+ reset();start_scan();for(unsigned i=0;i<5;i++)pump();provider_count=2;provider_devices[0]=(ble_device){.address={1},.address_type=1};provider_devices[1]=(ble_device){.address={2},.address_type=1};
+ assert(ble_alias_save(&kv,1,provider_devices[1].address,"Named"));pump();assert(indexes(list)==2&&list[0]==1&&!strcmp(aliases[1],"Named"));stop();
  puts("BLE real app: policy, results/details/scroll, stop/retry, no implicit RF and retained cleanup passed");
 }
 
