@@ -8,7 +8,7 @@ class HidInventory(unittest.TestCase):
   self.assertEqual([a['id'] for a in inventory()],['ble_touchpad','ble_buttons'])
   for a in inventory():
    side=json.loads((ROOT/a['manifest_path']).read_text())
-   self.assertEqual(a['version'],'0.1.0')
+   self.assertEqual(a['version'],'0.1.1')
    self.assertIn({'capability':'bluetooth.hid','api':'>=1'},side['requires'])
    self.assertIn({'capability':'input.touch.raw','api':'>=1'},side['requires'])
   scanner=json.loads((ROOT/'utilities-manifest.json').read_text())['ble_apps']

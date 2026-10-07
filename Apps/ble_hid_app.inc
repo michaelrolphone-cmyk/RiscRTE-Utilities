@@ -33,6 +33,7 @@ static bool button_gate;
 static unsigned selected,view;
 static uint32_t refreshed,reported,battery_at;
 static bool close_error,save_failed,pair_armed,pair_down,pair_sent;
+static bool pair_trace_down,pair_trace_cancelled,pair_trace_gap;
 static int pair_target,pair_x,pair_y;
 static uint8_t pair_id;
 static uint32_t pair_began,ui_block_until;
@@ -151,35 +152,57 @@ static bool touch_pad(const risc_touch_snapshot_v1*s,uint32_t now){
 /* Confirmation consumes a fresh raw contact that begins after an observed
  * neutral pairing screen. A legacy pointer tap carried across a modal/start
  * can never approve pairing. Motion, extra contacts and event gaps cancel it. */
+static const char *pair_target_name(int target){return target==1?"accept":target==0?"reject":"outside";}
+static int pairing_target(int x,int y){return portable_nova_hit(x,y,8,196,108,44)?0:portable_nova_hit(x,y,124,196,108,44)?1:-1;}
+static void pairing_ignored(const char *reason){
+ if(pair_trace_cancelled)return;
+ char text[96];snprintf(text,sizeof(text),"HID pairing touch ignored reason=%s",reason);
+ runtime->diagnostic(text);pair_trace_cancelled=true;
+}
 static void pairing_sample(const risc_touch_snapshot_v1*s,uint32_t now){
  if(pair_sent)return;
  if(!s->contact_count){
+  pair_trace_down=false;pair_trace_cancelled=false;
+  if(pair_down&&pair_target>=0&&(uint32_t)(now-pair_began)>800)pairing_ignored("held-too-long");
   if(pair_down&&pair_target>=0&&(uint32_t)(now-pair_began)<=800){
    bool accept=pair_target==1;ui_block_until=now+100;pair_sent=true;pair_down=false;
-   if(!hid->confirm_pairing(hid->context,token,accept)){stop_session("Pairing response failed");return;}
+   char text[96];snprintf(text,sizeof(text),"HID pairing response action=%s requested",pair_target_name(pair_target));runtime->diagnostic(text);
+   bool confirmed=hid->confirm_pairing(hid->context,token,accept);
+   snprintf(text,sizeof(text),"HID pairing response action=%s result=%s",pair_target_name(pair_target),confirmed?"ok":"failed");runtime->diagnostic(text);
+   if(!confirmed){stop_session("Pairing response failed");return;}
    if(!accept){stop_session("Pairing rejected");return;}
    message="Confirming secure connection";dirty=true;
   }
   pair_down=false;pair_armed=true;return;
  }
- if(!pair_armed)return;
- if(s->contact_count!=1){pair_target=-1;pair_down=true;return;}
+ if(!pair_trace_down){
+  const risc_touch_contact_v1*c=s->contacts;char text[128];
+  snprintf(text,sizeof(text),"HID pairing contact target=%s x=%u y=%u contacts=%u armed=%u",pair_target_name(pairing_target(c->x,c->y)),(unsigned)c->x,(unsigned)c->y,(unsigned)s->contact_count,pair_armed?1u:0u);
+  runtime->diagnostic(text);pair_trace_down=true;pair_trace_cancelled=false;
+ }
+ if(!pair_armed){pairing_ignored("not-armed");return;}
+ if(s->contact_count!=1){pairing_ignored("multiple-contacts");pair_target=-1;pair_down=true;return;}
  const risc_touch_contact_v1*c=s->contacts;
- if(!pair_down){pair_down=true;pair_id=c->id;pair_x=c->x;pair_y=c->y;pair_began=now;pair_target=portable_nova_hit(c->x,c->y,8,196,108,44)?0:portable_nova_hit(c->x,c->y,124,196,108,44)?1:-1;}
- else if(c->id!=pair_id||hid_abs((int)c->x-pair_x)>8||hid_abs((int)c->y-pair_y)>8)pair_target=-1;
+ if(!pair_down){pair_down=true;pair_id=c->id;pair_x=c->x;pair_y=c->y;pair_began=now;pair_target=pairing_target(c->x,c->y);if(pair_target<0)pairing_ignored("outside-buttons");}
+ else if(c->id!=pair_id||hid_abs((int)c->x-pair_x)>8||hid_abs((int)c->y-pair_y)>8){pairing_ignored(c->id!=pair_id?"contact-replaced":"moved");pair_target=-1;}
 }
 static void pump(void){
  if(!token||closing)return;
  uint32_t now=app->millis();
- if((uint32_t)(now-refreshed)>100){if(!release_input()){stop_session("Input timing interrupted");return;}}refreshed=now;
+ if((uint32_t)(now-refreshed)>100){if(status.state==RISC_HID_PAIR_CONFIRM&&pair_down)pairing_ignored("timing-gap");if(!release_input()){stop_session("Input timing interrupted");return;}}refreshed=now;
  if(!hid->poll(hid->context,token,8)){stop_session("Bluetooth error - reconnect");return;}
  risc_bluetooth_hid_status_v1 next={.struct_size=sizeof(next)};
- if(!hid->status(hid->context,token,&next)||next.state==RISC_HID_FAULT){stop_session("Connection error - reconnect");return;}
+ if(!hid->status(hid->context,token,&next)){runtime->diagnostic("HID state read failed");stop_session("Connection error - reconnect");return;}
+ if(next.state!=status.state||next.error!=status.error||next.connection_generation!=status.connection_generation){
+  char text[128];snprintf(text,sizeof(text),"HID state from=%u to=%u error=%ld generation=%lu",(unsigned)status.state,(unsigned)next.state,(long)next.error,(unsigned long)next.connection_generation);runtime->diagnostic(text);
+ }
+ status.error=next.error;
+ if(next.state==RISC_HID_FAULT){stop_session("Connection error - reconnect");return;}
  if(status.state==RISC_HID_PAIR_CONFIRM&&next.state!=RISC_HID_PAIR_CONFIRM&&!pair_sent){stop_session("Pairing canceled / timed out");return;}
  if(next.state==RISC_HID_PAIR_CONFIRM&&next.pairing_number>999999u){stop_session("Invalid pairing comparison");return;}
  if(next.state!=status.state||next.flags!=status.flags||next.pairing_number!=status.pairing_number||next.connection_generation!=status.connection_generation){
   if(!release_input()){stop_session("Release failed - reconnect");return;}
-  dirty=true;pair_sent=false;
+  dirty=true;pair_sent=false;pair_trace_down=pair_trace_cancelled=pair_trace_gap=false;
   if(next.state==RISC_HID_READY)message=(next.flags&(RISC_HID_KEYBOARD_READY|RISC_HID_MOUSE_READY))?"Connected securely":"Waiting for HID subscription";
   else if(next.state==RISC_HID_PAIR_CONFIRM)message="Compare both devices";
   else if(next.state==RISC_HID_CONNECTED)message="Waiting for secure HID link";
@@ -202,6 +225,8 @@ static void pump(void){
  if(!raw->snapshot(raw->context,&sample)||sample.width!=240||sample.height!=240||sample.contact_count>RISC_TOUCH_MAX_CONTACTS){stop_session("Touch unavailable - reconnect");return;}
  if(sample.sequence!=sequence)gap=true;
  sequence=sample.sequence;
+ if(status.state==RISC_HID_PAIR_CONFIRM&&gap&&!pair_trace_gap)runtime->diagnostic("HID pairing touch ignored reason=event-gap");
+ pair_trace_gap=gap;
  if(gap&&!release_input()){stop_session("Touch gap - reconnect");return;}
  if(status.state==RISC_HID_PAIR_CONFIRM){pairing_sample(&sample,now);return;}
  uint32_t need=RISC_HID_ENCRYPTED|RISC_HID_AUTHENTICATED|(HID_TOUCHPAD?RISC_HID_MOUSE_READY:0);
@@ -306,6 +331,7 @@ void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||app->screen_width()!=240||app->screen_height()!=240||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
  hid=0;raw=0;hid_acquired=raw_acquired=held_acquired=closing=had_ready=close_error=save_failed=pair_armed=pair_down=pair_sent=false;token=subscription=sequence=0;held_button=-1;button_gate=true;view=HID_VIEW_MAIN;selected=0;dirty=true;message="Pair or reconnect in Settings";status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(status)};hid_gesture_reset(&gesture,true);load_assignments();
+ pair_trace_down=pair_trace_cancelled=pair_trace_gap=false;
  ui_block_until=app->millis();app->set_back_exits_app(false);
  for(;;){
   if(dirty)draw();

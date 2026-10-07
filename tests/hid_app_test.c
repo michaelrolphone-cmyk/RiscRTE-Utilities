@@ -5,12 +5,12 @@
 #include <assert.h>
 #include <stdlib.h>
 static unsigned grants,raw_subs,opens,closes,releases,confirms,forgets,key_reports,mouse_reports,writes,launches,yields;
-static unsigned close_fail,grant_fail,unsub_fail;static bool open_bad,report_bad,poll_bad,status_bad,pair_choice,confirm_choice,storage_bad,raw_fault,raw_gap,back_enabled;
+static unsigned close_fail,grant_fail,unsub_fail;static bool open_bad,confirm_bad,report_bad,poll_bad,status_bad,pair_choice,confirm_choice,storage_bad,raw_fault,raw_gap,back_enabled;
 static bool deny_hid,deny_raw,deny_battery,fail_sub,fail_snapshot;
 static unsigned input_step,input_mode;static uint32_t tick;static uint64_t raw_seq,drained;static uint8_t policy=3,battery_value,last_mod,last_key,last_mouse;
 typedef struct {uint8_t kind,mod,key,buttons;int8_t dx,dy,wheel;} report_record;static report_record reports[256];static unsigned report_count;
 static uint8_t saved[40];static uint32_t saved_size;static bool have_token;static risc_touch_snapshot_v1 sample;
-static risc_bluetooth_hid_status_v1 fake_status;static char drawn[5000];
+static risc_bluetooth_hid_status_v1 fake_status;static char drawn[5000],diagnostics[8192];static unsigned diagnostic_count;
 static uint32_t millis(void){return tick;}
 static int32_t screen(void){return 240;}
 static bool poll_input(t5_app_input_t*i,uint32_t ms){tick+=ms;if(input_mode){input_step++;i->buttons=T5_APP_BUTTON_BACK;return true;}return false;}
@@ -20,7 +20,7 @@ static bool contact(t5_app_contact_t*c){*c=(t5_app_contact_t){0};return true;}
 static bool hid_open(void*c,const char*n,bool p,uint64_t*t){(void)c;assert(n&&strlen(n)<=20&&!have_token);opens++;pair_choice=p;*t=7;have_token=true;return !open_bad;}
 static bool hid_poll(void*c,uint64_t t,uint32_t n){(void)c;assert(t==7&&have_token&&n==8);return !poll_bad;}
 static bool hid_status(void*c,uint64_t t,risc_bluetooth_hid_status_v1*s){(void)c;assert(s->struct_size==sizeof(*s)&&t==(have_token?7u:0u));if(status_bad)return false;*s=fake_status;if(!have_token)s->state=RISC_HID_OFF;return true;}
-static bool hid_confirm(void*c,uint64_t t,bool a){(void)c;assert(t==7&&have_token);confirms++;confirm_choice=a;return true;}
+static bool hid_confirm(void*c,uint64_t t,bool a){(void)c;assert(t==7&&have_token);confirms++;confirm_choice=a;return !confirm_bad;}
 static bool hid_keyboard(void*c,uint64_t t,uint8_t m,const uint8_t*k){(void)c;assert(t==7&&have_token);assert(report_count<256);reports[report_count++]=(report_record){.kind=0,.mod=m,.key=k[0]};key_reports++;last_mod=m;last_key=k[0];return !report_bad;}
 static bool hid_mouse(void*c,uint64_t t,uint8_t b,int8_t x,int8_t y,int8_t w){(void)c;assert(t==7&&have_token);assert(report_count<256);reports[report_count++]=(report_record){.kind=1,.buttons=b,.dx=x,.dy=y,.wheel=w};mouse_reports++;last_mouse=b;return !report_bad;}
 static bool hid_release(void*c,uint64_t t){(void)c;assert(t==7&&have_token);releases++;last_mod=last_key=last_mouse=0;return !report_bad;}
@@ -43,7 +43,7 @@ static bool acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_
 static bool release(risc_runtime_capability_v1*g){assert(grants&&g->api);if(grant_fail){grant_fail--;return false;}g->api=NULL;grants--;return true;}
 static bool launch(const char*n){assert(!strcmp(n,"springboard.elf")&&!grants&&!token&&!subscription);launches++;return true;}
 static void yield(uint32_t ms){tick+=ms;assert(++yields<20);}
-static bool diag(const char*s){assert(s);return true;}
+static bool diag(const char*s){assert(s&&!strstr(s,"000042")&&!strstr(s,"pairing_number"));assert(strlen(diagnostics)+strlen(s)+2<sizeof(diagnostics));strcat(diagnostics,s);strcat(diagnostics,"\n");diagnostic_count++;return true;}
 static const t5_app_api_v1 fake_app={.abi_version=1,.struct_size=sizeof(fake_app),.screen_width=screen,.screen_height=screen,.poll=poll_input,.millis=millis,.present=present,.set_back_exits_app=back_enabled_fn,.touch_contact=contact};
 static const risc_runtime_api_v1 fake_rt={.api_version=1,.struct_size=sizeof(fake_rt),.acquire=acquire,.release=release,.yield_ms=yield,.diagnostic=diag,.request_launch=launch};
 const t5_app_api_v1 *t5_app_get_api(uint32_t v){assert(v==1);return &fake_app;}
@@ -64,7 +64,7 @@ static int width(void){return 240;}static int height(void){return 240;}static vo
 #include "nova_ui.inc"
 static void capture(const char*n){const char*dir=getenv("HID_FRAME_DIR");assert(dir);char p[512];snprintf(p,sizeof(p),"%s/%s.ppm",dir,n);FILE*f=fopen(p,"wb");assert(f);fprintf(f,"P6\n240 240\n255\n");for(unsigned i=0;i<240*240;i++){uint16_t v=pixels[i];uint8_t rgb[]={(uint8_t)((v>>11)*255/31),(uint8_t)(((v>>5)&63)*255/63),(uint8_t)((v&31)*255/31)};assert(fwrite(rgb,1,3,f)==3);}assert(!fclose(f));}
 #endif
-static void reset(void){assert(!grants&&!have_token&&!raw_subs);app=&fake_app;runtime=&fake_rt;hid=NULL;raw=NULL;hid_acquired=raw_acquired=held_acquired=closing=had_ready=close_error=save_failed=pair_armed=pair_down=pair_sent=false;token=subscription=sequence=0;held_button=-1;button_gate=true;view=HID_VIEW_MAIN;message=NULL;dirty=true;hid_defaults(assignments);hid_gesture_reset(&gesture,true);opens=closes=releases=confirms=forgets=key_reports=mouse_reports=writes=launches=yields=report_count=0;deny_hid=deny_raw=deny_battery=fail_sub=fail_snapshot=open_bad=report_bad=poll_bad=status_bad=storage_bad=raw_fault=raw_gap=false;close_fail=grant_fail=unsub_fail=0;tick=raw_seq=drained=ui_block_until=0;sample=(risc_touch_snapshot_v1){.width=240,.height=240};fake_status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(fake_status),.state=RISC_HID_READY,.flags=RISC_HID_KEYBOARD_READY|RISC_HID_MOUSE_READY|RISC_HID_ENCRYPTED|RISC_HID_AUTHENTICATED,.connection_generation=1};policy=3;input_mode=input_step=0;}
+static void reset(void){assert(!grants&&!have_token&&!raw_subs);diagnostics[0]=0;diagnostic_count=0;pair_trace_down=pair_trace_cancelled=pair_trace_gap=false;app=&fake_app;runtime=&fake_rt;hid=NULL;raw=NULL;hid_acquired=raw_acquired=held_acquired=closing=had_ready=close_error=save_failed=pair_armed=pair_down=pair_sent=false;token=subscription=sequence=0;held_button=-1;button_gate=true;view=HID_VIEW_MAIN;message=NULL;dirty=true;hid_defaults(assignments);hid_gesture_reset(&gesture,true);opens=closes=releases=confirms=forgets=key_reports=mouse_reports=writes=launches=yields=report_count=0;deny_hid=deny_raw=deny_battery=fail_sub=fail_snapshot=open_bad=confirm_bad=report_bad=poll_bad=status_bad=storage_bad=raw_fault=raw_gap=false;close_fail=grant_fail=unsub_fail=0;tick=raw_seq=drained=ui_block_until=0;sample=(risc_touch_snapshot_v1){.width=240,.height=240};fake_status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(fake_status),.state=RISC_HID_READY,.flags=RISC_HID_KEYBOARD_READY|RISC_HID_MOUSE_READY|RISC_HID_ENCRYPTED|RISC_HID_AUTHENTICATED,.connection_generation=1};policy=3;input_mode=input_step=0;}
 #ifndef HID_RENDER
 static void step(unsigned n,int x,int y){sample.contact_count=(uint8_t)n;sample.contacts[0]=(risc_touch_contact_v1){.id=1,.x=(uint16_t)x,.y=(uint16_t)y};sample.contacts[1]=(risc_touch_contact_v1){.id=2,.x=170,.y=120};raw_seq++;tick+=20;pump();}
 int main(void){
@@ -99,7 +99,22 @@ int main(void){
  forget();assert(forgets==1&&!grants);selected=2;draft=(hid_assignment){.kind=HID_ACTION_KEY,.key=40,.modifiers=15};storage_bad=true;assert(!save_draft()&&assignments[2].key==6&&save_failed);storage_bad=false;assert(save_draft()&&assignments[2].key==40&&!save_failed);hid_defaults(assignments);if(!HID_TOUCHPAD){load_assignments();assert(assignments[2].key==40&&assignments[2].modifiers==15);}
  for(unsigned k=0;k<4;k++){for(unsigned i=0;i<100;i++){change_value(1);assert(hid_assignment_valid(&draft));change_value(-1);assert(hid_assignment_valid(&draft));}change_kind();assert(hid_assignment_valid(&draft));}
  view=HID_VIEW_EDIT;draw();view=HID_VIEW_MODIFIERS;for(unsigned i=0;i<8;i++)tap(20+(int)(i%2)*116,70+(int)(i/2)*46);assert(draft.modifiers==255);draft.modifiers=0;draw();assert(back()&&view==HID_VIEW_EDIT);assert(back()&&view==HID_VIEW_MAIN);
- reset();app_main();assert(!grants&&!opens&&back_enabled);reset();input_mode=1;app_main();assert(launches==1&&input_step==1&&back_enabled&&!grants);
+ /* Pairing logging follows decisions, remains bounded while held, reports
+  * signed driver errors once, and rearms across stopped/restarted sessions. */
+ reset();start_session(true);fake_status.state=RISC_HID_PAIR_CONFIRM;fake_status.pairing_number=42;
+ step(0,0,0);step(1,180,220);unsigned held_logs=diagnostic_count;
+ for(unsigned i=0;i<20;i++)step(1,180,220);
+ assert(diagnostic_count==held_logs);step(0,0,0);
+ assert(confirms==1&&strstr(diagnostics,"contact target=accept x=180 y=220")&&strstr(diagnostics,"action=accept requested")&&strstr(diagnostics,"action=accept result=ok"));
+ stop_session("Next pairing");start_session(true);step(0,0,0);step(1,30,220);step(0,0,0);
+ assert(confirms==2&&!confirm_choice&&strstr(diagnostics,"contact target=reject")&&strstr(diagnostics,"action=reject result=ok"));
+ reset();start_session(true);step(0,0,0);fake_status.error=-9;step(0,0,0);unsigned error_logs=diagnostic_count;
+ for(unsigned i=0;i<20;i++)step(0,0,0);
+ assert(diagnostic_count==error_logs&&strstr(diagnostics,"error=-9"));stop_session("Done");
+ reset();start_session(true);fake_status.state=RISC_HID_PAIR_CONFIRM;fake_status.pairing_number=42;confirm_bad=true;
+ step(0,0,0);step(1,180,220);step(0,0,0);
+ assert(confirms==1&&!token&&!grants&&strstr(diagnostics,"action=accept result=failed"));
+ reset();pair_trace_down=pair_trace_cancelled=pair_trace_gap=true;app_main();assert(!grants&&!opens&&back_enabled&&!pair_trace_down&&!pair_trace_cancelled&&!pair_trace_gap);reset();input_mode=1;app_main();assert(launches==1&&input_step==1&&back_enabled&&!grants);
  puts("HID application: scoped grants, touch, secure pairing, holds, interruptions, close retries, persistence and navigation passed");
 }
 #else

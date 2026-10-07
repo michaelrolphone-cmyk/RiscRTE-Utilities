@@ -16,16 +16,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef HID_RENDER_RUNTIME_DIAGNOSTICS
+void hid_serial_start(void);void hid_serial_line(const char*);void hid_serial_finish(void);
+#endif
 void app_main(void);int app_module_init(void);void app_module_fini(void);
 static unsigned ticks,polls,grants,frames,subs,presents;
 static unsigned stop_poll=240;
 static bool hid_owned,allow_pair,paired_confirm,paired_reject;
+static unsigned diagnostic_lines, pairing_contacts, pairing_requests, pairing_results, pairing_confirmations;
+static bool diagnostic_moved,diagnostic_multitouch,diagnostic_gap;
 static unsigned hid_opens,hid_closes,hid_polls,hid_keyboard_reports,hid_mouse_reports,hid_releases;
 static uint8_t held_mod,held_key,held_mouse;
 static uint64_t touch_sequence;
 static unsigned touch_count;
 static bool gap_given,alarm_dismissed,sleep_jumped,sleep_seen;
+#ifdef HID_RENDER_WATCH_TOUCH
+static const risc_touch_api_v1 *watch_touch;
+static uint64_t watch_subscriptions[5];
+const risc_touch_api_v1 *hid_watch_touch_start(void);
+void hid_watch_touch_stop(void);
+#else
 static risc_touch_snapshot_v1 prior_touch;
+#endif
 static struct {bool live;uint64_t sequence;} subscribers[5];
 static unsigned radio_sends,radio_claims,radio_closes,radio_state,launches,reports,radio_control_calls;static bool radio_owned;
 static uint8_t command_ack[6];static bool ack_ready,advertising;
@@ -41,7 +53,20 @@ static void save_frame(void) {
 }
 static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;return polls<stop_poll;}
 static void fake_yield(uint32_t n){ticks+=n;if(getenv("HID_RENDER_SLEEP")&&polls>=40&&!sleep_jumped){sleep_jumped=true;ticks+=60001;}}
-static bool fake_diag(const char*s){fprintf(stderr,"%s\n",s);return true;}
+static bool fake_diag(const char*s){
+ assert(s&&!strstr(s,"000042")&&!strstr(s,"pairing_number"));
+ assert(++diagnostic_lines<40);
+ if(strstr(s,"HID pairing contact"))pairing_contacts++;
+ if(strstr(s,"HID pairing response")&&strstr(s," requested"))pairing_requests++;
+ if(strstr(s,"HID pairing response")&&strstr(s," result=ok"))pairing_results++;
+ diagnostic_moved|=strstr(s,"reason=moved")!=NULL;
+ diagnostic_multitouch|=strstr(s,"reason=multiple-contacts")!=NULL;
+ diagnostic_gap|=strstr(s,"reason=event-gap")!=NULL;
+#ifdef HID_RENDER_RUNTIME_DIAGNOSTICS
+ hid_serial_line(s);
+#endif
+ fprintf(stderr,"%s\n",s);return true;
+}
 static bool fake_launch(const char*s){assert(!radio_owned&&!hid_owned);assert(!strcmp(s,"springboard.elf"));launches++;printf("launch=%s\n",s);stop_poll=polls;return true;}
 static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=240,.height=240,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565)};return true;}
 static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=240,.height=240,.stride_bytes=488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
@@ -53,19 +78,53 @@ static void current_touch(risc_touch_snapshot_v1*s){
  *s=(risc_touch_snapshot_v1){.width=240,.height=240,.sequence=touch_sequence};
  for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){unsigned at=s->contact_count++;assert(at<5);s->contacts[at]=(risc_touch_contact_v1){.id=(uint8_t)(at+1),.x=(uint16_t)actions[i].x,.y=(uint16_t)actions[i].y};}
 }
-static uint64_t fake_sub(void*c){(void)c;for(unsigned i=1;i<5;i++)if(!subscribers[i].live){subscribers[i].live=true;subscribers[i].sequence=touch_sequence;subs++;return i;}assert(!"too many subscribers");return 0;}
-static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n>0&&n<5&&subscribers[n].live&&subs);subscribers[n].live=false;subs--;return true;}
+#ifdef HID_RENDER_WATCH_TOUCH
+void hid_renderer_watch_report(risc_touch_snapshot_v1*s){current_touch(s);}
+uint64_t hid_renderer_watch_millis(void){return ticks;}
+#endif
+static uint64_t fake_sub(void*c){(void)c;for(unsigned i=1;i<5;i++)if(!subscribers[i].live){subscribers[i].live=true;subscribers[i].sequence=touch_sequence;
+#ifdef HID_RENDER_WATCH_TOUCH
+watch_subscriptions[i]=watch_touch->subscribe(watch_touch->context);assert(watch_subscriptions[i]);
+#endif
+subs++;return i;}assert(!"too many subscribers");return 0;}
+static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n>0&&n<5&&subscribers[n].live&&subs);
+#ifdef HID_RENDER_WATCH_TOUCH
+assert(watch_touch->unsubscribe(watch_touch->context,watch_subscriptions[n]));watch_subscriptions[n]=0;
+#endif
+subscribers[n].live=false;subs--;return true;}
 static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);
  /* The adapter owns time advancement; the app's second poll sees the same report. */
- if(!hid_owned||(++touch_count%2)==1){polls++;risc_touch_snapshot_v1 next;current_touch(&next);next.sequence=prior_touch.sequence=0;if(memcmp(&next,&prior_touch,sizeof(next))){touch_sequence++;prior_touch=next;}}
+ if(!hid_owned||(++touch_count%2)==1){polls++;
+#ifndef HID_RENDER_WATCH_TOUCH
+risc_touch_snapshot_v1 next;current_touch(&next);next.sequence=prior_touch.sequence=0;if(memcmp(&next,&prior_touch,sizeof(next))){touch_sequence++;prior_touch=next;}
+#endif
+ }
+#ifdef HID_RENDER_WATCH_TOUCH
+ return watch_touch->poll(watch_touch->context,n);
+#else
  return true;
+#endif
 }
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;assert(n>0&&n<5&&subscribers[n].live);
- if(getenv("HID_RENDER_GAP")&&n==2&&polls>=40&&!gap_given){gap_given=true;subscribers[n].sequence=touch_sequence;return -1;}
+ if(getenv("HID_RENDER_GAP")&&n==2&&polls>=40&&!gap_given){gap_given=true;subscribers[n].sequence=touch_sequence;
+#ifdef HID_RENDER_WATCH_TOUCH
+ while(watch_touch->next(watch_touch->context,watch_subscriptions[n],e)>0){}
+#endif
+ return -1;}
+#ifdef HID_RENDER_WATCH_TOUCH
+ return watch_touch->next(watch_touch->context,watch_subscriptions[n],e);
+#else
  if(subscribers[n].sequence==touch_sequence)return 0;
  *e=(risc_touch_event_v1){.sequence=++subscribers[n].sequence};return 1;
+#endif
 }
-static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;current_touch(s);return true;}
+static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;
+#ifdef HID_RENDER_WATCH_TOUCH
+ return watch_touch->snapshot(watch_touch->context,s);
+#else
+ current_touch(s);return true;
+#endif
+}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
 static bool fake_battery(void*c,risc_battery_sample_v1*s){(void)c;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};return true;}
 static const risc_battery_gauge_api_v1 battery_api={1,sizeof(battery_api),NULL,fake_battery};
@@ -112,7 +171,7 @@ static bool fake_hid_status(void*c,uint64_t t,risc_bluetooth_hid_status_v1*s){(v
  if(hid_owned&&getenv("HID_RENDER_DISCONNECT")&&polls>=40){s->state=RISC_HID_ADVERTISING;s->flags=16;}
  return true;
 }
-static bool fake_hid_confirm(void*c,uint64_t t,bool accept){(void)c;assert(t==77&&hid_owned);paired_confirm=accept;paired_reject=!accept;return true;}
+static bool fake_hid_confirm(void*c,uint64_t t,bool accept){(void)c;assert(t==77&&hid_owned);pairing_confirmations++;if(getenv("HID_RENDER_PAIR_RECOVERED"))assert(polls>=60);paired_confirm=accept;paired_reject=!accept;return true;}
 static bool fake_hid_keyboard(void*c,uint64_t t,uint8_t mods,const uint8_t keys[6]){(void)c;assert(hid_owned&&t==77);held_mod=mods;held_key=keys[0];hid_keyboard_reports++;return true;}
 static bool fake_hid_mouse(void*c,uint64_t t,uint8_t b,int8_t x,int8_t y,int8_t w){(void)c;(void)x;(void)y;(void)w;assert(hid_owned&&t==77);held_mouse=b;hid_mouse_reports++;return true;}
 static bool fake_hid_release(void*c,uint64_t t){(void)c;assert(hid_owned&&t==77);held_mod=held_key=held_mouse=0;hid_releases++;return true;}
@@ -125,9 +184,27 @@ static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);g-
 static const risc_runtime_api_v1 runtime_api={1,sizeof(runtime_api),fake_health,fake_yield,fake_diag,fake_launch,fake_acquire,fake_release};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&runtime_api:NULL;}
 int main(int argc,char**argv){assert(argc>=2);directory=argv[1];memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}uint8_t policy[]={0x51,1,3,0xa6};assert(fake_put(NULL,"quick_radio",policy,4)==0);
-assert(app_module_init()==0);app_main();app_module_fini();assert(!grants&&!frames&&!subs&&!radio_owned&&!hid_owned&&!held_mod&&!held_key&&!held_mouse);
+#ifdef HID_RENDER_WATCH_TOUCH
+watch_touch=hid_watch_touch_start();assert(watch_touch);
+#endif
+#ifdef HID_RENDER_RUNTIME_DIAGNOSTICS
+hid_serial_start();
+#endif
+assert(app_module_init()==0);app_main();app_module_fini();
+#ifdef HID_RENDER_RUNTIME_DIAGNOSTICS
+hid_serial_finish();
+#endif
+#ifdef HID_RENDER_WATCH_TOUCH
+hid_watch_touch_stop();
+#endif
+assert(!grants&&!frames&&!subs&&!radio_owned&&!hid_owned&&!held_mod&&!held_key&&!held_mouse);
 if(getenv("HID_RENDER_ACTIVE"))assert(hid_opens>=1&&hid_opens==hid_closes&&hid_polls>0);else assert(!hid_opens);
-if(getenv("HID_RENDER_PAIR"))assert(allow_pair&&(paired_confirm||paired_reject));
+if(getenv("HID_RENDER_PAIR"))assert(allow_pair&&(paired_confirm||paired_reject)&&pairing_confirmations==1&&pairing_contacts>=1&&pairing_requests==1&&pairing_results==1);
+if(getenv("HID_RENDER_PAIR_ACCEPT"))assert(paired_confirm&&!paired_reject);
+if(getenv("HID_RENDER_PAIR_REJECT"))assert(paired_reject&&!paired_confirm);
+if(getenv("HID_RENDER_PAIR_MOVED"))assert(diagnostic_moved);
+if(getenv("HID_RENDER_PAIR_MULTITOUCH"))assert(diagnostic_multitouch);
+if(getenv("HID_RENDER_PAIR")&&getenv("HID_RENDER_GAP"))assert(diagnostic_gap);
 if(getenv("HID_RENDER_MOUSE"))assert(hid_mouse_reports>=2);
 if(getenv("HID_RENDER_KEYS"))assert(hid_keyboard_reports>=2);
 if(getenv("HID_RENDER_BACK"))assert(launches==1);

@@ -1,6 +1,6 @@
 {
   "min_firmware_version": "0.1.34",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "display_name": "BLE Buttons",
   "file_name": "ble_buttons.elf",
   "icon": "solid:f11c",

@@ -142,7 +142,7 @@ accessible on one screen, using the shared NOVA helpers.
 ## BLE HID controls
 
 [BLE Touchpad](docs/apps/ble_touchpad.md) and
-[BLE Buttons](docs/apps/ble_buttons.md), both 0.1.0, add a separate `hid_apps`
+[BLE Buttons](docs/apps/ble_buttons.md), both 0.1.1, add a separate `hid_apps`
 profile: genuine raw one/two-contact mouse input and four durable configurable
 keyboard/mouse controls. They use the generic secure-comparison HID provider,
 shared Nova7 controls and checked interruption/cleanup. The standalone build and
