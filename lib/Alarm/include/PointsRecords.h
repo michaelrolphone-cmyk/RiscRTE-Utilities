@@ -3,9 +3,15 @@
 #include "AlarmRecords.h"
 #define POINTS_MAX 8u
 #define POINTS_RECORD_SIZE 64u
+#ifdef ALARM_NATIVE_UTC
+#define POINTS_CONFIG_KEY "points_utc_cfg"
+#define POINTS_META_KEY "points_utc_meta"
+#define POINTS_OCCURRENCE_KEY "points_utc_occ"
+#else
 #define POINTS_CONFIG_KEY "points_cfg"
 #define POINTS_META_KEY "points_meta"
 #define POINTS_OCCURRENCE_KEY "points_occ"
+#endif
 #define POINTS_DURATION_MAX 720u
 #define POINTS_EMPTY 0u
 #define POINTS_WORK_START 1u
@@ -37,6 +43,9 @@ typedef struct {
     uint8_t slot,edge,state,mode,silenced;
     uint16_t day[POINTS_MAX];
     uint8_t delivered[POINTS_MAX];
+#ifdef ALARM_NATIVE_UTC
+    uint16_t timezone_index; /* Frozen 419-entry catalog; preserves pending UTC identity. */
+#endif
 } points_ledger;
 /* Temporary factory schedule. A present record, even an empty one, always wins.
  * Revision one also makes the first user edit revision two, so service cursors
@@ -131,7 +140,11 @@ static inline bool points_meta_decode(points_meta *m,const uint8_t *b,uint32_t n
     }if(!points_meta_valid(&v))return false;*m=v;return true;
 }
 static inline bool points_ledger_valid(const points_ledger *l) {
-    if(!l||!l->revision||!l->generation||l->slot>=POINTS_MAX||l->edge>=POINTS_EDGE_COUNT||l->state>ALARM_OCC_EXPIRED||l->silenced>1)return false;
+    if(!l||
+#ifdef ALARM_NATIVE_UTC
+       l->timezone_index>=419u||
+#endif
+       !l->revision||!l->generation||l->slot>=POINTS_MAX||l->edge>=POINTS_EDGE_COUNT||l->state>ALARM_OCC_EXPIRED||l->silenced>1)return false;
     for(unsigned i=0;i<POINTS_MAX;i++)if(l->day[i]>36525||(l->delivered[i]&~7u)||(!l->day[i]&&l->delivered[i]))return false;
     if(!l->state)return !l->slot&&!l->edge&&!l->deadline&&!l->recovery_until&&!l->mode&&!l->silenced;
     return l->mode>=1&&l->mode<=3&&l->deadline&&l->deadline<=ALARM_RTC_MAX-ALARM_RECOVERY_SECONDS&&l->recovery_until==l->deadline+ALARM_RECOVERY_SECONDS;
@@ -141,12 +154,25 @@ static inline void points_ledger_encode(const points_ledger *l,uint8_t b[POINTS_
     alarm_write32(b+12,l->deadline);alarm_write32(b+16,l->recovery_until);
     b[20]=l->slot;b[21]=l->edge;b[22]=l->state;b[23]=l->mode;
     b[48]=l->silenced;
+#ifdef ALARM_NATIVE_UTC
+    memcpy(b,"PTU1",4);b[50]=(uint8_t)l->timezone_index;b[51]=(uint8_t)(l->timezone_index>>8);
+#endif
     for(unsigned i=0;i<POINTS_MAX;i++){b[24+i*2]=(uint8_t)l->day[i];b[25+i*2]=(uint8_t)(l->day[i]>>8);b[40+i]=l->delivered[i];}
     alarm_write32(b+60,points_checksum(b));
 }
 static inline bool points_ledger_decode(points_ledger *l,const uint8_t *b,uint32_t n) {
     if(!l||!b||n!=POINTS_RECORD_SIZE||alarm_read32(b+60)!=points_checksum(b))return false;
     points_ledger v={0};
+    #ifdef ALARM_NATIVE_UTC
+    if(!memcmp(b,"PTU1",4)) {
+        if(b[48]>1||b[49])return false;
+        for(unsigned i=52;i<60;i++)if(b[i])return false;
+        v=(points_ledger){.revision=alarm_read32(b+4),.generation=alarm_read32(b+8),.deadline=alarm_read32(b+12),
+            .recovery_until=alarm_read32(b+16),.slot=b[20],.edge=b[21],.state=b[22],.mode=b[23],.silenced=b[48],
+            .timezone_index=(uint16_t)(b[50]|((uint16_t)b[51]<<8))};
+        for(unsigned i=0;i<POINTS_MAX;i++){v.day[i]=(uint16_t)(b[24+i*2]|((uint16_t)b[25+i*2]<<8));v.delivered[i]=b[40+i];}
+    }
+#else
     if(!memcmp(b,"PTO2",4)||!memcmp(b,"PTO3",4)) {
         bool muted=!memcmp(b,"PTO3",4);if(b[48]!=(muted?1:0))return false;
         for(unsigned i=49;i<60;i++)if(b[i])return false;
@@ -164,7 +190,9 @@ static inline bool points_ledger_decode(points_ledger *l,const uint8_t *b,uint32
             v.day[i]=s>e?s:e;
             if(v.day[i]){if(s==v.day[i])v.delivered[i]|=1u<<POINTS_EDGE_START;if(e==v.day[i])v.delivered[i]|=1u<<POINTS_EDGE_END;}
         }
-    } else return false;
+    }
+#endif
+    else return false;
     if(!points_ledger_valid(&v))return false;
     *l=v;return true;
 }
