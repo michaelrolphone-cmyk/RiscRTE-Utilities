@@ -149,8 +149,10 @@ The existing `alarm.service@1` table remains exactly 36 bytes on the target.
 `alarm_service_sleep_v1` adds one optional callback at offset 36 and has a
 40-byte target size. The provider advertises that larger size in its unchanged
 base prefix. Old consumers continue using the 36-byte prefix; a sleep owner
-must check API version, `ALARM_SERVICE_SLEEP_V1_SIZE` and non-null `resume_sleep`
-before reading the suffix. No copied status, occurrence, sleep-decision,
+must have an exact matched paper-family provider in addition to checking API
+version, size and non-null callback. A visual v1 lineage assigns a scalar to the
+same offset: size alone cannot identify it. New integrations must use the
+[tagged API-2 contract](ALARM_ABI_RECONCILIATION.md). No copied status, occurrence, sleep-decision,
 durable record, namespace or dependency layout changes.
 
 A valid external calendar and platform monotonic duration can diverge across

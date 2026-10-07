@@ -1,0 +1,38 @@
+{
+  "alarm_utc_cfg": {
+    "namespace": 3,
+    "access": "read"
+  },
+  "timer_utc_cfg": {
+    "namespace": 3,
+    "access": "read"
+  },
+  "alarm_utc_occ": {
+    "namespace": 4,
+    "access": "read-write"
+  },
+  "timer_utc_occ": {
+    "namespace": 4,
+    "access": "read-write"
+  },
+  "alert_mode": {
+    "namespace": 1,
+    "access": "read"
+  },
+  "points_utc_cfg": {
+    "namespace": 5,
+    "access": "read"
+  },
+  "points_utc_occ": {
+    "namespace": 4,
+    "access": "read-write"
+  },
+  "alert_dnd": {
+    "namespace": 1,
+    "access": "read"
+  },
+  "time_zone": {
+    "namespace": 1,
+    "access": "read"
+  }
+}
