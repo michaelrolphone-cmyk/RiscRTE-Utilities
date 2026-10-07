@@ -107,3 +107,8 @@ Linux CI runs the default and actual Runtime retention under sanitizers.
 Local evidence/limitations are recorded in `docs/evidence/alarm-abi-0.4.4/`.
 No System/product edits, hardware access, flashing, main merge or image changes
 are part of this work.
+
+Linux [run 37664810833](https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/actions/runs/37664810833)
+passed every focused gate on implementation commit `257b5cdd558a834067c5c257d07a8ab658b8246c`,
+including ASan/UBSan, actual Runtime, four target-loader profiles and exact Watch
+bytes. Mac-specific validation limitations are resolved by that CI receipt.
