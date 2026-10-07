@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "system_apps": "c5c76883fa4db4de9c81345fdb225b38192231c1",
+  "system_apps": "2aa0cf63346e507525af884bbfbf6b69313442c4",
   "bluetooth_driver_minimum": "0.3.0",
   "runtime_minimum": "0.1.27",
   "sensor_driver_repository": "michaelrolphone-cmyk/RiscRTE-Drivers",

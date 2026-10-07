@@ -1,0 +1,30 @@
+name: Nova7 paper utilities
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 2aa0cf63346e507525af884bbfbf6b69313442c4
+          path: .dependencies/paper-system
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Production Watch and paper scenarios with sanitizers
+        run: python3 scripts/test_paper_utilities.py --system-apps .dependencies/paper-system
+      - name: Install pinned target compiler
+        run: |
+          pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Target structural validation and licenses
+        run: |
+          for app in calculator stopwatch countdown; do
+            python3 scripts/build_paper_utilities.py --system-apps .dependencies/paper-system --app "$app"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-utilities-${{ github.sha }}
+          path: dist/paper-utilities
