@@ -85,6 +85,10 @@ conflicting or uncertain storage retains the existing collection and the edit
 needed to retry or discard it. A failed read never authorizes replacing saved
 data with defaults.
 
+Pending preference/label writes expose Retry and Discard in STORAGE. Discard
+requires a second explicit tap and reloads authoritative records without
+writing replacements; a failed reload stays read-only until retried.
+
 Neural refinement uses bounded incremental work. It requires enough positive
 and nonmatch examples across at least two labels. Candidate promotion requires
 held-out improvement and no full-set regressions; edits invalidate the cached
@@ -113,6 +117,13 @@ and launch before those guards. Physical navigation aliases are normalized to
 one action. X4 raw portrait touch uses the shared paper contact provider; it is
 not rotated a second time.
 
+X4 Home and QuickActions builds opt into the shared pre-launch guard. Pending
+windows, unsaved names and unconfirmed saves veto a handoff while leaving the
+RF UI interactive. Clean Home goes to the explicit default app; a refused
+launch can be retried. Opening/dismissing paper QuickActions preserves the
+foreground edit and stops RF without automatic resume. The paper sheet's
+radio tiles retain the capability-selected availability of the shared client.
+
 Airplane mode and unread radio policy fail closed. Missing grants and ordinary
 capture failures allow explicit Start retry. Idle sleep or alarm suspension
 stops capture; wake does not silently restart it. Unconfirmed radio cleanup
@@ -131,9 +142,9 @@ immutable integration SHA can be supplied with `--system-source`.
 
 ```
 python scripts/build_waterfall.py --system-apps SYSTEM
-python scripts/build_waterfall.py --system-apps PAPER_SYSTEM --presentation paper
+python scripts/build_waterfall.py --system-apps PAPER_SYSTEM --presentation paper --home-app default.elf --quick-actions
 python scripts/test_rf_models.py
-python scripts/test_rf_application.py --system-apps SYSTEM --x4-system PAPER_SYSTEM --watch WATCH --runtime RUNTIME
+python scripts/test_rf_application.py --system-apps SYSTEM --watch-quick-system SYSTEM --x4-system PAPER_SYSTEM --watch WATCH --runtime RUNTIME
 ```
 
 Both targets retain ELF, deployment manifest, source/configuration/hash record
@@ -141,6 +152,8 @@ and notices. The real loader's structural validator checks the final ELF.
 Production host fixtures exercise DSP/room/event/neural models, actual Watch
 and paper adapters, Watch touch and Runtime diagnostics, plus the real Runtime
 AppData transactional backend under quota, stale and uncertain-commit faults.
+Its fault injector intercepts both ordinary and fortified libc reads, preserving
+fortify overflow checks; GCC11/glibc2.35 and GCC14/glibc2.41 are covered.
 These are software checks; the new extended captures and X4 RF receive path
 still require physical qualification. The hardware-accepted Watch1.0.7 release
 retains its earlier app/provider bytes independently of this next increment.

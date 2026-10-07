@@ -2,6 +2,7 @@
 """Build the complete RF app against an exact Watch or paper adapter source."""
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -12,8 +13,8 @@ from app_manifest import validate_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = {
-    'watch': 'f146d82d4c2bc4d4b6ac97f7be83b04035ad7d60',
-    'paper': '2aa0cf63346e507525af884bbfbf6b69313442c4',
+    'watch': 'fcdb5b0a54a11a407bf68c6e35ac2548471cd9f1',
+    'paper': 'ffbac0fdb117de62e6fce19baa4dc090f5f44404',
 }
 
 
@@ -32,6 +33,8 @@ p.add_argument('--system-source', help='Explicit immutable integration adapter S
 p.add_argument('--output', type=Path)
 p.add_argument('--storage-instance', type=int, default=0)
 p.add_argument('--app-data-instance', type=int, default=3)
+p.add_argument('--home-app', help='Explicit physical Home destination, e.g. default.elf')
+p.add_argument('--quick-actions', action='store_true', help='Shared paper QuickActions; no radio control selection')
 a = p.parse_args()
 system = a.system_apps.resolve()
 pin = a.system_source or PINS[a.presentation]
@@ -41,11 +44,26 @@ if git(system, 'rev-parse', 'HEAD') != pin or git(system, 'status', '--porcelain
     raise ValueError('Clean exact System Apps source required: ' + pin)
 if not 0 <= a.storage_instance < 2**32 or not 0 <= a.app_data_instance < 2**32:
     raise ValueError('Storage instances must fit uint32')
+if (a.home_app or a.quick_actions) and a.presentation != 'paper':
+    p.error('Home and QuickActions here use the exact paper adapter; Watch uses its product builder')
 validate_manifest(ROOT / 'Apps/waterfall.c', 'waterfall.elf')
 core = Path(os.environ.get('PLATFORMIO_CORE_DIR', str(Path.home() / '.platformio')))
 cc = os.environ.get('NATIVE_APP_CC') or shutil.which('xtensa-esp32s3-elf-gcc') or str(core / 'packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc')
 out = (a.output or ROOT / ('dist/waterfall-' + a.presentation)).resolve()
 out.mkdir(parents=True, exist_ok=True)
+quick = None
+quick_sources = []
+quick_flags = []
+if a.home_app or a.quick_actions:
+    if 'PORTABLE_APP_LAUNCH_GUARD' not in (system / 'lib/PortableApps/src/adapter.c').read_text():
+        p.error('Home/QuickActions requires the shared app pre-launch guard')
+    spec = importlib.util.spec_from_file_location('rf_portable_quick_build', system / 'scripts/portable_quick_build.py')
+    quick = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(quick)
+    a.alarm_client = True
+    a.quick_radios = False
+    quick_flags, quick_sources = quick.configure(a, p, system, out)
+    quick_flags.append('-DPORTABLE_APP_LAUNCH_GUARD')
 (out / 'catalog.c').write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[1]={{.compatible=false}};\nconst unsigned portable_catalog_count=0;\n')
 (out / 'exports.map').write_text('{ global: app_main; app_module_init; app_module_fini; local: *; };\n')
 defines = ['PORTABLE_FORCE_FULL_FRAMES', 'PORTABLE_APP_OWNS_TOUCH_CHROME',
@@ -60,10 +78,10 @@ run([cc, '-std=c11', '-Os', '-fPIC', '-mtext-section-literals', '-mlongcalls',
      '-fvisibility=hidden', '-ffreestanding', '-fno-builtin', '-nostdlib',
      '-nostartfiles', '-shared', '-Wl,--no-relax', '-Wl,--hash-style=sysv',
      '-Wl,--version-script=' + str(out / 'exports.map'), '-Wall', '-Wextra', '-Werror',
-     *['-D' + d for d in defines],
+     *['-D' + d for d in defines], *quick_flags,
      *['-I' + str(i) for i in [ROOT / 'Apps', system / 'lib/PortableApps/include', system / 'lib/NativeApps/include']],
      ROOT / 'Apps/waterfall.c', system / 'lib/PortableApps/src/adapter.c', out / 'catalog.c',
-     system / 'lib/NativeApps/src/SingleFloatDivisionCompat.c', '-lgcc', '-o', elf])
+     system / 'lib/NativeApps/src/SingleFloatDivisionCompat.c', *quick_sources, '-lgcc', '-o', elf])
 syms = subprocess.check_output([cc.removesuffix('gcc') + 'nm', '-D', str(elf)], text=True)
 imports = {s.split()[-1] for s in syms.splitlines() if ' U ' in ' ' + s}
 exports = {s.split()[-1] for s in syms.splitlines() if len(s.split()) >= 3 and s.split()[-2] in ('T', 'D', 'B', 'R')}
@@ -85,10 +103,14 @@ manifest = dict(type='application', id='waterfall', version=m['version'], archit
 manifest['requires'] += [dict(capability='storage.key-value', api=1), dict(capability='board.battery', api=1)]
 if a.presentation == 'paper':
     manifest['requires'].append(dict(capability='input.navigation', api=1))
+if quick:
+    quick.requirements(a, manifest['requires'])
 (out / 'waterfall.json').write_text(json.dumps(manifest, indent=2) + '\n')
 record = dict(schema=1, source_revision=git(ROOT, 'rev-parse', 'HEAD'),
               source_dirty=bool(git(ROOT, 'status', '--porcelain')), system_source=pin,
-              presentation=a.presentation, defines=defines, sha256=hashlib.sha256(elf.read_bytes()).hexdigest(),
+              presentation=a.presentation, defines=defines + [d.removeprefix('-D') for d in quick_flags],
+              home_app=a.home_app, quick_actions=a.quick_actions, quick_radios=False,
+              sha256=hashlib.sha256(elf.read_bytes()).hexdigest(),
               bytes=elf.stat().st_size, imports=sorted(imports), exports=sorted(exports), target_validation='passed',
               storage=dict(key_value_api=2, key_value_instance=a.storage_instance, app_data_instance=a.app_data_instance,
                            required_bytes=129004, quota_bytes=131072),

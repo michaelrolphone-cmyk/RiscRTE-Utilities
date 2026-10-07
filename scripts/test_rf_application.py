@@ -6,6 +6,9 @@ complex IQ; Watch touch and Runtime diagnostic implementations are production
 sources, physical I2C/USB are their existing host shims. App-data faults in the
 renderer are scripted peripheral faults; the separate Runtime fixture uses the
 actual AppDataFiles transactional implementation.
+
+The shared QuickActions variants intentionally omit radio toggle grants. Paper
+Wi-Fi remains unavailable; RGB565 retains its supported Wi-Fi app handoff.
 """
 import argparse
 import os
@@ -16,7 +19,9 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 p.add_argument('--system-apps', type=Path, required=True)
-p.add_argument('--x4-system', type=Path)
+p.add_argument('--x4-system', type=Path, help='Guarded paper System checkout; also tests its RGB565 Watch QuickActions path')
+p.add_argument('--watch-quick-system', type=Path, help='Optional separate minimal Watch QuickActions source')
+p.add_argument('--target', choices=['watch','x4','watch-quick'], action='append')
 p.add_argument('--watch', type=Path)
 p.add_argument('--runtime', type=Path, required=True)
 p.add_argument('--scene', action='append')
@@ -116,9 +121,9 @@ def target_scenes(target):
     legacy=['wait 3',check('last_count',256)]+setting(9)+[check('fft',256),check('last_count',256),'nav 1','finish']
     result['legacy']=(scene(*legacy),{'RF_RENDER_LEGACY':'1'})
     for kind in (1,2):
-        unread=['wait 2',check('load_errors',1)]+setting(7)+[check('gain',0),check('writes',0),'nav 1','set kv_failure 0']+setting(11,180)+[check('load_errors',0),'nav 1']+setting(7)+[check('gain',3),check('pending',0),'nav 1','finish']
+        unread=['wait 2',check('load_errors',1)]+setting(7)+[check('gain',0),check('writes',0),'nav 1','set kv_failure 0']+setting(11,130)+[check('load_errors',0),'nav 1']+setting(7)+[check('gain',3),check('pending',0),'nav 1','finish']
         result['storage-unread' if kind==1 else 'storage-corrupt']=(scene(*unread),{'RF_RENDER_KV_FAILURE':str(kind)})
-    pending=['wait 3','set kv_failure 3']+setting(7)+[check('gain',3),check('pending',1),'nav 1','set kv_failure 0']+setting(11,180)+[check('gain',3),check('pending',0),'nav 1','finish']
+    pending=['wait 3','set kv_failure 3']+setting(7)+[check('gain',3),check('pending',1),'nav 1','set kv_failure 0']+setting(11,130)+[check('gain',3),check('pending',0),'nav 1','finish']
     result['storage-pending']=(scene(*pending),{})
     event_base=['wait 3','set signal 0']+events()+[tap(120,200),check('page',3),*type_name('Activity'),check('page',7)]
     first=event_base+[tap(60,120),check('event_armed',1),'wait 70',check('ambient_ready',1),check('event_wait_quiet',0),'set signal 2','wait 12','set signal 0','wait 8',check('event_ready',1),check('event_flags',0),'raw 20 20',check('event_ready',1),check('page',8),'times','snapshot event-review',tap(60,190),check('examples',1),check('positive',1),check('event_pending',-1),check('neural_active',0)]
@@ -138,7 +143,11 @@ def target_scenes(target):
     result['event-storage-absent']=(scene('wait 3',check('event_files_ready',0),check('neural_active',0),*events(),tap(120,200),check('page',6),check('event_labels',0),'nav 1','nav 1','finish'),{'RF_RENDER_NO_STORAGE':'1'})
     neural=['wait 2',check('neural_active',0),check('neural_updates',0),'nav 2',check('running',0),'set poll_ms 1','wait 50',check('neural_state',2),check('neural_epoch',0,'ge'),check('neural_active',0),'remember neural_updates','nav 2',check('running',1),'wait 10','same neural_updates','nav 2',check('running',0),tap(225,26),*sum((['wait 300','nav 16'] for _ in range(9)),[]),check('neural_state',5),check('neural_active',1),check('neural_epoch',256),check('neural_updates',1536),check('app_writes',1),'nav 1',*events(),'snapshot neural-ready','finish']
     result['neural']=(scene(*neural),{'RF_RENDER_NEURAL':'1'})
-    frequency=['wait 70',check('ambient_ready',1),tap(137,120),tap(137,61),tap(120,119),*type_name('Carrier'),tap(167,185),check('labels',1),'wait 2',check('label_active',0),'set signal 2','wait 4',check('label_level_valid',1),check('label_active',1),'set signal -1','wait 4',check('label_active',0),'finish']
+    frequency=['wait 70',check('ambient_ready',1),tap(137,120),tap(137,61),tap(120,119),*type_name('Carrier'),tap(167,185),check('labels',1),'wait 2',check('label_active',0),'set signal 2','wait 4',check('label_level_valid',1),check('label_active',1)]
+    for size in [512,1024,2048,4096,8192]:
+        frequency+=setting(9)+['wait 2',check('last_count',size),check('label_active',1),'nav 1']
+    frequency+=setting(7)+['wait 2',check('gain',3),check('label_active',1),'nav 1']
+    frequency+=setting(8)+['wait 2',check('window',2),check('label_active',1),'nav 1','set signal -1','wait 4',check('label_active',0),'finish']
     result['frequency-labels']=(scene(*frequency),{})
     result['slow-history']=(scene('wait 3','set slow 900','wait 30','equal history captures','equal canonical captures','equal transforms captures','nav 32','remember captures','remember history','wait 6','same captures','same history','snapshot slow-history','finish'),{})
     for mode in range(1,5):
@@ -162,27 +171,82 @@ def target_scenes(target):
     scale=2 if target=='x4' else 1
     drag=['wait 3',*(f'point {x*scale} {120*scale}' for x in [100,140,180]),'wait 1',check('cursor',1),check('cursor_hz',2461000000,'ge'),check('cursor_hz',2462000000,'le'),tap(225,26),f'point {150*scale} {175*scale}',f'point {150*scale} {75*scale}','wait 1',check('scroll',100),check('gain',0),'snapshot controls-scroll','nav 1','finish']
     result['cursor-controls-drag']=(scene(*drag),{})
+    guard='guard wifi_settings.elf '
+    result['guard-clean']=(scene('wait 3',guard+'1','remember captures','wait 3','same captures','nav 2',check('running',1),'finish'),{})
+    label_base=['wait 3',tap(120,120),tap(120,61),tap(120,119),check('page',3)]
+    result['guard-keyboard']=(scene(*label_base,key_tap(1),guard+'0',check('page',3),'name a',check('launches',0),'raw 20 20','wait 2',check('page',2),check('name_length',0),tap(50,185),guard+'1','finish'),{})
+    result['guard-label-draft']=(scene(*label_base,*type_name('Carrier'),guard+'0',check('page',2),'name Carrier',tap(166,185),check('labels',1),guard+'1','finish'),{})
+    sample_base=['wait 3']+samples()+[tap(75,207),tap(110,89),*type_name('Room')]
+    result['guard-sample-draft']=(scene(*sample_base,guard+'0',check('page',5),'name Room',tap(175,165),guard+'1','finish'),{})
+    result['guard-room-capture']=(scene(*sample_base,tap(60,165),'wait 8','remember signature_frames',guard+'0',check('page',4),check('signature_goal',64),'wait 3','same signature_frames',check('room_frames',0),tap(175,125),check('signature_goal',0),guard+'1','finish'),{})
+    result['guard-event-draft']=(scene(*event_base,guard+'0',check('page',7),'name Activity',tap(175,220),guard+'1','finish'),{})
+    review=event_base+[tap(60,120),'wait 70','set signal 2','wait 12','set signal 0','wait 8',check('event_ready',1)]
+    result['guard-event-review']=(scene(*review,'remember event_count',guard+'0',check('page',8),check('event_ready',1),'same event_count',tap(175,190),check('event_ready',0),guard+'1','finish'),{})
+    result['guard-event-pending']=(scene(*review,'set storage_failure 1',tap(60,190),check('event_pending',0),guard+'0',check('page',6),check('examples',1),'set storage_failure 0',tap(50,200),check('event_pending',-1),check('examples',1),guard+'1','finish'),{})
+    storage_y=48+10*48-max_scroll+20
+    pending_guard=['wait 3']+setting(7)+['nav 1','set kv_failure 3']+setting(7)+[check('gain',6),check('pending',1),guard+'0',check('page',1),check('scroll',max_scroll),'remember writes',tap(205,storage_y),check('pending',1),tap(205,storage_y),check('pending',0),check('gain',3),'same writes',guard+'1','finish']
+    result['guard-storage-discard']=(scene(*pending_guard),{})
+    if target=='x4':
+        for action,name in [('home','touch'),('nav 256','navigation')]:
+            result['home-'+name]=(scene('wait 3',action),{'RF_RENDER_EXPECT_LAUNCH':'1','RF_RENDER_LAUNCH_TARGET':'default.elf'})
+            result['home-'+name+'-retry']=(scene('wait 3',action,check('launches',1),check('running',0),'remember captures','wait 3','same captures',action),{'RF_RENDER_EXPECT_LAUNCH':'2','RF_RENDER_LAUNCH_TARGET':'default.elf','RF_RENDER_LAUNCH_REFUSE':'1'})
+            result['home-'+name+'-draft']=(scene(*label_base,key_tap(1),action,'wait 3',check('launches',0),check('page',3),'name a','raw 20 20','wait 2',tap(50,185),action),{'RF_RENDER_EXPECT_LAUNCH':'1','RF_RENDER_LAUNCH_TARGET':'default.elf'})
+        for action,name in [('home','touch'),('nav 256','navigation')]:
+            result['home-'+name+'-review']=(scene(*review,'remember event_count',action,'wait 3',check('launches',0),check('event_ready',1),'same event_count',tap(175,190),check('event_ready',0),check('examples',0),action),{'RF_RENDER_EXPECT_LAUNCH':'1','RF_RENDER_LAUNCH_TARGET':'default.elf'})
+        home_discard=['wait 3']+setting(7)+['nav 1','set kv_failure 3']+setting(7)+['nav 256','wait 2',check('launches',0),check('page',1),check('pending',1),'remember writes',tap(205,storage_y),tap(205,storage_y),check('pending',0),check('gain',3),'same writes','nav 256']
+        result['home-storage-discard']=(scene(*home_discard),{'RF_RENDER_EXPECT_LAUNCH':'1','RF_RENDER_LAUNCH_TARGET':'default.elf'})
+        opening=['point 200 20','point 200 100','wait 2']
+        closing=['raw 240 675','wait 2']
+        result['quick-unavailable-wifi']=(scene('wait 3',*opening,check('running',0),'remember history','remember captures','raw 340 450','wait 3',check('launches',0),'same captures','snapshot quick-actions',*closing,'same history','same captures','nav 2',check('running',1),'finish'),{})
+        result['quick-keyboard-draft']=(scene(*label_base,key_tap(1),'name a',*opening,check('running',0),*closing,'name a',check('page',3),check('launches',0),'raw 20 20','wait 2',tap(50,185),'finish'),{})
+        result['quick-event-review']=(scene(*review,'remember event_count',*opening,check('running',0),'remember captures',*closing,check('event_ready',1),'same event_count','same captures',check('examples',0),tap(175,190),check('event_ready',0),'finish'),{})
+
+    unread_discard=['wait 3']+setting(7)+['nav 1','set kv_failure 3']+setting(7)+[guard+'0','remember writes',tap(205,storage_y),'set kv_failure 1',tap(205,storage_y),check('pending',0),check('load_errors',1),'same writes',guard+'1','set kv_failure 0',tap(130,storage_y),check('load_errors',0),check('gain',3),'same writes','finish']
+    result['guard-storage-discard-unread']=(scene(*unread_discard),{})
+    if target=='watch-quick':
+        # Real shared RGB565 QuickActions; radio toggle grants are intentionally absent.
+        opening=['point 120 5','point 120 100','point 120 230','wait 8']
+        closing=['raw 120 220','wait 8']
+        result['quick-tap-replay']=(scene('wait 3','raw 30 12','wait 2',check('running',1),check('view',0),*opening,check('running',0),'remember history','remember captures','snapshot watch-quick-actions',*closing,'same history','same captures','nav 2',check('running',1),'finish'),{})
+        result['quick-keyboard-draft']=(scene(*label_base,key_tap(1),'name a',*opening,check('running',0),*closing,'name a',check('page',3),check('launches',0),'raw 20 20','wait 2',tap(50,185),'finish'),{})
+        result['quick-event-review']=(scene(*review,'remember event_count',*opening,check('running',0),'remember captures',*closing,check('event_ready',1),'same event_count','same captures',check('examples',0),tap(175,190),check('event_ready',0),'finish'),{})
+        result['quick-wifi-draft-guard']=(scene(*label_base,key_tap(1),'name a',*opening,'raw 51 185','wait 8',check('launches',0),check('page',3),'name a','raw 20 20','wait 2',tap(50,185),*opening,'raw 51 185'),{'RF_RENDER_EXPECT_LAUNCH':'1','RF_RENDER_LAUNCH_TARGET':'wifi_settings.elf'})
+        result['quick-wifi-retry']=(scene('wait 3',*opening,'raw 51 185','wait 8',check('launches',1),check('running',0),*opening,'raw 51 185'),{'RF_RENDER_EXPECT_LAUNCH':'2','RF_RENDER_LAUNCH_TARGET':'wifi_settings.elf','RF_RENDER_LAUNCH_REFUSE':'1'})
     return result
 
 
 if a.scene:
-    unknown=set(a.scene)-set(target_scenes('watch'))-{'runtime-storage'}
+    unknown=set(a.scene)-(set(target_scenes('watch'))|set(target_scenes('x4'))|set(target_scenes('watch-quick')))-{'runtime-storage'}
     if unknown:
         p.error('Unknown scenes: '+', '.join(sorted(unknown)))
 completed_runs=0
+storage_runs=0
+targets=[('watch',a.system_apps)]
+if a.x4_system:
+    targets.append(('x4',a.x4_system))
+if a.watch_quick_system or a.x4_system:
+    targets.append(('watch-quick',a.watch_quick_system or a.x4_system))
+if a.target and set(a.target)-{name for name,_ in targets}:
+    p.error('Requested target needs its System source argument')
 for sanitized in (False, True):
     if sanitized and a.normal_only:
         continue
-    for target, system in [('watch', a.system_apps), *([('x4', a.x4_system)] if a.x4_system else [])]:
+    for target, system in targets:
+        if a.target and target not in a.target:
+            continue
         system = system.resolve()
         out = OUT / target / ('sanitized' if sanitized else 'normal')
         out.mkdir(parents=True, exist_ok=True)
         flags = ['-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
         san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitized else []
         if target == 'x4':
-            flags += ['-DRF_RENDER_PAPER', '-DPORTABLE_DISPLAY_ROTATION=90']
+            flags += ['-DRF_RENDER_PAPER', '-DPORTABLE_DISPLAY_ROTATION=90', '-DPORTABLE_HOME_APP="default.elf"']
+        if target in ('x4','watch-quick'):
+            flags += ['-DPORTABLE_APP_LAUNCH_GUARD','-DPORTABLE_QUICK_ACTIONS']
         sources = [ROOT/'test/native_apps/rf_renderer_test.c', system/'lib/PortableApps/src/adapter.c']
-        if a.watch and target == 'watch':
+        if target in ('x4','watch-quick'):
+            sources += [system/'lib/PortableApps/src'/name for name in ['quick_actions.c','quick_render.c','quick_session.c']]
+        if a.watch and target.startswith('watch'):
             flags += ['-DRF_RENDER_WATCH_TOUCH']
             watch = a.watch.resolve()
             for i, source in enumerate([ROOT/'test/native_apps/hid_watch_touch_backend.c', watch/'drivers/current/twatch_touch/driver.c']):
@@ -198,7 +262,7 @@ for sanitized in (False, True):
         catalog.write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[1]={{.compatible=false}};\nconst unsigned portable_catalog_count=0;\n')
         sources.append(catalog)
         exe = out/'rf-renderer'
-        run([os.environ.get('CC','cc'), '-std=c11', '-O1', '-g', '-Wall', '-Wextra', '-Werror', *san, *flags, *['-I'+str(i) for i in [ROOT/'Apps', ROOT/'lib/Alarm/include', system/'lib/PortableApps/include',system/'lib/NativeApps/include']], *sources, '-lstdc++','-lm','-o',exe])
+        run([os.environ.get('CC','cc'), '-std=c11', '-O1', '-g', '-Wall', '-Wextra', '-Werror', *san, *flags, *['-I'+str(i) for i in [ROOT/'Apps', system/'lib/PortableApps/include',system/'lib/NativeApps/include', ROOT/'lib/Alarm/include']], *sources, '-lstdc++','-lm','-o',exe])
         for name,(commands,extra_env) in target_scenes(target).items():
             if a.scene and name not in a.scene:
                 continue
@@ -219,7 +283,8 @@ for sanitized in (False, True):
         out.mkdir(parents=True,exist_ok=True)
         exe=out/'rf-runtime-storage'
         san=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie'] if sanitized else []
-        run([os.environ.get('CXX','c++'),'-std=c++17','-O1','-g','-Wall','-Wextra','-Werror','-Wno-missing-field-initializers',*san,'-I'+str(runtime/'src'),'-I'+str(runtime/'sdk/app'),ROOT/'test/native_apps/rf_app_integration_runtime.cpp',runtime/'src/runtime/storage/AppDataFiles.cpp','-Wl,--wrap=read,--wrap=write,--wrap=rename,--wrap=close','-lm','-o',exe])
+        run([os.environ.get('CXX','c++'),'-std=c++17','-O1','-g','-Wall','-Wextra','-Werror','-Wno-missing-field-initializers',*san,'-I'+str(runtime/'src'),'-I'+str(runtime/'sdk/app'),ROOT/'test/native_apps/rf_app_integration_runtime.cpp',runtime/'src/runtime/storage/AppDataFiles.cpp','-Wl,--wrap=read,--wrap=__read_chk,--wrap=write,--wrap=rename,--wrap=close','-lm','-o',exe])
         with tempfile.TemporaryDirectory(prefix='volume-',dir=out) as volume:
             run([exe,volume],env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'),timeout=120)
-print(f'RF actual controller/adapter regression passed: {completed_runs} scene runs; Runtime storage included unless filtered; host simulation only.')
+            storage_runs+=1
+print(f'RF actual controller/adapter regression passed: {completed_runs} scene runs and {storage_runs} Runtime storage runs; host simulation only.')

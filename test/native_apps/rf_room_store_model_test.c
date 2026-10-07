@@ -19,4 +19,15 @@ static void rooms_and_floor(void){
  id=rf_identity_default();profiles[2]=profiles[0];memcpy(means[2],means[0],sizeof(means[0]));assert(rf_signature_best(a,profiles,means,RF_SIGNATURE_ROOM,&confidence,&ambiguous,&id)==-1&&ambiguous);profiles[2].kind=0;
  rf_background bg;rf_background_reset(&bg);for(unsigned k=0;k<64;k++)rf_background_observe(&bg,a);assert(bg.ready);rf_background_observe(&bg,transient);assert(bg.foreground&&bg.raw[60]==100000&&bg.slow[60]==0);assert(rf_background_salient(&bg,NULL)==100000);uint32_t gains[128];rf_signature_gains(bg.raw,bg.slow,gains);assert(gains[60]==65536);assert(rf_signature_filtered_amplitude(400000,120,256,gains)==400000);for(unsigned k=0;k<1400;k++)rf_background_observe(&bg,transient);assert(bg.slow[60]>0);for(unsigned k=0;k<500;k++)rf_background_observe(&bg,quiet);assert(rf_signature_total(bg.slow)==0);rf_background_interrupt(&bg);assert(!bg.foreground&&rf_signature_total(bg.raw)==0);
 }
-int main(void){codec_tests();rooms_and_floor();puts("RF strict codecs, identity isolation, exact weighted sums, room switching and quiet floor passed");}
+static void canonical_label_tolerance(void){
+ rf_capture_identity id=rf_identity_default();rf_background b={0};uint32_t quiet[128]={0},tone[128]={0};
+ for(unsigned n=0;n<RF_BG_WARMUP;n++)rf_background_observe(&b,quiet);
+ tone[64]=500000u;rf_background_observe(&b,tone);int16_t level=0,snr=0;
+ uint32_t adjacent=rf_signature_band_hz(&id,63),far=rf_signature_band_hz(&id,60);
+ /* Two canonical256 FFT bins reach the adjacent two-bin band. A display8192
+  * tolerance would shrink to1/32 and incorrectly lose this saved label. */
+ assert(rf_background_label(&b,&id,adjacent,0,2,-60,false,&level,&snr));
+ assert(!rf_background_label(&b,&id,far,0,2,-60,false,&level,&snr));
+ assert(rf_background_label(&b,&id,far,3000000u,0,-60,false,&level,&snr));
+}
+int main(void){codec_tests();rooms_and_floor();canonical_label_tolerance();puts("RF strict codecs, identity isolation, exact weighted sums, room switching and quiet floor passed");}

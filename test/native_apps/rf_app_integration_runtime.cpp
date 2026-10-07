@@ -29,10 +29,21 @@ static bool hit(Fault expected) {
     errno = expected == WRITE ? ENOSPC : EIO;
     return true;
 }
+static bool fail_read() {
+    ++io_calls;
+    return hit(READ);
+}
 extern "C" ssize_t __real_read(int, void *, size_t);
 extern "C" ssize_t __wrap_read(int fd, void *bytes, size_t size) {
-    ++io_calls;
-    return hit(READ) ? -1 : __real_read(fd, bytes, size);
+    return fail_read() ? -1 : __real_read(fd, bytes, size);
+}
+/* Ubuntu GCC11/glibc2.35 with ASan can lower even an unknown-size buffer's
+ * read to __read_chk. Intercept both symbols so fortification cannot bypass
+ * the same one-shot fault; keep libc's bounds check on real reads. */
+extern "C" ssize_t __real___read_chk(int, void *, size_t, size_t);
+extern "C" ssize_t __wrap___read_chk(int fd, void *bytes, size_t size, size_t capacity) {
+    if (size > capacity) return __real___read_chk(fd, bytes, size, capacity);
+    return fail_read() ? -1 : __real___read_chk(fd, bytes, size, capacity);
 }
 extern "C" ssize_t __real_write(int, const void *, size_t);
 extern "C" ssize_t __wrap_write(int fd, const void *bytes, size_t size) {

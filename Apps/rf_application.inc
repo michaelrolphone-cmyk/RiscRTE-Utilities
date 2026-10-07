@@ -96,6 +96,7 @@ static int16_t label_db[RF_LABEL_MAX],label_snr[RF_LABEL_MAX];
 static uint16_t spec_levels[PLOT_W],fall_levels[RF_PLOT_MAX_H],peak_levels[PLOT_W];
 static int16_t spec_db[PLOT_W],fall_db[RF_PLOT_MAX_H];
 static uint16_t history_next,history_count,pending_save,load_errors;
+static bool storage_discard_confirm;
 static uint32_t history_times[PLOT_W];
 static uint32_t rendered,recorded_transform,sample_rate,painted;
 static int controls_scroll,controls_touch_y,controls_touch_scroll;
@@ -244,6 +245,7 @@ static void restore(void){
  load_errors=(uint16_t)((1u<<(RF_LABEL_MAX+1u))-1u);reload_storage();
 }
 static void persist(void){
+ storage_discard_confirm=false;
  if(!pending_save)return;
  if(pending_save&load_errors){store_message="RETRY STORAGE FIRST";notify(store_message);return;}
  if(!acquire_storage()){store_message="UNSAVED / NO STORAGE";notify("UNSAVED / NO STORAGE");return;}
@@ -271,7 +273,7 @@ static void freeze(void){stop();frozen=true;message="FROZEN / RF OFF";dirty=true
 /* Each real coherent burst independently feeds the fixed canonical detector.
  * Nothing describes unobserved time between scheduled receiver captures. */
 static void detect_frequency_labels(void){
- for(unsigned i=0;i<RF_LABEL_MAX;i++){bool before=label_active[i];bool valid=signature_audio.available&&labels[i].present&&rf_label_valid(&labels[i])&&labels[i].frequency_hz>=rf_identity_low_hz(&prefs.identity)&&labels[i].frequency_hz<=rf_identity_high_hz(&prefs.identity);int16_t excess_db=RF_DSP_FLOOR_DB,snr=0;label_active[i]=valid&&rf_background_label(&ambient,&prefs.identity,labels[i].frequency_hz,labels[i].tolerance_hz,labels[i].tolerance_bins,prefs.fft_size,prefs.threshold_db,before,&excess_db,&snr);label_db[i]=excess_db;label_snr[i]=snr;level_valid[i]=valid;if(before!=label_active[i]||(view==2&&label_active[i]))dirty=true;}
+ for(unsigned i=0;i<RF_LABEL_MAX;i++){bool before=label_active[i];bool valid=signature_audio.available&&labels[i].present&&rf_label_valid(&labels[i])&&labels[i].frequency_hz>=rf_identity_low_hz(&prefs.identity)&&labels[i].frequency_hz<=rf_identity_high_hz(&prefs.identity);int16_t excess_db=RF_DSP_FLOOR_DB,snr=0;label_active[i]=valid&&rf_background_label(&ambient,&prefs.identity,labels[i].frequency_hz,labels[i].tolerance_hz,labels[i].tolerance_bins,prefs.threshold_db,before,&excess_db,&snr);label_db[i]=excess_db;label_snr[i]=snr;level_valid[i]=valid;if(before!=label_active[i]||(view==2&&label_active[i]))dirty=true;}
 }
 
 static void refresh_analysis(void){
@@ -418,12 +420,12 @@ static void draw_monitor(void){
  text(0,62,88,158,room_name,room>=0?NOVA_WHITE:NOVA_TEXT);
  if(!rooms)snprintf(room_detail,sizeof(room_detail),"CAPTURE ROOM IN CONTROLS > SAMPLES");
  else if(!ambient.ready)snprintf(room_detail,sizeof(room_detail),"RAW ROOM PROFILE / WAIT FOR BASELINE");
- else if(room>=0&&holding)snprintf(room_detail,sizeof(room_detail),"HOLD / %s",room_tracker.ambiguous?"SIMILAR ROOM ACTIVITYS":"CHECKING ROOM");
+ else if(room>=0&&holding)snprintf(room_detail,sizeof(room_detail),"HOLD / %s",room_tracker.ambiguous?"SIMILAR ROOM PROFILES":"CHECKING ROOM");
  else if(room>=0)snprintf(room_detail,sizeof(room_detail),"%s %u%%  AMP %d dB",verifying?"VERIFY":"MATCH",room_tracker.confidence,monitor_scene_db()/100);
  else snprintf(room_detail,sizeof(room_detail),"%s %u%%  AMP %d dB",room_tracker.ambiguous?"AMBIGUOUS":"NO MATCH",room_tracker.confidence,monitor_scene_db()/100);
  text(1,20,106,200,room_detail,NOVA_CAP);fill(20,126,200,1,NOVA_DIM);
  pill(10,211,28,27,"<",false);pill(45,211,65,27,running?"STOP":"START",running);pill(117,211,78,27,"LEARN",false);pill(202,211,28,27,">",false);
- if(!n){center(1,20,145,200,input_waiting?"WAITING FOR RF INPUT":running?"NO ACTIVITY IDENTIFIED":"START RF TO MONITOR",NOVA_CAP);center(1,20,166,200,running?"LEARN A ACTIVITY BELOW":"UNCLASSIFIED RF ACTIVITY",NOVA_CAP);list_scroll=0;return;}
+ if(!n){center(1,20,145,200,input_waiting?"WAITING FOR RF INPUT":running?"NO ACTIVITY IDENTIFIED":"START RF TO MONITOR",NOVA_CAP);center(1,20,166,200,running?"LEARN AN EVENT BELOW":"UNCLASSIFIED RF ACTIVITY",NOVA_CAP);list_scroll=0;return;}
  if(list_scroll>=n)list_scroll=n>3?n-3:0;
  for(unsigned row=0;row<3&&row+list_scroll<n;row++){monitor_item *item=&items[row+list_scroll];int y=132+(int)row*26;fill(20,y+1,2,22,item->color);text(1,28,y,40,item->kind==MONITOR_EVENT?"EVENT":item->kind==MONITOR_CANDIDATE?"MAYBE":item->kind==MONITOR_UNCLASSIFIED?"RF":"LABEL",NOVA_CAP);text(1,70,y,99,item->name,NOVA_WHITE);char confidence[12],amplitude[20];if(item->kind==MONITOR_UNCLASSIFIED)snprintf(confidence,sizeof(confidence),"RAW");else snprintf(confidence,sizeof(confidence),"%u%%",item->confidence);snprintf(amplitude,sizeof(amplitude),"AMP %d dB",item->amplitude_db/100);text(1,176,y,44,confidence,item->color);text(1,70,y+13,100,amplitude,NOVA_CAP);}
 }
@@ -455,7 +457,7 @@ static void draw_keyboard(void){
   const char *caption=key==PWK_PAGE?"ABC/#":key==PWK_DELETE?"DELETE":key==PWK_DONE?"DONE":ch==32?"_":label;
   text(1,r.x+5,r.y+(key<PWK_CHARACTERS?3:5),r.w-10,caption,NOVA_CYAN);
  }
- char status[40];snprintf(status,sizeof(status),"%u / 16 CHARACTERS",(unsigned)strlen(editing.name));text(1,18,211,204,status,NOVA_CAP);
+ char status[40];snprintf(status,sizeof(status),"%u / 16 CHARACTERS",(unsigned)strlen(editing.name));text(1,18,211,204,toast_message?toast_message:status,NOVA_CAP);
 }
 static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return ui_height-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}
 static void draw(void){
@@ -505,12 +507,13 @@ static void undo_delete(void){
 }
 static void open_label(int slot,uint32_t frequency){
  signature_keyboard=false;event_keyboard=false;
- if(slot<0){unsigned tolerance=2*sample_rate/prefs.fft_size;for(unsigned i=0;i<RF_LABEL_MAX;i++)if(labels[i].present){unsigned t=labels[i].tolerance_hz;if(t<tolerance)t=tolerance;uint32_t difference=labels[i].frequency_hz>frequency?labels[i].frequency_hz-frequency:frequency-labels[i].frequency_hz;if(difference<=t){slot=(int)i;break;}}}
+ if(slot<0){unsigned tolerance=2*sample_rate/RF_SIGNATURE_FFT;for(unsigned i=0;i<RF_LABEL_MAX;i++)if(labels[i].present){unsigned t=labels[i].tolerance_hz;if(t<tolerance)t=tolerance;uint32_t difference=labels[i].frequency_hz>frequency?labels[i].frequency_hz-frequency:frequency-labels[i].frequency_hz;if(difference<=t){slot=(int)i;break;}}}
  edit_slot=slot;
  if(slot>=0)editing=labels[slot];else{if(saved_count()==RF_LABEL_MAX){notify("8 LABEL LIMIT / DELETE ONE");return;}editing=(rf_label){.present=true,.frequency_hz=frequency,.tolerance_bins=2};for(unsigned c=0;c<8;c++){bool used=false;for(unsigned i=0;i<RF_LABEL_MAX;i++)if(labels[i].present&&labels[i].color==c)used=true;if(!used){editing.color=(uint8_t)c;break;}}}
  toast_message=NULL;set_page(PAGE_LABEL);
 }
 static void settings_change(unsigned setting,int direction,int segment){
+ storage_discard_confirm=false;
  if(setting==13){event_load();if(!temporal_retained())set_page(PAGE_EVENTS);return;}
  if(setting==12){signature_load();set_page(PAGE_SIGNATURES);return;}
  if(setting==0)return; /* Reserved legacy source setting is no longer exposed. */
@@ -521,6 +524,13 @@ static void settings_change(unsigned setting,int direction,int segment){
  case 3:prefs.log_frequency=segment==0;break;case 4:prefs.log_amplitude=segment==0;break;case 5:prefs.show_labels=segment==0;break;case 6:prefs.palette=(uint8_t)clamp_int((int)prefs.palette+direction,0,4);build_palette();break;case 7:prefs.gain_db=(int8_t)clamp_int(prefs.gain_db+direction*3,-24,60);break;case 8:prefs.window=(uint8_t)clamp_int((int)prefs.window+direction,0,4);break;case 9:if(receiver_extended&&direction>0&&prefs.fft_size*2u>receiver_caps.max_pairs){notify("RECEIVER COHERENT BURST LIMIT");return;}if(!receiver_extended&&direction>0){notify("LEGACY MAX 256 / RECEIVER");return;}prefs.fft_size=(uint16_t)clamp_int(direction>0?prefs.fft_size*2:prefs.fft_size/2,256,8192);break;case 10:prefs.threshold_db=(int8_t)clamp_int(prefs.threshold_db+direction*5,-90,-20);break;case 11:{bool resume=capture_requested;pause_capture();capture_requested=false;if(event_files.pending>=0||event_files.ready!=3)event_retry();if(temporal_retained())return;signature_load();signature_save();if(load_errors){reload_storage();configure_dsp();build_palette();}persist();capture_requested=resume;portable_rf_capture_resume();notify(store_message?store_message:(event_files.pending>=0||event_files.ready!=3)?(event_message?event_message:"APP DATA UNAVAILABLE"):"SAVED DATA LOADED");dirty=true;return;}default:return;
  }
  configure_dsp();pending_save|=1;persist();dirty=true;
+}
+static void discard_pending_storage(void){
+ if(!pending_save)return;
+ if(!storage_discard_confirm){storage_discard_confirm=true;notify("DISCARD UNSAVED EDITS?");return;}
+ stop();load_errors|=pending_save;pending_save=0;storage_discard_confirm=false;
+ reload_storage();configure_dsp();build_palette();
+ notify(load_errors?"SAVED DATA UNREAD / RETRY":"SAVED RECORDS RELOADED");
 }
 /* Paper presentation owns source-aware touch sampling. Its adapter deliberately
  * does not also publish T5 touch taps. Consume that one source exactly once and
@@ -554,8 +564,29 @@ static bool process_contact(void){
  }else if(contact_down){consumed=contact_plot||(contact_controls&&contact_moved);if(contact_plot&&!contact_drag&&!contact_moved){cursor_visible=false;dirty=true;}contact_down=contact_plot=contact_controls=false;}
  return consumed;
 }
-static bool request_root_exit(void){
+/* Shared Home/QuickActions calls this before queuing a different app. A normal
+ * edit veto is not a failed radio cleanup and must keep this UI interactive. */
+bool portable_app_before_launch(const char *destination){
+ (void)destination;
+ if(!rf_bulk||!portable_radio_services_safe())return false;
  stop();if(!signature_exit_ready()||!temporal_exit_ready())return false;
+ persist();if(pending_save){set_page(PAGE_CONTROLS);controls_scroll=CONTROLS_MAX_SCROLL;notify("RETRY STORAGE OR DISCARD");return false;}
+ bool draft=page==PAGE_KEYBOARD&&strcmp(editing.name,keyboard_before);
+ if(page==PAGE_EVENT_LABEL||(page==PAGE_KEYBOARD&&event_keyboard)){
+  const rt_label *saved=event_edit_slot>=0?&event_library.labels[event_edit_slot]:NULL;
+  draft|=saved&&saved->present?(strcmp(editing.name,saved->name)||event_edit_shift!=saved->shift_limit):editing.name[0]!=0;
+ }else if(page==PAGE_SIGNATURE_EDIT||(page==PAGE_KEYBOARD&&signature_keyboard)){
+  const rf_signature *saved=signature_slot>=0?&signatures[signature_slot]:NULL;
+  draft|=saved&&saved->kind?(strcmp(editing.name,saved->name)||editing.color!=saved->kind):editing.name[0]!=0;
+ }else if(page==PAGE_LABEL||page==PAGE_KEYBOARD){
+  const rf_label *saved=edit_slot>=0?&labels[edit_slot]:NULL;
+  draft|=saved&&saved->present?(strcmp(editing.name,saved->name)||editing.color!=saved->color||editing.frequency_hz!=saved->frequency_hz||editing.tolerance_hz!=saved->tolerance_hz||editing.tolerance_bins!=saved->tolerance_bins):editing.name[0]!=0;
+ }
+ if(draft){notify("SAVE OR CANCEL EDIT FIRST");return false;}
+ return true;
+}
+static bool request_root_exit(void){
+ if(!portable_app_before_launch(NULL))return false;
 #ifdef RF_RETURN_APP
  if(!runtime->request_launch||!runtime->request_launch(RF_RETURN_APP)){message="EXIT FAILED / RETRY";notify(message);return false;}
 #endif
@@ -569,7 +600,7 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(page==PAGE_SIGNATURES||page==PAGE_SIGNATURE_EDIT){signature_tap(x,y,toggle_requested);return false;}
  if(page==PAGE_KEYBOARD){if(hit(x,y,8,4,48,36)){keyboard_cancel();return false;}int key=portable_watch_key_hit(x,y);if(key>=0){key_choice=(unsigned)key;keyboard_activate((unsigned)key);}return false;}
  if(page==PAGE_LABEL){if(hit(x,y,31,104,178,32)){keyboard_begin();}else if(y>=140&&y<166&&x>=28&&x<216){editing.color=(uint8_t)clamp_int((x-28)/23,0,7);dirty=true;}else if(y>=169&&y<203){if(x>=24&&x<89)set_page(PAGE_MAIN);else if(edit_slot>=0&&x>=89&&x<152)delete_label(edit_slot);else if(x>=(edit_slot>=0?152:122)&&x<218)save_label();}return false;}
- if(page==PAGE_CONTROLS){if(y>=21&&y<45){receiver_scroll=0;set_page(PAGE_RECEIVER);return false;}if(hit(x,y,79,ui_height-39,82,32)){set_page(PAGE_MAIN);return false;}if(y<CONTROLS_TOP||y>=CONTROLS_BOTTOM)return false;unsigned position=(unsigned)(y-CONTROLS_TOP+controls_scroll),setting=position/CONTROLS_ROW_HEIGHT+1;int row_y=(int)(position%CONTROLS_ROW_HEIGHT);if(setting>CONTROLS_COUNT||row_y<4||row_y>=44)return false;if(controls_segment(setting)){if(x>=110&&x<165)settings_change(setting,0,0);else if(x>=171&&x<232)settings_change(setting,0,1);}else if(setting==11||setting==12||setting==13){if(x>=110&&x<232)settings_change(setting,0,0);}else if(x>=90&&x<122)settings_change(setting,-1,0);else if(x>=200&&x<232)settings_change(setting,1,0);return false;}
+ if(page==PAGE_CONTROLS){if(y>=21&&y<45){receiver_scroll=0;set_page(PAGE_RECEIVER);return false;}if(hit(x,y,79,ui_height-39,82,32)){set_page(PAGE_MAIN);return false;}if(y<CONTROLS_TOP||y>=CONTROLS_BOTTOM)return false;unsigned position=(unsigned)(y-CONTROLS_TOP+controls_scroll),setting=position/CONTROLS_ROW_HEIGHT+1;int row_y=(int)(position%CONTROLS_ROW_HEIGHT);if(setting>CONTROLS_COUNT||row_y<4||row_y>=44)return false;if(controls_segment(setting)){if(x>=110&&x<165)settings_change(setting,0,0);else if(x>=171&&x<232)settings_change(setting,0,1);}else if(setting==11||setting==12||setting==13){if(setting==11&&pending_save&&x>=171&&x<232)discard_pending_storage();else if(x>=110&&x<232)settings_change(setting,0,0);}else if(x>=90&&x<122)settings_change(setting,-1,0);else if(x>=200&&x<232)settings_change(setting,1,0);return false;}
  if(!started){if(hit(x,y,68,102,104,48))*toggle_requested=true;else if(hit(x,y,72,196,98,38)){list_scroll=0;set_page(PAGE_CONTROLS);}else if(hit(x,y,6,4,50,34))return request_root_exit();return false;}
  if(y>=8&&y<42){if(x>=4&&x<55){view=0;list_scroll=0;lab_edit=false;}else if(x>=58&&x<108){view=1;list_scroll=0;lab_edit=false;}else if(x>=111&&x<185){view=2;list_scroll=0;lab_edit=false;}else if(x>=188&&x<210&&view!=2){if(load_errors&1u)notify("RETRY STORAGE FIRST");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=213&&x<240){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
  if(view==2){if(hit(x,y,161,44,64,37)){lab_edit=!lab_edit;list_scroll=0;set_page(PAGE_MAIN);return false;}if(lab_edit){unsigned order[8],n=ordered_labels(order);if(y>=88&&y<198){unsigned row=(unsigned)(y-88)/55+list_scroll;if(row<n){if(x>=182&&x<220)delete_label((int)order[row]);else if(x>=20&&x<181)open_label((int)order[row],0);}}if(y>=200&&y<235){if(x>=16&&x<68&&list_scroll)list_scroll--;else if(x>=173&&x<224&&list_scroll+2<n)list_scroll++;}}else if(y>=210){monitor_item items[17];unsigned n=monitor_items(items);if(x<39&&list_scroll)list_scroll--;else if(x>=45&&x<111)*toggle_requested=true;else if(x>=117&&x<196){event_list_scroll=0;toast_message=NULL;set_page(PAGE_EVENTS);}else if(x>=202&&list_scroll+3<n)list_scroll++;}else if(hit(x,y,20,85,200,41)){toast_message=NULL;set_page(PAGE_SIGNATURES);}dirty=true;return false;}
@@ -590,7 +621,7 @@ void app_main(void){
  waterfall_radio=NULL;preferences=NULL;storage=NULL;waterfall_grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};radio_acquired=preferences_acquired=waterfall_uncertain=false;waterfall_enabled=false;trace_capture_seen=trace_cleanup_seen=false;waterfall_status=WATERFALL_STOPPED;
  waterfall_preferences=(risc_runtime_capability_v1){.struct_size=sizeof(waterfall_preferences)};if(runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&waterfall_preferences)){preferences_acquired=true;preferences=waterfall_preferences.api;}
  capture_requested=input_gap=input_waiting=capture_error=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=urgent_draw=true;receiver_extended=false;
- pending_save=load_errors=0;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / RF OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
+ pending_save=load_errors=0;storage_discard_confirm=false;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / RF OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
  waterfall_log("SDR app enter");restore();signature_restore();signature_mode=prefs.background_mode;manual_room=prefs.manual_room;event_restore();if(temporal_retained())retain();configure_dsp();build_palette();set_page(PAGE_MAIN);toggle();if(store_message)notify(store_message);
  for(;;){
   if(waterfall_uncertain){waterfall_drain();uncertain=owned=running=false;}

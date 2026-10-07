@@ -44,11 +44,12 @@ static inline void rf_background_observe(rf_background *b,const uint32_t power[1
   else if(!active||(!b->freeze_upward&&b->age[i]>=RF_BG_HOLD)){unsigned divisor=512u;b->slow[i]+=(power[i]-baseline+divisor-1u)/divisor;}
  }
 }
-/* Label matching uses explicit Hz/bin tolerance around absolute RF carrier. */
-static inline bool rf_background_label(const rf_background *b,const rf_capture_identity *identity,uint32_t hz,uint32_t tolerance_hz,unsigned tolerance_bins,unsigned fft_size,int floor_db,bool was_active,int16_t *excess_db,int16_t *snr_db){
- if(!b||!rf_identity_valid(identity)||!excess_db||!snr_db||!rf_dsp_size_valid(fft_size)||tolerance_bins>8192u)return false;
+/* Label tolerance uses fixed canonical FFT bins, never the selected display
+ * FFT. Zoom/window/gain controls cannot silently change label identity. */
+static inline bool rf_background_label(const rf_background *b,const rf_capture_identity *identity,uint32_t hz,uint32_t tolerance_hz,unsigned tolerance_bins,int floor_db,bool was_active,int16_t *excess_db,int16_t *snr_db){
+ if(!b||!rf_identity_valid(identity)||!excess_db||!snr_db||tolerance_bins>8192u)return false;
  uint64_t observed=0,background=0,excess=0;
- uint32_t tolerance=(uint32_t)rf_dsp_div_u64_u32((uint64_t)tolerance_bins*identity->sample_rate_hz+fft_size-1u,fft_size);if(tolerance<tolerance_hz)tolerance=tolerance_hz;
+ uint32_t tolerance=(uint32_t)rf_dsp_div_u64_u32((uint64_t)tolerance_bins*identity->sample_rate_hz+RF_SIGNATURE_FFT-1u,RF_SIGNATURE_FFT);if(tolerance<tolerance_hz)tolerance=tolerance_hz;
  /* Include intersecting canonical two-bin bands, never carrier-relative%. */
  uint32_t half=(identity->sample_rate_hz+255u)/256u;
  for(unsigned i=0;i<128;i++){uint32_t center=rf_signature_band_hz(identity,i);uint64_t difference=center>hz?(uint64_t)center-hz:(uint64_t)hz-center;if(difference<=(uint64_t)tolerance+half){observed+=b->raw[i];background+=b->slow[i];excess+=b->excess[i];}}
