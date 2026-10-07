@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "system_apps": "969d2210e1bf517c1299801c8ad205c956e06810",
+  "system_apps": "2775b0b898c432825d9cb5685175c0647dd4dc30",
   "bluetooth_driver_minimum": "0.3.0",
   "runtime_minimum": "0.1.27"
 }

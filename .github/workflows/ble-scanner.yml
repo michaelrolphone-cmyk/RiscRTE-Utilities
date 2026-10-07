@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 969d2210e1bf517c1299801c8ad205c956e06810
+          ref: 2775b0b898c432825d9cb5685175c0647dd4dc30
           path: .dependencies/ble-system
           persist-credentials: false
       - uses: actions/setup-python@v5

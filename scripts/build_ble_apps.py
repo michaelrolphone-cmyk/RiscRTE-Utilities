@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -22,8 +23,9 @@ def inventory():
         if app['version']!=side['version'] or side['runtime_profile']!='portable-riscrte-v1' or side['min_firmware_version']!='0.1.27':raise ValueError('BLE version/profile mismatch')
         if any(not(ROOT/p).is_file() for p in app['additional_sources']):raise ValueError('Missing BLE source')
     return apps
-def build(system, *, paper=False, rotation=0, navigation=False, partial=False, return_app="springboard.elf", output=None):
+def build(system, *, paper=False, rotation=0, navigation=False, partial=False, return_app="springboard.elf", output=None,home_app=None,quick_actions=False):
     if not return_app.endswith(".elf") or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-." for c in return_app):raise ValueError("Invalid return app")
+    if home_app and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.elf',home_app):raise ValueError('Invalid Home target')
     pin=json.loads((ROOT/'sdk/ble-sources.json').read_text())
     if subprocess.check_output(['git','rev-parse','HEAD'],cwd=system,text=True).strip()!=pin['system_apps'] or subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=system,text=True).strip():raise ValueError('Exact clean radio lifecycle adapter required')
     if not (system/'lib/PortableApps/include/PortableRadioSession.h').is_file():raise ValueError('Radio lifecycle hooks missing')
@@ -36,8 +38,10 @@ def build(system, *, paper=False, rotation=0, navigation=False, partial=False, r
     defines=['-DPORTABLE_ALARM_CLIENT','-DPORTABLE_RADIO_SESSION','-DPORTABLE_NOVA_UI','-DPORTABLE_APP_OWNS_TOUCH_CHROME','-DPORTABLE_RETURN_APP="'+return_app+'"','-DPORTABLE_DISPLAY_ROTATION='+str(rotation)]
     if not partial:defines+=['-DPORTABLE_FORCE_FULL_FRAMES']
     if navigation:defines+=['-DPORTABLE_INPUT_NAVIGATION']
-    quick=[] if paper else ['quick_actions.c','quick_render.c','quick_session.c','quick_radios.c']
-    if not paper:defines+=['-DPORTABLE_QUICK_ACTIONS','-DPORTABLE_QUICK_RADIOS']
+    quick=['quick_actions.c','quick_render.c','quick_session.c'] if quick_actions or not paper else []
+    if quick:defines+=['-DPORTABLE_QUICK_ACTIONS']
+    if not paper:quick+=['quick_radios.c'];defines+=['-DPORTABLE_QUICK_RADIOS']
+    if home_app:defines+=['-DPORTABLE_HOME_APP="'+home_app+'"']
     rows=[]
     for app in inventory():
         name=app['id'];elf=out/(name+'.elf')
@@ -55,7 +59,7 @@ def build(system, *, paper=False, rotation=0, navigation=False, partial=False, r
         if navigation:manifest['requires'].append({'capability':'input.navigation','api':1})
         elf.with_suffix('.json').write_text(json.dumps(manifest,indent=2)+'\n')
         rows.append({'id':name,'version':side['version'],'size_bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'imports':sorted(imports)})
-    record={'schema':1,'purpose':'development-ble-scanner-no-hardware-qualification','source_pins':pin,'profile':{'paper':paper,'display_rotation':rotation,'navigation':navigation,'partial_damage':partial,'return_app':return_app},'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}
+    record={'schema':1,'purpose':'development-ble-scanner-no-hardware-qualification','source_pins':pin,'profile':{'paper':paper,'display_rotation':rotation,'navigation':navigation,'partial_damage':partial,'return_app':return_app,'home_app':home_app,'quick_actions':bool(quick_actions or not paper)},'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}
     (out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n')
     for name in ('LICENSE-FontAwesome.txt','LICENSE-Orbitron.txt','LICENSE-Rajdhani.txt','SOURCES.json'):
         (out/name).write_bytes((system/'lib/PortableApps/fonts'/name).read_bytes())
@@ -67,4 +71,5 @@ if __name__=='__main__':
     p.add_argument('--display-rotation',type=int,choices=[0,90],default=0)
     p.add_argument('--navigation',action='store_true');p.add_argument('--partial-damage',action='store_true')
     p.add_argument('--return-app',default='springboard.elf');p.add_argument('--output-dir',type=Path)
-    a=p.parse_args();build(a.system_apps.resolve(),paper=a.paper_profile,rotation=a.display_rotation,navigation=a.navigation,partial=a.partial_damage,return_app=a.return_app,output=a.output_dir)
+    p.add_argument('--home-app');p.add_argument('--quick-actions',action='store_true')
+    a=p.parse_args();build(a.system_apps.resolve(),paper=a.paper_profile,rotation=a.display_rotation,navigation=a.navigation,partial=a.partial_damage,return_app=a.return_app,output=a.output_dir,home_app=a.home_app,quick_actions=a.quick_actions)

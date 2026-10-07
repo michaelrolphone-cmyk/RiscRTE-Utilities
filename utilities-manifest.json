@@ -223,7 +223,7 @@
     {
       "id": "ble_scanner",
       "display_name": "BLE Scanner",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_scanner.c",
