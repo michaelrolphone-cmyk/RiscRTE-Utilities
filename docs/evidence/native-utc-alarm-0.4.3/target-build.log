@@ -1,4 +1,11 @@
 Native ELF structural validation tests passed
 Native ELF structural validation tests passed
 Native ELF structural validation tests passed
+/workspace/scratch/c744abbbbd60/x4-runtime-provider-realtime/lib/elf_loader/src/esp_elf.c: In function ‘esp_elf_load_section’:
+/workspace/scratch/c744abbbbd60/x4-runtime-provider-realtime/lib/elf_loader/src/esp_elf.c:389:35: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+  389 |     elf->sec[ELF_SEC_TEXT].addr = (Elf32_Addr)elf->ptext;
+      |                                   ^
+PASS /workspace/scratch/c744abbbbd60/x4-alarm-time-policy/dist/native-utc-visual-service/watch.elf: 8 alignments, 2120 relocation-site checks, exact sections and redzones intact
+PASS /workspace/scratch/c744abbbbd60/x4-alarm-time-policy/dist/native-utc-visual-service/raw-visual.elf: 8 alignments, 2032 relocation-site checks, exact sections and redzones intact
+PASS /workspace/scratch/c744abbbbd60/x4-alarm-time-policy/dist/native-utc-visual-service/native-utc.elf: 8 alignments, 9256 relocation-site checks, exact sections and redzones intact
 Native UTC target ELF passed; Watch and raw-visual ELFs exactly match base bytes
