@@ -23,7 +23,7 @@ profile=json.loads((ROOT/'Apps/paper-utilities.json').read_text())
 record['profile']=profile
 record['grants']=profile['common_grants']+profile['app_grants'][name]
 record['source_files']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (ROOT/'Apps').iterdir() if p.is_file() and (p.name.startswith(('calculator','stopwatch','countdown','utility_paper','alarm_')))}
-manifest={'type':'application','id':name,'version':m['version'],'file_name':name+'.elf','entry':'app_main','architecture':'xtensa-esp32s3','profile':'nova7-paper-utilities','requires':record['grants']}
+manifest={'type':'application','id':name,'version':m['version'],'file_name':name+'.elf','entry':'app_main','architecture':'xtensa-esp32s3','requires':record['grants']}
 (out/(name+'.json')).write_text(json.dumps(manifest,indent=2)+'\n')
 for folder in ['fonts','paper_fonts','quick_fonts']:
  target=out/'licenses'/folder;target.mkdir(parents=True,exist_ok=True)

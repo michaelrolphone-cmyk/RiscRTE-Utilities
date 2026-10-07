@@ -78,8 +78,8 @@
   },
   "binding_note": "Non-storage clients acquire instance 0 (the default granted binding); bind them to the listed deployment instance IDs. Storage clients explicitly acquire namespaces 1, 2 or 3. Assign alarm.service to the visual service instance.",
   "versions": {
-    "calculator": "0.1.7",
-    "stopwatch": "0.1.7",
-    "countdown": "0.1.6"
+    "calculator": "0.1.8",
+    "stopwatch": "0.1.8",
+    "countdown": "0.1.7"
   }
 }

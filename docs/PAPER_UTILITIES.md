@@ -5,7 +5,7 @@ presentation from display capabilities. Watch keeps its existing color UI.
 The explicit paper build profile links global Home to default.elf, local Back
 to springboard.elf, and capability-gated QuickActions without radio authority.
 
-The deployment versions are Calculator0.1.7, Stopwatch0.1.7 and Countdown0.1.6,
+The deployment versions are Calculator0.1.8, Stopwatch0.1.8 and Countdown0.1.7,
 recorded in Apps/paper-utilities.json. These do not rewrite released Watch
 manifest identities. Preferences use KV1, Stopwatch KV2, Countdown KV3; use the
 product's visual alarm service and exact display/input/RTC/battery bindings.
@@ -17,3 +17,7 @@ The integrated Linux run passes128 real application/adapter scenarios under
 normal and ASan+UBSan builds. A test-only ambiguous conditional was braced for
 GCC; the production behavior was unchanged. Target evidence is emitted beside
 each ELF. No physical device qualification is implied.
+
+The complete Runtime admission check caught an unsupported manifest `profile`
+field emitted by the first unit builder. Profile metadata stays in the build
+receipt only; the deployed manifest now uses the canonical Runtime schema.
