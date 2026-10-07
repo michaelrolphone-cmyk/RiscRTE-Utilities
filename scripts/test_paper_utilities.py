@@ -4,7 +4,7 @@ import argparse,json,os,subprocess
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--system-apps',required=True,type=Path);p.add_argument('--no-sanitizers',action='store_true');p.add_argument('--sanitizer',choices=['address,undefined','undefined'],default='address,undefined');a=p.parse_args();s=a.system_apps.resolve()
-assert subprocess.check_output(['git','-C',str(s),'rev-parse','HEAD'],text=True).strip()=='2aa0cf63346e507525af884bbfbf6b69313442c4'
+assert subprocess.check_output(['git','-C',str(s),'rev-parse','HEAD'],text=True).strip()=='08229b98823e3f1d33395d16864d8a051c303ba7'
 out=ROOT/'build/paper-utilities';out.mkdir(parents=True,exist_ok=True)
 catalog=out/'catalog.c';catalog.write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[1]={{.compatible=false}};\nconst unsigned portable_catalog_count=0;\n')
 for name,number in [('calculator',1),('stopwatch',2),('countdown',5),('alarms',4),('battery',3)]:

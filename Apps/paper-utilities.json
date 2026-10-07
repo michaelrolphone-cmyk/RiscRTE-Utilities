@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "profile": "nova7-paper-utilities",
-  "system_apps_sha": "2aa0cf63346e507525af884bbfbf6b69313442c4",
+  "system_apps_sha": "08229b98823e3f1d33395d16864d8a051c303ba7",
   "home": "default.elf",
   "local_back": "springboard.elf",
   "clock_policy": "rtc-wall-time",
