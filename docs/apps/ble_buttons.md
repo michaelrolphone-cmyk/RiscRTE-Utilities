@@ -1,4 +1,4 @@
-# BLE Buttons 0.1.1
+# BLE Buttons 0.1.3
 
 Four configurable Nova7 remote controls sharing the same secure BLE HID session
 and driver bond as [BLE Touchpad](ble_touchpad.md). The host sees **Watch Buttons**.
@@ -36,3 +36,6 @@ silently saving them. Unreadable saved data is reported.
 
 See [integration requirements](../BLE_HID_INTEGRATION.md) for exact grants,
 standalone builds, test coverage and remaining physical qualification.
+
+See [Nova7 paper HID](../BLE_HID_PAPER.md) for the capability-selected 480×800
+presentation, paper grants, Home/Back targets and verification evidence.

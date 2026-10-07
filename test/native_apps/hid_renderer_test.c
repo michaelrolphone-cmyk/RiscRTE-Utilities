@@ -41,14 +41,24 @@ static risc_touch_snapshot_v1 prior_touch;
 static struct {bool live;uint64_t sequence;} subscribers[5];
 static unsigned radio_sends,radio_claims,radio_closes,radio_state,launches,reports,radio_control_calls;static bool radio_owned;
 static uint8_t command_ack[6];static bool ack_ready,advertising;
-static uint16_t pixels[240*244];
+static uint16_t pixels[800*484];
+#ifdef HID_RENDER_PAPER
+static const bool paper_profile=true;
+#else
+static const bool paper_profile=false;
+#endif
+static unsigned close_attempts,unsub_attempts,release_attempts,save_attempts;
 static const char *directory;
 static struct {unsigned at;int x,y;} actions[256];static unsigned action_count;
 static struct {char key[16];unsigned char bytes[64];uint32_t size;} cells[32];
 static void save_frame(void) {
- char path[1024];snprintf(path,sizeof(path),"%s/frame-%03u.ppm",directory,presents);
- FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n240 240\n255\n");
- for(unsigned y=0;y<240;y++){for(unsigned x=0;x<240;x++){uint16_t v=pixels[y*244+x];unsigned char rgb[]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};assert(fwrite(rgb,1,3,f)==3);}for(unsigned x=240;x<244;x++)assert(pixels[y*244+x]==0xa5a5);}
+ if(!directory)return;
+ char path[1024];snprintf(path,sizeof(path),"%s/frame-%03u.%s",directory,presents,paper_profile?"pbm":"ppm");
+ FILE*f=fopen(path,"wb");assert(f);
+ if(paper_profile){fprintf(f,"P4\n480 800\n");unsigned char *p=(unsigned char*)pixels;
+  for(unsigned y=0;y<800;y++)for(unsigned b=0;b<60;b++){unsigned char bits=0;for(unsigned bit=0;bit<8;bit++){unsigned x=b*8+bit;/* physical=(logical y,479-logical x) */if(p[(479-x)*104+y/8]&(0x80u>>(y%8)))bits|=0x80u>>bit;}fputc(bits,f);}
+  for(unsigned y=0;y<480;y++)for(unsigned x=100;x<104;x++)assert(p[y*104+x]==0xa5);
+ } else {fprintf(f,"P6\n240 240\n255\n");for(unsigned y=0;y<240;y++){for(unsigned x=0;x<240;x++){uint16_t v=pixels[y*244+x];unsigned char rgb[]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};assert(fwrite(rgb,1,3,f)==3);}for(unsigned x=240;x<244;x++)assert(pixels[y*244+x]==0xa5a5);}}
  assert(!fclose(f));
 }
 static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;return polls<stop_poll;}
@@ -70,16 +80,17 @@ static bool fake_diag(const char*s){
 #endif
  fprintf(stderr,"%s\n",s);return true;
 }
-static bool fake_launch(const char*s){assert(!radio_owned&&!hid_owned);assert(!strcmp(s,"springboard.elf"));launches++;printf("launch=%s\n",s);stop_poll=polls;return true;}
-static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=240,.height=240,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565)};return true;}
-static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=240,.height=240,.stride_bytes=488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
+static bool fake_launch(const char*s){assert(!radio_owned&&!hid_owned);assert(!strcmp(s,getenv("HID_RENDER_HOME")?"default.elf":"springboard.elf"));launches++;printf("launch=%s\n",s);stop_poll=polls;return true;}
+static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=paper_profile?800:240,.height=paper_profile?480:240,.nominal_refresh_millihz=paper_profile?1000:60000,.typical_present_latency_us=paper_profile?200000:16000,.flags=RISC_DISPLAY_INFO_PARTIAL_DAMAGE|(paper_profile?RISC_DISPLAY_INFO_RETAINS_IMAGE:0),.supported_formats=RISC_DISPLAY_FORMAT_BIT(paper_profile?RISC_DISPLAY_FORMAT_MONO1:RISC_DISPLAY_FORMAT_RGB565)};return true;}
+static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=paper_profile?800:240,.height=paper_profile?480:240,.stride_bytes=paper_profile?104:488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
 static void fake_frame_release(void*c,risc_display_frame_v1 f){(void)c;assert(frames&&f==1);frames=0;}
-static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){(void)c;(void)r;(void)n;(void)o;assert(frames&&f==1);frames=0;*t=++presents;save_frame();return true;}
+static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){(void)c;(void)r;(void)n;(void)o;assert(frames&&f==1);frames=0;*t=++presents;save_frame();if(paper_profile)ticks+=1600;return true;}
 static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){(void)c;assert(t);s->state=RISC_DISPLAY_PRESENT_COMPLETE;return true;}
 static bool fake_brightness(void*c,uint16_t level,uint16_t maximum){(void)c;assert(level<=maximum&&maximum==100);if(getenv("HID_RENDER_LOW_BATTERY"))assert(level==15&&!hid_owned);return true;}
 static const risc_display_output_api_v1 display_api={.api_version=1,.struct_size=sizeof(display_api),.get_info=fake_info,.acquire=fake_frame,.release=fake_frame_release,.submit=fake_submit,.present_status=fake_present,.set_brightness=fake_brightness};
 static void current_touch(risc_touch_snapshot_v1*s){
- *s=(risc_touch_snapshot_v1){.width=240,.height=240,.sequence=touch_sequence};
+ *s=(risc_touch_snapshot_v1){.width=paper_profile?480:240,.height=paper_profile?800:240,.sequence=touch_sequence};
+ if(getenv("HID_RENDER_RAW_HOME")&&polls==100)s->buttons=RISC_TOUCH_BUTTON_PRIMARY;
  for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){unsigned at=s->contact_count++;assert(at<5);s->contacts[at]=(risc_touch_contact_v1){.id=(uint8_t)(at+1),.x=(uint16_t)actions[i].x,.y=(uint16_t)actions[i].y};}
 }
 #ifdef HID_RENDER_WATCH_TOUCH
@@ -95,6 +106,7 @@ static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n>0&&n<5&&subscribers[n
 #ifdef HID_RENDER_WATCH_TOUCH
 assert(watch_touch->unsubscribe(watch_touch->context,watch_subscriptions[n]));watch_subscriptions[n]=0;
 #endif
+if(getenv("HID_RENDER_CLEANUP")&&++unsub_attempts==1)return false;
 subscribers[n].live=false;subs--;return true;}
 static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);
  /* The adapter owns time advancement; the app's second poll sees the same report. */
@@ -136,7 +148,7 @@ static bool fake_rtc(void*c,twatch_rtc_time_v1*s){(void)c;*s=(twatch_rtc_time_v1
 static bool fake_write(void*c,const twatch_rtc_time_v1*s){(void)c;(void)s;assert(!"Unexpected RTC write in read-only audit");return false;}
 static const twatch_rtc_api_v1 rtc_api={.api_version=2,.struct_size=sizeof(rtc_api),.read=fake_rtc,.write=fake_write};
 static int32_t fake_get(void*c,const char*k,void*b,uint32_t cap,uint32_t*s){(void)c;*s=0;for(unsigned i=0;i<32;i++)if(!strcmp(k,cells[i].key)){*s=cells[i].size;if(cap<*s)return RISC_KEY_VALUE_BUFFER_SMALL;memcpy(b,cells[i].bytes,*s);return 0;}return RISC_KEY_VALUE_NOT_FOUND;}
-static int32_t fake_put(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(n<=64&&strlen(k)<16);unsigned i;for(i=0;i<32&&cells[i].key[0]&&strcmp(k,cells[i].key);i++);assert(i<32);strcpy(cells[i].key,k);memcpy(cells[i].bytes,b,n);cells[i].size=n;return 0;}
+static int32_t fake_put(void*c,const char*k,const void*b,uint32_t n){(void)c;if(!strcmp(k,"hid_buttons")){save_attempts++;if(getenv("HID_RENDER_SAVE_FAIL")&&save_attempts==1)return RISC_KEY_VALUE_IO;}assert(n<=64&&strlen(k)<16);unsigned i;for(i=0;i<32&&cells[i].key[0]&&strcmp(k,cells[i].key);i++){}assert(i<32);strcpy(cells[i].key,k);memcpy(cells[i].bytes,b,n);cells[i].size=n;return 0;}
 static const risc_key_value_v1 kv_api={1,sizeof(kv_api),NULL,fake_get,fake_put};
 static int32_t fake_alarm_status(void*c,alarm_status_v1*s){(void)c;*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_READY,.mode=ALARM_MODE_BOTH};
  if(getenv("HID_RENDER_ALARM")&&polls>=40&&!alarm_dismissed){s->state=ALARM_STATE_ALERT;s->occurrence=(alarm_token_v1){.kind=ALARM_KIND_COUNTDOWN,.revision=1,.deadline=1,.generation=1};}
@@ -144,8 +156,14 @@ static int32_t fake_alarm_status(void*c,alarm_status_v1*s){(void)c;*s=(alarm_sta
 static int32_t fake_alarm_step(void*c){(void)c;return ALARM_OK;}
 static int32_t fake_alarm_ack(void*c,const alarm_token_v1*t){(void)c;assert(t->generation==1&&!hid_owned&&!held_mod&&!held_key&&!held_mouse);alarm_dismissed=true;return ALARM_OK;}
 static int32_t fake_alarm_prepare(void*c,alarm_sleep_v1*s){(void)c;*s=(alarm_sleep_v1){.struct_size=sizeof(*s)};return ALARM_OK;}
-static const alarm_service_v1 alarm_api={1,sizeof(alarm_api),NULL,fake_alarm_status,fake_alarm_step,fake_alarm_step,fake_alarm_ack,fake_alarm_prepare,fake_alarm_step};
-static bool fake_nav(void*c,risc_input_navigation_frame_v1*s){(void)c;*s=(risc_input_navigation_frame_v1){0};return true;}
+static const alarm_service_outputs_v1 alarm_api={.service={1,sizeof(alarm_api),NULL,fake_alarm_status,fake_alarm_step,fake_alarm_step,fake_alarm_ack,fake_alarm_prepare,fake_alarm_step},
+#ifdef HID_RENDER_PAPER
+.output_modes=ALARM_MODE_VISUAL
+#else
+.output_modes=ALARM_MODE_BOTH
+#endif
+};
+static bool fake_nav(void*c,risc_input_navigation_frame_v1*s){(void)c;*s=(risc_input_navigation_frame_v1){0};if(getenv("HID_RENDER_HOME")&&!getenv("HID_RENDER_RAW_HOME")&&polls==100){s->buttons=RISC_NAV_HOME;s->pressed=RISC_NAV_HOME;}return true;}
 static bool fake_foreground(void*c,const risc_input_foreground_v1*s,size_t n){(void)c;(void)s;(void)n;return true;}
 static bool fake_reset(void*c){(void)c;return true;}
 static const risc_input_navigation_api_v1 nav_api={1,sizeof(nav_api),NULL,fake_nav,fake_foreground,fake_reset};
@@ -187,12 +205,12 @@ static bool fake_hid_mouse(void*c,uint64_t t,uint8_t b,int8_t x,int8_t y,int8_t 
  if(getenv("HID_RENDER_TRANSPORT_RECONNECT")&&polls>=40)assert(hid_opens==2);
  held_mouse=b;hid_mouse_reports++;return true;}
 static bool fake_hid_release(void*c,uint64_t t){(void)c;assert(hid_owned&&t==77);held_mod=held_key=held_mouse=0;hid_releases++;return true;}
-static bool fake_hid_close(void*c,uint64_t t){(void)c;assert(hid_owned&&t==77);held_mod=held_key=held_mouse=0;hid_owned=false;hid_closes++;return true;}
+static bool fake_hid_close(void*c,uint64_t t){(void)c;assert(hid_owned&&t==77);if(getenv("HID_RENDER_CLEANUP")&&++close_attempts==1)return false;held_mod=held_key=held_mouse=0;hid_owned=false;hid_closes++;return true;}
 static bool fake_hid_forget(void*c){(void)c;assert(!hid_owned);return true;}
 static bool fake_hid_battery(void*c,uint64_t t,uint8_t p){(void)c;assert(hid_owned&&t==77&&p==73);return true;}
 static const risc_bluetooth_hid_v1 hid_api={1,sizeof(hid_api),NULL,fake_hid_open,fake_hid_poll,fake_hid_status,fake_hid_confirm,fake_hid_keyboard,fake_hid_mouse,fake_hid_release,fake_hid_close,fake_hid_forget,fake_hid_battery};
-static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)id;assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&kv_api;else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&radio_api;else if(!strcmp(n,"bluetooth.hid")&&v==1){assert(id==0);g->api=&hid_api;}else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else return false;grants++;return true;}
-static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);g->api=NULL;grants--;return true;}
+static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)id;assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1){assert(id==0||id==(paper_profile?4:6));g->api=&touch_api;}else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&kv_api;else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&radio_api;else if(!strcmp(n,"bluetooth.hid")&&v==1){assert(id==0);g->api=&hid_api;}else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else return false;grants++;return true;}
+static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);if(g->api==&hid_api&&getenv("HID_RENDER_CLEANUP")&&++release_attempts==1)return false;g->api=NULL;grants--;return true;}
 static const risc_runtime_api_v1 runtime_api={1,sizeof(runtime_api),fake_health,fake_yield,fake_diag,fake_launch,fake_acquire,fake_release};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&runtime_api:NULL;}
 int main(int argc,char**argv){assert(argc>=2);directory=argv[1];memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}uint8_t policy[]={0x51,1,3,0xa6};assert(fake_put(NULL,"quick_radio",policy,4)==0);
@@ -223,9 +241,13 @@ if(getenv("HID_RENDER_TRANSPORT_RECONNECT"))assert(hid_opens==2&&hid_closes==2&&
 if(getenv("HID_RENDER_LOW_BATTERY"))assert(hid_opens==1&&hid_closes==1&&low_battery_seen);
 if(getenv("HID_RENDER_KEYS"))assert(hid_keyboard_reports>=2);
 if(getenv("HID_RENDER_BACK"))assert(launches==1);
-if(getenv("HID_RENDER_QUICK"))assert(radio_control_calls>=2&&hid_closes==1);
+if(getenv("HID_RENDER_QUICK"))assert((paper_profile?radio_control_calls==0:radio_control_calls>=2)&&hid_closes==1);
 if(getenv("HID_RENDER_GAP"))assert(gap_given&&hid_releases>=2);
 if(getenv("HID_RENDER_ALARM"))assert(alarm_dismissed&&hid_opens==1&&hid_closes==1);
 if(getenv("HID_RENDER_SLEEP"))assert(sleep_seen&&hid_opens==1&&hid_closes==1);
+if(getenv("HID_RENDER_CLEANUP"))assert(close_attempts==2&&release_attempts==2&&unsub_attempts>=2);
+if(getenv("HID_RENDER_HOME"))assert(launches==1&&!save_attempts);
+if(getenv("HID_RENDER_SAVED")){assert(save_attempts==(getenv("HID_RENDER_SAVE_FAIL")?2u:1u));uint8_t saved[40];uint32_t count;assert(fake_get(NULL,"hid_buttons",saved,40,&count)==0&&count==40&&saved[6]==76);}
+if(getenv("HID_RENDER_UNSAVED"))assert(!save_attempts);
 assert(presents>0);
 printf("HID production app/adapter: %u frames, %u polls; %u mouse/%u key reports; all grants released, neutral reports and stride guards verified\n",presents,polls,hid_mouse_reports,hid_keyboard_reports);return 0;}

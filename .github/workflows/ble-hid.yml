@@ -17,8 +17,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: d5b6c0fa7c06bb36a776e7ce501028a9827221e2
+          ref: 2aa0cf63346e507525af884bbfbf6b69313442c4
           path: .dependencies/hid-system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 2317b4fca374bb2b9cfe8dd204aa22244d1db609
+          path: .dependencies/hid-runtime
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -28,17 +34,26 @@ jobs:
           python -m unittest discover -s tests -v
           python scripts/test_hid_apps.py --system-apps .dependencies/hid-system
           python scripts/test_hid_renderer.py --system-apps .dependencies/hid-system
+          python scripts/test_hid_renderer.py --system-apps .dependencies/hid-system --paper
       - name: Install pinned target compiler
         run: |
           python -m pip install platformio==6.1.19
           pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
       - name: Build and structurally validate target ELFs
-        run: python scripts/build_hid_apps.py --system-apps .dependencies/hid-system
+        run: |
+          python scripts/build_hid_apps.py --system-apps .dependencies/hid-system
+          python scripts/build_hid_apps.py --system-apps .dependencies/hid-system --paper-profile
+      - name: Production Runtime package admission
+        run: |
+          python scripts/test_hid_runtime_prepare.py --runtime .dependencies/hid-runtime --packages dist/hid-apps
+          python scripts/test_hid_runtime_prepare.py --runtime .dependencies/hid-runtime --packages dist/hid-paper
       - uses: actions/upload-artifact@v4
         with:
           name: ble-hid-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             dist/hid-apps/
+            dist/hid-paper/
+            build/hid-paper-renderer/
             build/hid-apps/*-frames/
             build/hid-renderer/
           retention-days: 14

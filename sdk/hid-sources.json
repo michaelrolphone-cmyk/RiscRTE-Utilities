@@ -1,11 +1,13 @@
 {
   "schema": 1,
-  "system_apps": "d5b6c0fa7c06bb36a776e7ce501028a9827221e2",
+  "system_apps": "2aa0cf63346e507525af884bbfbf6b69313442c4",
   "runtime_minimum": "0.1.34",
   "hid_api": 1,
   "hid_instance": 0,
   "raw_touch_instance": 6,
   "button_namespace": 11,
   "radio_policy_namespace": 1,
-  "hid_header_sha256": "ccac0a0c70b6aa73233201c1289a6825b6976d8d6b1758e394995eed234bf1b7"
+  "hid_header_sha256": "ccac0a0c70b6aa73233201c1289a6825b6976d8d6b1758e394995eed234bf1b7",
+  "runtime_prepare": "2317b4fca374bb2b9cfe8dd204aa22244d1db609",
+  "paper_raw_touch_binding": 4
 }
