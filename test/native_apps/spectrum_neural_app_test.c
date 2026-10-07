@@ -72,7 +72,12 @@ static void check_retained_cache(void){
  assert(file_retained&&event_files.retained&&neural_writes==1&&!file_writes&&!memcmp(saved_banks,event_disk,sizeof(saved_banks)));
 }
 static void check_live_guard(void){
- unsigned ticks=event_neural.ticks;ambient.ready=true;ambient.foreground=true;event_neural_tick();assert(event_neural.ticks==ticks);ambient.foreground=false;
+ unsigned ticks=event_neural.ticks;ambient.ready=true;ambient.foreground=true;memset(foreground_power,0,sizeof(foreground_power));foreground_power[0]=1000000;
+ event_neural_tick();assert(event_neural.ticks==ticks);
+ /* A tiny high-SNR bin is not an audible event and must not starve learning.
+  * Use the same absolute salient-power gate as the temporal segmenter. */
+ foreground_power[0]=1;assert(spectrum_background_db(spectrum_signature_total(foreground_power))<prefs.threshold_db*100);
+ event_neural_tick();assert(event_neural.ticks==ticks+1);ambient.foreground=false;
  finish_training();assert(running&&owned&&live&&neural_writes==1);set_page(PAGE_MAIN);
 }
 int main(void){
