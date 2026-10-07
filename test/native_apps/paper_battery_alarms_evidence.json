@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "utilities_base": "f41528d05bb0cdee8ab6ba9df563958e1e354953",
+  "system_apps": "2aa0cf63346e507525af884bbfbf6b69313442c4",
+  "runtime_parser": "2317b4fca374bb2b9cfe8dd204aa22244d1db609",
+  "watch_regression_system_apps": "4cf36b1c46641b00d88535eb9a0e9b0797928aff",
+  "reference_pixels_inspected": {
+    "docs/nova/screens/epaper-settings.png": "8081bf398590dedd83b9e255197eef11a88778de0ad034a70d9b5bff7399487e",
+    "docs/nova/screens/epaper-launcher.png": "19ae6c8a3365aa1cf335e690c357dee46d99d36168815c1b5cce0b371e030bde"
+  },
+  "checks": {
+    "paper_and_watch_production_adapter": "252 scenario runs: normal and UBSan across five apps; navigation, interrupted touch, cancelled gestures, QuickActions, KV errors, retry, unavailable store, telemetry failures, volume gating and cleanup",
+    "watch_battery": "40 established production scenarios, normal and UBSan",
+    "watch_alarm_volume": "18 established production scenarios, normal and UBSan",
+    "target_elf": "battery and alarms: production structural validator, imports and exports",
+    "manifest": "Actual emitted app manifests and exact grants admitted by Runtime::prepare; unknown profile field rejected"
+  },
+  "sanitizer_limit": "ASan executable timed out on this macOS executor; no ASan pass claimed. Existing Watch test compiler wrapper substitutes UBSan and disables clang empty-body warning in unchanged dependency fixture.",
+  "qualification": "No hardware, device access, product source changes, merges or releases",
+  "build_commands": [
+    "python3 scripts/build_paper_utilities.py --system-apps ../system-apps --app battery",
+    "python3 scripts/build_paper_utilities.py --system-apps ../system-apps --app alarms"
+  ],
+  "test_commands": [
+    "python3 scripts/test_paper_utilities.py --system-apps ../system-apps --sanitizer undefined",
+    "python3 scripts/test_paper_manifests.py --runtime /path/to/RiscRTE"
+  ],
+  "packaging": "Each dist/paper-utilities/<app> contains an ELF, canonical manifest, canonical boot-policy fragment, build receipt and font licenses. Deployment descriptions and key scope notes stay in receipts, not parser inputs."
+}

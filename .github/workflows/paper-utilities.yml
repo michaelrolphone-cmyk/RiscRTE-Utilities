@@ -21,9 +21,16 @@ jobs:
           pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
       - name: Target structural validation and licenses
         run: |
-          for app in calculator stopwatch countdown; do
+          for app in calculator stopwatch countdown battery alarms; do
             python3 scripts/build_paper_utilities.py --system-apps .dependencies/paper-system --app "$app"
           done
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: a768245998ba334ef54da92f6573ae01b2320a4e
+          path: .dependencies/runtime
+      - name: Canonical manifest admission through production Runtime
+        run: python3 scripts/test_paper_manifests.py --runtime .dependencies/runtime
       - uses: actions/upload-artifact@v4
         with:
           name: paper-utilities-${{ github.sha }}

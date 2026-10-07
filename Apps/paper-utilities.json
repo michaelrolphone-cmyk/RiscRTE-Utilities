@@ -41,7 +41,8 @@
     {
       "capability": "alarm.service",
       "api": 1,
-      "binding": "visual alarm service"
+      "binding": "visual alarm service",
+      "instance_id": 0
     }
   ],
   "app_grants": {
@@ -67,6 +68,18 @@
           "timer_cfg"
         ]
       }
+    ],
+    "battery": [],
+    "alarms": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 3,
+        "access": "read-write",
+        "keys": [
+          "alarm_cfg"
+        ]
+      }
     ]
   },
   "quick_actions": "Shared capability-gated controls; no radio grants or radio build flag. Sound unavailable unless alarm service advertises sound; frontlight and torch unavailable without display brightness.",
@@ -80,6 +93,8 @@
   "versions": {
     "calculator": "0.1.8",
     "stopwatch": "0.1.8",
-    "countdown": "0.1.7"
+    "countdown": "0.1.7",
+    "battery": "1.1.1",
+    "alarms": "0.2.3"
   }
 }
