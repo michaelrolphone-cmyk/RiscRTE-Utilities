@@ -47,7 +47,14 @@ for san in (False,True):
   if watch:
    flags+=['-DHID_RENDER_WATCH_TOUCH']
    extra=['-I'+str(watch/'sdk/driver'),'-I'+str(watch/'include')]
-   sources+=[ROOT/'test/native_apps/hid_watch_touch_backend.c',touch_source]
+   # The physical provider's headers include their own provider ABI locally.
+   # Compile these translation units against only Watch SDK headers, keeping
+   # the app/adapter's separate System ABI copy out of their include search.
+   for index,source in enumerate([ROOT/'test/native_apps/hid_watch_touch_backend.c',touch_source]):
+    obj=out/f'watch-touch-{index}.o'
+    subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*extra,'-c',str(source),'-o',str(obj)],check=True)
+    sources.append(obj)
+   extra=[]
   if a.runtime:
    runtime=a.runtime.resolve();flags+=['-DHID_RENDER_RUNTIME_DIAGNOSTICS']
    for index,source in enumerate([ROOT/'test/native_apps/hid_runtime_diagnostics.cpp',runtime/'src/ports/esp32s3/SleepDiagnostics.cpp']):
