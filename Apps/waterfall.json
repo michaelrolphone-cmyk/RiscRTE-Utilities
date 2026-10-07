@@ -1,6 +1,6 @@
 {
-  "min_firmware_version": "0.1.34",
-  "version": "0.1.5",
+  "min_firmware_version": "0.1.41",
+  "version": "0.2.0",
   "display_name": "Waterfall",
   "file_name": "waterfall.elf",
   "icon": "solid:f0ec",
@@ -23,14 +23,24 @@
     },
     {
       "capability": "storage.key-value",
+      "api": ">=2"
+    },
+    {
+      "capability": "alarm.service",
       "api": ">=1"
     },
+    {
+      "capability": "storage.app-data",
+      "api": ">=1"
+    }
+  ],
+  "optional": [
     {
       "capability": "board.battery",
       "api": ">=1"
     },
     {
-      "capability": "alarm.service",
+      "capability": "input.navigation",
       "api": ">=1"
     }
   ]

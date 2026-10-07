@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Exercise production Waterfall DSP/UI with host-only capability fixtures."""
+"""Retain legacy DSP checks; full RF controller coverage is test_rf_application.py."""
 import argparse,os,subprocess,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);a=p.parse_args()
 with tempfile.TemporaryDirectory(prefix='waterfall-test-') as d:
- for source in ['waterfall_core_test.c','waterfall_app_test.c']:
+ for source in ['waterfall_core_test.c']:
   for sanitizer in [False,True]:
    target=Path(d)/(source+str(sanitizer))
    flags=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer'] if sanitizer else []
