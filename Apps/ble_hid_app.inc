@@ -40,6 +40,21 @@ static uint32_t pair_began,ui_block_until;
 static const char *message;
 enum { HID_VIEW_MAIN, HID_VIEW_SETTINGS, HID_VIEW_EDIT, HID_VIEW_MODIFIERS, HID_VIEW_FORGET };
 static bool close_session(void);
+static void session_diagnostic(const char *stage){
+ if(!hid||closing)return;
+ risc_bluetooth_hid_status_v1 current={.struct_size=sizeof(current)};
+ bool ok=hid->status(hid->context,token,&current);
+ char text[160];snprintf(text,sizeof(text),"HID %s status=%u state=%u flags=%lu error=%ld generation=%lu",stage,ok?1u:0u,(unsigned)current.state,(unsigned long)current.flags,(long)current.error,(unsigned long)current.connection_generation);runtime->diagnostic(text);
+ if(hid->struct_size>=sizeof(risc_bluetooth_hid_diagnostics_api_v1)){
+  const risc_bluetooth_hid_diagnostics_api_v1*d=(const void*)hid;
+  risc_bluetooth_hid_diagnostics_v1 value={.struct_size=sizeof(value)};
+  if(d->diagnostics&&d->diagnostics(hid->context,token,&value)){
+   snprintf(text,sizeof(text),"HID cause port=%lu disconnect=%lu security=%lu notify=%ld failures=%lu gap_ms=%lu stale=%lu",(unsigned long)value.port_fault,(unsigned long)value.disconnect_reason,(unsigned long)value.security_status,(long)value.notify_error,(unsigned long)value.notify_failures,(unsigned long)value.max_poll_gap_ms,(unsigned long)value.stale_events);runtime->diagnostic(text);
+   snprintf(text,sizeof(text),"HID cleanup stop=%ld native=%ld stopped=%lu poisoned=%lu",(long)value.host_stop_error,(long)value.native_close_result,(unsigned long)value.host_stopped,(unsigned long)value.poisoned);runtime->diagnostic(text);
+  }
+ }
+}
+
 static void cleanup_wait(void){
  runtime->diagnostic("HID cleanup pending; retaining invocation");
  while(!close_session())runtime->yield_ms(20);
@@ -57,6 +72,8 @@ static bool close_session(void){
  if(token){if(!hid->close(hid->context,token))return false;token=0;
   risc_bluetooth_hid_status_v1 final={.struct_size=sizeof(final)};
   if(!hid->status(hid->context,0,&final)||final.error)close_error=true;
+  /* close succeeded: ordinary reads are legal again until the grant releases. */
+  closing=false;session_diagnostic("closed");closing=true;
  }
  if(hid_acquired){if(!runtime->release(&hid_grant))return false;hid_acquired=false;hid=NULL;}
  if(subscription){if(!raw->unsubscribe(raw->context,subscription))return false;subscription=0;}
@@ -67,12 +84,19 @@ static bool close_session(void){
 bool portable_radio_services_safe(void){return !closing;}
 bool portable_radio_suspend(void){
  bool was_active=token!=0;
+ if(was_active&&!closing)session_diagnostic("suspend");
  if(token&&!closing)(void)release_input();
  if(!close_session())cleanup_wait();
- if(was_active)message=close_error?"Bluetooth cleanup reported error":"Paused - choose Reconnect";
+ if(was_active)message=close_error?"Bluetooth session ended with error":"Paused - choose Reconnect";
  return true;
 }
-static void stop_session(const char*s){if(!portable_radio_suspend())cleanup_wait();message=close_error?"Bluetooth cleanup reported error":s;dirty=true;}
+static void stop_session(const char*s){
+ if(token&&!closing){char text[128];snprintf(text,sizeof(text),"HID stop reason=%s",s);runtime->diagnostic(text);}
+ if(!portable_radio_suspend())cleanup_wait();
+ /* The OFF error may be the original poll/report fault. Keep its reason on
+  * screen; diagnostics preserve both that cause and the close outcome. */
+ message=s;dirty=true;
+}
 static bool policy_allowed(void){
  risc_runtime_capability_v1 g={.struct_size=sizeof(g)};uint8_t flags=0;
  if(!runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g)){message="Radio settings unavailable";return false;}
@@ -113,7 +137,7 @@ static void start_session(bool pair){
  dirty=true;close_error=false;if(!policy_allowed())return;
  if(!acquire_hid()||!open_raw()){const char*s=message;stop_session(s);return;}
  token=0;bool ok=hid->open(hid->context,HID_TOUCHPAD?"Watch Touchpad":"Watch Buttons",pair,&token);
- if(!ok||!token){stop_session(pair?"Pair start failed - retry":"Reconnect failed / no bond");return;}
+ if(!ok||!token){session_diagnostic("open-failed");stop_session(pair?"Pair start failed - retry":"Reconnect failed / no bond");return;}
  had_ready=false;status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(status)};
  message=pair?"Find Watch in host Bluetooth":"Waiting for saved host";refreshed=reported=app->millis();battery_at=refreshed-30000u;update_battery();
 }
@@ -193,8 +217,8 @@ static void pump(void){
  if(!hid->poll(hid->context,token,8)){stop_session("Bluetooth error - reconnect");return;}
  risc_bluetooth_hid_status_v1 next={.struct_size=sizeof(next)};
  if(!hid->status(hid->context,token,&next)){runtime->diagnostic("HID state read failed");stop_session("Connection error - reconnect");return;}
- if(next.state!=status.state||next.error!=status.error||next.connection_generation!=status.connection_generation){
-  char text[128];snprintf(text,sizeof(text),"HID state from=%u to=%u error=%ld generation=%lu",(unsigned)status.state,(unsigned)next.state,(long)next.error,(unsigned long)next.connection_generation);runtime->diagnostic(text);
+ if(next.state!=status.state||next.flags!=status.flags||next.error!=status.error||next.connection_generation!=status.connection_generation){
+  char text[128];snprintf(text,sizeof(text),"HID state from=%u to=%u flags=%lu error=%ld generation=%lu",(unsigned)status.state,(unsigned)next.state,(unsigned long)next.flags,(long)next.error,(unsigned long)next.connection_generation);runtime->diagnostic(text);
  }
  status.error=next.error;
  if(next.state==RISC_HID_FAULT){stop_session("Connection error - reconnect");return;}

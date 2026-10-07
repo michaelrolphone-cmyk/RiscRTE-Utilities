@@ -1,6 +1,6 @@
 {
   "min_firmware_version": "0.1.34",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "display_name": "BLE Touchpad",
   "file_name": "ble_touchpad.elf",
   "icon": "solid:f245",

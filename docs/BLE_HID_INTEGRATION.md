@@ -123,3 +123,23 @@ and its existing host USB shim. This asserts live serial output and `diag`
 replay after the HID app returns; set `HID_RENDER_SERIAL_ABSENT=1` to verify
 retention while disconnected and replay after reconnect. This is host linkage
 evidence, not a physical Watch USB-capture claim.
+
+
+### HID 0.1.2 failure visibility and regression
+
+The app records its original stop reason and a copied state before teardown,
+then records the final close separately. A nonzero OFF error can describe the
+original transport failure; it no longer replaces that reason with a misleading
+cleanup-only message. With Drivers ble-hid 0.1.2, the optional API suffix adds
+numeric transport stage, disconnect/security/notification results, poll-gap
+maximum and independent host/native cleanup results. Codes, keys, addresses and
+input contents are never logged. Older API prefixes remain supported.
+
+The renderer fixture can use `--low-battery` with the delivered System adapter.
+It covers saved-session mouse reconnect, a missing mouse notification
+subscription, transport-error return and explicit Reconnect, and the below-10%
+policy hook. With `--watch` and `--runtime`, these use the production FT6336U
+backend and serial diagnostic journal over their existing host shims. The radio
+in this UI fixture remains a copied peripheral API fake; the Drivers protocol
+suite independently runs production NimBLE and cryptographic pairing/reconnect.
+Physical host/controller behavior is still unqualified.

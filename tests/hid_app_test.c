@@ -111,6 +111,10 @@ int main(void){
  reset();start_session(true);step(0,0,0);fake_status.error=-9;step(0,0,0);unsigned error_logs=diagnostic_count;
  for(unsigned i=0;i<20;i++)step(0,0,0);
  assert(diagnostic_count==error_logs&&strstr(diagnostics,"error=-9"));stop_session("Done");
+ assert(!strcmp(message,"Done")&&strstr(diagnostics,"HID stop reason=Done")&&strstr(diagnostics,"HID closed status=1 state=0")&&strstr(diagnostics,"error=-9"));
+ reset();start_session(true);step(0,0,0);fake_status.state=RISC_HID_FAULT;fake_status.error=12;poll_bad=true;step(0,0,0);
+ assert(!grants&&!token&&!strcmp(message,"Bluetooth error - reconnect"));
+ assert(strstr(diagnostics,"HID stop reason=Bluetooth error - reconnect")&&strstr(diagnostics,"HID suspend status=1 state=6")&&strstr(diagnostics,"HID closed status=1 state=0"));
  reset();start_session(true);fake_status.state=RISC_HID_PAIR_CONFIRM;fake_status.pairing_number=42;confirm_bad=true;
  step(0,0,0);step(1,180,220);step(0,0,0);
  assert(confirms==1&&!token&&!grants&&strstr(diagnostics,"action=accept result=failed"));

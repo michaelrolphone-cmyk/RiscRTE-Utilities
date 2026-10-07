@@ -25,6 +25,11 @@ extern "C" void hid_serial_finish(void) {
     for(unsigned i=0;i<200;++i)RiscDiagnostics::poll();
     assert(Serial.output.find("RTE_DIAG end\n")!=std::string::npos);
     assert(Serial.output.find("000042")==std::string::npos);
+    if(std::getenv("HID_RENDER_TRANSPORT_RECONNECT")){
+        assert(Serial.output.find("HID stop reason=Bluetooth error - reconnect")!=std::string::npos);
+        assert(Serial.output.find("HID suspend status=1 state=6 flags=16 error=12")!=std::string::npos);
+        assert(Serial.output.find("HID closed status=1 state=0 flags=16 error=12")!=std::string::npos);
+    }
     if(pairing){
         assert(Serial.output.find("HID pairing contact target=")!=std::string::npos);
         assert(Serial.output.find("HID pairing response action=")!=std::string::npos);

@@ -260,7 +260,7 @@
     {
       "id": "ble_touchpad",
       "display_name": "BLE Touchpad",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_touchpad.c",
@@ -276,7 +276,7 @@
     {
       "id": "ble_buttons",
       "display_name": "BLE Buttons",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_buttons.c",
