@@ -22,21 +22,25 @@ def inventory():
         if app['version']!=side['version'] or side['runtime_profile']!='portable-riscrte-v1' or side['min_firmware_version']!='0.1.34':raise ValueError('BLE version/profile mismatch')
         if any(not(ROOT/p).is_file() for p in app['additional_sources']):raise ValueError('Missing BLE source')
     return apps
-def build(system):
+def build(system, *, paper=False, output=None):
     pin=json.loads((ROOT/'sdk/hid-sources.json').read_text())
     if hashlib.sha256((ROOT/'lib/Bluetooth/include/RiscBluetoothHidV1.h').read_bytes()).hexdigest()!=pin['hid_header_sha256']:raise ValueError('HID interface content differs from pinned contract')
     if subprocess.check_output(['git','rev-parse','HEAD'],cwd=system,text=True).strip()!=pin['system_apps'] or subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=system,text=True).strip():raise ValueError('Exact clean radio lifecycle adapter required')
     if not (system/'lib/PortableApps/include/PortableRadioSession.h').is_file():raise ValueError('Radio lifecycle hooks missing')
     cc=os.environ.get('NATIVE_APP_CC') or shutil.which('xtensa-esp32s3-elf-gcc') or str(Path.home()/'.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc')
-    out=ROOT/'dist/hid-apps';out.mkdir(parents=True,exist_ok=True)
+    out=output or ROOT/('dist/hid-paper' if paper else 'dist/hid-apps');out.mkdir(parents=True,exist_ok=True)
     catalog=out/'catalog.c';catalog.write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[1]={{.compatible=false}};\nconst unsigned portable_catalog_count=0;\n')
     mapping=out/'exports.map';mapping.write_text('{ global: app_main; app_module_init; app_module_fini; local: *; };\n')
     validator=out/'validate-elf'
     subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror','-I'+str(ROOT/'test/native_apps/stubs'),'-I'+str(ROOT/'lib/elf_loader/include'),str(ROOT/'lib/elf_loader/src/esp_elf_validate.c'),str(ROOT/'test/native_apps/validate_test.c'),'-o',str(validator)],check=True)
+    defines=['-DPORTABLE_PAPER_HID','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_RADIO_SESSION','-DPORTABLE_NOVA_UI','-DPORTABLE_APP_OWNS_TOUCH_CHROME','-DPORTABLE_QUICK_ACTIONS','-DPORTABLE_RETURN_APP="springboard.elf"']
+    quick=['quick_actions.c','quick_render.c','quick_session.c']
+    if paper:defines+=['-DPORTABLE_DISPLAY_ROTATION=90','-DPORTABLE_INPUT_NAVIGATION','-DPORTABLE_HOME_APP="default.elf"']
+    else:defines+=['-DPORTABLE_FORCE_FULL_FRAMES','-DPORTABLE_QUICK_RADIOS'];quick+=['quick_radios.c']
     rows=[]
     for app in inventory():
         name=app['id'];elf=out/(name+'.elf')
-        subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror','-DPORTABLE_FORCE_FULL_FRAMES','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_RADIO_SESSION','-DPORTABLE_NOVA_UI','-DPORTABLE_APP_OWNS_TOUCH_CHROME','-DPORTABLE_QUICK_ACTIONS','-DPORTABLE_QUICK_RADIOS','-DPORTABLE_RETURN_APP="springboard.elf"',*['-I'+str(p) for p in (ROOT/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include')],str(ROOT/app['source_path']),str(system/'lib/PortableApps/src/adapter.c'),str(catalog),*[str(system/'lib/PortableApps/src'/f) for f in ['quick_actions.c','quick_render.c','quick_session.c','quick_radios.c']],'-lgcc','-o',str(elf)],check=True)
+        subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror',*defines,*['-I'+str(p) for p in (system/'Apps',ROOT/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include')],str(ROOT/app['source_path']),str(system/'lib/PortableApps/src/adapter.c'),str(catalog),*[str(system/'lib/PortableApps/src'/f) for f in quick],'-lgcc','-o',str(elf)],check=True)
         symbols=subprocess.check_output([cc.removesuffix('gcc')+'nm','-D',str(elf)],text=True)
         imports={s.split()[-1] for s in symbols.splitlines() if ' U ' in ' '+s}
         exports={s.split()[-1] for s in symbols.splitlines() if len(s.split())>=3 and s.split()[-2] in ('T','D','B','R')}
@@ -46,13 +50,22 @@ def build(system):
         subprocess.run([str(validator),str(elf)],check=True)
         side=json.loads((ROOT/app['manifest_path']).read_text())
         manifest={'type':'application','id':name,'version':side['version'],'architecture':'xtensa-esp32s3','file_name':elf.name,'entry':'app_main','requires':[{'capability':r['capability'],'api':int(r['api'][2:])} for r in side['requires']+side.get('optional',[])]}
+        if paper:
+            manifest['requires']=[r for r in manifest['requires'] if r['capability'] not in ('net.wifi','bluetooth.hci')]
+            manifest['requires'].append({'capability':'input.navigation','api':1})
         elf.with_suffix('.json').write_text(json.dumps(manifest,indent=2)+'\n')
         rows.append({'id':name,'version':side['version'],'size_bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'imports':sorted(imports)})
-    record={'schema':1,'purpose':'development-ble-hid-no-hardware-qualification','source_pins':pin,'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}
+    record={'schema':1,'purpose':'development-ble-hid-no-hardware-qualification','source_pins':pin,'profile':{'paper':paper,'defines':defines,'quick_sources':quick},'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}
+    record['source_files']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [ROOT/'Apps/ble_touchpad.c',ROOT/'Apps/ble_buttons.c',ROOT/'Apps/ble_hid_app.inc',ROOT/'Apps/ble_hid_model.h',ROOT/'Apps/ble_hid_paper.inc',ROOT/'Apps/paper-hid.json']}
+    if paper:record['deployment']=json.loads((ROOT/'Apps/paper-hid.json').read_text())
     (out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n')
     for name in ('LICENSE-FontAwesome.txt','LICENSE-Orbitron.txt','LICENSE-Rajdhani.txt','SOURCES.json'):
         (out/name).write_bytes((system/'lib/PortableApps/fonts'/name).read_bytes())
+    for folder in ('paper_fonts','quick_fonts'):
+        target=out/'licenses'/folder;target.mkdir(parents=True,exist_ok=True)
+        for source in (system/'lib/PortableApps'/folder).iterdir():
+            if source.name.endswith(('.txt','.json')):shutil.copy2(source,target/source.name)
     (out/'LICENSE-Utilities.txt').write_bytes((ROOT/'LICENSE').read_bytes())
     print('Validated BLE HID target ELFs')
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);a=p.parse_args();build(a.system_apps.resolve())
+    p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);p.add_argument('--paper-profile',action='store_true');p.add_argument('--output-dir',type=Path);a=p.parse_args();build(a.system_apps.resolve(),paper=a.paper_profile,output=a.output_dir)

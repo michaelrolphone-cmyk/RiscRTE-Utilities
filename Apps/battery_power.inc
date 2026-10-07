@@ -2,11 +2,7 @@
  * policy, clears IRQs, writes preferences or keeps the display awake. */
 #include "T5AppApi.h"
 #include "PortableNovaUi.h"
-#ifdef PORTABLE_PAPER_UTILITIES
-#include "battery_paper_power.h"
-#else
 #include "PortablePowerStatus.h"
-#endif
 #include "RiscRuntimeV1.h"
 #include <stdio.h>
 #include <string.h>

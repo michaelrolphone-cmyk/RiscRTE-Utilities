@@ -61,6 +61,9 @@ bool portable_nova_hit(int x,int y,int l,int t,int w,int h){return x>=l&&y>=t&&x
 #else
 static uint16_t pixels[240*240];static struct {unsigned frame;void*pixels;size_t stride_bytes;} surface={1,pixels,480};static bool list_mode;
 static int width(void){return 240;}static int height(void){return 240;}static void clear_color(uint16_t c){for(unsigned i=0;i<240*240;i++)pixels[i]=c;}
+#include "RiscDisplayOutputV1.h"
+static unsigned surface_format=RISC_DISPLAY_FORMAT_RGB565;
+static void np_pixel(int x,int y,uint32_t rgb,unsigned alpha){(void)x;(void)y;(void)rgb;(void)alpha;assert(0);}
 #include "nova_ui.inc"
 static void capture(const char*n){const char*dir=getenv("HID_FRAME_DIR");assert(dir);char p[512];snprintf(p,sizeof(p),"%s/%s.ppm",dir,n);FILE*f=fopen(p,"wb");assert(f);fprintf(f,"P6\n240 240\n255\n");for(unsigned i=0;i<240*240;i++){uint16_t v=pixels[i];uint8_t rgb[]={(uint8_t)((v>>11)*255/31),(uint8_t)(((v>>5)&63)*255/63),(uint8_t)((v&31)*255/31)};assert(fwrite(rgb,1,3,f)==3);}assert(!fclose(f));}
 #endif

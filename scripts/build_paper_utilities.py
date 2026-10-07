@@ -3,7 +3,7 @@
 import argparse,hashlib,json,os,subprocess,shutil
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-SYSTEM_PIN='2aa0cf63346e507525af884bbfbf6b69313442c4'
+SYSTEM_PIN='a7f08a9db7342a69ef5b9bc03e3b1ea60dafbb7c'
 p=argparse.ArgumentParser();p.add_argument('--system-apps',required=True,type=Path);p.add_argument('--app',required=True,choices=['calculator','stopwatch','countdown','battery','alarms']);a=p.parse_args();system=a.system_apps.resolve();name=a.app
 if subprocess.check_output(['git','-C',str(system),'rev-parse','HEAD'],text=True).strip()!=SYSTEM_PIN or subprocess.check_output(['git','-C',str(system),'status','--porcelain','--untracked-files=no'],text=True).strip():raise ValueError('Clean exact Nova System Apps source required')
 cc=os.environ.get('NATIVE_APP_CC') or str(Path.home()/'.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc')

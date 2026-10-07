@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "profile": "nova7-paper-utilities",
-  "system_apps_sha": "2aa0cf63346e507525af884bbfbf6b69313442c4",
+  "system_apps_sha": "a7f08a9db7342a69ef5b9bc03e3b1ea60dafbb7c",
   "home": "default.elf",
   "local_back": "springboard.elf",
   "clock_policy": "rtc-wall-time",
@@ -91,10 +91,10 @@
   },
   "binding_note": "Non-storage clients acquire instance 0 (the default granted binding); bind them to the listed deployment instance IDs. Storage clients explicitly acquire namespaces 1, 2 or 3. Assign alarm.service to the visual service instance.",
   "versions": {
-    "calculator": "0.1.8",
-    "stopwatch": "0.1.8",
-    "countdown": "0.1.7",
-    "battery": "1.1.1",
-    "alarms": "0.2.3"
+    "calculator": "0.1.9",
+    "stopwatch": "0.1.9",
+    "countdown": "0.1.8",
+    "battery": "1.1.2",
+    "alarms": "0.2.4"
   }
 }

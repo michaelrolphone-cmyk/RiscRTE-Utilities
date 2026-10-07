@@ -70,6 +70,7 @@ int main(int argc,char **argv) {
  case 9:details(20);raw_home_at=60;break;
  case 11:deny_private_store=true;back(40);break;
  case 12:case 13:case 14:case 15:battery_case=scenario;refresh_at(60);break;
+ case 16:fail_battery_release=true;refresh_at(20);details(40);refresh_at(60);back(80);break;
  default:assert(0);}
 #else
  switch(scenario){
@@ -172,6 +173,20 @@ int main(int argc,char **argv) {
 #endif
  }
 #endif
- app_module_fini();assert(!fixture_grants&&!frames&&!subs);
+ #if NOVA_APP_ID == 3
+ assert(battery_acquires==1&&!battery_releases); /* No per-refresh ownership. */
+ unsigned final_presents=presents;
+#endif
+ app_module_fini();
+#if NOVA_APP_ID == 3
+ if(scenario==16){
+  assert(battery_release_failures==1&&battery_release_uncertain);
+  assert(fixture_grants==1&&battery_owner->api==&battery_api);
+  assert(presents==final_presents&&!frames&&!subs);
+  app_module_fini(); /* Owner still has the exact handle for cleanup retry. */
+  assert(!battery_release_uncertain&&battery_releases==2&&presents==final_presents);
+ }
+#endif
+ assert(!fixture_grants&&!frames&&!subs);
  printf("app=%d profile=%s scenario=%u frames=%u ticks=%u: model, navigation, grants and cleanup passed\n",NOVA_APP_ID,paper_profile?"paper":"Watch",scenario,presents,ticks);
 }

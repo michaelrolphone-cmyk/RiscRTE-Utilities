@@ -8,7 +8,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 2aa0cf63346e507525af884bbfbf6b69313442c4
+          ref: a7f08a9db7342a69ef5b9bc03e3b1ea60dafbb7c
           path: .dependencies/paper-system
       - uses: actions/setup-python@v5
         with:
