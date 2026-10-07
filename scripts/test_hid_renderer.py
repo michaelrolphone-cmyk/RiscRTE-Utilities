@@ -47,14 +47,24 @@ for san in (False,True):
   if watch:
    flags+=['-DHID_RENDER_WATCH_TOUCH']
    extra=['-I'+str(watch/'sdk/driver'),'-I'+str(watch/'include')]
-   sources+=[ROOT/'test/native_apps/hid_watch_touch_backend.c',touch_source]
+   # The physical provider's headers include their own provider ABI locally.
+   # Compile these translation units against only Watch SDK headers, keeping
+   # the app/adapter's separate System ABI copy out of their include search.
+   for index,source in enumerate([ROOT/'test/native_apps/hid_watch_touch_backend.c',touch_source]):
+    obj=out/f'watch-touch-{index}.o'
+    subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*extra,'-c',str(source),'-o',str(obj)],check=True)
+    sources.append(obj)
+   extra=[]
   if a.runtime:
    runtime=a.runtime.resolve();flags+=['-DHID_RENDER_RUNTIME_DIAGNOSTICS']
    for index,source in enumerate([ROOT/'test/native_apps/hid_runtime_diagnostics.cpp',runtime/'src/ports/esp32s3/SleepDiagnostics.cpp']):
     obj=out/f'diagnostics-{index}.o'
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-O1','-g','-Wall','-Wextra','-Werror','-DRISC_SLEEP_DIAGNOSTICS=1',*flags,'-I'+str(runtime/'src'),'-I'+str(runtime/'test/diagnostic_shim'),'-c',str(source),'-o',str(obj)],check=True)
     sources.append(obj)
-  subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*extra,*['-I'+str(i) for i in [ROOT/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include']],*map(str,sources),*(['-lstdc++'] if a.runtime else []),'-o',str(exe)],check=True)
+  # Resolve shared application ABI headers from the System adapter first. A
+  # separate Watch SDK copy is not the same file for #pragma once, even when
+  # its bytes match; checkout timestamps must not determine host compilation.
+  subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*['-I'+str(i) for i in [ROOT/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include']],*extra,*map(str,sources),*(['-lstdc++'] if a.runtime else []),'-o',str(exe)],check=True)
   for scene,(actions,checks) in scenes.items():
    if name=='ble_touchpad' and scene in ('keys','nested-back','edit-save'):continue
    if name=='ble_buttons' and scene in ('left-tap','right-tap','mouse-reconnect','transport-reconnect'):continue
