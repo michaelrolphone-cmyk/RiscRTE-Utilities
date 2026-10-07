@@ -9,7 +9,11 @@ static uint64_t mono_ms;static uint32_t wall_seconds;
 static unsigned rtc_reads,output_calls,put_calls;
 static bool bad_read,bad_calendar,bad_weekday,reenter;
 static const alarm_service_v1 *client;
+#ifdef ALARM_SERVICE_TAGGED_V2
+static const alarm_service_descriptor_v2 *sleep_api;
+#else
 static const alarm_service_sleep_v1 *sleep_api;
+#endif
 static const risc_driver_v2 *provider;
 static alarm_sleep_v1 reentry_ticket;
 static int key_index(const char *key) {
@@ -55,8 +59,14 @@ static const risc_provider_dependency_v1 deps[]={
 static void restart(void) {
     if(provider)assert(provider->quiesce());
     provider=t5_driver_get(2);client=provider->capability;
+    #ifdef ALARM_SERVICE_TAGGED_V2
+    assert(client->api_version==2&&client->struct_size==sizeof(alarm_service_descriptor_v2));
+    sleep_api=alarm_service_descriptor(client);
+#else
     assert(client->api_version==1&&client->struct_size==ALARM_SERVICE_SLEEP_V1_SIZE);
-    sleep_api=(const alarm_service_sleep_v1 *)client;assert(sleep_api->resume_sleep);
+    sleep_api=(const alarm_service_sleep_v1 *)client;
+#endif
+    assert(sleep_api->resume_sleep);
     assert(provider->start(deps,5));
 }
 static void initial(uint32_t deadline) {

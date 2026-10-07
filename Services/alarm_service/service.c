@@ -1,6 +1,9 @@
 /* Ordinary singleton ELF. All policy/persistence/UI-facing state belongs here;
  * Runtime only resolves opaque dependencies. No poll callback, task or ISR. */
 #include "AlarmRecords.h"
+#ifdef ALARM_SERVICE_TAGGED_V2
+#include "AlarmServiceV2.h"
+#endif
 #ifdef ALARM_DND_CONTROL
 #include "AlarmDnd.h"
 #endif
@@ -10,6 +13,10 @@
 #ifdef POINTS_IN_TIME_SERVICE
 #include "PointsSchedule.h"
 #endif
+#ifdef ALARM_NATIVE_UTC
+#include "PointsUtcSchedule.h"
+#include "RiscPlatformRealtimeV1.h"
+#endif
 #include "AlarmOutputV1.h"
 #include "PortableRtcClock.h"
 #include "RiscProviderV2.h"
@@ -17,6 +24,14 @@
 #include "RiscBoundKeyValueV1.h"
 #include <string.h>
 #include <limits.h>
+
+#if defined(ALARM_VISUAL_ONLY) && defined(ALARM_VOLUME_CONTROL)
+#error "The visual-only profile has no audio volume authority"
+#endif
+
+#if defined(ALARM_NATIVE_UTC) && (!defined(ALARM_VISUAL_ONLY) || !defined(POINTS_IN_TIME_SERVICE) || !defined(ALARM_DND_CONTROL))
+#error "Native UTC requires the explicit visual Points profile"
+#endif
 
 typedef enum { LOAD_ALARM,LOAD_TIMER,LOAD_MODE,LOAD_ALARM_OCC,LOAD_TIMER_OCC,
                READ_RTC,EVALUATE,IDLE,WRITE_OCC,VERIFY_OCC,ACTIVATE_RTC,START_AUDIO,
@@ -31,10 +46,21 @@ typedef enum { LOAD_ALARM,LOAD_TIMER,LOAD_MODE,LOAD_ALARM_OCC,LOAD_TIMER_OCC,
 #ifdef POINTS_IN_TIME_SERVICE
                ,LOAD_POINTS_CFG,LOAD_POINTS_OCC
 #endif
+#ifdef ALARM_NATIVE_UTC
+               ,LOAD_ZONE,CHECK_ZONE
+#endif
                } phase_t;
 static const risc_bound_key_value_v1 *kv;
 static const risc_platform_clock_api_v1 *clock_api;
+#ifdef ALARM_NATIVE_UTC
+static const risc_platform_realtime_api_v1 *realtime;
+static portable_timezone_rule timezone_rule;
+static unsigned timezone_index;
+static bool custody_retained;
+static uint64_t copied_ms;
+#else
 static const twatch_rtc_api_v1 *rtc;
+#endif
 static const twatch_haptic_api_v1 *haptic;
 static const twatch_audio_out_api_v1 *audio;
 static alarm_config config[2], staging[2];
@@ -59,10 +85,27 @@ static bool sleep_ticket_valid;
 static alarm_sleep_v1 sleep_ticket;
 static bool active, dismiss, haptic_uncertain, audio_uncertain, cleanup_failed;
 static bool persistence_pending, foreground_failed;
+#ifdef ALARM_NATIVE_UTC
+static int32_t storage_get(void *context,const char *key,void *data,uint32_t size,uint32_t *used) {
+    if(custody_retained)return RISC_BOUND_KEY_VALUE_CONTEXT;
+    int32_t result=kv->get(context,key,data,size,used);
+    if(result==RISC_BOUND_KEY_VALUE_CONTEXT)custody_retained=true;
+    return result;
+}
+static int32_t storage_put(void *context,const char *key,const void *data,uint32_t size) {
+    if(custody_retained)return RISC_BOUND_KEY_VALUE_CONTEXT;
+    int32_t result=kv->put(context,key,data,size);
+    if(result==RISC_BOUND_KEY_VALUE_CONTEXT)custody_retained=true;
+    return result;
+}
+#else
+#define storage_get(context,key,data,size,used) kv->get(context,key,data,size,used)
+#define storage_put(context,key,data,size) kv->put(context,key,data,size)
+#endif
 #ifdef ALARM_DND_CONTROL
 static bool staged_dnd,muting_active;
 static int32_t read_dnd(bool *enabled) {
-    uint8_t b=0;uint32_t n=0;int32_t r=kv->get(kv->context,ALARM_DND_KEY,&b,1,&n);
+    uint8_t b=0;uint32_t n=0;int32_t r=storage_get(kv->context,ALARM_DND_KEY,&b,1,&n);
     if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){*enabled=false;return ALARM_OK;}
     if(r!=RISC_BOUND_KEY_VALUE_OK||n!=1||b>1)return ALARM_STORAGE;
     *enabled=b!=0;return ALARM_OK;
@@ -72,15 +115,26 @@ static int32_t read_dnd(bool *enabled) {
 static int32_t error;
 static const char *const cfg_keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY};
 static const char *const occ_keys[]={ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY};
-static uint64_t now_ms(void) { return clock_api->monotonic_ms(clock_api->context); }
+static uint64_t now_ms(void) {
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)return copied_ms;
+    copied_ms=clock_api->monotonic_ms(clock_api->context);return copied_ms;
+#else
+    return clock_api->monotonic_ms(clock_api->context);
+#endif
+}
 static alarm_token_v1 token(const alarm_occurrence *o) {
     return (alarm_token_v1){o->kind,o->revision,o->deadline,o->generation};
 }
 static void update_view(void) {
     view.api_version=1;view.struct_size=sizeof(view);view.error=error;
     view.rtc_seconds=seconds;view.mode=staged_mode;
-    view.output_uncertain=haptic_uncertain||audio_uncertain;
-#ifdef POINTS_IN_TIME_SERVICE
+    view.output_uncertain=haptic_uncertain||audio_uncertain
+#ifdef ALARM_NATIVE_UTC
+        ||custody_retained
+#endif
+        ;
+#if defined(POINTS_IN_TIME_SERVICE) && !defined(ALARM_VISUAL_ONLY)
     bool point_cue=active&&selected==2;
 #else
     bool point_cue=false;
@@ -100,7 +154,13 @@ static void update_view(void) {
     }
     if(active&&!point_cue) {
         view.occurrence=token(&desired);view.mode=desired.mode;view.recovery_until=desired.recovery_until;
-        uint64_t elapsed=now_ms()-alert_started;
+        uint64_t elapsed=
+#ifdef ALARM_NATIVE_UTC
+            copied_ms
+#else
+            now_ms()
+#endif
+            -alert_started;
         view.remaining_ms=elapsed<alert_limit_ms?(uint32_t)(alert_limit_ms-elapsed):0;
         const char *name=desired.kind==ALARM_KIND_ALARM?"ALARM":"COUNTDOWN FINISHED";
         #ifdef POINTS_IN_TIME_SERVICE
@@ -111,8 +171,54 @@ static void update_view(void) {
         memset(&view.occurrence,0,sizeof(view.occurrence));view.recovery_until=view.remaining_ms=0;
         memset(view.label,0,sizeof(view.label));
     }
+#ifdef ALARM_VISUAL_ONLY
+    /* Persisted preferences stay portable; copied status describes this device. */
+    view.mode=ALARM_MODE_VISUAL;
+#endif
 }
-static int32_t fail(int32_t e) { error=e;phase=BLOCKED;sleep_waiting=sleep_ticket_valid=false;update_view();return e; }
+static int32_t fail(int32_t e) {
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)e=ALARM_RETAINED;
+#endif
+    error=e;phase=BLOCKED;sleep_waiting=sleep_ticket_valid=false;update_view();return e; }
+#ifdef ALARM_NATIVE_UTC
+/* CONTEXT during an authorized phase conservatively fences this invocation.
+ * It is an access denial, not proof of electrical uncertainty. No retry, I/O,
+ * or successful quiescence is allowed after the fence. */
+static int32_t read_utc(uint32_t *out) {
+    risc_realtime_snapshot_v1 value={.struct_size=sizeof(value)};
+    int32_t r=realtime->read(realtime->context,&value);
+    if(r==RISC_REALTIME_CONTEXT){custody_retained=true;return ALARM_RETAINED;}
+    if(r!=RISC_REALTIME_OK||value.struct_size!=sizeof(value)||value.validity!=RISC_REALTIME_VALID||
+       value.reserved||value.nanoseconds>=1000000000u||value.monotonic_after_us<value.monotonic_before_us||
+       value.epoch_seconds<INT64_C(946684800)||value.epoch_seconds>INT32_MAX)return ALARM_RTC;
+    *out=(uint32_t)(value.epoch_seconds-INT64_C(946684800));return ALARM_OK;
+}
+/* Read exactly the shared TZ1 canonical 44-byte preference. Missing is virtual
+ * UTC; malformed or unavailable data blocks instead of silently changing zone. */
+static int32_t read_zone(unsigned *index,portable_timezone_rule *rule) {
+    uint8_t b[44]={0};uint32_t n=0;int32_t r=storage_get(kv->context,"time_zone",b,sizeof(b),&n);
+    if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){*index=0;return portable_timezone_resolve("UTC",4,rule)==0?ALARM_OK:ALARM_RTC;}
+    if(r!=RISC_BOUND_KEY_VALUE_OK||n!=sizeof(b)||b[0]!='T'||b[1]!='Z'||b[2]!=1)return ALARM_STORAGE;
+    uint8_t sum=0xa5u;for(unsigned i=0;i<sizeof(b);i++)if(i!=3)sum^=b[i];
+    if(sum!=b[3])return ALARM_STORAGE;
+    int found=portable_timezone_find((const char *)b+4,40);if(found<0)return ALARM_STORAGE;
+    const portable_timezone_entry *entry=portable_timezone_get((unsigned)found);
+    size_t length=strlen(entry->id);if(length>=40||memcmp(b+4,entry->id,length+1))return ALARM_STORAGE;
+    for(unsigned i=(unsigned)length+1;i<40;i++)if(b[4+i])return ALARM_STORAGE;
+    if(portable_timezone_resolve(entry->id,length+1,rule)!=PORTABLE_TIMEZONE_OK)return ALARM_RTC;
+    *index=(unsigned)found;return ALARM_OK;
+}
+static bool recorded_point(const points_config *c,const points_ledger *ledger,points_event *event) {
+    const portable_timezone_entry *entry=portable_timezone_get(ledger->timezone_index);portable_timezone_rule rule;
+    return entry&&portable_timezone_resolve(entry->id,strlen(entry->id)+1,&rule)==PORTABLE_TIMEZONE_OK&&
+        points_utc_event_for_day(&rule,c,ledger->slot,ledger->day[ledger->slot],ledger->edge,event,NULL);
+}
+#define points_local_day(now,day) points_utc_local_day(&timezone_rule,now,day)
+#define points_event_for_day(c,slot,day,edge,out,flags) points_utc_event_for_day(&timezone_rule,c,slot,day,edge,out,flags)
+#define points_latest_for_edge(c,l,now,slot,edge,out) points_utc_latest_for_edge(&timezone_rule,c,l,now,slot,edge,out)
+#define points_due(c,l,now,out) points_utc_due(&timezone_rule,c,l,now,out)
+#endif
 static const void *dependency(const risc_provider_dependency_v1 *d,size_t n,const char *name,uint32_t v,size_t size) {
     const void *out=NULL;
     for(size_t i=0;i<n;i++)if(d[i].capability_id&&!strcmp(d[i].capability_id,name)) {
@@ -124,13 +230,13 @@ static const void *dependency(const risc_provider_dependency_v1 *d,size_t n,cons
 }
 static bool read_config(unsigned i) {
     uint8_t b[ALARM_RECORD_SIZE];uint32_t n=0;
-    int32_t r=kv->get(kv->context,cfg_keys[i],b,sizeof(b),&n);
+    int32_t r=storage_get(kv->context,cfg_keys[i],b,sizeof(b),&n);
     if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){staging[i]=(alarm_config){.kind=(uint8_t)(i+1)};return true;}
     return r==RISC_BOUND_KEY_VALUE_OK&&alarm_config_decode(&staging[i],b,n,(uint8_t)(i+1));
 }
 static bool read_occurrence(unsigned i) {
     uint8_t b[ALARM_RECORD_SIZE];uint32_t n=0;
-    int32_t r=kv->get(kv->context,occ_keys[i],b,sizeof(b),&n);
+    int32_t r=storage_get(kv->context,occ_keys[i],b,sizeof(b),&n);
     if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){staged_occ[i]=(alarm_occurrence){0};return true;}
     return r==RISC_BOUND_KEY_VALUE_OK&&alarm_occurrence_decode(&staged_occ[i],b,n,(uint8_t)(i+1));
 }
@@ -161,13 +267,13 @@ static void prepare_occurrence(unsigned i,bool replay) {
 #ifdef POINTS_IN_TIME_SERVICE
 static bool read_points_config(void) {
     uint8_t b[POINTS_RECORD_SIZE];uint32_t n=0;
-    int32_t r=kv->get(kv->context,POINTS_CONFIG_KEY,b,sizeof(b),&n);
+    int32_t r=storage_get(kv->context,POINTS_CONFIG_KEY,b,sizeof(b),&n);
     if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){points_staging=points_default_config();return true;}
     return r==RISC_BOUND_KEY_VALUE_OK&&points_config_decode(&points_staging,b,n);
 }
 static bool read_points_occ(void) {
     uint8_t b[POINTS_RECORD_SIZE];uint32_t n=0;
-    int32_t r=kv->get(kv->context,POINTS_OCCURRENCE_KEY,b,sizeof(b),&n);
+    int32_t r=storage_get(kv->context,POINTS_OCCURRENCE_KEY,b,sizeof(b),&n);
     if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){points_staged_occ=(points_ledger){0};return true;}
     return r==RISC_BOUND_KEY_VALUE_OK&&points_ledger_decode(&points_staged_occ,b,n);
 }
@@ -188,6 +294,7 @@ static bool reconcile_points(void) {
         points_ledger_encode(&points_staged_occ,a);points_ledger_encode(&points_occ,b);if(memcmp(a,b,sizeof(a)))return false;
     }
     points_configured=points_staging;points_occ=points_staged_occ;
+    #ifndef ALARM_NATIVE_UTC
     if(points_occ.revision==points_configured.revision) {
         for(unsigned slot=0;slot<POINTS_MAX;slot++)if(points_occ.day[slot]) {
             for(unsigned edge=0;edge<POINTS_EDGE_COUNT;edge++)if(points_occ.delivered[slot]&(1u<<edge)) {
@@ -195,10 +302,17 @@ static bool reconcile_points(void) {
             }
         }
     }
+    #endif
     if(points_occ.revision==points_configured.revision&&points_occ.state) {
         points_event e={0};uint8_t configured_mode=points_configured.points[points_occ.slot].mode;
         if(configured_mode&&points_occ.mode!=configured_mode)return false;
-        if(!points_event_for_day(&points_configured,points_occ.slot,points_occ.day[points_occ.slot],points_occ.edge,&e,NULL)||
+        if(!
+#ifdef ALARM_NATIVE_UTC
+           recorded_point(&points_configured,&points_occ,&e)
+#else
+           points_event_for_day(&points_configured,points_occ.slot,points_occ.day[points_occ.slot],points_occ.edge,&e,NULL)
+#endif
+           ||
            e.deadline!=points_occ.deadline)return false;
     }
     return true;
@@ -210,6 +324,9 @@ static points_ledger points_current_ledger(void) {
 static void prepare_point(const points_event *e,bool replay) {
     selected=2;points_desired=points_current_ledger();
     if(points_desired.generation==UINT32_MAX){fail(ALARM_EXHAUSTED);return;}
+    #ifdef ALARM_NATIVE_UTC
+    if(!replay)points_desired.timezone_index=(uint16_t)timezone_index;
+#endif
     points_desired.generation++;points_desired.slot=e->slot;points_desired.edge=e->edge;
     points_desired.deadline=e->deadline;points_desired.recovery_until=e->deadline+ALARM_RECOVERY_SECONDS;
     points_desired.state=seconds>=points_desired.recovery_until?ALARM_OCC_EXPIRED:ALARM_OCC_PENDING;
@@ -262,7 +379,13 @@ static int32_t evaluate(void) {
     if(points_configured.revision) {
         points_ledger ledger=points_current_ledger();points_event event={0};bool replay=false,have=false;
         if(ledger.state==ALARM_OCC_PENDING) {
-            have=points_event_for_day(&points_configured,ledger.slot,ledger.day[ledger.slot],ledger.edge,&event,NULL)&&event.deadline<=seconds;replay=true;
+            have=
+#ifdef ALARM_NATIVE_UTC
+                recorded_point(&points_configured,&ledger,&event)
+#else
+                points_event_for_day(&points_configured,ledger.slot,ledger.day[ledger.slot],ledger.edge,&event,NULL)
+#endif
+                &&event.deadline<=seconds;replay=true;
         } else {
             bool compacted=false;
             /* Compact every expired edge in one atomic ledger write. A long
@@ -290,6 +413,9 @@ static int32_t evaluate(void) {
     return error?error:ALARM_OK;
 }
 static int32_t do_step(void) {
+    #ifdef ALARM_NATIVE_UTC
+    if(custody_retained)return ALARM_RETAINED;
+#endif
     if(foreground_failed)return error?error:ALARM_FOREGROUND;
     uint64_t now=now_ms();
     if(active&&(phase==ACTIVATE_RTC||phase==START_AUDIO||phase==START_HAPTIC||phase==PLAYING)&&
@@ -317,7 +443,7 @@ static int32_t do_step(void) {
     case LOAD_ALARM: if(!read_config(0))return fail(ALARM_STORAGE);phase=LOAD_TIMER;break;
     case LOAD_TIMER: if(!read_config(1))return fail(ALARM_STORAGE);phase=LOAD_MODE;break;
     case LOAD_MODE: {
-        uint8_t b=0;uint32_t n=0;int32_t r=kv->get(kv->context,ALARM_MODE_KEY,&b,1,&n);
+        uint8_t b=0;uint32_t n=0;int32_t r=storage_get(kv->context,ALARM_MODE_KEY,&b,1,&n);
         if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND)staged_mode=ALARM_MODE_VIBRATE;
         else if(r!=RISC_BOUND_KEY_VALUE_OK||n!=1||b<1||b>3)return fail(ALARM_STORAGE);
         else staged_mode=b;
@@ -325,7 +451,7 @@ static int32_t do_step(void) {
         phase=LOAD_VOLUME;break;
     }
     case LOAD_VOLUME: {
-        uint8_t b=0;uint32_t n=0;int32_t r=kv->get(kv->context,ALARM_VOLUME_KEY,&b,1,&n);
+        uint8_t b=0;uint32_t n=0;int32_t r=storage_get(kv->context,ALARM_VOLUME_KEY,&b,1,&n);
         if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND)staged_volume=ALARM_VOLUME_DEFAULT;
         else if(r!=RISC_BOUND_KEY_VALUE_OK||!alarm_volume_decode(&b,n,&staged_volume))return fail(ALARM_STORAGE);
 #endif
@@ -345,13 +471,33 @@ static int32_t do_step(void) {
 #ifdef POINTS_IN_TIME_SERVICE
         phase=LOAD_POINTS_CFG;break;
     case LOAD_POINTS_CFG:if(!read_points_config())return fail(ALARM_STORAGE);phase=LOAD_POINTS_OCC;break;
-    case LOAD_POINTS_OCC:if(!read_points_occ())return fail(ALARM_STORAGE);phase=READ_RTC;break;
+    case LOAD_POINTS_OCC:if(!read_points_occ())return fail(ALARM_STORAGE);
+#ifdef ALARM_NATIVE_UTC
+        phase=LOAD_ZONE;break;
+    case LOAD_ZONE: {
+        int32_t result=read_zone(&timezone_index,&timezone_rule);if(result!=ALARM_OK)return fail(result);
+        phase=READ_RTC;break;
+    }
+    case CHECK_ZONE: {
+        unsigned index;portable_timezone_rule rule;int32_t result=read_zone(&index,&rule);
+        if(result!=ALARM_OK)return fail(result);
+        if(index!=timezone_index){active=false;begin_reconcile();break;}
+        phase=START_AUDIO;break;
+    }
+#else
+        phase=READ_RTC;break;
+#endif
 #else
         phase=READ_RTC;break;
 #endif
     case READ_RTC: {
-        twatch_rtc_time_v1 t;uint32_t current;
+        uint32_t current;
+#ifdef ALARM_NATIVE_UTC
+        int32_t result=read_utc(&current);if(result!=ALARM_OK)return fail(result);
+#else
+        twatch_rtc_time_v1 t;
         if(!rtc->read(rtc->context,&t)||t.weekday>6||!alarm_calendar_seconds(t.year,t.month,t.day,t.hour,t.minute,t.second,&current))return fail(ALARM_RTC);
+#endif
         uint64_t at=now_ms();
         if(anchored) {
             if(at<previous_ms||at-previous_ms>UINT32_MAX)return fail(ALARM_RTC);
@@ -367,25 +513,25 @@ static int32_t do_step(void) {
 #ifdef POINTS_IN_TIME_SERVICE
         if(selected==2) {
             uint8_t b[POINTS_RECORD_SIZE];points_desired.state=desired.state;points_ledger_encode(&points_desired,b);
-            (void)kv->put(kv->context,POINTS_OCCURRENCE_KEY,b,sizeof(b));phase=VERIFY_OCC;break;
+            (void)storage_put(kv->context,POINTS_OCCURRENCE_KEY,b,sizeof(b));phase=VERIFY_OCC;break;
         }
 #endif
         uint8_t b[ALARM_RECORD_SIZE];alarm_occurrence_encode(&desired,b);
         /* Even IO may have persisted. Always verify before deciding next action. */
-        (void)kv->put(kv->context,occ_keys[selected],b,sizeof(b));phase=VERIFY_OCC;break;
+        (void)storage_put(kv->context,occ_keys[selected],b,sizeof(b));phase=VERIFY_OCC;break;
     }
     case VERIFY_OCC: {
 #ifdef POINTS_IN_TIME_SERVICE
         if(selected==2) {
             uint8_t expected[POINTS_RECORD_SIZE],actual[POINTS_RECORD_SIZE];uint32_t n=0;points_ledger_encode(&points_desired,expected);
-            int32_t r=kv->get(kv->context,POINTS_OCCURRENCE_KEY,actual,sizeof(actual),&n);
+            int32_t r=storage_get(kv->context,POINTS_OCCURRENCE_KEY,actual,sizeof(actual),&n);
             if(r!=RISC_BOUND_KEY_VALUE_OK||n!=sizeof(actual)||memcmp(actual,expected,sizeof(actual)))return fail(ALARM_STORAGE);
             points_occ=points_desired;persistence_pending=false;
         } else {
 #endif
         uint8_t expected[ALARM_RECORD_SIZE],actual[ALARM_RECORD_SIZE];uint32_t n=0;
         alarm_occurrence_encode(&desired,expected);
-        int32_t r=kv->get(kv->context,occ_keys[selected],actual,sizeof(actual),&n);
+        int32_t r=storage_get(kv->context,occ_keys[selected],actual,sizeof(actual),&n);
         if(r!=RISC_BOUND_KEY_VALUE_OK||n!=sizeof(actual)||memcmp(actual,expected,sizeof(actual)))return fail(ALARM_STORAGE);
         occurrences[selected]=desired;persistence_pending=false;
 #ifdef POINTS_IN_TIME_SERVICE
@@ -400,7 +546,7 @@ static int32_t do_step(void) {
 #endif
         if(desired.state==ALARM_OCC_PENDING) {
             active=true;dismiss=false;alert_started=now_ms();
-#ifdef POINTS_IN_TIME_SERVICE
+#if defined(POINTS_IN_TIME_SERVICE) && !defined(ALARM_VISUAL_ONLY)
             alert_limit_ms=selected==2?350u:ALARM_INVOCATION_MS;
 #else
             alert_limit_ms=ALARM_INVOCATION_MS;
@@ -412,8 +558,13 @@ static int32_t do_step(void) {
         break;
     }
     case ACTIVATE_RTC: {
-        twatch_rtc_time_v1 t;uint32_t current;
+        uint32_t current;
+#ifdef ALARM_NATIVE_UTC
+        int32_t result=read_utc(&current);if(result!=ALARM_OK)return fail(result);
+#else
+        twatch_rtc_time_v1 t;
         if(!rtc->read(rtc->context,&t)||t.weekday>6||!alarm_calendar_seconds(t.year,t.month,t.day,t.hour,t.minute,t.second,&current))return fail(ALARM_RTC);
+#endif
         uint64_t at=now_ms();
         if(at<sample_ms||at-sample_ms>UINT32_MAX)return fail(ALARM_RTC);
         uint32_t elapsed=(uint32_t)(at-sample_ms)/1000;
@@ -431,7 +582,12 @@ static int32_t do_step(void) {
             uint32_t window_ms=(desired.recovery_until-current)*1000;
             uint32_t elapsed_ms=(uint32_t)(now_ms()-alert_started);
             if(window_ms<alert_limit_ms-elapsed_ms)alert_limit_ms=elapsed_ms+window_ms;
-            phase=START_AUDIO;
+            phase=
+#ifdef ALARM_NATIVE_UTC
+                CHECK_ZONE;
+#else
+                START_AUDIO;
+#endif
         }
         break;
     }
@@ -445,7 +601,7 @@ static int32_t do_step(void) {
         if(selected==2) {
             uint8_t expected[POINTS_RECORD_SIZE],actual[POINTS_RECORD_SIZE];uint32_t n=0;
             points_config_encode(&points_configured,expected);
-            int32_t r=kv->get(kv->context,POINTS_CONFIG_KEY,actual,sizeof(actual),&n);points_config latest;
+            int32_t r=storage_get(kv->context,POINTS_CONFIG_KEY,actual,sizeof(actual),&n);points_config latest;
             if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){latest=points_default_config();points_config_encode(&latest,actual);}
             else if(r!=RISC_BOUND_KEY_VALUE_OK||!points_config_decode(&latest,actual,n))return fail(ALARM_STORAGE);
             if(memcmp(expected,actual,sizeof(actual))){active=false;begin_reconcile();break;}
@@ -453,7 +609,7 @@ static int32_t do_step(void) {
 #endif
         uint8_t expected[ALARM_RECORD_SIZE],actual[ALARM_RECORD_SIZE];uint32_t n=0;
         alarm_config_encode(&config[selected],expected);
-        int32_t r=kv->get(kv->context,cfg_keys[selected],actual,sizeof(actual),&n);
+        int32_t r=storage_get(kv->context,cfg_keys[selected],actual,sizeof(actual),&n);
         if(r!=RISC_BOUND_KEY_VALUE_OK||n!=sizeof(actual))return fail(ALARM_STORAGE);
         alarm_config latest;
         if(!alarm_config_decode(&latest,actual,n,(uint8_t)(selected+1)))return fail(ALARM_STORAGE);
@@ -462,6 +618,10 @@ static int32_t do_step(void) {
         }
 #endif
         if(now_ms()-alert_started>=alert_limit_ms){begin_cleanup();break;}
+#ifdef ALARM_VISUAL_ONLY
+        /* The existing foreground modal owns delivery; no output is acquired. */
+        phase=PLAYING;break;
+#else
         if(desired.silenced){phase=PLAYING;break;}
         if((desired.mode&ALARM_MODE_SOUND)
 #ifdef ALARM_VOLUME_CONTROL
@@ -488,6 +648,7 @@ static int32_t do_step(void) {
             phase=PLAYING;
         }
         break;
+#endif
     }
 #ifdef ALARM_VOLUME_CONTROL
     case SET_AUDIO_GAIN:
@@ -506,15 +667,18 @@ static int32_t do_step(void) {
         phase=desired.mode&ALARM_MODE_VIBRATE?START_HAPTIC:PLAYING;break;
 #endif
     case START_HAPTIC:
+#ifndef ALARM_VISUAL_ONLY
         if(dismiss){begin_cleanup();break;}
         if(desired.silenced){phase=PLAYING;break;}
         if(desired.mode&ALARM_MODE_VIBRATE) {
             haptic_uncertain=true;
             if(!haptic->effect(haptic->context,47)){error=ALARM_OUTPUT;begin_cleanup();break;}
         }
+#endif
         phase=PLAYING;break;
     case PLAYING:
         if(dismiss||now-alert_started>=alert_limit_ms){begin_cleanup();break;}
+#ifndef ALARM_VISUAL_ONLY
         if(desired.silenced)break;
 #ifdef POINTS_IN_TIME_SERVICE
         if(selected==2)break;
@@ -538,17 +702,25 @@ static int32_t do_step(void) {
                 if(!haptic->effect(haptic->context,47)){error=ALARM_OUTPUT;begin_cleanup();}
             }
         }
+#endif
         break;
     case CLEAN_HAPTIC:
+#ifndef ALARM_VISUAL_ONLY
         if(haptic->stop(haptic->context))haptic_uncertain=false;
         else {haptic_uncertain=true;cleanup_failed=true;}
+#endif
         phase=CLEAN_SILENCE;break;
     case CLEAN_SILENCE:
         /* silence is advisory; only close confirms physical ownership ended. */
-        (void)audio->silence(audio->context);phase=CLEAN_AUDIO;break;
+#ifndef ALARM_VISUAL_ONLY
+        (void)audio->silence(audio->context);
+#endif
+        phase=CLEAN_AUDIO;break;
     case CLEAN_AUDIO:
+#ifndef ALARM_VISUAL_ONLY
         if(audio->close(audio->context))audio_uncertain=false;
         else {audio_uncertain=true;cleanup_failed=true;}
+#endif
         if(cleanup_failed)return fail(ALARM_OUTPUT);
         if(error==ALARM_OUTPUT&&!dismiss)return fail(ALARM_OUTPUT);
 #ifdef ALARM_DND_CONTROL
@@ -568,7 +740,11 @@ static int32_t do_step(void) {
 }
 static int32_t step(void *c) {
     (void)c;if(!started)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
-    in_call=true;sleep_ticket_valid=false;int32_t result=do_step();update_view();in_call=false;return result;
+    in_call=true;sleep_ticket_valid=false;int32_t result=do_step();
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)result=fail(ALARM_RETAINED);
+#endif
+    update_view();in_call=false;return result;
 }
 static int32_t status(void *c,alarm_status_v1 *out) {
     (void)c;if(!started||!out||out->struct_size<sizeof(*out))return ALARM_INVALID;
@@ -576,6 +752,9 @@ static int32_t status(void *c,alarm_status_v1 *out) {
     in_call=true;update_view();*out=view;in_call=false;return ALARM_OK;
 }
 static int32_t refresh(void *c) {
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)return ALARM_RETAINED;
+#endif
     (void)c;if(!started)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
     sleep_ticket_valid=false;
     if(!haptic_uncertain&&!audio_uncertain&&(!active||
@@ -592,6 +771,9 @@ static int32_t refresh(void *c) {
     return ALARM_PENDING;
 }
 static int32_t acknowledge(void *c,const alarm_token_v1 *value) {
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)return ALARM_RETAINED;
+#endif
     (void)c;if(!started||!value)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
     sleep_ticket_valid=false;
     if(!active) {
@@ -641,20 +823,34 @@ static int32_t prepare_sleep_internal(alarm_sleep_v1 *out) {
     sleep_ticket=*out;sleep_ticket_valid=true;sleep_waiting=false;return ALARM_OK;
 }
 static int32_t prepare_sleep(void *c,alarm_sleep_v1 *out) {
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)return ALARM_RETAINED;
+#endif
     (void)c;if(!started||!out||out->struct_size<sizeof(*out))return ALARM_INVALID;
     if(in_call)return ALARM_BUSY;
     in_call=true;sleep_ticket_valid=false;int32_t result=prepare_sleep_internal(out);in_call=false;return result;
 }
 static int32_t resume_sleep(void *c,const alarm_sleep_v1 *decision) {
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)return ALARM_RETAINED;
+#endif
     (void)c;if(!started||!decision||decision->struct_size<sizeof(*decision))return ALARM_INVALID;
     if(in_call)return ALARM_BUSY;
     if(!sleep_ticket_valid||phase!=IDLE||active||haptic_uncertain||audio_uncertain||
        decision->snapshot!=sleep_ticket.snapshot||decision->rtc_seconds!=sleep_ticket.rtc_seconds||
        decision->deadline!=sleep_ticket.deadline)return ALARM_STALE;
     in_call=true;sleep_ticket_valid=false;
-    twatch_rtc_time_v1 t;uint32_t current;int32_t result=ALARM_OK;
+#ifndef ALARM_NATIVE_UTC
+    twatch_rtc_time_v1 t;
+#endif
+    uint32_t current;int32_t result=ALARM_OK;
+#ifdef ALARM_NATIVE_UTC
+    result=read_utc(&current);
+    if(result!=ALARM_OK)result=fail(result);
+#else
     if(!rtc->read(rtc->context,&t)||t.weekday>6||
        !alarm_calendar_seconds(t.year,t.month,t.day,t.hour,t.minute,t.second,&current))result=fail(ALARM_RTC);
+#endif
     else {
         uint64_t at=now_ms();
         /* Light sleep preserves this service but may estimate elapsed monotonic
@@ -678,14 +874,21 @@ static int32_t stop_only_internal(void) {
     }
     switch(phase) {
     case CLEAN_HAPTIC:
+#ifndef ALARM_VISUAL_ONLY
         if(haptic->stop(haptic->context))haptic_uncertain=false;
         else {haptic_uncertain=true;cleanup_failed=true;}
+#endif
         phase=CLEAN_SILENCE;return ALARM_PENDING;
     case CLEAN_SILENCE:
-        (void)audio->silence(audio->context);phase=CLEAN_AUDIO;return ALARM_PENDING;
+#ifndef ALARM_VISUAL_ONLY
+        (void)audio->silence(audio->context);
+#endif
+        phase=CLEAN_AUDIO;return ALARM_PENDING;
     case CLEAN_AUDIO:
+#ifndef ALARM_VISUAL_ONLY
         if(audio->close(audio->context))audio_uncertain=false;
         else {audio_uncertain=true;cleanup_failed=true;}
+#endif
         phase=BLOCKED;
         error=cleanup_failed?ALARM_OUTPUT:ALARM_FOREGROUND;
         return cleanup_failed?ALARM_OUTPUT:ALARM_OK;
@@ -694,10 +897,16 @@ static int32_t stop_only_internal(void) {
     }
 }
 static int32_t stop_only(void *c) {
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)return ALARM_RETAINED;
+#endif
     (void)c;if(!started)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
     in_call=true;sleep_ticket_valid=false;int32_t result=stop_only_internal();update_view();in_call=false;return result;
 }
 static bool quiesce(void) {
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)return false;
+#endif
     if(in_call)return false;
     in_call=true;started=false;sleep_ticket_valid=false;
     bool h=!haptic||haptic->stop(haptic->context);
@@ -706,22 +915,58 @@ static bool quiesce(void) {
     haptic_uncertain=!h;audio_uncertain=!a;in_call=false;
     if(!h||!a)return false;
     /* Storage authority has already been revoked. Never write during cleanup. */
-    started=false;kv=NULL;rtc=NULL;haptic=NULL;audio=NULL;clock_api=NULL;return true;
+    started=false;kv=NULL;
+#ifdef ALARM_NATIVE_UTC
+    realtime=NULL;
+#else
+    rtc=NULL;
+#endif
+    haptic=NULL;audio=NULL;clock_api=NULL;return true;
 }
 static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
-    if(started||in_call||haptic_uncertain||audio_uncertain||!deps||count!=5)return false;
+#ifdef ALARM_NATIVE_UTC
+    if(custody_retained)return false;
+#endif
+    if(started||in_call||haptic_uncertain||audio_uncertain||!deps||count!=
+#ifdef ALARM_VISUAL_ONLY
+       3
+#else
+       5
+#endif
+       )return false;
     kv=dependency(deps,count,"storage.key-value.bound",1,sizeof(*kv));
     clock_api=dependency(deps,count,"platform.clock",1,sizeof(*clock_api));
+#ifdef ALARM_NATIVE_UTC
+    realtime=dependency(deps,count,RISC_PLATFORM_REALTIME_CAPABILITY,1,sizeof(*realtime));
+#else
     rtc=dependency(deps,count,"rtc.clock",2,sizeof(*rtc));
+#endif
+#ifndef ALARM_VISUAL_ONLY
     haptic=dependency(deps,count,"haptic.effect",1,sizeof(*haptic));
     audio=dependency(deps,count,"audio.output",1,sizeof(*audio));
-    if(!kv||!kv->get||!kv->put||!clock_api||!clock_api->monotonic_ms||!rtc||!rtc->read||
-       !haptic||!haptic->effect||!haptic->stop||!audio||!audio->open||!audio->write||!audio->silence||!audio->close
+#else
+    haptic=NULL;audio=NULL;
+#endif
+    if(!kv||!kv->get||!kv->put||!clock_api||!clock_api->monotonic_ms
+#ifdef ALARM_NATIVE_UTC
+       ||!realtime||!realtime->read
+#else
+       ||!rtc||!rtc->read
+#endif
+#ifndef ALARM_VISUAL_ONLY
+       ||!haptic||!haptic->effect||!haptic->stop||!audio||!audio->open||!audio->write||!audio->silence||!audio->close
 #ifdef ALARM_VOLUME_CONTROL
        ||!audio->set_gain
 #endif
+#endif
        ) {
-        kv=NULL;clock_api=NULL;rtc=NULL;haptic=NULL;audio=NULL;return false;
+        kv=NULL;clock_api=NULL;
+#ifdef ALARM_NATIVE_UTC
+        realtime=NULL;
+#else
+        rtc=NULL;
+#endif
+        haptic=NULL;audio=NULL;return false;
     }
 #ifdef POINTS_IN_TIME_SERVICE
     memset(&points_configured,0,sizeof(points_configured));memset(&points_occ,0,sizeof(points_occ));
@@ -736,6 +981,24 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
     seconds=0;staged_mode=ALARM_MODE_VIBRATE;started=true;begin_reconcile();return true;
 }
 static void stop(void) {(void)quiesce();}
+#if defined(ALARM_VISUAL_ONLY) && !defined(ALARM_SERVICE_TAGGED_V2)
+#error "Visual profiles require alarm.service@2; v1 suffixes are ambiguous"
+#endif
+#ifdef ALARM_SERVICE_TAGGED_V2
+static const alarm_service_descriptor_v2 api={
+    {ALARM_SERVICE_API_V2,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},
+    ALARM_SERVICE_DESCRIPTOR_TAG, ALARM_SERVICE_DESCRIPTOR_VERSION,
+#ifdef ALARM_VISUAL_ONLY
+    ALARM_MODE_VISUAL,
+#else
+    ALARM_MODE_BOTH,
+#endif
+    ALARM_DESCRIPTOR_RESUME_SLEEP, resume_sleep
+};
+#define SERVICE_API ALARM_SERVICE_API_V2
+#else
+#define SERVICE_API ALARM_SERVICE_API_V1
 static const alarm_service_sleep_v1 api={{1,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},resume_sleep};
-static const risc_driver_v2 driver={2,sizeof(driver),"alarm-service",ALARM_SERVICE_CAPABILITY,1,&api,start,stop,quiesce};
+#endif
+static const risc_driver_v2 driver={2,sizeof(driver),"alarm-service",ALARM_SERVICE_CAPABILITY,SERVICE_API,&api,start,stop,quiesce};
 __attribute__((visibility("default"))) const risc_driver_v2 *t5_driver_get(uint32_t abi) {return abi==2?&driver:NULL;}
