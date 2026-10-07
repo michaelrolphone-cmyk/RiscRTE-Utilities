@@ -56,7 +56,7 @@ static bool release(risc_runtime_capability_v1 *grant){
  assert(grant&&live&&portable_radio_services_safe());++releases;
  if(release_once){release_once=false;return false;}--live;return true;
 }
-static void yield(uint32_t ms){assert(ms==50);assert(++yields<10);}
+static void yield(uint32_t ms){assert(ms==50 || ms==1);if(ms==50)assert(++yields<10);}
 static bool launch(const char *file){assert(!strcmp(file,"springboard.elf"));return !fail_launch;}
 const t5_app_api_v1 *t5_app_get_api(uint32_t abi){assert(abi==1);return &app;}
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t version){assert(version==1);return &runtime_api;}
@@ -68,6 +68,10 @@ static bool radio_diagnostic(void *context,risc_radio_iq_diagnostics_v1 *out){
  assert(context==&radio && out && out->struct_size==sizeof(*out));
  *out=(risc_radio_iq_diagnostics_v1){.struct_size=sizeof(*out),.stage=RISC_RADIO_IQ_STAGE_DUMP,
  .result=RISC_RADIO_IQ_DUMP_TIMEOUT,.requested_pairs=256,.clock_mask=64,.dump_before=44,.dump_after=44,.elapsed_cycles=2400010,.cleanup_ok=1};return true;
+}
+static int traced_burst(void *context,uint32_t *pairs,uint32_t count,risc_radio_iq_trace_v1 trace,void *trace_context){
+ assert(trace);assert(trace(trace_context,"native-claim"));assert(trace(trace_context,"dump-start"));
+ int result=burst(context,pairs,count);assert(trace(trace_context,"dump-stopped"));return result;
 }
 static void reset(void){
  diagnostic_count=0;diagnostic_text[0]=0;
@@ -96,6 +100,9 @@ int main(void){
  assert(strstr(diagnostic_text,"SDR detail stage=4 rc=4 ready=0 cleanup=1"));
  assert(strstr(diagnostic_text,"SDR dump clk=00000040 start=44 end=44 cycles=2400010"));
  assert(strstr(diagnostic_text,"SDR cleanup ok=1")&&strstr(diagnostic_text,"SDR app exit"));
+ reset();mode=7;radio.struct_size=sizeof(radio_ext);radio_ext.diagnostics=radio_diagnostic;radio_ext.capture_burst_traced=traced_burst;app_main();
+ assert(strstr(diagnostic_text,"SDR capture begin")&&strstr(diagnostic_text,"SDR stage=native-claim")&&strstr(diagnostic_text,"SDR stage=dump-start"));
+ assert(strstr(diagnostic_text,"SDR stage=dump-stopped")&&strstr(diagnostic_text,"SDR detail stage=4"));
  reset();limit=100;app_main();assert(bursts==100&&diagnostic_count<12); /* successful bursts stay quiet */
  reset();runtime_api.diagnostic=NULL;app_main();assert(bursts==3&&!live); /* older optional logger */
  puts("Waterfall app: repeated frame paint, grant retry, airplane policy, sleep pause, errors, cleanup and reentry passed");

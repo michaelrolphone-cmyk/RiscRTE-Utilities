@@ -26,13 +26,21 @@ static int trace_capture_result, trace_cleanup_result;
 static void waterfall_log(const char *line) {
     if (waterfall_runtime && waterfall_runtime->diagnostic) waterfall_runtime->diagnostic(line);
 }
+static bool waterfall_trace_stage(void *context,const char *stage) {
+    (void)context;
+    /* Let the existing USB producer drain before each pre-operation marker.
+     * This callback runs only before/after the DMA-owned interval. */
+    waterfall_runtime->yield_ms(1);
+    char line[96];snprintf(line,sizeof(line),"SDR stage=%s",stage);
+    return waterfall_runtime->diagnostic && waterfall_runtime->diagnostic(line);
+}
 static void waterfall_trace_capture(int result) {
     if (trace_capture_seen && trace_capture_result == result) return;
     trace_capture_seen = true; trace_capture_result = result;
     char line[96];
     snprintf(line,sizeof(line),"SDR capture rc=%d pairs=%u",result,RISC_RADIO_IQ_PAIRS);
     waterfall_log(line);
-    if (waterfall_radio->struct_size >= sizeof(risc_radio_iq_diagnostics_api_v1)) {
+    if (waterfall_radio->struct_size >= offsetof(risc_radio_iq_diagnostics_api_v1,capture_burst_traced)) {
         const risc_radio_iq_diagnostics_api_v1 *extended=(const void*)waterfall_radio;
         risc_radio_iq_diagnostics_v1 detail={.struct_size=sizeof(detail)};
         if (extended->diagnostics && extended->diagnostics(waterfall_radio->context,&detail)) {
@@ -247,7 +255,12 @@ void app_main(void) {
         if (!waterfall_enabled) continue;
         if (!waterfall_policy()) { waterfall_enabled = false; waterfall_dirty = true; continue; }
         uint32_t pairs[RISC_RADIO_IQ_PAIRS];
-        int next = waterfall_radio->capture_burst(waterfall_radio->context, pairs, RISC_RADIO_IQ_PAIRS);
+        int next;
+        const risc_radio_iq_diagnostics_api_v1 *extended=(const void*)waterfall_radio;
+        if (!trace_capture_seen) waterfall_log("SDR capture begin");
+        if (!trace_capture_seen && waterfall_radio->struct_size>=sizeof(*extended) && extended->capture_burst_traced)
+            next=extended->capture_burst_traced(waterfall_radio->context,pairs,RISC_RADIO_IQ_PAIRS,waterfall_trace_stage,NULL);
+        else next=waterfall_radio->capture_burst(waterfall_radio->context,pairs,RISC_RADIO_IQ_PAIRS);
         waterfall_trace_capture(next);
         waterfall_status = (unsigned)next;
         waterfall_dirty = true;
