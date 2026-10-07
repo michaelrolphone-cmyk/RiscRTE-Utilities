@@ -96,6 +96,7 @@ jobs:
           python scripts/build_portable_apps.py --system-apps .dependencies/system-apps
           python scripts/build_alarm_apps.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
           python scripts/build_points_service.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime
+          python scripts/build_points_service.py --system-apps .dependencies/system-apps --runtime .dependencies/runtime --visual-only
           python scripts/build_audio_apps.py --system-apps .dependencies/audio-system-apps
           bash scripts/test_alarm_target_loader.sh .dependencies/runtime
       - uses: actions/upload-artifact@v4
@@ -106,6 +107,7 @@ jobs:
             dist/portable-apps/
             dist/alarm-apps/
             dist/points-service/
+            dist/visual-points-service/
             dist/audio-apps/
           if-no-files-found: error
           retention-days: 14
