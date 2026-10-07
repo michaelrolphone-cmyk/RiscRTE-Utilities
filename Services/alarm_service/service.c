@@ -18,6 +18,10 @@
 #include <string.h>
 #include <limits.h>
 
+#if defined(ALARM_VISUAL_ONLY) && defined(ALARM_VOLUME_CONTROL)
+#error "The visual-only profile has no audio volume authority"
+#endif
+
 typedef enum { LOAD_ALARM,LOAD_TIMER,LOAD_MODE,LOAD_ALARM_OCC,LOAD_TIMER_OCC,
                READ_RTC,EVALUATE,IDLE,WRITE_OCC,VERIFY_OCC,ACTIVATE_RTC,START_AUDIO,
                START_HAPTIC,PLAYING,CLEAN_HAPTIC,CLEAN_SILENCE,CLEAN_AUDIO,
@@ -78,7 +82,7 @@ static void update_view(void) {
     view.api_version=1;view.struct_size=sizeof(view);view.error=error;
     view.rtc_seconds=seconds;view.mode=staged_mode;
     view.output_uncertain=haptic_uncertain||audio_uncertain;
-#ifdef POINTS_IN_TIME_SERVICE
+#if defined(POINTS_IN_TIME_SERVICE) && !defined(ALARM_VISUAL_ONLY)
     bool point_cue=active&&selected==2;
 #else
     bool point_cue=false;
@@ -109,6 +113,10 @@ static void update_view(void) {
         memset(&view.occurrence,0,sizeof(view.occurrence));view.recovery_until=view.remaining_ms=0;
         memset(view.label,0,sizeof(view.label));
     }
+#ifdef ALARM_VISUAL_ONLY
+    /* Persisted preferences stay portable; copied status describes this device. */
+    view.mode=ALARM_MODE_VISUAL;
+#endif
 }
 static int32_t fail(int32_t e) { error=e;phase=BLOCKED;sleep_waiting=false;update_view();return e; }
 static const void *dependency(const risc_provider_dependency_v1 *d,size_t n,const char *name,uint32_t v,size_t size) {
@@ -397,7 +405,7 @@ static int32_t do_step(void) {
 #endif
         if(desired.state==ALARM_OCC_PENDING) {
             active=true;dismiss=false;alert_started=now_ms();
-#ifdef POINTS_IN_TIME_SERVICE
+#if defined(POINTS_IN_TIME_SERVICE) && !defined(ALARM_VISUAL_ONLY)
             alert_limit_ms=selected==2?350u:ALARM_INVOCATION_MS;
 #else
             alert_limit_ms=ALARM_INVOCATION_MS;
@@ -459,6 +467,10 @@ static int32_t do_step(void) {
         }
 #endif
         if(now_ms()-alert_started>=alert_limit_ms){begin_cleanup();break;}
+#ifdef ALARM_VISUAL_ONLY
+        /* The existing foreground modal owns delivery; no output is acquired. */
+        phase=PLAYING;break;
+#else
         if(desired.silenced){phase=PLAYING;break;}
         if((desired.mode&ALARM_MODE_SOUND)
 #ifdef ALARM_VOLUME_CONTROL
@@ -485,6 +497,7 @@ static int32_t do_step(void) {
             phase=PLAYING;
         }
         break;
+#endif
     }
 #ifdef ALARM_VOLUME_CONTROL
     case SET_AUDIO_GAIN:
@@ -503,15 +516,18 @@ static int32_t do_step(void) {
         phase=desired.mode&ALARM_MODE_VIBRATE?START_HAPTIC:PLAYING;break;
 #endif
     case START_HAPTIC:
+#ifndef ALARM_VISUAL_ONLY
         if(dismiss){begin_cleanup();break;}
         if(desired.silenced){phase=PLAYING;break;}
         if(desired.mode&ALARM_MODE_VIBRATE) {
             haptic_uncertain=true;
             if(!haptic->effect(haptic->context,47)){error=ALARM_OUTPUT;begin_cleanup();break;}
         }
+#endif
         phase=PLAYING;break;
     case PLAYING:
         if(dismiss||now-alert_started>=alert_limit_ms){begin_cleanup();break;}
+#ifndef ALARM_VISUAL_ONLY
         if(desired.silenced)break;
 #ifdef POINTS_IN_TIME_SERVICE
         if(selected==2)break;
@@ -535,17 +551,25 @@ static int32_t do_step(void) {
                 if(!haptic->effect(haptic->context,47)){error=ALARM_OUTPUT;begin_cleanup();}
             }
         }
+#endif
         break;
     case CLEAN_HAPTIC:
+#ifndef ALARM_VISUAL_ONLY
         if(haptic->stop(haptic->context))haptic_uncertain=false;
         else {haptic_uncertain=true;cleanup_failed=true;}
+#endif
         phase=CLEAN_SILENCE;break;
     case CLEAN_SILENCE:
         /* silence is advisory; only close confirms physical ownership ended. */
-        (void)audio->silence(audio->context);phase=CLEAN_AUDIO;break;
+#ifndef ALARM_VISUAL_ONLY
+        (void)audio->silence(audio->context);
+#endif
+        phase=CLEAN_AUDIO;break;
     case CLEAN_AUDIO:
+#ifndef ALARM_VISUAL_ONLY
         if(audio->close(audio->context))audio_uncertain=false;
         else {audio_uncertain=true;cleanup_failed=true;}
+#endif
         if(cleanup_failed)return fail(ALARM_OUTPUT);
         if(error==ALARM_OUTPUT&&!dismiss)return fail(ALARM_OUTPUT);
 #ifdef ALARM_DND_CONTROL
@@ -648,14 +672,21 @@ static int32_t stop_only_internal(void) {
     }
     switch(phase) {
     case CLEAN_HAPTIC:
+#ifndef ALARM_VISUAL_ONLY
         if(haptic->stop(haptic->context))haptic_uncertain=false;
         else {haptic_uncertain=true;cleanup_failed=true;}
+#endif
         phase=CLEAN_SILENCE;return ALARM_PENDING;
     case CLEAN_SILENCE:
-        (void)audio->silence(audio->context);phase=CLEAN_AUDIO;return ALARM_PENDING;
+#ifndef ALARM_VISUAL_ONLY
+        (void)audio->silence(audio->context);
+#endif
+        phase=CLEAN_AUDIO;return ALARM_PENDING;
     case CLEAN_AUDIO:
+#ifndef ALARM_VISUAL_ONLY
         if(audio->close(audio->context))audio_uncertain=false;
         else {audio_uncertain=true;cleanup_failed=true;}
+#endif
         phase=BLOCKED;
         error=cleanup_failed?ALARM_OUTPUT:ALARM_FOREGROUND;
         return cleanup_failed?ALARM_OUTPUT:ALARM_OK;
@@ -679,16 +710,28 @@ static bool quiesce(void) {
     started=false;kv=NULL;rtc=NULL;haptic=NULL;audio=NULL;clock_api=NULL;return true;
 }
 static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
-    if(started||in_call||haptic_uncertain||audio_uncertain||!deps||count!=5)return false;
+    if(started||in_call||haptic_uncertain||audio_uncertain||!deps||count!=
+#ifdef ALARM_VISUAL_ONLY
+       3
+#else
+       5
+#endif
+       )return false;
     kv=dependency(deps,count,"storage.key-value.bound",1,sizeof(*kv));
     clock_api=dependency(deps,count,"platform.clock",1,sizeof(*clock_api));
     rtc=dependency(deps,count,"rtc.clock",2,sizeof(*rtc));
+#ifndef ALARM_VISUAL_ONLY
     haptic=dependency(deps,count,"haptic.effect",1,sizeof(*haptic));
     audio=dependency(deps,count,"audio.output",1,sizeof(*audio));
-    if(!kv||!kv->get||!kv->put||!clock_api||!clock_api->monotonic_ms||!rtc||!rtc->read||
-       !haptic||!haptic->effect||!haptic->stop||!audio||!audio->open||!audio->write||!audio->silence||!audio->close
+#else
+    haptic=NULL;audio=NULL;
+#endif
+    if(!kv||!kv->get||!kv->put||!clock_api||!clock_api->monotonic_ms||!rtc||!rtc->read
+#ifndef ALARM_VISUAL_ONLY
+       ||!haptic||!haptic->effect||!haptic->stop||!audio||!audio->open||!audio->write||!audio->silence||!audio->close
 #ifdef ALARM_VOLUME_CONTROL
        ||!audio->set_gain
+#endif
 #endif
        ) {
         kv=NULL;clock_api=NULL;rtc=NULL;haptic=NULL;audio=NULL;return false;
@@ -705,6 +748,13 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
     seconds=0;staged_mode=ALARM_MODE_VIBRATE;started=true;begin_reconcile();return true;
 }
 static void stop(void) {(void)quiesce();}
+#ifdef ALARM_VISUAL_ONLY
+static const alarm_service_outputs_v1 api={
+    {1,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},
+    ALARM_MODE_VISUAL
+};
+#else
 static const alarm_service_v1 api={1,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only};
+#endif
 static const risc_driver_v2 driver={2,sizeof(driver),"alarm-service",ALARM_SERVICE_CAPABILITY,1,&api,start,stop,quiesce};
 __attribute__((visibility("default"))) const risc_driver_v2 *t5_driver_get(uint32_t abi) {return abi==2?&driver:NULL;}
