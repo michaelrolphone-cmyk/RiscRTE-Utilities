@@ -11,9 +11,13 @@ static void back(unsigned at){touch(at,110,735,30,26);}
 #elif NOVA_APP_ID == 2
 static void toggle_at(unsigned at){touch(at,90,628,48,204);}
 static void reset_at(unsigned at){touch(at,240,628,120,204);}
+#elif NOVA_APP_ID == 3
+static void details(unsigned at){touch(at,200,628,50,214);}
+static void back(unsigned at){touch(at,110,735,30,26);}
+static void refresh_at(unsigned at){touch(at,340,735,175,214);}
 #else
-static void edit(unsigned at){touch(at,200,370,110,82);}
-static void second(unsigned at){touch(at,200,436,120,180);}
+static void edit(unsigned at){touch(at,200,NOVA_APP_ID==4?350:370,110,82);}
+static void second(unsigned at){touch(at,200,NOVA_APP_ID==4?324:436,120,NOVA_APP_ID==4?130:180);}
 static void add(unsigned at){touch(at,330,452,200,118);}
 static void done(unsigned at){touch(at,200,625,120,206);}
 static void back(unsigned at){touch(at,110,735,30,26);}
@@ -23,6 +27,7 @@ static void cancel(unsigned at){touch(at,340,628,174,206);}
 int main(int argc,char **argv) {
  assert(argc==4);directory=argv[1];unsigned scenario=(unsigned)atoi(argv[2]);paper_profile=atoi(argv[3])!=0;
  memset(pixels,0xa5,sizeof(pixels));stop_poll=240;
+ if(!paper_profile)alarm_api.output_modes=ALARM_MODE_BOTH;
 #if NOVA_APP_ID == 1
  if(scenario!=4&&scenario!=6&&scenario!=8&&scenario!=10)key(20,0);
  switch(scenario){
@@ -51,6 +56,21 @@ int main(int argc,char **argv) {
  case 9:toggle_at(20);raw_home_at=100;break;
  case 11:deny_private_store=true;touch(40,200,735,30,26);break;
  default:assert(0);}
+#elif NOVA_APP_ID == 3
+ switch(scenario){
+ case 0:details(20);touch(40,340,628,200,214);touch(60,340,628,200,214);touch(80,340,628,200,214);back(100);break;
+ case 1:details(20);back(40);back(60);break;
+ case 2:details(20);home_at=60;break;
+ case 3:refresh_at(20);break;
+ case 4:cancel_contact=true;details(20);break;
+ case 5:refuse_launch=true;back(20);back(60);break;
+ case 6:details(20);stop_poll=20;break;
+ case 7:details(20);touch(40,100,628,35,214);refresh_at(60);break;
+ case 8:case 10:break;
+ case 9:details(20);raw_home_at=60;break;
+ case 11:deny_private_store=true;back(40);break;
+ case 12:case 13:case 14:case 15:battery_case=scenario;refresh_at(60);break;
+ default:assert(0);}
 #else
  switch(scenario){
  case 0:edit(20);second(40);add(60);done(80);back(100);start(120);cancel(160);break;
@@ -64,6 +84,15 @@ int main(int argc,char **argv) {
  case 8:case 10:break;
  case 9:edit(20);second(40);raw_home_at=60;break;
  case 11:deny_private_store=true;back(40);break;
+#if NOVA_APP_ID == 4
+ case 12:touch(20,200,450,120,140);break;
+ case 13:case 14:
+  alarm_api.output_modes=ALARM_MODE_BOTH;fail_put_once=scenario==14;
+  touch(20,200,450,120,140);touch(40,340,400,200,118);touch(60,200,628,174,206);
+  if(scenario==14){back(80);touch(100,200,628,174,206);}break;
+ case 15:{uint8_t format[]={0x54,1,1,0xa4};fake_put(NULL,"time_format",format,sizeof(format));puts_count=0;edit(20);touch(40,200,200,120,80);add(60);done(80);back(100);start(120);break;}
+ case 16:refuse_launch=true;back(20);back(60);break;
+#endif
  default:assert(0);}
 #endif
  if(scenario==10){
@@ -71,6 +100,8 @@ int main(int argc,char **argv) {
  key(18,0);
 #elif NOVA_APP_ID == 2
  toggle_at(18);
+#elif NOVA_APP_ID == 3
+ details(18);
 #else
  start(18);
 #endif
@@ -82,6 +113,8 @@ int main(int argc,char **argv) {
  assert(!strcmp(calculator_state.text,"7")&&!puts_count);
 #elif NOVA_APP_ID == 2
  assert(clock_state.running&&puts_count==1);
+#elif NOVA_APP_ID == 3
+ assert(power_details&&!puts_count);
 #else
  assert(writer.saved.enabled&&writer.saved.revision==1&&puts_count==1);
 #endif
@@ -108,15 +141,35 @@ int main(int argc,char **argv) {
  case 7:assert(!clock_state.running&&puts_count==4&&clock_state.elapsed_ms==clock_state.saved.elapsed_ms);break;
  }
  if(paper_profile&&scenario==0)assert(presents<12); /* Watch remains 50ms. */
+#elif NOVA_APP_ID == 3
+ switch(scenario){
+ case 0:assert(!power_details&&power_detail_page==3);break;
+ case 1:case 5:assert(launches==(scenario==5?2u:1u)&&!strcmp(destination,"springboard.elf"));break;
+ case 2:case 9:assert(power_details&&launches==1&&!strcmp(destination,"default.elf"));break;
+ case 3:assert(power_read_ok&&power_sample.percent==73);break;
+ case 4:case 6:assert(!power_details);break;
+ case 7:assert(power_details&&power_detail_page==3);break;
+ case 12:assert(!power_read_ok&&!power_percent_known());break;
+ case 13:assert(power_read_ok&&!power_percent_known());break;
+ case 14:assert(power_extended()&&power_flag(PORTABLE_POWER_THERMAL_LIMIT));break;
+ case 15:assert(power_read_ok&&power_percent_known());break;
+ }
+ assert(!puts_count);
 #else
  switch(scenario){
- case 0:assert(!writer.uncertain&&!writer.saved.enabled&&writer.saved.revision==2&&values[2]==1);break;
+ case 0:assert(!writer.uncertain&&!writer.saved.enabled&&writer.saved.revision==2&&(NOVA_APP_ID==4?values[1]==36:values[2]==1));break;
  case 1:assert(!puts_count&&alarm_page==0&&launches==1&&!strcmp(destination,"springboard.elf"));break;
  case 2:case 9:assert(!puts_count&&alarm_page==2&&launches==1&&!strcmp(destination,"default.elf"));break;
  case 3:assert(writer.saved.enabled&&writer.saved.revision==4);break;
  case 4:case 6:assert(!puts_count);break;
  case 5:assert(writer.saved.enabled&&!writer.uncertain&&writer.saved.revision==1&&puts_count==2);break;
- case 7:assert(writer.saved.enabled&&writer.saved.duration==300&&values[2]==0);break;
+ case 7:assert(writer.saved.enabled&&(NOVA_APP_ID==4?values[1]==35:writer.saved.duration==300&&values[2]==0));break;
+#if NOVA_APP_ID == 4
+ case 12:assert(paper_profile?alarm_page==0:alarm_page==3);assert(!puts_count);break;
+ case 13:case 14:assert(!volume_uncertain&&volume_value==60&&alarm_page==0&&puts_count==(scenario==14?2u:1u));break;
+ case 15:assert(writer.saved.enabled&&values[0]==21&&alarm_24h());break;
+ case 16:assert(launches==2&&!strcmp(destination,"springboard.elf"));break;
+#endif
  }
 #endif
  app_module_fini();assert(!fixture_grants&&!frames&&!subs);

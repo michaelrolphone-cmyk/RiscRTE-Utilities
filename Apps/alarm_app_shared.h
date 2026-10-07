@@ -4,6 +4,9 @@
 #include "RiscRuntimeV1.h"
 #include "PortableRtcClock.h"
 #include "PortableTime.h"
+#ifdef PORTABLE_PAPER_UTILITIES
+#include <AlarmServiceV1.h>
+#endif
 #include "alarm_writer.h"
 #ifdef PORTABLE_ALARM_CLIENT
 #include "PortableAppSleep.h"
@@ -187,17 +190,17 @@ void app_main(void) {
     app=t5_app_get_api(1);notice="";editing=false;writer=(alarm_writer){0};service_valid=false;service_state=(alarm_status_v1){0};values[0]=0;values[1]=5;values[2]=0;
     if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->draw_text||!app->draw_label||!app->fill_rect||!app->present)return;
     if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
-#if defined(PORTABLE_PAPER_UTILITIES) && DAILY_ALARM_KIND == 2
+#if defined(PORTABLE_PAPER_UTILITIES)
     up_open(app);
 #endif
     if(!open_dependencies()){notice="ALARM SERVICE UNAVAILABLE";draw();for(;;){t5_app_input_t i={0};if(!app->poll(&i,50)) {
-#if defined(PORTABLE_PAPER_UTILITIES) && DAILY_ALARM_KIND == 2 && defined(PORTABLE_ALARM_CLIENT)
+#if defined(PORTABLE_PAPER_UTILITIES) && defined(PORTABLE_ALARM_CLIENT)
         if(portable_app_sleep_retained())return;
 #endif
         break;
     }
     if(i.exit_requested&&!(i.buttons&T5_APP_BUTTON_BACK))break;
-#if defined(PORTABLE_PAPER_UTILITIES) && DAILY_ALARM_KIND == 2
+#if defined(PORTABLE_PAPER_UTILITIES)
         if(utility_paper){up_input(&i);if(i.tapped&&up_hit(i.touch_x,i.touch_y,32,688,200,88))i.buttons|=T5_APP_BUTTON_BACK;}
         if(i.buttons&T5_APP_BUTTON_BACK){if(up_return())break;}
 #else
@@ -254,7 +257,7 @@ void app_main(void) {
 #ifndef DAILY_NOVA_APP
         bool alert=service_valid&&service_state.occurrence.generation;
 #endif
-#if defined(PORTABLE_PAPER_UTILITIES) && DAILY_ALARM_KIND == 2
+#if defined(PORTABLE_PAPER_UTILITIES)
         if(input.exit_requested&&!(input.buttons&T5_APP_BUTTON_BACK))break; /* Global Home was queued by adapter. */
         if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,alarm_page?416:200,88))input.buttons|=T5_APP_BUTTON_BACK;}
 #endif
@@ -288,7 +291,7 @@ void app_main(void) {
         #endif
         }
         if(dirty||(uint32_t)(app->millis()-last_draw)>=
-#if defined(PORTABLE_PAPER_UTILITIES) && DAILY_ALARM_KIND == 2
+#if defined(PORTABLE_PAPER_UTILITIES)
             (utility_paper?1000u:250u)
 #else
             250u

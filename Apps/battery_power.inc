@@ -2,7 +2,11 @@
  * policy, clears IRQs, writes preferences or keeps the display awake. */
 #include "T5AppApi.h"
 #include "PortableNovaUi.h"
+#ifdef PORTABLE_PAPER_UTILITIES
+#include "battery_paper_power.h"
+#else
 #include "PortablePowerStatus.h"
+#endif
 #include "RiscRuntimeV1.h"
 #include <stdio.h>
 #include <string.h>
@@ -217,7 +221,14 @@ static void power_detail_view(void) {
     portable_nova_button(176,192,52,44,"Next",false);
     power_app->present(false);
 }
-static void power_render(void) { if(power_details)power_detail_view();else power_overview(); }
+#ifdef PORTABLE_PAPER_UTILITIES
+#include "battery_paper.inc"
+#endif
+static void power_render(void) {
+#ifdef PORTABLE_PAPER_UTILITIES
+ if(utility_paper){battery_paper_draw();return;}
+#endif
+ if(power_details)power_detail_view();else power_overview(); }
 static bool power_refresh(void) {
     risc_battery_sample_v1 next={0,255,RISC_BATTERY_PROFILE_MISSING};
     bool ok=portable_power_read(&next);
@@ -239,7 +250,13 @@ void app_main(void) {
     power_app=t5_app_get_api(1);
     if(!power_app || !power_app->poll || !power_app->present || !power_app->millis ||
        !power_app->screen_width || !power_app->screen_height ||
-       power_app->screen_width()!=240 || power_app->screen_height()!=240)return;
+       power_app->screen_width()<160 || power_app->screen_height()<240)return;
+#ifdef PORTABLE_PAPER_UTILITIES
+    up_open(power_app);
+    if(!utility_paper && (power_app->screen_width()!=240 || power_app->screen_height()!=240))return;
+#else
+    if(power_app->screen_width()!=240 || power_app->screen_height()!=240)return;
+#endif
     power_sample=(risc_battery_sample_v1){0,255,RISC_BATTERY_PROFILE_MISSING};
     power_read_ok=power_details=power_navigation_failed=false;power_detail_page=0;
     (void)power_refresh();power_render();
@@ -247,6 +264,9 @@ void app_main(void) {
         t5_app_input_t input={0};if(!power_app->poll(&input,50))return;
         /* A queued quick-action launch is terminal, not an in-app Back. */
         if(input.exit_requested && !(input.buttons&T5_APP_BUTTON_BACK))return;
+        #ifdef PORTABLE_PAPER_UTILITIES
+        if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,200,88))input.buttons|=T5_APP_BUTTON_BACK;}
+#endif
         if(input.buttons&T5_APP_BUTTON_BACK) {if(power_back())return;continue;}
         bool render=false;
         if((uint32_t)(power_app->millis()-power_sample_at)>=1000)render=power_refresh();
@@ -254,6 +274,9 @@ void app_main(void) {
         if(power_details && (input.buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))) {power_detail_page=(power_detail_page+1)%4;render=true;}
         bool refresh=(input.buttons&T5_APP_BUTTON_CONFIRM)!=0;
         if(input.tapped) {
+#ifdef PORTABLE_PAPER_UTILITIES
+            if(utility_paper){battery_paper_tap(input.touch_x,input.touch_y,&refresh);render=true;}else
+#endif
             if(portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44)) {if(power_back())return;continue;}
             if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,12,192,104,44)) {power_details=true;power_detail_page=0;render=true;}
             else if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,124,192,104,44)) refresh=true;
