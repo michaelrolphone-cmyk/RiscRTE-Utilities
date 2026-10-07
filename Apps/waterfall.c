@@ -4,6 +4,7 @@
 #include "radio_iq_v1.h"
 #include "waterfall_core.h"
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 #include "PortableRadioPolicy.h"
 #ifdef PORTABLE_ALARM_CLIENT
@@ -20,6 +21,30 @@ static const risc_key_value_v1 *preferences;
 static bool radio_acquired, preferences_acquired;
 static bool waterfall_enabled, waterfall_uncertain, waterfall_dirty;
 static unsigned waterfall_status;
+static bool trace_capture_seen, trace_cleanup_seen;
+static int trace_capture_result, trace_cleanup_result;
+static void waterfall_log(const char *line) {
+    if (waterfall_runtime && waterfall_runtime->diagnostic) waterfall_runtime->diagnostic(line);
+}
+static void waterfall_trace_capture(int result) {
+    if (trace_capture_seen && trace_capture_result == result) return;
+    trace_capture_seen = true; trace_capture_result = result;
+    char line[96];
+    snprintf(line,sizeof(line),"SDR capture rc=%d pairs=%u",result,RISC_RADIO_IQ_PAIRS);
+    waterfall_log(line);
+    if (waterfall_radio->struct_size >= sizeof(risc_radio_iq_diagnostics_api_v1)) {
+        const risc_radio_iq_diagnostics_api_v1 *extended=(const void*)waterfall_radio;
+        risc_radio_iq_diagnostics_v1 detail={.struct_size=sizeof(detail)};
+        if (extended->diagnostics && extended->diagnostics(waterfall_radio->context,&detail)) {
+            snprintf(line,sizeof(line),"SDR detail stage=%lu rc=%ld ready=%lu cleanup=%lu",
+                (unsigned long)detail.stage,(long)detail.result,(unsigned long)detail.dump_ready,(unsigned long)detail.cleanup_ok);
+            waterfall_log(line);
+            snprintf(line,sizeof(line),"SDR dump clk=%08lx start=%lu end=%lu cycles=%lu",
+                (unsigned long)detail.clock_mask,(unsigned long)detail.dump_before,(unsigned long)detail.dump_after,(unsigned long)detail.elapsed_cycles);
+            waterfall_log(line);
+        }
+    }
+}
 #define WATERFALL_STOPPED 8u
 #define WATERFALL_AIRPLANE 9u
 #define WATERFALL_NO_POLICY 10u
@@ -28,7 +53,12 @@ static unsigned waterfall_status;
 bool portable_radio_services_safe(void) { return !waterfall_uncertain; }
 bool portable_radio_suspend(void) {
     waterfall_enabled = false;
-    if (waterfall_radio && !waterfall_radio->suspend(waterfall_radio->context)) {
+    bool clean = !waterfall_radio || waterfall_radio->suspend(waterfall_radio->context);
+    if (waterfall_radio && (!trace_cleanup_seen || trace_cleanup_result != (int)clean)) {
+        waterfall_log(clean ? "SDR cleanup ok=1" : "SDR cleanup ok=0 retained=1");
+        trace_cleanup_seen=true;trace_cleanup_result=(int)clean;
+    }
+    if (!clean) {
         waterfall_uncertain = true;
         return false;
     }
@@ -135,7 +165,10 @@ static int waterfall_leave(const t5_app_input_t *input) {
 static bool waterfall_open_radio(void) {
     if (waterfall_radio) return true;
     waterfall_grant = (risc_runtime_capability_v1){.struct_size = sizeof(waterfall_grant)};
-    if (!waterfall_runtime->acquire("radio.iq", RISC_RADIO_IQ_API_V1, 0, &waterfall_grant)) return false;
+    waterfall_log("SDR acquire begin");
+    if (!waterfall_runtime->acquire("radio.iq", RISC_RADIO_IQ_API_V1, 0, &waterfall_grant)) {
+        waterfall_log("SDR acquire ok=0");return false;
+    }
     radio_acquired = true;
     const risc_radio_iq_api_v1 *candidate = waterfall_grant.api;
     if (!candidate || candidate->api_version != RISC_RADIO_IQ_API_V1 ||
@@ -144,6 +177,8 @@ static bool waterfall_open_radio(void) {
         return false;
     }
     waterfall_radio = candidate;
+    waterfall_log("SDR acquire ok=1");
+    trace_capture_seen=trace_cleanup_seen=false;
     return true;
 }
 
@@ -159,6 +194,8 @@ void app_main(void) {
         waterfall_runtime->struct_size < RISC_RUNTIME_CAPABILITIES_V1_SIZE ||
         !waterfall_runtime->acquire || !waterfall_runtime->release || !waterfall_runtime->yield_ms) return;
     waterfall_radio = NULL; preferences = NULL;
+    trace_capture_seen=trace_cleanup_seen=false;
+    waterfall_log("SDR app enter");
     radio_acquired = preferences_acquired = waterfall_uncertain = false;
     waterfall_grant = (risc_runtime_capability_v1){0};
     waterfall_preferences = (risc_runtime_capability_v1){.struct_size=sizeof(waterfall_preferences)};
@@ -211,6 +248,7 @@ void app_main(void) {
         if (!waterfall_policy()) { waterfall_enabled = false; waterfall_dirty = true; continue; }
         uint32_t pairs[RISC_RADIO_IQ_PAIRS];
         int next = waterfall_radio->capture_burst(waterfall_radio->context, pairs, RISC_RADIO_IQ_PAIRS);
+        waterfall_trace_capture(next);
         waterfall_status = (unsigned)next;
         waterfall_dirty = true;
         if (next == RISC_RADIO_IQ_OK) waterfall_ingest(pairs, RISC_RADIO_IQ_PAIRS);
@@ -224,4 +262,5 @@ void app_main(void) {
     waterfall_radio = NULL;
     waterfall_release(&waterfall_preferences, &preferences_acquired);
     preferences = NULL;
+    waterfall_log("SDR app exit");
 }
