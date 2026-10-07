@@ -25,5 +25,13 @@
     "python3 scripts/test_paper_utilities.py --system-apps ../system-apps --sanitizer undefined",
     "python3 scripts/test_paper_manifests.py --runtime /path/to/RiscRTE"
   ],
-  "packaging": "Each dist/paper-utilities/<app> contains an ELF, canonical manifest, canonical boot-policy fragment, build receipt and font licenses. Deployment descriptions and key scope notes stay in receipts, not parser inputs."
+  "packaging": "Each dist/paper-utilities/<app> contains an ELF, canonical manifest, canonical boot-policy fragment, build receipt and font licenses. Deployment descriptions and key scope notes stay in receipts, not parser inputs.",
+  "checks_source_commit": "1a084ff66759d9e3b661c6e685083d12a97f3cea",
+  "shared_accessor_correction": {
+    "change": "Remove app-local per-read battery acquire/release wrapper; use PortablePowerStatus.h and adapter-owned portable_power_read.",
+    "dependency": "Integrator is porting the accepted Watch helper from System Apps f146d82d; exact X4 successor pin pending. Existing 2aa0cf63 build pin does not contain this helper.",
+    "new_tests": "Production app/adapter fixture asserts exactly one battery acquisition, zero releases during foreground refresh, failed final release retains exact adapter-owned handle, no continued reads/rendering, and successful cleanup retry.",
+    "validation": "Original Watch battery suite rerun: 40 normal/UBSan cases passed. Final successor paper suite and target ELFs await exact shared dependency pin.",
+    "grants": "unchanged"
+  }
 }

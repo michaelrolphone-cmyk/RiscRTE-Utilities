@@ -16,7 +16,7 @@ for name,number in [('calculator',1),('stopwatch',2),('countdown',5),('alarms',4
   binary=out/(name+('-san' if san else ''))
   subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*['-I'+str(d) for d in [s/'lib/PortableApps/include',s/'lib/NativeApps/include',ROOT/'lib/Alarm/include',s/'Apps']],str(ROOT/'test/native_apps/paper_utility_test.c'),str(s/'lib/PortableApps/src/adapter.c'),str(catalog),*[str(s/'lib/PortableApps/src'/f) for f in ['quick_actions.c','quick_render.c','quick_session.c']],'-o',str(binary)],check=True)
   for profile in (0,1):
-   for case in range(11 if name=='calculator' else 16 if name=='battery' else 17 if name=='alarms' else 12):
+   for case in range(11 if name=='calculator' else 17 if name=='battery' else 17 if name=='alarms' else 12):
     if case in (8,10) and not profile:continue
     frames=out/f'{name}-{profile}-{case}-{int(san)}';frames.mkdir(exist_ok=True)
     subprocess.run([str(binary),str(frames),str(case),str(profile)],check=True,timeout=60)
