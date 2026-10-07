@@ -6,6 +6,10 @@
 #include "PortableNovaUi.h"
 #include "PortableAppSleep.h"
 #include "ble_scan_core.h"
+#include "PaperPresentation.h"
+__attribute__((weak)) const paper_presentation *paper_presentation_get(void){return NULL;}
+static const paper_presentation *paper;
+static bool paper_enable_needed;
 #include <stdio.h>
 #ifndef PORTABLE_APP_OWNS_TOUCH_CHROME
 #error "BLE Scanner requires application-owned touch chrome"
@@ -42,7 +46,8 @@ static bool policy_allowed(void){
  if(!runtime->release(&g)){uncertain=true;retain();}
  if(!ok){message="Radio settings unreadable";return false;}
  if(flags&PORTABLE_RADIO_AIRPLANE){message="Turn off Airplane mode";return false;}
- if(!(flags&PORTABLE_RADIO_BLUETOOTH)){message="Enable Bluetooth in controls";return false;}
+ if(!(flags&PORTABLE_RADIO_BLUETOOTH)){paper_enable_needed=paper!=NULL;message=paper?"Tap Enable Bluetooth":"Enable Bluetooth in controls";return false;}
+ paper_enable_needed=false;
  return true;
 }
 static void start_scan(void){
@@ -85,7 +90,8 @@ static void move(int delta){
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);if(!n)return;
  int next=(int)selected+delta;selected=(unsigned)(next<0?0:next>=(int)n?(int)n-1:next);
  if(selected<scroll)scroll=selected;
- if(selected>=scroll+3)scroll=selected-2;
+ unsigned rows=paper?(unsigned)(app->screen_height()-256)/88u:3u;
+ if(selected>=scroll+rows)scroll=selected-rows+1;
  dirty=true;
 }
 static bool drag(void){
@@ -106,7 +112,9 @@ static void scrollbar(unsigned first,unsigned visible_rows,unsigned total,int y,
  int top=(height-size)*(int)first/(int)(total-visible_rows);
  portable_nova_fill(236,y,2,height,NOVA_LINE);portable_nova_fill(236,y+top,2,size,NOVA_CYAN);
 }
+static void paper_draw(void);
 static void draw(void){
+ if(paper){paper_draw();return;}
  portable_nova_begin();portable_nova_header(detail?"SENSOR DETAILS":"BLE SCANNER");
  char text[80];unsigned list[BLE_MAX_DEVICES],n=indexes(list);
  if(detail&&selected<n){
@@ -143,16 +151,22 @@ static void draw(void){
  }
  app->present(false);
 }
+#include "ble_scanner_paper.inc"
 void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
- if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!app->touch_contact||app->screen_width()!=240||app->screen_height()!=240||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
+ if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!app->touch_contact||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
+ paper=paper_presentation_get();
+ if((!paper&&(app->screen_width()!=240||app->screen_height()!=240))||(paper&&(!app->fill_rect||!app->draw_icon)))return;
+ paper_enable_needed=false;bp_down=false;
  scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=restore_failed=false;selected=scroll=detail_scroll=0;dirty=true;message="Tap Scan to discover";
  contact_down=contact_list=contact_moved=false;contact_y=0;
  app->set_back_exits_app(false);uint32_t rendered=0;
  for(;;){
-  if((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250)){draw();rendered=app->millis();}
+  if(paper?(dirty&&scan.phase!=BLE_STARTING&&(!active()||(uint32_t)(app->millis()-rendered)>=3000)):
+     ((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250))){draw();rendered=app->millis();}
   t5_app_input_t input={0};if(!app->poll(&input,20)){if(portable_app_sleep_retained())return;break;}
   if(input.exit_requested)break;
+  if(paper){if(!paper_input(&input))break;pump();continue;}
   if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44))){if(!navigate_back())break;continue;}
   bool swiped=drag();
   if(input.buttons&T5_APP_BUTTON_UP)move(-1);

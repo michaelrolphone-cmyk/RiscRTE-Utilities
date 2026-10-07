@@ -12,7 +12,7 @@ for san in (False,True):
  if san:flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
  exe=out/'ble-renderer'
  sources=[ROOT/'test/native_apps/ble_renderer_test.c',ROOT/'Apps/ble_scanner.c',system/'lib/PortableApps/src/adapter.c',catalog]+[system/'lib/PortableApps/src'/s for s in ['quick_actions.c','quick_render.c','quick_session.c','quick_radios.c']]
- subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*['-I'+str(i) for i in [ROOT/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include']],*map(str,sources),'-o',str(exe)],check=True)
+ subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*['-I'+str(i) for i in [ROOT/'Apps',system/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include']],*map(str,sources),'-o',str(exe)],check=True)
  for name,actions in scenes.items():
   folder=out/name;folder.mkdir(exist_ok=True)
   for stale in folder.glob('frame-*.ppm'):stale.unlink()

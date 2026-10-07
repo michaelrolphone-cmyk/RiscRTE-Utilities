@@ -20,31 +20,65 @@ static unsigned ticks,polls,grants,frames,subs,presents;
 static unsigned stop_poll=240;
 static unsigned radio_sends,radio_claims,radio_closes,radio_state,launches,reports,radio_control_calls;static bool radio_owned;
 static uint8_t command_ack[6];static bool ack_ready,advertising;
+#ifdef BLE_PAPER
+static uint8_t pixels[480*104];
+#else
 static uint16_t pixels[240*244];
+#endif
 static const char *directory;
 static struct {unsigned at;int x,y;} actions[256];static unsigned action_count;
 static struct {char key[16];unsigned char bytes[64];uint32_t size;} cells[32];
 static void save_frame(void) {
  char path[1024];snprintf(path,sizeof(path),"%s/frame-%03u.ppm",directory,presents);
- FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n240 240\n255\n");
+ FILE*f=fopen(path,"wb");assert(f);
+#ifdef BLE_PAPER
+ fprintf(f,"P6\n480 800\n255\n");
+ for(unsigned y=0;y<800;y++)for(unsigned x=0;x<480;x++){unsigned px=y,py=479-x;uint8_t v=(pixels[py*104+px/8]&(0x80u>>(px%8)))?0:255;uint8_t rgb[]={v,v,v};assert(fwrite(rgb,1,3,f)==3);}
+ for(unsigned y=0;y<480;y++)for(unsigned x=100;x<104;x++)assert(pixels[y*104+x]==0xa5);
+#else
+ fprintf(f,"P6\n240 240\n255\n");
  for(unsigned y=0;y<240;y++){for(unsigned x=0;x<240;x++){uint16_t v=pixels[y*244+x];unsigned char rgb[]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};assert(fwrite(rgb,1,3,f)==3);}for(unsigned x=240;x<244;x++)assert(pixels[y*244+x]==0xa5a5);}
+#endif
  assert(!fclose(f));
 }
-static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;return polls<stop_poll;}
+static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;if(getenv("BLE_COMPLETE")&&polls>950)assert(!radio_owned);return polls<stop_poll;}
 static void fake_yield(uint32_t n){ticks+=n;}
 static bool fake_diag(const char*s){fprintf(stderr,"%s\n",s);return true;}
-static bool fake_launch(const char*s){assert(!radio_owned);assert(!strcmp(s,"springboard.elf"));launches++;printf("launch=%s\n",s);stop_poll=polls;return true;}
-static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=240,.height=240,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565)};return true;}
-static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=240,.height=240,.stride_bytes=488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
+static bool fake_launch(const char*s){assert(!radio_owned);assert(!strcmp(s,PORTABLE_RETURN_APP));launches++;printf("launch=%s\n",s);stop_poll=polls;return true;}
+static bool fake_info(void*c,risc_display_info_v1*s){(void)c;
+#ifdef BLE_PAPER
+ *s=(risc_display_info_v1){.width=800,.height=480,.flags=RISC_DISPLAY_INFO_RETAINS_IMAGE|RISC_DISPLAY_INFO_PARTIAL_DAMAGE,.nominal_refresh_millihz=500,.typical_present_latency_us=1600000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_MONO1)};
+#else
+ *s=(risc_display_info_v1){.width=240,.height=240,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565)};
+#endif
+ return true;}
+static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;
+#ifdef BLE_PAPER
+ assert(f==RISC_DISPLAY_FORMAT_MONO1);*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=800,.height=480,.stride_bytes=104,.size_bytes=sizeof(pixels),.pixel_format=f};
+#else
+ *s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=240,.height=240,.stride_bytes=488,.size_bytes=sizeof(pixels),.pixel_format=f};
+#endif
+ return true;}
 static void fake_frame_release(void*c,risc_display_frame_v1 f){(void)c;assert(frames&&f==1);frames=0;}
-static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){(void)c;(void)r;(void)n;(void)o;assert(frames&&f==1);frames=0;*t=++presents;save_frame();return true;}
+static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){(void)c;(void)r;(void)n;(void)o;assert(frames&&f==1);frames=0;*t=++presents;save_frame();
+#ifdef BLE_PAPER
+ ticks+=1600;assert(n<=1);if(n)assert(r[0].x%8==0&&r[0].width%8==0);
+#endif
+ return true;}
 static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){(void)c;assert(t);s->state=RISC_DISPLAY_PRESENT_COMPLETE;return true;}
 static const risc_display_output_api_v1 display_api={.api_version=1,.struct_size=sizeof(display_api),.get_info=fake_info,.acquire=fake_frame,.release=fake_frame_release,.submit=fake_submit,.present_status=fake_present};
 static uint64_t fake_sub(void*c){(void)c;subs++;return 1;}
 static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n==1&&subs);subs--;return true;}
 static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);polls++;return true;}
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;(void)n;(void)e;return 0;}
-static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;*s=(risc_touch_snapshot_v1){.width=240,.height=240};for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=actions[i].x,.y=actions[i].y};}return true;}
+static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;
+#ifdef BLE_PAPER
+ *s=(risc_touch_snapshot_v1){.width=480,.height=800};
+#else
+ *s=(risc_touch_snapshot_v1){.width=240,.height=240};
+#endif
+for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=actions[i].x,.y=actions[i].y};}
+ return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
 static bool fake_battery(void*c,risc_battery_sample_v1*s){(void)c;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};return true;}
 static const risc_battery_gauge_api_v1 battery_api={1,sizeof(battery_api),NULL,fake_battery};
@@ -85,9 +119,14 @@ static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabi
 static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);g->api=NULL;grants--;return true;}
 static const risc_runtime_api_v1 runtime_api={1,sizeof(runtime_api),fake_health,fake_yield,fake_diag,fake_launch,fake_acquire,fake_release};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&runtime_api:NULL;}
-int main(int argc,char**argv){assert(argc>=2);directory=argv[1];memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}uint8_t policy[]={0x51,1,3,0xa6};assert(fake_put(NULL,"quick_radio",policy,4)==0);
+int main(int argc,char**argv){assert(argc>=2);directory=argv[1];if(getenv("BLE_COMPLETE"))stop_poll=1000;memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}uint8_t policy[]={0x51,1,3,0xa6};if(getenv("BLE_POLICY_OFF")){policy[2]=1;policy[3]=0xa4;}if(getenv("BLE_AIRPLANE")){policy[2]=4;policy[3]=0xa1;}assert(fake_put(NULL,"quick_radio",policy,4)==0);
 assert(app_module_init()==0);app_main();app_module_fini();assert(!grants&&!frames&&!subs&&!radio_owned);if(getenv("BLE_RENDER_SCAN"))assert(radio_claims>=1&&radio_sends==5&&radio_closes==radio_claims);else assert(!radio_claims&&!radio_sends);
 if(getenv("BLE_RENDER_BACK"))assert(launches==1&&polls>=60);
+#ifdef BLE_PAPER
+if(getenv("BLE_ENABLE"))assert(radio_control_calls==1&&radio_state==1);else assert(!radio_control_calls);
+if(getenv("BLE_IDLE"))assert(presents==1);
+if(getenv("BLE_RENDER_SCAN"))assert(presents<15);
+#endif
 if(getenv("BLE_RENDER_QUICK"))assert(radio_control_calls>=2);
 assert(presents>0);
 printf("Production app/adapter capture: %u frames, %u polls, %u ms; all grants released; stride guards intact\n",presents,polls,ticks);return 0;}

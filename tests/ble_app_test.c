@@ -8,6 +8,7 @@
 #include <stdlib.h>
 static unsigned input_mode,input_step,launches;static bool back_enabled;
 static uint32_t tick;static unsigned grants,claims,closes,sends;static bool close_bad,send_bad,release_bad,claim_bad;static int restore_result=1;
+static bool allow_write,write_bad,enable_bad,status_bad,rollback_bad;static unsigned controls,writes;static uint8_t enabled;
 static uint8_t policy=3,queued[64];static size_t queued_size;static char drawn[4000];static jmp_buf retention;
 static uint32_t millis(void){return tick;}
 static int32_t screen(void){return 240;}
@@ -24,9 +25,11 @@ static bool claim(void*c,uint64_t*out){(void)c;claims++;*out=1;return !claim_bad
 static int32_t close_host(void*c,uint64_t t){(void)c;assert(t==1);closes++;return close_bad?-1:restore_result;}
 static bool send_host(void*c,uint64_t t,uint8_t type,const uint8_t*p,size_t n){(void)c;assert(t==1&&type==1&&n==3u+p[2]);sends++;if(send_bad)return false;uint8_t ack[]={0x0e,4,1,p[0],p[1],0};memcpy(queued,ack,6);queued_size=6;return true;}
 static int32_t next_host(void*c,uint64_t t,uint8_t*type,uint8_t*p,size_t cap,size_t*n){(void)c;assert(t==1&&cap>=1028);*n=queued_size;if(!*n)return 0;*type=4;memcpy(p,queued,*n);queued_size=0;return 1;}
-static portable_bluetooth_host_v1 fake_host={{1,sizeof(fake_host),NULL,NULL,NULL,NULL,NULL},claim,send_host,next_host,close_host};
+static bool set_enabled(void*c,bool on){(void)c;controls++;if((on&&enable_bad)||(!on&&rollback_bad))return false;enabled=on;return true;}
+static bool get_status(void*c,uint8_t*out){(void)c;*out=enabled;return !status_bad;}
+static portable_bluetooth_host_v1 fake_host={{1,sizeof(fake_host),NULL,NULL,NULL,set_enabled,get_status},claim,send_host,next_host,close_host};
 static int32_t get(void*c,const char*k,void*data,uint32_t cap,uint32_t*n){uint8_t*v=data;(void)c;assert(!strcmp(k,"quick_radio")&&cap==4);v[0]=0x51;v[1]=1;v[2]=policy;v[3]=(uint8_t)(policy^0xa5);*n=4;return 0;}
-static int32_t put(void*c,const char*k,const void*v,uint32_t n){(void)c;(void)k;(void)v;(void)n;assert(!"Scanner must not write policy");return -1;}
+static int32_t put(void*c,const char*k,const void*v,uint32_t n){(void)c;assert(allow_write&&!strcmp(k,"quick_radio")&&n==4);writes++;if(write_bad)return RISC_KEY_VALUE_IO;policy=((const uint8_t*)v)[2];return RISC_KEY_VALUE_OK;}
 static risc_key_value_v1 kv={1,sizeof(kv),NULL,get,put};
 static bool acquire(const char*n,uint32_t v,uint64_t inst,risc_runtime_capability_v1*g){assert(v==1);if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(inst==1);g->api=&kv;}else{assert(!strcmp(n,"bluetooth.hci")&&inst==16);g->api=&fake_host;}grants++;return true;}
 static bool release(risc_runtime_capability_v1*g){assert(g->api&&grants);if(release_bad)return false;grants--;return true;}
@@ -51,6 +54,8 @@ bool portable_nova_hit(int x,int y,int l,int t,int w,int h){return x>=l&&y>=t&&x
 static uint16_t pixels[240*240];
 static struct {unsigned frame;void *pixels;size_t stride_bytes;} surface={1,pixels,480};
 static bool list_mode;
+static unsigned surface_format=RISC_DISPLAY_FORMAT_RGB565;
+static void np_pixel(int x,int y,uint32_t rgb,uint8_t alpha){(void)x;(void)y;(void)rgb;(void)alpha;assert(!"mono in Watch fixture");}
 static int width(void){return 240;}
 static int height(void){return 240;}
 static void clear_color(uint16_t c){for(unsigned i=0;i<240*240;i++)pixels[i]=c;}
@@ -61,7 +66,7 @@ static void snapshot(const char *name){
  for(unsigned i=0;i<240*240;i++){uint16_t v=pixels[i];uint8_t rgb[]={(uint8_t)((v>>11)*255/31),(uint8_t)(((v>>5)&63)*255/63),(uint8_t)((v&31)*255/31)};assert(fwrite(rgb,1,3,f)==3);}fclose(f);
 }
 #endif
-static void reset(void){app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=false;selected=scroll=detail_scroll=0;dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=launches=0;back_enabled=true;}
+static void reset(void){paper=NULL;paper_enable_needed=false;allow_write=write_bad=enable_bad=status_bad=rollback_bad=false;controls=writes=0;enabled=0;app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=false;selected=scroll=detail_scroll=0;dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=launches=0;back_enabled=true;}
 #ifdef BLE_RENDER
 int main(void){
  reset();message="Enable Bluetooth in controls";draw();snapshot("empty");
@@ -88,6 +93,15 @@ int main(void){
  reset();start_scan();restore_result=0;for(unsigned i=0;i<5;i++)pump();tick+=BLE_SCAN_MS;pump();assert(!token&&!grants&&restore_failed&&strstr(message,"restore failed"));
  reset();app_main();assert(!claims&&!grants);
  reset();input_mode=1;app_main();assert(input_step==3&&back_enabled&&launches==1&&!claims&&!grants);
+ static const paper_presentation paper_stub={.struct_size=sizeof(paper_stub)};
+ reset();paper=&paper_stub;policy=1;allow_write=true;paper_enable();assert(policy==3&&enabled==1&&controls==1&&writes==1&&!grants&&!claims&&!sends&&!paper_enable_needed);
+ reset();paper=&paper_stub;policy=PORTABLE_RADIO_AIRPLANE;allow_write=true;paper_enable();assert(policy==4&&!controls&&!writes&&!grants&&!claims);
+ reset();paper=&paper_stub;policy=PORTABLE_RADIO_WIFI|PORTABLE_RADIO_PREVIOUS_BLUETOOTH;allow_write=true;paper_enable();assert(policy==19&&enabled==1&&!grants);
+ reset();paper=&paper_stub;policy=1;allow_write=true;write_bad=true;paper_enable();assert(policy==1&&!enabled&&controls==2&&writes==2&&!grants&&!claims);
+ reset();paper=&paper_stub;policy=1;allow_write=true;enable_bad=true;paper_enable();assert(policy==1&&!enabled&&controls==2&&!writes&&!grants);
+ reset();paper=&paper_stub;policy=1;allow_write=true;status_bad=true;paper_enable();assert(!controls&&!writes&&!grants);
+ reset();paper=&paper_stub;policy=1;allow_write=true;enable_bad=rollback_bad=true;if(!setjmp(retention)){paper_enable();assert(!"Expected enable rollback retention");}assert(uncertain&&grants==2&&!claims);
+ reset();paper=&paper_stub;policy=1;allow_write=true;release_bad=true;if(!setjmp(retention)){paper_enable();assert(!"Expected enable grant retention");}assert(uncertain&&grants==2&&!claims);
  puts("BLE real app: policy, results/details/scroll, stop/retry, no implicit RF and retained cleanup passed");
 }
 

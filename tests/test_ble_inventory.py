@@ -7,7 +7,7 @@ class BleInventory(unittest.TestCase):
  def test_scanner_identity_and_capabilities(self):
   rows=inventory();self.assertEqual([a['id'] for a in rows],['ble_scanner'])
   side=json.loads((ROOT/'Apps/ble_scanner.json').read_text())
-  self.assertEqual(side['version'],'0.1.0');self.assertEqual(side['icon'],'solid:f7c0')
+  self.assertEqual(side['version'],'0.2.0');self.assertEqual(side['icon'],'solid:f7c0')
   self.assertEqual({r['capability'] for r in side['requires']},{'display.output','input.touch.raw','bluetooth.hci','alarm.service','storage.key-value'})
   self.assertEqual({r['capability'] for r in side['optional']},{'rtc.clock','net.wifi'})
  def test_no_new_keyboard_or_settings_pages(self):

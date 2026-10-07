@@ -223,7 +223,7 @@
     {
       "id": "ble_scanner",
       "display_name": "BLE Scanner",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_scanner.c",
@@ -231,7 +231,8 @@
       "file_name": "ble_scanner.elf",
       "additional_sources": [
         "Apps/ble_scan_core.h",
-        "lib/Bluetooth/include/PortableBluetoothHost.h"
+        "lib/Bluetooth/include/PortableBluetoothHost.h",
+        "Apps/ble_scanner_paper.inc"
       ],
       "min_firmware_version": "0.1.27"
     }
