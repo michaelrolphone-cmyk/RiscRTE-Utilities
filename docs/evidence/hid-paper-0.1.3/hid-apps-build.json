@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "purpose": "development-ble-hid-no-hardware-qualification",
+  "source_pins": {
+    "schema": 1,
+    "system_apps": "2aa0cf63346e507525af884bbfbf6b69313442c4",
+    "runtime_minimum": "0.1.34",
+    "hid_api": 1,
+    "hid_instance": 0,
+    "raw_touch_instance": 6,
+    "button_namespace": 11,
+    "radio_policy_namespace": 1,
+    "hid_header_sha256": "ccac0a0c70b6aa73233201c1289a6825b6976d8d6b1758e394995eed234bf1b7",
+    "runtime_prepare": "2317b4fca374bb2b9cfe8dd204aa22244d1db609",
+    "paper_raw_touch_binding": 4
+  },
+  "profile": {
+    "paper": false,
+    "defines": [
+      "-DPORTABLE_PAPER_HID",
+      "-DPORTABLE_ALARM_CLIENT",
+      "-DPORTABLE_RADIO_SESSION",
+      "-DPORTABLE_NOVA_UI",
+      "-DPORTABLE_APP_OWNS_TOUCH_CHROME",
+      "-DPORTABLE_QUICK_ACTIONS",
+      "-DPORTABLE_RETURN_APP=\"springboard.elf\"",
+      "-DPORTABLE_FORCE_FULL_FRAMES",
+      "-DPORTABLE_QUICK_RADIOS"
+    ],
+    "quick_sources": [
+      "quick_actions.c",
+      "quick_render.c",
+      "quick_session.c",
+      "quick_radios.c"
+    ]
+  },
+  "repository_sha": "59f5f6862fdf088ddd27cf7df816d8417dd8b3d3",
+  "working_tree_dirty": false,
+  "compiler": "xtensa-esp32s3-elf-gcc (crosstool-NG esp-2021r2-patch5) 8.4.0",
+  "apps": [
+    {
+      "id": "ble_touchpad",
+      "version": "0.1.3",
+      "size_bytes": 181952,
+      "sha256": "85ea4e80c7c9e3344220bf4b02d170214de0f77f3b555d6534d90290b2be1e1f",
+      "imports": [
+        "free",
+        "malloc",
+        "memcmp",
+        "memcpy",
+        "memset",
+        "risc_runtime_get_api",
+        "snprintf",
+        "strcmp",
+        "strcpy"
+      ]
+    },
+    {
+      "id": "ble_buttons",
+      "version": "0.1.3",
+      "size_bytes": 183424,
+      "sha256": "4ee61831bb3ce5ba390d429b6eb9c979b766913fa86988eb74f513840d8f20a0",
+      "imports": [
+        "free",
+        "malloc",
+        "memcmp",
+        "memcpy",
+        "memset",
+        "risc_runtime_get_api",
+        "snprintf",
+        "strcmp",
+        "strcpy"
+      ]
+    }
+  ],
+  "source_files": {
+    "Apps/ble_touchpad.c": "5ad5711190894599547fe4091e97b859395ff484fbc5359d9b3fd1ed6243ed14",
+    "Apps/ble_buttons.c": "8ec2eb9c3c45f88472de8eb81ed559dd82a1d4500e952d271fc5b67a148bc009",
+    "Apps/ble_hid_app.inc": "f34a76dc861a450061fa7d2dff56059cd6384dcfcc682331234452658e041d57",
+    "Apps/ble_hid_model.h": "f365ba9f7f6e8d8bdb3e9f8d554de4800896ae6a51cfaa4d11c8d74dfb8ac88c",
+    "Apps/ble_hid_paper.inc": "f928eadf030dd62d69b78ce722c37cdf25eeb9bd7a87bc32110055b47b2e943f",
+    "Apps/paper-hid.json": "0aab0521dda40bc3cdae2736ddb09696d33dcafb034060e823d7a80647c098c2"
+  }
+}

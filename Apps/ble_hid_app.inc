@@ -7,6 +7,12 @@
 #include "PortableNovaUi.h"
 #include "PortableAppSleep.h"
 #include "ble_hid_model.h"
+#ifdef PORTABLE_PAPER_HID
+#include "PaperPresentation.h"
+static const paper_presentation *paper;
+#else
+#define paper 0
+#endif
 #include <stdio.h>
 #if defined(PORTABLE_TOUCH_ROTATION) && PORTABLE_TOUCH_ROTATION != 0
 #error HID raw touch profile requires PORTABLE_TOUCH_ROTATION=0
@@ -32,7 +38,7 @@ static uint8_t held_contact;
 static bool button_gate;
 static unsigned selected,view;
 static uint32_t refreshed,reported,battery_at;
-static bool close_error,save_failed,pair_armed,pair_down,pair_sent;
+static bool close_error,save_failed,pair_armed,pair_down,pair_sent,paper_pair_release_gate;
 static bool pair_trace_down,pair_trace_cancelled,pair_trace_gap;
 static int pair_target,pair_x,pair_y;
 static uint8_t pair_id;
@@ -40,6 +46,8 @@ static uint32_t pair_began,ui_block_until;
 static const char *message;
 enum { HID_VIEW_MAIN, HID_VIEW_SETTINGS, HID_VIEW_EDIT, HID_VIEW_MODIFIERS, HID_VIEW_FORGET };
 static bool close_session(void);
+static int hid_width(void){return paper?480:240;}
+static int hid_height(void){return paper?800:240;}
 static void session_diagnostic(const char *stage){
  if(!hid||closing)return;
  risc_bluetooth_hid_status_v1 current={.struct_size=sizeof(current)};
@@ -115,11 +123,11 @@ static bool acquire_hid(void){
 }
 static bool open_raw(void){
  raw_grant=(risc_runtime_capability_v1){.struct_size=sizeof(raw_grant)};
- if(!runtime->acquire("input.touch.raw",1,6,&raw_grant)){message="Raw touch unavailable";return false;}
+ if(!runtime->acquire("input.touch.raw",1,paper?0:6,&raw_grant)){message="Raw touch unavailable";return false;}
  raw_acquired=true;raw=raw_grant.api;
  if(!raw||raw->api_version!=1||raw->struct_size<sizeof(*raw)||!raw->subscribe||!raw->unsubscribe||!raw->poll||!raw->next||!raw->snapshot){message="Raw touch update needed";return false;}
  subscription=raw->subscribe(raw->context);risc_touch_snapshot_v1 s={0};
- if(!subscription||!raw->snapshot(raw->context,&s)||s.width!=240||s.height!=240||s.contact_count>RISC_TOUCH_MAX_CONTACTS){message="Raw touch start failed";return false;}
+ if(!subscription||!raw->snapshot(raw->context,&s)||s.width!=hid_width()||s.height!=hid_height()||s.contact_count>RISC_TOUCH_MAX_CONTACTS){message="Raw touch start failed";return false;}
  sequence=s.sequence;hid_gesture_reset(&gesture,true);button_gate=true;return true;
 }
 static void update_battery(void){
@@ -136,10 +144,10 @@ static void start_session(bool pair){
  if(token||hid_acquired||raw_acquired)stop_session("Stopped");
  dirty=true;close_error=false;if(!policy_allowed())return;
  if(!acquire_hid()||!open_raw()){const char*s=message;stop_session(s);return;}
- token=0;bool ok=hid->open(hid->context,HID_TOUCHPAD?"Watch Touchpad":"Watch Buttons",pair,&token);
+ token=0;bool ok=hid->open(hid->context,paper?(HID_TOUCHPAD?"Paper Touchpad":"Paper Buttons"):(HID_TOUCHPAD?"Watch Touchpad":"Watch Buttons"),pair,&token);
  if(!ok||!token){session_diagnostic("open-failed");stop_session(pair?"Pair start failed - retry":"Reconnect failed / no bond");return;}
  had_ready=false;status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(status)};
- message=pair?"Find Watch in host Bluetooth":"Waiting for saved host";refreshed=reported=app->millis();battery_at=refreshed-30000u;update_battery();
+ message=pair?(paper?"Find Paper in host Bluetooth":"Find Watch in host Bluetooth"):"Waiting for saved host";refreshed=reported=app->millis();battery_at=refreshed-30000u;update_battery();
 }
 static void forget(void){
  stop_session("Stopped");
@@ -151,7 +159,7 @@ static bool send_assignment(const hid_assignment*a,bool pressed){
  if(a->kind==HID_ACTION_KEY){uint8_t keys[6]={0};if(pressed)keys[0]=a->key;return hid->keyboard(hid->context,token,pressed?a->modifiers:0,keys);}
  return hid->mouse(hid->context,token,pressed?a->buttons:0,pressed?a->dx:0,pressed?a->dy:0,pressed?a->wheel:0);
 }
-static int button_at(int x,int y){if(x<8||x>=232||y<80||y>=190|| (x>=116&&x<124)||(y>=131&&y<139))return -1;return (y>=139?2:0)+(x>=124?1:0);}
+static int button_at(int x,int y){if(paper){if(x<32||x>=448||y<224||y>=624||(x>=232&&x<248)||(y>=416&&y<432))return -1;return (y>=432?2:0)+(x>=248?1:0);}if(x<8||x>=232||y<80||y>=190|| (x>=116&&x<124)||(y>=131&&y<139))return -1;return (y>=139?2:0)+(x>=124?1:0);}
 static bool assignment_ready(const hid_assignment*a){
  uint32_t mask=RISC_HID_ENCRYPTED|RISC_HID_AUTHENTICATED|(a->kind==HID_ACTION_KEY?RISC_HID_KEYBOARD_READY:RISC_HID_MOUSE_READY);
  return token&&status.state==RISC_HID_READY&&(status.flags&mask)==mask;
@@ -168,7 +176,7 @@ static bool touch_buttons(const risc_touch_snapshot_v1*s,uint32_t now){
  return true;
 }
 static bool touch_pad(const risc_touch_snapshot_v1*s,uint32_t now){
- hid_gesture_output o=hid_gesture_sample(&gesture,s,now);
+ hid_gesture_output o=paper?hid_gesture_sample_bounds(&gesture,s,now,32,224,448,624):hid_gesture_sample(&gesture,s,now);
  if((o.dx||o.dy)&&!hid->mouse(hid->context,token,0,o.dx,o.dy,0))return false;
  if(o.click){if(!hid->mouse(hid->context,token,o.click,0,0,0))return false;if(!hid->mouse(hid->context,token,0,0,0,0))return false;}
  return true;
@@ -177,7 +185,7 @@ static bool touch_pad(const risc_touch_snapshot_v1*s,uint32_t now){
  * neutral pairing screen. A legacy pointer tap carried across a modal/start
  * can never approve pairing. Motion, extra contacts and event gaps cancel it. */
 static const char *pair_target_name(int target){return target==1?"accept":target==0?"reject":"outside";}
-static int pairing_target(int x,int y){return portable_nova_hit(x,y,8,196,108,44)?0:portable_nova_hit(x,y,124,196,108,44)?1:-1;}
+static int pairing_target(int x,int y){if(paper)return portable_nova_hit(x,y,32,688,200,88)?0:portable_nova_hit(x,y,248,688,200,88)?1:-1;return portable_nova_hit(x,y,8,196,108,44)?0:portable_nova_hit(x,y,124,196,108,44)?1:-1;}
 static void pairing_ignored(const char *reason){
  if(pair_trace_cancelled)return;
  char text[96];snprintf(text,sizeof(text),"HID pairing touch ignored reason=%s",reason);
@@ -189,7 +197,7 @@ static void pairing_sample(const risc_touch_snapshot_v1*s,uint32_t now){
   pair_trace_down=false;pair_trace_cancelled=false;
   if(pair_down&&pair_target>=0&&(uint32_t)(now-pair_began)>800)pairing_ignored("held-too-long");
   if(pair_down&&pair_target>=0&&(uint32_t)(now-pair_began)<=800){
-   bool accept=pair_target==1;ui_block_until=now+100;pair_sent=true;pair_down=false;
+   bool accept=pair_target==1;paper_pair_release_gate=true;ui_block_until=now+100;pair_sent=true;pair_down=false;
    char text[96];snprintf(text,sizeof(text),"HID pairing response action=%s requested",pair_target_name(pair_target));runtime->diagnostic(text);
    bool confirmed=hid->confirm_pairing(hid->context,token,accept);
    snprintf(text,sizeof(text),"HID pairing response action=%s result=%s",pair_target_name(pair_target),confirmed?"ok":"failed");runtime->diagnostic(text);
@@ -246,7 +254,7 @@ static void pump(void){
  if(rc==-2){stop_session("Touch error - reconnect");return;}
  if(rc<0||!polled)gap=true;
  risc_touch_snapshot_v1 sample={0};
- if(!raw->snapshot(raw->context,&sample)||sample.width!=240||sample.height!=240||sample.contact_count>RISC_TOUCH_MAX_CONTACTS){stop_session("Touch unavailable - reconnect");return;}
+ if(!raw->snapshot(raw->context,&sample)||sample.width!=hid_width()||sample.height!=hid_height()||sample.contact_count>RISC_TOUCH_MAX_CONTACTS){stop_session("Touch unavailable - reconnect");return;}
  if(sample.sequence!=sequence)gap=true;
  sequence=sample.sequence;
  if(status.state==RISC_HID_PAIR_CONFIRM&&gap&&!pair_trace_gap)runtime->diagnostic("HID pairing touch ignored reason=event-gap");
@@ -289,7 +297,13 @@ static void change_value(int delta){
  else if(draft.kind==HID_ACTION_WHEEL){static const int8_t values[]={1,-1,3,-3};unsigned n=0;while(n<3&&values[n]!=draft.wheel)n++;draft.wheel=values[((int)n+delta+4)%4];}
  else {static const int8_t values[][2]={{5,0},{-5,0},{0,5},{0,-5},{15,0},{-15,0},{0,15},{0,-15},{1,0},{-1,0},{0,1},{0,-1}};unsigned n=0;while(n<11&&(values[n][0]!=draft.dx||values[n][1]!=draft.dy))n++;n=(unsigned)((int)n+delta+12)%12;draft.dx=values[n][0];draft.dy=values[n][1];}
 }
+#ifdef PORTABLE_PAPER_HID
+#include "ble_hid_paper.inc"
+#endif
 static void draw(void){
+#ifdef PORTABLE_PAPER_HID
+ if(paper){paper_draw();return;}
+#endif
  char edit_title[24];snprintf(edit_title,sizeof(edit_title),"BUTTON %u",selected+1);
  portable_nova_begin();portable_nova_header(view==HID_VIEW_EDIT?(save_failed?"SAVE FAILED":edit_title):view==HID_VIEW_MODIFIERS?"MODIFIERS":view==HID_VIEW_SETTINGS?"HID SETTINGS":HID_TOUCHPAD?"BLE TOUCHPAD":"BLE BUTTONS");
  char text[64];
@@ -329,6 +343,9 @@ static bool back(void){
  if(!runtime->request_launch||!runtime->request_launch(PORTABLE_RETURN_APP)){message="Return failed - retry";dirty=true;return true;}return false;
 }
 static void tap(int x,int y){
+#ifdef PORTABLE_PAPER_HID
+ if(paper&&!paper_tap_map(&x,&y))return;
+#endif
  if((int32_t)(app->millis()-ui_block_until)<0)return;
  if(status.state==RISC_HID_PAIR_CONFIRM&&token)return;
  if(view==HID_VIEW_MODIFIERS){if(x>=8&&x<232&&y>=54&&y<238){unsigned col=(unsigned)(x-8)/116,row=(unsigned)(y-54)/46;if(col<2&&row<4&&x<8+(int)col*116+108&&y<54+(int)row*46+44){draft.modifiers^=(uint8_t)(1u<<(row*2+col));dirty=true;}}return;}
@@ -353,15 +370,23 @@ static void tap(int x,int y){
 }
 void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
- if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||app->screen_width()!=240||app->screen_height()!=240||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
+ if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
+#ifdef PORTABLE_PAPER_HID
+ paper_pair_release_gate=false;hp_contact_down=hp_release_seen=false;paper=paper_presentation_get();
+ if(paper&&(paper->struct_size<sizeof(*paper)||!paper->begin||!paper->text||!paper->measure||!paper->contact))return;
+#endif
+ if(app->screen_width()!=hid_width()||app->screen_height()!=hid_height())return;
  hid=0;raw=0;hid_acquired=raw_acquired=held_acquired=closing=had_ready=close_error=save_failed=pair_armed=pair_down=pair_sent=false;token=subscription=sequence=0;held_button=-1;button_gate=true;view=HID_VIEW_MAIN;selected=0;dirty=true;message="Pair or reconnect in Settings";status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(status)};hid_gesture_reset(&gesture,true);load_assignments();
  pair_trace_down=pair_trace_cancelled=pair_trace_gap=false;
  ui_block_until=app->millis();app->set_back_exits_app(false);
  for(;;){
-  if(dirty)draw();
+  if(dirty&&(!paper||held_button<0))draw();
   t5_app_input_t input={0};if(!app->poll(&input,20)){if(portable_app_sleep_retained())return;break;}
   if(input.exit_requested)break;
-  if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44))){if(!back())break;continue;}
+#ifdef PORTABLE_PAPER_HID
+  if(paper)paper_input(&input);
+#endif
+  if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,paper?32:8,paper?16:4,paper?64:44,paper?88:44))){if(!back())break;continue;}
   if(input.tapped)tap(input.touch_x,input.touch_y);
   pump();
  }

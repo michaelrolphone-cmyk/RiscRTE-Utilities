@@ -64,7 +64,23 @@ static void alarm_retry(void) {
     (void)portable_time_format_load(alarm_preferences,&alarm_time_format);volume_load();
 #endif
 }
+#ifdef PORTABLE_PAPER_UTILITIES
+#if DAILY_ALARM_KIND == 2
+#include "countdown_paper.inc"
+#else
+#include "alarms_paper.inc"
+#endif
+#endif
 static void draw(void) {
+#ifdef PORTABLE_PAPER_UTILITIES
+    if(utility_paper){
+#if DAILY_ALARM_KIND == 2
+        countdown_paper_draw();
+#else
+        alarms_paper_draw();
+#endif
+        return;}
+#endif
     char value[40],caption[40];unsigned shown[3]={values[0],values[1],values[2]};
     portable_nova_begin();portable_nova_header(DAILY_ALARM_KIND==1?"ALARMS":"COUNTDOWN");
     if(alarm_page==0) {
@@ -146,6 +162,15 @@ static bool alarm_back(void) {
     return true;
 }
 static bool alarm_tap(int x,int y) {
+#ifdef PORTABLE_PAPER_UTILITIES
+    if(utility_paper) {
+#if DAILY_ALARM_KIND == 2
+        return countdown_paper_tap(x,y);
+#else
+        return alarms_paper_tap(x,y);
+#endif
+    }
+#endif
     bool alert=service_valid && service_state.occurrence.generation;
     if(alarm_page==0) {
 #if DAILY_ALARM_KIND == 1

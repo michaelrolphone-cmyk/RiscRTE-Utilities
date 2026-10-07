@@ -1,4 +1,4 @@
-# BLE Touchpad 0.1.1
+# BLE Touchpad 0.1.3
 
 A portable Nova7 touchscreen mouse for the Watch's 240×240 raw touch surface.
 It is built from `Apps/ble_touchpad.c` and the shared HID application/model;
@@ -44,3 +44,6 @@ session waits for its saved host; after a pause, explicitly choose Reconnect.
 See [Watch integration requirements](../BLE_HID_INTEGRATION.md). Host fixtures,
 real Nova rasterization and target ELF validation are development evidence;
 physical input latency and host/device interoperability remain unqualified.
+
+See [Nova7 paper HID](../BLE_HID_PAPER.md) for the capability-selected 480×800
+presentation, paper grants, Home/Back targets and verification evidence.

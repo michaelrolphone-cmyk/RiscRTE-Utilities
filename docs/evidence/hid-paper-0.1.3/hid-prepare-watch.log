@@ -1,0 +1,3 @@
+ble_touchpad: production Runtime prepare accepts canonical package; rejects unsupported field and missing grant
+ble_buttons: production Runtime prepare accepts canonical package; rejects unsupported field and missing grant
+Runtime source: 2317b4fca374bb2b9cfe8dd204aa22244d1db609

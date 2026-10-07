@@ -16,17 +16,42 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 2d16d9dfa7abc50ce916eebc11d81423adef0000
+          ref: fcdb5b0a54a11a407bf68c6e35ac2548471cd9f1
           path: .dependencies/waterfall-system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: ffbac0fdb117de62e6fce19baa4dc090f5f44404
+          path: .dependencies/paper-system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 4a0891fc0ec10dcd100c6248768cabecaafec888
+          path: .dependencies/runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: cf30d732271db19a74492d4753736cafeafb92bb
+          path: .dependencies/watch
           persist-credentials: false
       - uses: actions/setup-python@v5
         with: {python-version: '3.11'}
       - run: python scripts/test_waterfall.py --system-apps .dependencies/waterfall-system
+      - run: python scripts/test_rf_models.py
+      - name: Exercise RF controller, Watch touch, paper display and real storage backend
+        run: python scripts/test_rf_application.py --system-apps .dependencies/waterfall-system --watch-quick-system .dependencies/waterfall-system --x4-system .dependencies/paper-system --runtime .dependencies/runtime --watch .dependencies/watch
       - run: python -m pip install platformio==6.1.19
       - run: pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
       - run: python scripts/build_waterfall.py --system-apps .dependencies/waterfall-system
+      - run: python scripts/build_waterfall.py --system-apps .dependencies/paper-system --presentation paper --home-app default.elf --quick-actions
       - uses: actions/upload-artifact@v4
         with:
           name: waterfall-${{ github.event.pull_request.head.sha || github.sha }}
-          path: dist/waterfall/
+          path: |
+            dist/waterfall-watch/
+            dist/waterfall-paper/
+            build/rf-application/
           if-no-files-found: error
