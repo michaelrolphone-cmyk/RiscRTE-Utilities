@@ -116,3 +116,8 @@ available Font Awesome masks, and were visually inspected for clipping and layou
 No Runtime/product edits, hardware/radio actions, merges, releases or BIN
 qualification are part of this checkpoint. Physical panel latency, actual host
 interoperability and device power behavior remain integration qualification.
+
+The [verification receipt](evidence/hid-paper-0.1.3/verification.json), complete
+normal/UBSan logs, generated manifests and clean-build receipts are checked in
+under `docs/evidence/hid-paper-0.1.3/`. Those receipts identify the exact source
+commit; subsequent evidence-only changes do not alter ELF inputs.
