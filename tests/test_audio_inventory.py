@@ -11,7 +11,7 @@ class AudioInventory(unittest.TestCase):
         apps=inventory()
         self.assertEqual([x['id'] for x in apps],['frequency_generator','audio_spectrum'])
         side=json.loads((ROOT/'Apps/frequency_generator.json').read_text())
-        self.assertEqual(side['version'],'0.1.4')
+        self.assertEqual(side['version'],'0.1.10')
         self.assertEqual(side['min_firmware_version'],'0.1.16')
         self.assertEqual([r['capability'] for r in side['requires']],
             ['display.output','input.touch.raw','audio.output','alarm.service'])
@@ -70,7 +70,7 @@ class AudioInventory(unittest.TestCase):
     def test_spectrum_declares_alarm_and_input(self):
         side=json.loads((ROOT/'Apps/audio_spectrum.json').read_text())
         self.assertEqual(side['category'],['Audio Tools'])
-        self.assertEqual(side['version'],'0.4.5')
+        self.assertEqual(side['version'],'0.4.11')
         self.assertEqual(side['requires'][-2]['api'],'>=2')
         self.assertEqual(side['requires'][-1],{'capability':'storage.app-data','api':'>=1'})
         self.assertEqual(side['min_firmware_version'],'0.1.32')

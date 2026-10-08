@@ -1,3 +1,6 @@
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+#include "PortableBackgroundServices.h"
+#endif
 /* Original portable LoRa Messages application. The installed provider owns
  * hardware. Packets are raw broadcasts, without delivery receipts/encryption. */
 #include "T5AppApi.h"
@@ -40,8 +43,8 @@ static const char *field_help(unsigned field){
  return field==2?"5 to 12":field==3?"5 to 8":"8 to 4096";
 }
 static void retain(void){
-#ifdef PORTABLE_BLE_BROADCAST
- while(!portable_broadcast_stop())runtime->yield_ms(50);
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+ while(!portable_background_stop())runtime->yield_ms(50);
 #endif
 runtime->diagnostic("LORA cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
 bool portable_radio_services_safe(void){return !model.uncertain;}

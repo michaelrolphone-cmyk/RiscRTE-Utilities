@@ -1,4 +1,4 @@
-# Waterfall 0.2.0: RF spectrum, history and learned events
+# Waterfall: RF spectrum, history and learned events 0.2.6
 
 Waterfall uses receive-only complex IQ bursts through the generic `radio.iq@1`
 capability. It provides the Spectrum application's SPEC, FALL and MONITOR views,
@@ -157,3 +157,7 @@ fortify overflow checks; GCC11/glibc2.35 and GCC14/glibc2.41 are covered.
 These are software checks; the new extended captures and X4 RF receive path
 still require physical qualification. The hardware-accepted Watch1.0.7 release
 retains its earlier app/provider bytes independently of this next increment.
+
+## Contexts development integration
+
+This source version can opt into the awake Contexts lifecycle. A pending export reads saved preferences and signatures through this app's own storage grant before opening UI or capture; ordinary foreground launches retain their existing behavior. The shared background cleanup fence pauses Contexts before BLE and stops on unconfirmed cleanup. This is source development, not a new installed Watch release. See [Contexts service](../CONTEXTS_SERVICE.md).

@@ -1,3 +1,6 @@
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+#include "PortableBackgroundServices.h"
+#endif
 #include "T5AppApi.h"
 #include "RiscRuntimeV1.h"
 #include "daily_draw.h"
@@ -79,8 +82,8 @@ bool portable_radio_suspend(void) {
 }
 
 static void waterfall_yield(void) {
-#ifdef PORTABLE_BLE_BROADCAST
-    while(!portable_broadcast_stop())waterfall_runtime->yield_ms(50);
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+    while(!portable_background_stop())waterfall_runtime->yield_ms(50);
 #endif
     waterfall_runtime->yield_ms(50);
 }

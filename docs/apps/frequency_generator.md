@@ -1,4 +1,4 @@
-# Frequency Generator 0.1.4
+# Frequency Generator 0.1.10
 
 Shared Utilities application `frequency_generator.elf`. This is a development
 app for the existing `audio.output@1` provider and portable foreground adapter.
@@ -69,3 +69,7 @@ before screens through the same real adapter for comparison.
 Target ELFs also require the common Audio Tools build, import/export and actual
 loader checks. Host tests and target builds do not qualify physical loudness,
 distortion, clock accuracy, DMA underruns, alarm timing or hardware cleanup.
+
+## Contexts development integration
+
+This source version can opt into the awake Contexts lifecycle. The shared background cleanup fence pauses Contexts before BLE and stops on unconfirmed cleanup. This is source development, not a new installed Watch release. See [Contexts service](../CONTEXTS_SERVICE.md).
