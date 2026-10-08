@@ -1,0 +1,43 @@
+name: Contexts service and editor
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contexts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 1b57a8060f6a9833d0ecdd27bb2bb1bd4b5cb876
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Drivers
+          ref: 4088b6892c2e2654b0342f04a7d191068e4a8e2e
+          path: .dependencies/drivers
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: ad956b518e99fa380419892a87e6367e3980dcd0
+          path: .dependencies/runtime
+          persist-credentials: false
+      - name: Verify copied service contract
+        run: cmp lib/Contexts/include/ContextsServiceV1.h .dependencies/system/lib/PortableApps/include/ContextsServiceV1.h
+      - name: Test production service, owner export and real Nova7 editor
+        run: |
+          python3 scripts/test_contexts_service.py --drivers .dependencies/drivers --runtime .dependencies/runtime --system-apps .dependencies/system
+          python3 scripts/test_contexts_app.py --system-apps .dependencies/system
