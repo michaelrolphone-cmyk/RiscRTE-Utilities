@@ -62,9 +62,25 @@ except through its original owner.
 
 The caller supplies a copied enabled/awake/source policy and separate audio/RF
 permission flags for each bounded `step`. There is no task, timer, Runtime poll
-callback or autonomous capture. One microphone read consumes at most 256 mono
-16 kHz frames; one canonical audio observation requires a genuine 512-frame
-window. RF consumes one genuine configured 256-pair burst at most every 100 ms.
+callback or autonomous capture. Microphone draining accounts 16 frames per
+elapsed millisecond and reads only complete owed 256-frame DMA quanta, keeping
+the fractional debt for a later call. Native RX has two 256-frame buffers, so
+callers must service capture within 16 ms while drawing or servicing input.
+The appended `capture_audio` method only drains an already-owned, permitted RX
+and updates copied inference state. It never opens capture, accesses RF or
+storage, exports models, or applies presets. The full `step` remains the sole
+open/configure/selection point.
+
+A drain permits at most two chunks and checks an 8 ms work budget after each
+read; an individual existing native read can still take up to its 40 ms bound.
+Empty/short reads resynchronize to actual returned input rather than inventing
+samples. A canonical audio observation requires a genuine 512-frame window.
+The finite 512-frame producer fixture sustains capture checkpoints every 8 ms
+with full policy steps 120 ms apart, without overflow or speculative partial
+reads. Missing the deadline discards continuity; ordinary 40–120 ms policy
+polling alone cannot support continuous audio. Physical DSP and rendering cost
+are not inferred from this host result.
+RF consumes one genuine configured256-pair burst at most every100ms.
 The intervals between RF bursts are unobserved. Complete format and receiver
 identity checks precede RF inference.
 
@@ -79,9 +95,13 @@ authorizes an RF suspend retry.
 Failed microphone close or RF cleanup returns false. Only cleanup retries and
 copied status remain legal until custody is clear; no normal capture or export
 continues. Successful pause invalidates live observations and discards partial
-signal windows. Resume establishes fresh room evidence. Empty microphone reads
-are waits; late reads discard partial frames and stale observations are never
-reported as current.
+signal windows. Resume establishes fresh room evidence. An unpolled gap of 32 ms
+or more closes the owned RX and resets observation/DSP state, discarding
+overflow-prone queued input. If the bounded drain cannot catch up, status reports
+an input error and no current label until it can; background monitoring never
+extends an idle deadline. Capture-only calls cannot reopen a closed RX. A failed
+close returns false and requires the client to enter its retained invocation
+fence before further foreground provider I/O.
 
 Status carries exact source, saved slot, name, generation, confidence, ambiguity,
 sample count and age. Room validity excludes held, verifying and ambiguous

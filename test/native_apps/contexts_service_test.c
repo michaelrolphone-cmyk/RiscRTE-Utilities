@@ -13,10 +13,23 @@ static const risc_driver_v2 *driver;
 static const contexts_service_v1 *service;
 static uint64_t now;
 static unsigned opens,reads,closes,bursts,suspends,position;
-static bool mic_live,close_fail,open_fail,read_fail,empty_read,bad_format;
+static bool mic_live,close_fail,open_fail,read_fail,empty_read,bad_format,clocked;
+static uint64_t producer_at,produced,consumed,queued;
+static unsigned read_delay,overruns;
+static unsigned dsp_delay,dsp_clock_countdown;
+static bool dsp_regression;
+static void advance_producer(void){
+    if(!clocked||!mic_live)return;
+    uint64_t added=(now-producer_at)*16u;produced+=added;queued+=added;producer_at=now;
+    if(queued>512u){overruns++;queued=512u;}
+}
 static int rf_result;
 static unsigned audio_frequency=1250,rf_bin=23;
-static uint64_t millis(void *c){(void)c;return now;}
+static uint64_t millis(void *c){
+    (void)c;
+    if(dsp_clock_countdown&&!--dsp_clock_countdown){now+=dsp_delay;if(dsp_regression)--now;}
+    return now;
+}
 static void pcm(int16_t *p,unsigned start,unsigned n,unsigned hz) {
     for(unsigned i=0;i<n;i++)p[i]=(int16_t)(6000*sin(6.283185307179586*(double)(start+i)*hz/16000.0));
 }
@@ -27,9 +40,14 @@ static void iq(uint32_t *p,unsigned count,unsigned bin) {
         p[k]=((uint32_t)i&1023u)|(((uint32_t)q&1023u)<<10);
     }
 }
-static bool mic_open(void *c,uint32_t rate){(void)c;assert(rate==16000&&!mic_live);opens++;mic_live=true;return !open_fail;}
-static bool mic_read(void *c,int16_t *p,size_t count,size_t *got){(void)c;assert(mic_live&&count==256);reads++;*got=empty_read?0:count;if(*got){pcm(p,position,(unsigned)count,audio_frequency);position+=(unsigned)count;}return !read_fail;}
-static bool mic_close(void *c){(void)c;assert(mic_live);closes++;if(close_fail)return false;mic_live=false;return true;}
+static bool mic_open(void *c,uint32_t rate){(void)c;assert(rate==16000&&!mic_live);opens++;mic_live=true;producer_at=now;queued=produced=consumed=0;return !open_fail;}
+static bool mic_read(void *c,int16_t *p,size_t count,size_t *got){
+    (void)c;assert(mic_live&&count==256);reads++;*got=empty_read?0:count;
+    if(clocked){advance_producer();if(queued<256u)*got=0;queued-=*got;consumed+=*got;}
+    if(*got){pcm(p,position,(unsigned)*got,audio_frequency);position+=(unsigned)*got;}
+    now+=read_delay;if(*got&&(dsp_delay||dsp_regression))dsp_clock_countdown=2;return !read_fail;
+}
+static bool mic_close(void *c){(void)c;assert(mic_live);advance_producer();closes++;if(close_fail)return false;mic_live=false;return true;}
 static int capture(void *c,uint32_t *p,uint32_t count,const risc_radio_iq_settings_v1 *settings,risc_radio_iq_format_v1 *format) {
     (void)c;assert(count==256&&settings&&format->struct_size==sizeof(*format));bursts++;
     if(rf_result)return rf_result;
@@ -90,7 +108,7 @@ int main(void) {
     assert(s.audio.signatures_ready&&!s.audio.temporal_ready&&!s.audio.neural_ready);
     assert(s.audio.current&&s.radio.current&&s.audio.age_ms<=32&&s.radio.age_ms<=100);
     uint32_t initial_entry=s.audio.room_entry;
-    audio_frequency=0;step(2);assert(!status().audio.room_valid);
+    audio_frequency=0;step(4);assert(!status().audio.room_valid);
     audio_frequency=1250;step(2);assert(!status().audio.room_valid);
     step(130);assert(status().audio.room_valid&&status().audio.room_entry==initial_entry);
     audio_frequency=3750;step(4);assert(status().audio.event_valid&&status().audio.event_slot==2&&!strcmp(status().audio.event_name,"Clink"));
@@ -122,7 +140,7 @@ int main(void) {
     policy.audio_allowed=policy.radio_allowed=true;rf_result=RISC_RADIO_IQ_BUSY;unsigned before_suspend=suspends;step(10);assert(suspends==before_suspend&&status().radio.capture_error==RISC_RADIO_IQ_BUSY);
     rf_result=RISC_RADIO_IQ_CLEANUP_RETAINED;now+=5000;assert(!service->step(NULL,&policy)&&status().cleanup_pending);
     close_fail=true;assert(!service->pause(NULL));before_reads=reads;before_bursts=bursts;
-    close_fail=false;assert(service->pause(NULL)&&suspends==before_suspend+1);assert(reads==before_reads&&bursts==before_bursts);
+    before_suspend=suspends;close_fail=false;assert(service->pause(NULL)&&suspends==before_suspend+1);assert(reads==before_reads&&bursts==before_bursts);
     rf_result=0;policy.awake=false;step(10);assert(!mic_live&&bursts==before_bursts);
     policy.awake=true;export_source(CONTEXTS_AUDIO,true);audio_frequency=1250;now+=5000;step(1100);
     s=status();assert(s.audio.room_ambiguous&&!s.audio.room_valid&&s.audio.model_generation>1);
@@ -137,6 +155,34 @@ int main(void) {
     open_fail=false;now+=5000;step(3);assert(mic_live);read_fail=true;step(1);assert(!mic_live&&status().audio.capture_error==2);
     read_fail=false;now+=5000;step(130);empty_read=true;step(40);assert(!status().audio.current&&!status().audio.room_valid);empty_read=false;step(2);assert(!status().audio.room_valid);
     policy.radio_allowed=true;bad_format=true;now+=5000;step(1);assert(!status().radio.current&&status().radio.capture_error==RISC_RADIO_IQ_BAD_ARGUMENT);bad_format=false;
+    assert(service->pause(NULL));policy.sources=CONTEXTS_AUDIO;policy.radio_allowed=false;audio_frequency=1250;clocked=true;overruns=0;
+    const unsigned cadences[]={8,16,20,24};
+    for(unsigned cadence=0;cadence<4;cadence++) {
+        assert(service->pause(NULL));now+=16;assert(service->step(NULL,&policy));
+        for(unsigned tick=0;tick<600;tick++){now+=cadences[cadence];assert(service->step(NULL,&policy));advance_producer();assert(consumed+queued==produced&&queued<256u&&!overruns);}
+        assert(status().audio.room_valid&&status().audio.current);
+    }
+    /* Long UI frames are safe only because real capture checkpoints service
+     * the two-buffer RX queue while the full policy step is120ms apart. */
+    assert(service->pause(NULL));now+=16;assert(service->step(NULL,&policy));
+    unsigned prior_opens=opens,prior_bursts=bursts;
+    for(unsigned tick=1;tick<=1000;tick++) {
+        now+=8;if(tick%15==0)assert(service->step(NULL,&policy));else assert(service->capture_audio(NULL));
+        advance_producer();assert(consumed+queued==produced&&queued<256u&&!overruns);
+    }
+    assert(status().audio.room_valid&&opens==prior_opens&&bursts==prior_bursts);
+    now+=40;advance_producer();assert(overruns&&service->capture_audio(NULL)&&!mic_live&&!status().audio.current);
+    before_reads=reads;now+=20;assert(service->capture_audio(NULL)&&opens==prior_opens&&reads==before_reads);
+    assert(service->step(NULL,&policy)&&opens==prior_opens+1&&!status().audio.room_valid);
+    read_delay=9;before_reads=reads;now+=24;assert(service->capture_audio(NULL));assert(reads==before_reads+1&&!status().audio.current&&status().audio.capture_error==5);read_delay=0;
+    assert(service->pause(NULL));assert(service->step(NULL,&policy));dsp_delay=24;now+=16;
+    assert(service->capture_audio(NULL)&&mic_live&&!status().audio.current&&status().audio.capture_error==5);dsp_delay=0;
+    assert(service->pause(NULL));assert(service->step(NULL,&policy));dsp_delay=32;now+=16;
+    assert(service->capture_audio(NULL)&&!mic_live&&!status().audio.current&&status().audio.capture_error==5);dsp_delay=0;
+    assert(service->step(NULL,&policy));read_delay=2;dsp_regression=true;now+=16;
+    assert(service->capture_audio(NULL)&&!mic_live&&!status().audio.current&&status().audio.capture_error==4);read_delay=0;dsp_regression=false;
+    assert(service->pause(NULL));before_reads=reads;prior_opens=opens;now+=200;assert(service->capture_audio(NULL)&&reads==before_reads&&opens==prior_opens);
+    assert(service->step(NULL,&policy));close_fail=true;now+=40;assert(!service->capture_audio(NULL)&&status().cleanup_pending);before_reads=reads;assert(!service->capture_audio(NULL)&&reads==before_reads);close_fail=false;assert(service->pause(NULL));
     assert(driver->quiesce());driver->stop();assert(!service->step(NULL,&policy));
     printf("Contexts: actual PCM/IQ room inference, copied owner exports, model identity, ambiguity, staleness, once-per-room presets, no training, exclusive pause and retained cleanup PASS\n");
 }

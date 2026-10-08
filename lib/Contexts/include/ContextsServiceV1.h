@@ -78,4 +78,10 @@ typedef struct {
                          uint32_t model_generation);
     bool (*preset_result)(void *,uint32_t source,uint32_t model_generation,
                           uint32_t result);
+    /* Capture-only foreground checkpoint: service an already-owned permitted
+     * RX, never open/configure, touch RF/storage, export or apply presets.
+     * Call within 16 ms while drawing/servicing input. Complete 256-frame
+     * quanta only; the native two-buffer queue has a 32 ms deadline. False
+     * latches cleanup failure before any later foreground provider I/O. */
+    bool (*capture_audio)(void *);
 } contexts_service_v1;

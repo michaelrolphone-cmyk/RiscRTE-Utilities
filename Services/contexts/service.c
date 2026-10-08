@@ -15,6 +15,9 @@
 #define EVENT_HOLD_MS 2000u
 #define RETRY_MS 5000u
 #define RF_INTERVAL_MS 100u
+#define AUDIO_DRAIN_CHUNKS 2u
+#define AUDIO_DRAIN_MS 8u
+#define AUDIO_GAP_MS 32u
 typedef struct {
     spectrum_signature signatures[8];
     uint32_t means[8][128];
@@ -38,7 +41,7 @@ static const twatch_audio_in_api_v1 *microphone;
 static const risc_radio_iq_extended_api_v1 *receiver;
 static const risc_platform_clock_api_v1 *clock_api;
 static contexts_status_v1 view;
-static bool started,busy,audio_owned,radio_retained,audio_active,radio_active;
+static bool started,busy,audio_owned,radio_retained,audio_active,radio_active,audio_permitted;
 static bool have_observation[2];
 static uint16_t exported[2];
 static bool export_invalid[2];
@@ -46,7 +49,8 @@ static uint32_t record_digest[2][9],model_digest[2];
 static char claimed_name[CONTEXTS_NAME_SIZE];
 static struct {int32_t slot;uint32_t generation;char name[17];bool known;} room_identity[2];
 static uint64_t observed[2],event_at[2],retry_at[2],radio_at;
-static uint64_t last_pcm;
+static uint64_t last_pcm,audio_accounted;
+static uint32_t audio_debt;
 static uint32_t foreground[128],residual[8][128],pairs[256];
 static contexts_source_status_v1 *source_status(uint32_t source) {
     return source==CONTEXTS_AUDIO?&view.audio:source==CONTEXTS_RADIO?&view.radio:NULL;
@@ -78,6 +82,7 @@ static bool close_radio(void) {
     radio_retained=false;reset_radio();return true;
 }
 static bool pause_internal(void) {
+    audio_permitted=false;
     invalidate(&view.audio);invalidate(&view.radio);
     if(!close_audio()||!close_radio())return false;
     view.cleanup_pending=false;view.state=CONTEXTS_PAUSED;return true;
@@ -148,6 +153,56 @@ static void radio_observe(uint64_t now,const rf_capture_identity *identity) {
     if(view.radio.samples<UINT32_MAX)++view.radio.samples;
     observed[1]=now;have_observation[1]=true;view.radio.current=true;view.radio.capture_error=0;
 }
+static bool audio_drain(uint64_t now) {
+    if(now<audio_accounted||now-audio_accounted>=AUDIO_GAP_MS) {
+        /* An unpolled/overflow-prone interval has no contiguous event evidence.
+         * Reopen our own RX on the next permitted step to discard stale DMA. */
+        view.audio.capture_error=5;return close_audio();
+    }
+    audio_debt+=(uint32_t)(now-audio_accounted)*16u;audio_accounted=now;
+    if(audio_debt>16u*AUDIO_GAP_MS){view.audio.capture_error=5;return close_audio();}
+    const uint64_t began=now;
+    for(unsigned chunk=0;chunk<AUDIO_DRAIN_CHUNKS&&audio_debt>=256u;chunk++) {
+        int16_t pcm[256];size_t wanted=256u,got=0;
+        if(!microphone->read(microphone->context,pcm,wanted,&got)||got>wanted) {
+            view.audio.capture_error=2;retry_at[0]=now+RETRY_MS;return close_audio();
+        }
+        uint64_t stamp=clock_api->monotonic_ms(clock_api->context);
+        if(stamp==UINT64_MAX||stamp<audio_accounted||stamp-audio_accounted>=AUDIO_GAP_MS) {
+            view.audio.capture_error=4;return close_audio();
+        }
+        audio_debt+=(uint32_t)(stamp-audio_accounted)*16u;audio_accounted=stamp;
+        if(!got) {
+            /* An empty native read is a wait, not missing synthetic PCM. */
+            audio_debt=0;
+            if(stamp<last_pcm||stamp-last_pcm>=AUDIO_GAP_MS){reset_audio();audio_active=true;}
+            return true;
+        }
+        audio_debt-=(uint32_t)got;
+        if(stamp<last_pcm||stamp-last_pcm>=AUDIO_GAP_MS)reset_audio();
+        last_pcm=stamp;
+        uint32_t before=a.analyzer.transforms;
+        if(!spectrum_signature_feed(&a.analyzer,pcm,got)) {
+            view.audio.capture_error=3;retry_at[0]=stamp+RETRY_MS;return close_audio();
+        }
+        if(a.analyzer.transforms!=before)audio_observe(stamp);
+        if(got<wanted){audio_debt=0;return true;}
+        uint64_t after=clock_api->monotonic_ms(clock_api->context);
+        if(after==UINT64_MAX||after<audio_accounted){view.audio.capture_error=4;return close_audio();}
+        if(after-audio_accounted>=AUDIO_GAP_MS){view.audio.capture_error=5;return close_audio();}
+        /* FFT and inference work also produces native RX frames. Account for
+         * them before returning copied evidence or checking the drain budget. */
+        audio_debt+=(uint32_t)(after-audio_accounted)*16u;audio_accounted=after;
+        if(audio_debt>16u*AUDIO_GAP_MS){view.audio.capture_error=5;return close_audio();}
+        if(after-began>=AUDIO_DRAIN_MS)break;
+    }
+    if(audio_debt>=256u) {
+        /* The bounded step could not catch up. Keep custody but expose no
+         * current label and discard partial/hysteresis state until it can. */
+        reset_audio();view.audio.capture_error=5;
+    }
+    return true;
+}
 static bool audio_step(uint64_t now) {
     if(retry_at[0]&&now<retry_at[0]&&retry_at[0]-now<=RETRY_MS)return true;
     if(!audio_owned) {
@@ -155,27 +210,19 @@ static bool audio_step(uint64_t now) {
         if(!microphone->open(microphone->context,16000u)) {
             view.audio.capture_error=1;retry_at[0]=now+RETRY_MS;return close_audio();
         }
-        audio_active=true;retry_at[0]=0;observed[0]=last_pcm=now;
+        audio_active=true;retry_at[0]=0;
+        audio_accounted=last_pcm=clock_api->monotonic_ms(clock_api->context);audio_debt=0;
+        if(audio_accounted==UINT64_MAX){view.audio.capture_error=4;return close_audio();}
+        return true; /* Do not make a speculative blocking read on a fresh RX. */
     }
-    int16_t pcm[256];size_t got=0;
-    if(!microphone->read(microphone->context,pcm,256,&got)||got>256) {
-        view.audio.capture_error=2;retry_at[0]=now+RETRY_MS;return close_audio();
-    }
-    if(!got) {
-        if(now<observed[0]||now-observed[0]>FRESH_MS){reset_audio();audio_active=true;}
-        return true;
-    }
-    if(now<last_pcm||now-last_pcm>=128u) {
-        a.analyzer.used=0;spectrum_background_interrupt(&a.background);
-        invalidate(&view.audio);view.audio.event_slot=-1;view.audio.event_name[0]=0;
-    }
-    last_pcm=now;
-    uint32_t before=a.analyzer.transforms;
-    if(!spectrum_signature_feed(&a.analyzer,pcm,got)) {
-        view.audio.capture_error=3;retry_at[0]=now+RETRY_MS;return close_audio();
-    }
-    if(a.analyzer.transforms!=before)audio_observe(now);
-    return true;
+    return audio_drain(now);
+}
+static bool capture_audio(void *context) {
+    (void)context;if(!enter())return false;
+    if(view.cleanup_pending){leave();return false;}
+    if(!audio_permitted||!audio_owned){leave();return true;}
+    uint64_t now=clock_api->monotonic_ms(clock_api->context);
+    bool ok=audio_drain(now);leave();return ok;
 }
 static bool radio_step(uint64_t now) {
     if(retry_at[1]&&now<retry_at[1]&&retry_at[1]-now<=RETRY_MS)return true;
@@ -219,10 +266,15 @@ static bool step(void *context,const contexts_policy_v1 *p) {
     }
     bool audio=p->audio_allowed&&audio_ready;
     bool radio=p->radio_allowed&&radio_ready;
+    audio_permitted=audio;
     if(!audio&&!close_audio()){leave();return false;}
     if(!radio&&!close_radio()){leave();return false;}
     if(audio&&!audio_step(now)){leave();return false;}
-    if(radio&&!radio_step(now)){leave();return false;}
+    if(radio) {
+        now=clock_api->monotonic_ms(clock_api->context);
+        if(now==UINT64_MAX){bool ok=pause_internal();leave();return ok;}
+        if(!radio_step(now)){leave();return false;}
+    }
     view.state=audio||radio?CONTEXTS_LIVE:CONTEXTS_PAUSED;
     leave();return true;
 }
@@ -373,6 +425,6 @@ static void stop(void) {
     started=false;microphone=NULL;receiver=NULL;clock_api=NULL;
 }
 static const contexts_service_v1 api={1,sizeof(api),NULL,step,pause_service,status,
-    request_export,begin_export,export_record,finish_export,label,claim_preset,preset_result};
+    request_export,begin_export,export_record,finish_export,label,claim_preset,preset_result,capture_audio};
 static const risc_driver_v2 driver={2,sizeof(driver),"contexts-service",CONTEXTS_SERVICE_CAPABILITY,1,&api,start,stop,quiesce};
 __attribute__((visibility("default"))) const risc_driver_v2 *t5_driver_get(uint32_t abi){return abi==2?&driver:NULL;}
