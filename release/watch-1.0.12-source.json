@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "repository": "michaelrolphone-cmyk/RiscRTE-Utilities",
+  "tag": "watch-v1.0.12",
+  "title": "Watch 1.0.12 source snapshot",
+  "source": {
+    "local_commit": "31ae4f9a22fc82d5a2a47e303940c57dc50b14d7",
+    "public_commit": "9dc39ca2bf9a7042ebcae007b4985aa9ff8edf58",
+    "tree": "4d6c49fc785b10eaf4c655d6bbce4a4057b584e8"
+  },
+  "verification": {
+    "commit": "9dc39ca2bf9a7042ebcae007b4985aa9ff8edf58",
+    "checks": [
+      "scanner",
+      "nova (stopwatch)",
+      "nova (countdown)",
+      "nova (calculator)",
+      "nova (alarms)",
+      "build",
+      "nova (battery)",
+      "hid-apps",
+      "battery-power",
+      "lora-messages",
+      "waterfall"
+    ]
+  },
+  "notes": "The public source tree is identical to the original local build source."
+}
