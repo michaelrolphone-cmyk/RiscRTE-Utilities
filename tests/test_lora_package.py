@@ -6,7 +6,7 @@ sys.path.insert(0,str(ROOT/'scripts'))
 import build_lora_apps
 class LoRaPackage(unittest.TestCase):
  def test_inventory(self):
-  rows=build_lora_apps.inventory();self.assertEqual(len(rows),1);self.assertEqual(rows[0]['id'],'lora_messages');self.assertEqual(rows[0]['version'],'0.1.2')
+  rows=build_lora_apps.inventory();self.assertEqual(len(rows),1);self.assertEqual(rows[0]['id'],'lora_messages');self.assertEqual(rows[0]['version'],'0.1.8')
  def test_source_identity(self):
   source=(ROOT/'Apps/lora_messages.c').read_text();self.assertIn('#include "PortableWatchKeyboard.h"',source);self.assertIn('#include "PortableTimeFormat.h"',source)
   self.assertNotIn('T5LoRaApi',source);self.assertNotIn('915000000',source)

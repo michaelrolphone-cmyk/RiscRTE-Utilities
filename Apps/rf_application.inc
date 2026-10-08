@@ -1,3 +1,6 @@
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+#include "PortableBackgroundServices.h"
+#endif
 #include "T5AppApi.h"
 #include "RiscRuntimeV1.h"
 #include "RiscKeyValueV1.h"
@@ -8,6 +11,7 @@
 #include "rf_temporal_files.h"
 #include "rf_neural_store.h"
 #include "PortableWatchKeyboard.h"
+#include "contexts_owner_export.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -201,8 +205,8 @@ bool portable_rf_suspend(void){
 }
 
 static void retain(void){
-#ifdef PORTABLE_BLE_BROADCAST
- while(!portable_broadcast_stop())runtime->yield_ms(50);
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+ while(!portable_background_stop())runtime->yield_ms(50);
 #endif
 waterfall_log("SDR cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
 
@@ -622,6 +626,11 @@ static bool rf_bulk_create(void){
 void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);waterfall_api=app;waterfall_runtime=runtime;
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms)return;
+#ifdef PORTABLE_CONTEXTS_CLIENT
+ int exported=contexts_owner_export(runtime,CONTEXTS_RADIO,RF_STORAGE_INSTANCE);
+ if(exported==CONTEXTS_OWNER_RETAINED)retain();
+ if(exported==CONTEXTS_OWNER_EXPORTED)return;
+#endif
  if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
  paper=paper_presentation_get();ui_height=paper?app->screen_height()/(app->screen_width()/240):240;if(ui_height<240||ui_height>512)return;
  if(!rf_bulk_create()){waterfall_log("SDR bulk memory unavailable");return;}
@@ -661,4 +670,7 @@ void app_main(void){
   if(!input.buttons&&!input.tapped&&!contact_down&&!consumed)event_neural_tick();
  }
  stop();persist();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;waterfall_release(&waterfall_grant,&radio_acquired);waterfall_radio=NULL;if(store_acquired&&!runtime->release(&store_grant))retain();store_acquired=false;storage=NULL;waterfall_release(&waterfall_preferences,&preferences_acquired);preferences=NULL;if(rf_bulk_allocated)app->psram_free(rf_bulk);rf_bulk=NULL;waterfall_log("SDR app exit");
+#ifdef PORTABLE_CONTEXTS_CLIENT
+ if(!contexts_owner_refresh(runtime,CONTEXTS_RADIO,RF_STORAGE_INSTANCE))retain();
+#endif
 }

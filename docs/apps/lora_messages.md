@@ -1,4 +1,4 @@
-# LoRa Messages 0.1.1
+# LoRa Messages 0.1.8
 
 An original portable Nova7 application, independent of the historical Reader
 `lora.elf` packet-monitor/Ping utility. It uses the existing Watch
@@ -138,3 +138,7 @@ The real app/adapter/rasterizer is exercised in twenty240×240 scenes, with norm
 and ASan/UBSan builds and framebuffer-stride/lease cleanup assertions. Software
 mocks/compilation do not qualify radio compatibility, RF legality, reception,
 transmission, timing or power on physical hardware. No device action is taken.
+
+## Contexts development integration
+
+This source version can opt into the awake Contexts lifecycle. The shared background cleanup fence pauses Contexts before BLE and stops on unconfirmed cleanup. This is source development, not a new installed Watch release. See [Contexts service](../CONTEXTS_SERVICE.md).

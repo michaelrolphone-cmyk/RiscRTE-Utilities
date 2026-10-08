@@ -1,3 +1,6 @@
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+#include "PortableBackgroundServices.h"
+#endif
 #include "T5AppApi.h"
 #include "RiscRuntimeV1.h"
 #include "AlarmOutputV1.h"
@@ -34,8 +37,8 @@ bool portable_audio_suspend(void) {
     owned=false;message="Stopped - tap Start";return true;
 }
 static void retain(void) {
-#ifdef PORTABLE_BLE_BROADCAST
- while(!portable_broadcast_stop())runtime->yield_ms(50);
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+ while(!portable_background_stop())runtime->yield_ms(50);
 #endif
 
     runtime->diagnostic("AUDIO cleanup-unconfirmed; invocation retained");

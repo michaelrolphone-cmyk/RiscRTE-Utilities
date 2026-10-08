@@ -3,7 +3,7 @@
 static uint32_t event_neural_crc[2];
 static bool event_neural_checkpoint,event_neural_cache_blocked,event_neural_used;
 static risc_runtime_capability_v1 event_data_grant;
-#ifdef PORTABLE_BLE_BROADCAST
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
 #include "PortableBroadcastAppData.h"
 static portable_broadcast_app_data event_broadcast_data;
 #endif
@@ -74,7 +74,7 @@ static bool event_acquire(void){
  if(!runtime->acquire("storage.app-data",1,RF_APP_DATA_INSTANCE,&event_data_grant))return false;
  event_data_acquired=true;
  const risc_app_data_v1 *api=event_data_grant.api;if(!api||api->api_version!=1||api->struct_size<sizeof(*api)||!api->stat||!api->read||!api->replace)return false;
-#ifdef PORTABLE_BLE_BROADCAST
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
  event_files.api=portable_broadcast_data_bind(&event_broadcast_data,api,runtime);
 #else
  event_files.api=api;

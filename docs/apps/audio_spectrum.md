@@ -1,4 +1,4 @@
-# Audio Spectrum 0.4.3 (development source)
+# Audio Spectrum 0.4.11
 
 The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
 and saved frequency labels on the Watch's 240 × 240 display. The supplied design
@@ -250,3 +250,7 @@ classifier, explicit ambiguous-event presentation and unchanged sample formats.
 Room identity now uses its own slow raw-power tracker instead of the event
 learner's upward-protected floor. New quiet bands and old low-level bands also
 converge without integer averaging dead zones.
+
+## Contexts development integration
+
+This source version can opt into the awake Contexts lifecycle. A pending export reads saved preferences and signatures through this app's own storage grant before opening UI or capture; ordinary foreground launches retain their existing behavior. The shared background cleanup fence pauses Contexts before BLE and stops on unconfirmed cleanup. This is source development, not a new installed Watch release. See [Contexts service](../CONTEXTS_SERVICE.md).

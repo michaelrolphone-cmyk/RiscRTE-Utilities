@@ -135,7 +135,7 @@
     {
       "id": "frequency_generator",
       "display_name": "Frequency Generator",
-      "version": "0.1.4",
+      "version": "0.1.10",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/frequency_generator.c",
@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.4.5",
+      "version": "0.4.11",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -206,7 +206,7 @@
     {
       "id": "lora_messages",
       "display_name": "LoRa Messages",
-      "version": "0.1.2",
+      "version": "0.1.8",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/lora_messages.c",
@@ -242,7 +242,7 @@
     {
       "id": "waterfall",
       "display_name": "Waterfall",
-      "version": "0.2.0",
+      "version": "0.2.6",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/waterfall.c",
@@ -304,6 +304,22 @@
         "lib/Bluetooth/include/RiscBluetoothHidV1.h"
       ],
       "min_firmware_version": "0.1.34"
+    }
+  ],
+  "contexts_apps": [
+    {
+      "id": "contexts",
+      "display_name": "Contexts",
+      "version": "0.1.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/contexts.c",
+      "manifest_path": "Apps/contexts.json",
+      "file_name": "contexts.elf",
+      "additional_sources": [
+        "lib/Contexts/include/ContextsServiceV1.h"
+      ],
+      "min_firmware_version": "0.1.55"
     }
   ]
 }

@@ -1,3 +1,6 @@
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+#include "PortableBackgroundServices.h"
+#endif
 #include "T5AppApi.h"
 #include "RiscRuntimeV1.h"
 #include "AudioInputV1.h"
@@ -9,6 +12,7 @@
 #include "spectrum_neural_store.h"
 #include "spectrum_speech.h"
 #include "PortableWatchKeyboard.h"
+#include "contexts_owner_export.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -140,8 +144,8 @@ bool portable_audio_suspend(void){
  owned=false;message="STOPPED / MIC OFF";return true;
 }
 static void retain(void){
-#ifdef PORTABLE_BLE_BROADCAST
- while(!portable_broadcast_stop())runtime->yield_ms(50);
+#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
+ while(!portable_background_stop())runtime->yield_ms(50);
 #endif
 runtime->diagnostic("AUDIO input cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
 static void pause_capture(void){if(!portable_audio_suspend())retain();}
@@ -503,6 +507,11 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
 void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->diagnostic||!runtime->yield_ms)return;
+#ifdef PORTABLE_CONTEXTS_CLIENT
+ int exported=contexts_owner_export(runtime,CONTEXTS_AUDIO,0);
+ if(exported==CONTEXTS_OWNER_RETAINED)retain();
+ if(exported==CONTEXTS_OWNER_EXPORTED)return;
+#endif
  if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
  microphone=NULL;storage=NULL;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};memset(&spectrum,0,sizeof(spectrum));
  capture_requested=input_gap=input_waiting=capture_error=acquired=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=true;
@@ -541,4 +550,7 @@ void app_main(void){
  }
  if(temporal_retained())return;
  stop();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;if(acquired&&!runtime->release(&grant))retain();if(store_acquired&&!runtime->release(&store_grant))retain();acquired=store_acquired=false;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};microphone=NULL;storage=NULL;
+#ifdef PORTABLE_CONTEXTS_CLIENT
+ if(!contexts_owner_refresh(runtime,CONTEXTS_AUDIO,0))retain();
+#endif
 }
