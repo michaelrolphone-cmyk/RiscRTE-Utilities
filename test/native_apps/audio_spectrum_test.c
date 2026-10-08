@@ -39,7 +39,7 @@ static void tap(int x,int y,int before){add(EVENT_INPUT,0,before);events[count-1
 static void touch(int x,int y,bool down){add(EVENT_INPUT,0,-1);events[count-1].contact=(t5_app_contact_t){down,(int16_t)x,(int16_t)y};}
 static void check(void (*fn)(void)){add(EVENT_CALL,0,-1);events[count-1].check=fn;}
 static void start(void){add(EVENT_INPUT,T5_APP_BUTTON_CONFIRM,0);}static void back(void){add(EVENT_INPUT,T5_APP_BUTTON_BACK,-1);}static void run(void){if(!setjmp(retained_jump))app_main();else escaped=true;}
-static void clean(unsigned o,unsigned r,unsigned c){assert(!escaped&&!live&&!grant_live&&!owned&&!running&&!uncertain&&!store_live);assert(opens==o&&reads==r&&closes==c);assert(acquires==releases);assert(store_acquires==store_releases);}
+static void clean(unsigned o,unsigned r,unsigned c){assert(!escaped&&!live&&!grant_live&&!owned&&!running&&!uncertain&&!store_live&&!portable_audio_capture_active()&&!capture_requested);assert(opens==o&&reads==r&&closes==c);assert(acquires==releases);assert(store_acquires==store_releases);}
 static void check_exit_retry(void){assert(launches==1&&!running&&!owned&&!strcmp(message,"EXIT FAILED / RETRY"));fail_launch=false;}
 static void check_controls0(void){assert(page==PAGE_CONTROLS&&controls_scroll==0&&!back_exits&&prefs.high_hz==8000);}
 static void check_controls1(void){assert(page==PAGE_CONTROLS&&controls_scroll==51&&puts_count==0);}

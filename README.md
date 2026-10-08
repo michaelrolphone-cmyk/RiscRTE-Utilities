@@ -149,3 +149,5 @@ shared Nova7 controls and checked interruption/cleanup. The standalone build and
 [later Watch integration requirements](docs/BLE_HID_INTEGRATION.md) leave the
 scanner, SDR and existing migration profiles unchanged. Target validation and
 software-rendered screenshots do not establish physical qualification.
+
+Watch deployments may select the [ordinary BLE broadcast service and Battery controls](docs/BLE_BROADCAST.md).

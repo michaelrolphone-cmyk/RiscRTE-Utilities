@@ -139,7 +139,11 @@ bool portable_audio_suspend(void){
  if(!microphone->close(microphone->context)){uncertain=true;return false;}
  owned=false;message="STOPPED / MIC OFF";return true;
 }
-static void retain(void){runtime->diagnostic("AUDIO input cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
+static void retain(void){
+#ifdef PORTABLE_BLE_BROADCAST
+ while(!portable_broadcast_stop())runtime->yield_ms(50);
+#endif
+runtime->diagnostic("AUDIO input cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
 static void pause_capture(void){if(!portable_audio_suspend())retain();}
 static void stop(void){capture_requested=false;pause_capture();}
 void portable_audio_capture_resume(void){if(capture_requested&&!running&&!uncertain&&!temporal_retained())toggle();}

@@ -39,7 +39,11 @@ static const char *field_help(unsigned field){
  if(field==4)return model.choice==4?"-18 to 13 dBm / check local limits":"-9 to 22 dBm / check local limits";
  return field==2?"5 to 12":field==3?"5 to 8":"8 to 4096";
 }
-static void retain(void){runtime->diagnostic("LORA cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
+static void retain(void){
+#ifdef PORTABLE_BLE_BROADCAST
+ while(!portable_broadcast_stop())runtime->yield_ms(50);
+#endif
+runtime->diagnostic("LORA cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
 bool portable_radio_services_safe(void){return !model.uncertain;}
 bool portable_radio_suspend(void){
  bool active=model.owned;

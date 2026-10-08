@@ -78,7 +78,12 @@ bool portable_radio_suspend(void) {
     return true;
 }
 
-static void waterfall_yield(void) { waterfall_runtime->yield_ms(50); }
+static void waterfall_yield(void) {
+#ifdef PORTABLE_BLE_BROADCAST
+    while(!portable_broadcast_stop())waterfall_runtime->yield_ms(50);
+#endif
+    waterfall_runtime->yield_ms(50);
+}
 static void waterfall_drain(void) {
     while (!portable_radio_suspend()) waterfall_yield();
 }

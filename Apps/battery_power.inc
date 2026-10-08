@@ -1,11 +1,16 @@
-/* Read-only NOVA power screens. The PMIC owns charging; this app never changes
- * policy, clears IRQs, writes preferences or keeps the display awake. */
+/* NOVA power screens. The PMIC owns charging; this app never changes charger
+ * policy or clears IRQs. Its opt-in BLE page controls only broadcast preference. */
 #include "T5AppApi.h"
 #include "PortableNovaUi.h"
 #include "PortablePowerStatus.h"
 #include "RiscRuntimeV1.h"
 #include <stdio.h>
 #include <string.h>
+#ifdef PORTABLE_BLE_BROADCAST
+#include "PortableBroadcastClient.h"
+static bool power_broadcast, power_broadcast_error, power_broadcast_requested;
+static telemetry_broadcast_status_v1 power_broadcast_state;
+#endif
 #ifdef PORTABLE_RETURN_APP
 #error Power details require nested Back via BATTERY_RETURN_APP
 #endif
@@ -186,7 +191,11 @@ static void power_overview(void) {
     portable_nova_center(2,24,139,192,power_title(),color);
     portable_nova_center(2,16,173,208,power_caption(),NOVA_CAP);
     portable_nova_button(12,192,104,44,"Details",false);
+#ifdef PORTABLE_BLE_BROADCAST
+    portable_nova_button(124,192,104,44,"BLE",false);
+#else
     portable_nova_button(124,192,104,44,power_read_ok?"Refresh":"Retry",false);
+#endif
     power_app->present(false);
 }
 static const char *power_yes_no(unsigned flag) {
@@ -217,15 +226,53 @@ static void power_detail_view(void) {
     portable_nova_button(176,192,52,44,"Next",false);
     power_app->present(false);
 }
-static void power_render(void) { if(power_details)power_detail_view();else power_overview(); }
+#ifdef PORTABLE_BLE_BROADCAST
+static const char *power_broadcast_label(void) {
+    switch(power_broadcast_state.state) {
+      case TELEMETRY_BROADCAST_OFF:return "Disabled";
+      case TELEMETRY_BROADCAST_BLE_OFF:return "Bluetooth is off";
+      case TELEMETRY_BROADCAST_PAUSED:return "Paused";
+      case TELEMETRY_BROADCAST_STARTING:return "Starting";
+      case TELEMETRY_BROADCAST_LIVE:return "Broadcasting";
+      case TELEMETRY_BROADCAST_RETRY:return "Waiting / retrying";
+      case TELEMETRY_BROADCAST_RETAINED:return "Cleanup pending";
+      default:return "Settings unavailable";
+    }
+}
+static void power_broadcast_view(void) {
+    portable_nova_begin();portable_nova_header("BLE BROADCAST");
+    portable_nova_row(12,52,216,50,"Sensor status",power_broadcast_label(),false);
+    portable_nova_wrap(2,16,108,208,17,2,"Available sensor values only. No estimated temperature.",NOVA_TEXT);
+    portable_nova_wrap(2,16,147,208,17,2,"Open to nearby receivers without pairing.",NOVA_CAP);
+    if(power_broadcast_state.omitted_fields)portable_nova_center(2,12,177,216,"Some fields exceed BLE limit",POWER_AMBER);
+    if(power_broadcast_error)portable_nova_center(2,12,177,216,"Not saved. Try again.",POWER_RED);
+    portable_nova_button(36,192,168,44,power_broadcast_error?"Retry":power_broadcast_state.enabled?"Disable":"Enable",false);
+    power_app->present(false);
+}
+#endif
+static void power_render(void) {
+#ifdef PORTABLE_BLE_BROADCAST
+    if(power_broadcast){power_broadcast_view();return;}
+#endif
+    if(power_details)power_detail_view();else power_overview();
+}
 static bool power_refresh(void) {
     risc_battery_sample_v1 next={0,255,RISC_BATTERY_PROFILE_MISSING};
     bool ok=portable_power_read(&next);
     bool changed=ok!=power_read_ok || memcmp(&next,&power_sample,sizeof(next));
     power_read_ok=ok;power_sample=next;power_sample_at=power_app->millis();
+#ifdef PORTABLE_BLE_BROADCAST
+    telemetry_broadcast_status_v1 state={.struct_size=sizeof(state)};
+    if(!portable_broadcast_status(&state))state.state=TELEMETRY_BROADCAST_SETTINGS_ERROR;
+    changed|=memcmp(&state,&power_broadcast_state,sizeof(state))!=0;
+    power_broadcast_state=state;
+#endif
     return changed;
 }
 static bool power_back(void) {
+#ifdef PORTABLE_BLE_BROADCAST
+    if(power_broadcast){power_broadcast=false;power_render();return false;}
+#endif
     if (power_details) { power_details=false;power_render();return false; }
 #ifdef BATTERY_RETURN_APP
     const risc_runtime_api_v1 *rt=risc_runtime_get_api(1);
@@ -242,6 +289,9 @@ void app_main(void) {
        power_app->screen_width()!=240 || power_app->screen_height()!=240)return;
     power_sample=(risc_battery_sample_v1){0,255,RISC_BATTERY_PROFILE_MISSING};
     power_read_ok=power_details=power_navigation_failed=false;power_detail_page=0;
+#ifdef PORTABLE_BLE_BROADCAST
+    power_broadcast=power_broadcast_error=false;memset(&power_broadcast_state,0,sizeof(power_broadcast_state));
+#endif
     (void)power_refresh();power_render();
     for (;;) {
         t5_app_input_t input={0};if(!power_app->poll(&input,50))return;
@@ -253,8 +303,19 @@ void app_main(void) {
         if(power_details && (input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))) {power_detail_page=(power_detail_page+3)%4;render=true;}
         if(power_details && (input.buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))) {power_detail_page=(power_detail_page+1)%4;render=true;}
         bool refresh=(input.buttons&T5_APP_BUTTON_CONFIRM)!=0;
+#ifdef PORTABLE_BLE_BROADCAST
+        if(power_broadcast && (refresh || (input.tapped && portable_nova_hit(input.touch_x,input.touch_y,36,192,168,44)))) {
+            if(!power_broadcast_error)power_broadcast_requested=!power_broadcast_state.enabled;
+            power_broadcast_error=!portable_broadcast_enable(power_broadcast_requested);
+            (void)power_refresh();power_render();continue;
+        }
+#endif
         if(input.tapped) {
             if(portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44)) {if(power_back())return;continue;}
+#ifdef PORTABLE_BLE_BROADCAST
+            if(power_broadcast)continue;
+            if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,124,192,104,44)) {power_broadcast=true;power_render();continue;}
+#endif
             if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,12,192,104,44)) {power_details=true;power_detail_page=0;render=true;}
             else if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,124,192,104,44)) refresh=true;
             else if(power_details && portable_nova_hit(input.touch_x,input.touch_y,12,192,52,44)) {power_detail_page=(power_detail_page+3)%4;render=true;}
