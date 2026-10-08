@@ -186,7 +186,7 @@ static bool audio_drain(uint64_t now) {
             view.audio.capture_error=3;retry_at[0]=stamp+RETRY_MS;return close_audio();
         }
         if(a.analyzer.transforms!=before)audio_observe(stamp);
-        if(got<wanted){audio_debt=0;return true;}
+        if(got<wanted)audio_debt=0;
         uint64_t after=clock_api->monotonic_ms(clock_api->context);
         if(after==UINT64_MAX||after<audio_accounted){view.audio.capture_error=4;return close_audio();}
         if(after-audio_accounted>=AUDIO_GAP_MS){view.audio.capture_error=5;return close_audio();}
@@ -194,6 +194,7 @@ static bool audio_drain(uint64_t now) {
          * them before returning copied evidence or checking the drain budget. */
         audio_debt+=(uint32_t)(after-audio_accounted)*16u;audio_accounted=after;
         if(audio_debt>16u*AUDIO_GAP_MS){view.audio.capture_error=5;return close_audio();}
+        if(got<wanted)break;
         if(after-began>=AUDIO_DRAIN_MS)break;
     }
     if(audio_debt>=256u) {

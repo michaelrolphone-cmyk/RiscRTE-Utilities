@@ -15,7 +15,7 @@ static uint64_t now;
 static unsigned opens,reads,closes,bursts,suspends,position;
 static bool mic_live,close_fail,open_fail,read_fail,empty_read,bad_format,clocked;
 static uint64_t producer_at,produced,consumed,queued;
-static unsigned read_delay,overruns;
+static unsigned read_delay,read_limit,overruns;
 static unsigned dsp_delay,dsp_clock_countdown;
 static bool dsp_regression;
 static void advance_producer(void){
@@ -42,7 +42,7 @@ static void iq(uint32_t *p,unsigned count,unsigned bin) {
 }
 static bool mic_open(void *c,uint32_t rate){(void)c;assert(rate==16000&&!mic_live);opens++;mic_live=true;producer_at=now;queued=produced=consumed=0;return !open_fail;}
 static bool mic_read(void *c,int16_t *p,size_t count,size_t *got){
-    (void)c;assert(mic_live&&count==256);reads++;*got=empty_read?0:count;
+    (void)c;assert(mic_live&&count==256);reads++;*got=empty_read?0:read_limit?read_limit:count;
     if(clocked){advance_producer();if(queued<256u)*got=0;queued-=*got;consumed+=*got;}
     if(*got){pcm(p,position,(unsigned)*got,audio_frequency);position+=(unsigned)*got;}
     now+=read_delay;if(*got&&(dsp_delay||dsp_regression))dsp_clock_countdown=2;return !read_fail;
@@ -179,6 +179,8 @@ int main(void) {
     assert(service->capture_audio(NULL)&&mic_live&&!status().audio.current&&status().audio.capture_error==5);dsp_delay=0;
     assert(service->pause(NULL));assert(service->step(NULL,&policy));dsp_delay=32;now+=16;
     assert(service->capture_audio(NULL)&&!mic_live&&!status().audio.current&&status().audio.capture_error==5);dsp_delay=0;
+    assert(service->step(NULL,&policy));read_limit=128;dsp_delay=32;now+=16;
+    assert(service->capture_audio(NULL)&&!mic_live&&!status().audio.current&&status().audio.capture_error==5);read_limit=dsp_delay=0;
     assert(service->step(NULL,&policy));read_delay=2;dsp_regression=true;now+=16;
     assert(service->capture_audio(NULL)&&!mic_live&&!status().audio.current&&status().audio.capture_error==4);read_delay=0;dsp_regression=false;
     assert(service->pause(NULL));before_reads=reads;prior_opens=opens;now+=200;assert(service->capture_audio(NULL)&&reads==before_reads&&opens==prior_opens);
