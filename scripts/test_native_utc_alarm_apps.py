@@ -3,9 +3,9 @@
 import argparse,os,shutil,subprocess
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+from build_native_utc_alarm_apps import exact,SYSTEM,RUNTIME
 p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);p.add_argument('--runtime',type=Path,required=True);a=p.parse_args();s=a.system_apps.resolve();r=a.runtime.resolve()
-assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=s,text=True).strip()=='1d589d90bf27c7ffb76420de46564088ddb3714f'
-assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=r,text=True).strip()=='30dcec5ce6ce33223f2b203a2399283e1f758567'
+exact(s,SYSTEM);exact(r,RUNTIME)
 out=ROOT/'build/native-utc-app-tests';out.mkdir(parents=True,exist_ok=True)
 shutil.copytree(s/'lib/PortableApps/include',out/'include',dirs_exist_ok=True);shutil.copytree(s/'lib/PortableApps/time',out/'time',dirs_exist_ok=True)
 for name in ('RiscRuntimeV1.h','RiscRealtimeV1.h'):shutil.copy2(r/'sdk/app'/name,out/'include'/name)

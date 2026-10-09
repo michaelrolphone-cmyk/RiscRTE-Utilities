@@ -1,6 +1,10 @@
 #ifndef UTILITIES_ALARM_NATIVE_UTC_APP_H
 #define UTILITIES_ALARM_NATIVE_UTC_APP_H
 #include "T5AppApi.h"
+#include "AlarmServiceV2.h"
+#ifndef ALARM_SERVICE_TAGGED_V2
+#error Native UTC apps require alarm.service API 2
+#endif
 #include "RiscRuntimeV1.h"
 #include "PortableRtcClock.h"
 #include "PortableTime.h"
@@ -91,7 +95,10 @@ static void refresh_status(void) {
 static void save_action(bool cancel) {
     if(native_retained)return;
     notice="";
-    if(!cancel&&!writer.uncertain&&!native_load_zone()){notice="TIME ZONE UNAVAILABLE";return;}
+    if(!cancel&&!writer.uncertain) {
+        bool zone_loaded=native_load_zone();if(native_retained)return;
+        if(DAILY_ALARM_KIND==1&&!zone_loaded){notice="TIME ZONE UNAVAILABLE";return;}
+    }
     if(cancel&&writer.uncertain){notice="SAVE UNCERTAIN - RETRY FIRST";return;}
     if(writer.uncertain) {
         if(alarm_writer_commit(&writer,storage,&writer.pending)!=0){notice="SAVE UNCONFIRMED - RETRY";return;}
@@ -144,6 +151,7 @@ static void draw(void) {
 #endif
     if(DAILY_ALARM_KIND==1)snprintf(value,sizeof(value),"%02u:%02u",shown[0],shown[1]);
     else snprintf(value,sizeof(value),"%02u:%02u:%02u",shown[0],shown[1],shown[2]);
+    if(DAILY_ALARM_KIND==1&&!native_zone_valid&&!editing)snprintf(value,sizeof(value),"--:--");
     int scale=w>=220?3:2;daily_draw_text(app,(w-daily_draw_width(value,scale))/2,71,value,scale);
     for(unsigned i=0;i<columns;i++){app->draw_label(8+(int)i*cell,46,cell,"+");app->draw_label(8+(int)i*cell,117,cell,"-");}
     const char *state=notice?notice:"";
@@ -158,7 +166,7 @@ static void draw(void) {
     else if(service_valid&&service_state.state==ALARM_STATE_DISMISSING)state="STOPPING / SAVING DISMISS";
     else if(service_valid&&service_state.occurrence.generation)state=service_state.label;
     app->draw_label(4,141,w-8,state);
-    app->draw_label(8,165,w-16,DAILY_ALARM_KIND==1?portable_time_zone():"HH:MM:SS - UTC DEADLINE");
+    app->draw_label(8,165,w-16,DAILY_ALARM_KIND==1?(native_zone_valid?portable_time_zone():"TIME ZONE UNAVAILABLE"):"HH:MM:SS - UTC DEADLINE");
     bool alert=service_valid&&service_state.occurrence.generation;
     app->draw_label(8,h-45,w/2-12,alert?"DISMISS":writer.uncertain?"RETRY SAVE":DAILY_ALARM_KIND==1?"ARM NEXT":"START");
     app->draw_label(w/2+4,h-45,w/2-12,writer.uncertain?"WAIT":"CANCEL");

@@ -17,15 +17,22 @@ static void alarms_paper_draw(void){
     shown[0]=local.hour;shown[1]=local.minute;snprintf(value,sizeof(value),"Once / %04u-%02u-%02u",local.year,local.month,local.day);
    }
   }
-  up_text(32,130,416,value,false,true);alarm_value_text(value,sizeof(value),shown);up_center(204,value,true);
+  up_text(32,130,416,value,false,true);alarm_value_text(value,sizeof(value),shown);
+#ifdef ALARM_NATIVE_UTC
+  if(!native_zone_valid&&!editing)snprintf(value,sizeof(value),"--:--");
+#endif
+  up_center(204,value,true);
   up_button(32,304,416,88,"Edit time","solid:f017",false);
   if(alarms_paper_sound())up_button(32,408,416,88,"Alarm volume","solid:f028",false);
   else up_text(32,432,416,service?"Visual alert only":"Service unavailable",false,true);
-  up_wrap(510,(!storage||!service
+#ifdef ALARM_NATIVE_UTC
+  up_text(32,472,416,native_zone_valid?native_zone_name:"Time zone unavailable",false,true);
+#endif
+  up_wrap(510,(!storage
 #ifndef ALARM_NATIVE_UTC
 ||!rtc
 #endif
-)?"ALARM SERVICE UNAVAILABLE":alarm_state_text());
+||!service)?"ALARM SERVICE UNAVAILABLE":alarm_state_text());
   up_button(32,584,200,88,service_valid&&service_state.occurrence.generation?"Dismiss":writer.uncertain?"Retry save":"Arm once","solid:f0f3",false);
   up_button(248,584,200,88,writer.uncertain?"Wait":"Cancel","solid:f0c8",false);
  }else if(alarm_page==1){

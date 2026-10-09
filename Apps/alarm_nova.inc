@@ -130,6 +130,9 @@ static void draw(void) {
         }
 #endif
         alarm_value_text(value,sizeof(value),shown);
+#if defined(ALARM_NATIVE_UTC) && DAILY_ALARM_KIND == 1
+        if(!native_zone_valid&&!editing)snprintf(value,sizeof(value),"--:--");
+#endif
         portable_nova_row(16,56,208,54,caption,value,false);
 #if DAILY_ALARM_KIND == 1
 #ifdef ALARM_NATIVE_UTC

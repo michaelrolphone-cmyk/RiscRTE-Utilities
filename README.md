@@ -159,3 +159,9 @@ a separate development-only 0.4.3 service and pure Points timezone hooks. It
 uses the readonly native-time provider and nine explicit keys, with no product
 activation or migration. Existing Watch and raw-RTC visual ELF bytes remain
 exactly unchanged.
+
+The opt-in [native UTC Alarms/Countdown apps](docs/NATIVE_UTC_ALARM_APPS.md)
+use the qualified tagged alarm API2 and app-owned native timezone clock. This
+is a separate local development profile; ordinary Watch/raw paper app ELFs are
+verified byte-identical to the exact paper base. System dependency publication
+and hardware qualification remain separate integration gates.

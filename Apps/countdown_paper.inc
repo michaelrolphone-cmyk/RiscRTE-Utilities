@@ -8,11 +8,11 @@ static void countdown_paper_draw(void) {
   }
   alarm_value_text(value,sizeof(value),shown);up_text(32,130,416,"Duration  HH:MM:SS",false,true);up_center(204,value,true);
   up_button(32,328,416,88,"Edit duration","solid:f013",false);
-  up_wrap(440,(!storage||!service
+  up_wrap(440,(!storage
 #ifndef ALARM_NATIVE_UTC
 ||!rtc
 #endif
-)?notice:alarm_state_text());
+||!service)?notice:alarm_state_text());
   up_button(32,584,200,88,service_valid&&service_state.occurrence.generation?"Dismiss":writer.uncertain?"Retry save":"Start","solid:f017",false);
   up_button(248,584,200,88,writer.uncertain?"Wait":"Cancel","solid:f0c8",false);
   up_button(32,688,200,88,"Back","solid:f053",false);up_button(248,688,200,88,"Refresh","solid:f021",false);

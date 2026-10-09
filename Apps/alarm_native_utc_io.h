@@ -17,7 +17,7 @@ static void native_retain(void) {
     portable_adapter_retain();
 }
 static int native_guard(void *unused) {
-    (void)unused;return native_retained?PORTABLE_REALTIME_GUARD_RETAINED:PORTABLE_REALTIME_GUARD_SAFE;
+    (void)unused;return native_retained||portable_adapter_retained()?PORTABLE_REALTIME_GUARD_RETAINED:PORTABLE_REALTIME_GUARD_SAFE;
 }
 static bool native_time_halted(int rc) {
     if(rc==PORTABLE_REALTIME_CONTEXT||rc==PORTABLE_REALTIME_UNCERTAIN||rc==PORTABLE_REALTIME_RETAINED){native_retain();return true;}
@@ -38,13 +38,16 @@ static int32_t native_put(void *context,const char *key,const void *buffer,uint3
     return native_kv_status(rc)?rc:RISC_KEY_VALUE_CONTEXT;
 }
 static int32_t native_result(int32_t rc) {
-    if(rc==ALARM_RETAINED||rc<ALARM_RETAINED||rc>ALARM_PENDING)native_retain();
+    if(rc==ALARM_RETAINED||rc==ALARM_OUTPUT||rc<ALARM_RETAINED||rc>ALARM_PENDING)native_retain();
     return native_retained?ALARM_RETAINED:rc;
 }
 static int32_t native_status(void *unused,alarm_status_v1 *out) {
     (void)unused;if(native_retained)return ALARM_RETAINED;
     int32_t rc=native_result(native_service->status(native_service->context,out));
-    if(rc==ALARM_OK&&out->state==ALARM_STATE_BLOCKED&&out->error==ALARM_RETAINED&&out->output_uncertain)native_retain();
+    if(rc==ALARM_OK) {
+        if(native_result(out->error)==ALARM_RETAINED)return ALARM_RETAINED;
+        if(out->struct_size<sizeof(*out)||out->api_version!=1||out->state>ALARM_STATE_CUE)return ALARM_INVALID;
+    }
     return native_retained?ALARM_RETAINED:rc;
 }
 static int32_t native_step(void *unused) {(void)unused;return native_retained?ALARM_RETAINED:native_result(native_service->step(native_service->context));}
@@ -103,9 +106,10 @@ static bool open_dependencies(void) {
     if(!native_acquire("storage.key-value",1,1))return false;
     native_preferences=grants[1].api;if(!native_kv_valid(native_preferences,false))return false;
     native_preferences_proxy=(risc_key_value_v1){1,sizeof(native_preferences_proxy),(void *)native_preferences,native_get,NULL};alarm_preferences=&native_preferences_proxy;
-    if(!native_acquire(ALARM_SERVICE_CAPABILITY,1,0))return false;
+    if(!native_acquire(ALARM_SERVICE_CAPABILITY,ALARM_SERVICE_API_V2,0))return false;
     native_service=grants[2].api;
-    if(!native_service||native_service->api_version!=1||native_service->struct_size<sizeof(*native_service)||!native_service->status||!native_service->step||!native_service->refresh||!native_service->acknowledge||!native_service->stop_only)return false;
+    const alarm_service_descriptor_v2 *descriptor=alarm_service_descriptor(native_service);
+    if(!descriptor||descriptor->output_modes!=ALARM_MODE_VISUAL)return false;
     native_service_proxy=(alarm_service_v1){1,sizeof(native_service_proxy),NULL,native_status,native_step,native_refresh,native_ack,NULL,native_stop};service=&native_service_proxy;
     alarm_time_format=PORTABLE_TIME_FORMAT_12;(void)portable_time_format_load(alarm_preferences,&alarm_time_format);
     if(native_retained)return false;

@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "profile": "native-utc-alarms-paper-nova",
+  "versions": {"alarms": "0.2.5", "countdown": "0.1.9"},
+  "reservation": "Live remote alarm/countdown refs checked 2026-10-07T19:41Z; paper base reserves Alarms 0.2.4 and Countdown 0.1.8. These distinct versions are development-only; no release or product activation.",
+  "native_time": "runtime.realtime@1 readonly, one open/read/close per sample; UNSET and malformed snapshots unavailable; no RTC recovery or control",
+  "absolute_time": "UTC seconds since 2000, bounded by signed Unix seconds INT32_MAX",
+  "timezone": "Explicit namespace 1 time_zone TZ1 record; missing is virtual UTC; malformed/unavailable blocks local alarm planning and local clock display",
+  "dst_policy": "Reject a gap or fold for a requested local one-shot alarm; never choose an offset silently",
+  "alarm_service_api": 2,
+  "alarm_service_version": "0.4.4",
+  "common_grants": [
+    {"capability":"display.output","api":1,"instance_id":3},
+    {"capability":"input.touch.raw","api":1,"instance_id":4},
+    {"capability":"input.navigation","api":1,"instance_id":6},
+    {"capability":"board.battery","api":1,"instance_id":7},
+    {"capability":"runtime.realtime","api":1,"instance_id":0,"access":"read-only"},
+    {"capability":"storage.key-value","api":1,"instance_id":1,"purpose":"time_zone/time_format reads and existing shared QuickActions preferences"},
+    {"capability":"alarm.service","api":2,"instance_id":0,"binding":"tagged native UTC visual alarm service 0.4.4"}
+  ],
+  "app_grants": {
+    "alarms":[{"capability":"storage.key-value","api":1,"instance_id":3,"keys":["alarm_utc_cfg"]}],
+    "countdown":[{"capability":"storage.key-value","api":1,"instance_id":3,"keys":["timer_utc_cfg"]}]
+  },
+  "home":"default.elf",
+  "local_back":"springboard.elf",
+  "handoff":"Unconfirmed saves block Home/Back/Quick launch until explicit retry verifies the same pending record",
+  "publication":"Local development only; combined System dependencies require separate source clearance",
+  "hardware_verified":false
+}
