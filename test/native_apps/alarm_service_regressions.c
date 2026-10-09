@@ -21,25 +21,25 @@ int main(void) {
  boot(true);schedule(1,1,101);rtc_base=101;while(phase!=ACTIVATE_RTC)pump(1);t=snapshot().occurrence;client->acknowledge(NULL,&t);client->refresh(NULL);until(ALARM_STATE_READY);assert(!effects&&!opens&&snapshot().schedules[0].state==ALARM_SCHEDULE_DISMISSED);
  /* Stop-only failure cleanup performs no normal storage/RTC/start/write and
     keeps the durable pending token intact until healthy explicit dismissal. */
- t=ring(3);int before=gets+put_count+reads+opens+writes+effects;
+ t=ring(3);int before=get_count+put_count+reads+opens+writes+effects;
  assert(client->stop_only(NULL)==ALARM_PENDING);assert(client->stop_only(NULL)==ALARM_PENDING);assert(client->stop_only(NULL)==ALARM_OK);
- assert(before==gets+put_count+reads+opens+writes+effects);alarm_status_v1 stopped=snapshot();assert(alarm_token_equal(&t,&stopped.occurrence));
+ assert(before==get_count+put_count+reads+opens+writes+effects);alarm_status_v1 stopped=snapshot();assert(alarm_token_equal(&t,&stopped.occurrence));
  assert(snapshot().state==ALARM_STATE_BLOCKED&&snapshot().error==ALARM_FOREGROUND&&!snapshot().output_uncertain);
- assert(client->step(NULL)==ALARM_FOREGROUND&&before==gets+put_count+reads+opens+writes+effects);
+ assert(client->step(NULL)==ALARM_FOREGROUND&&before==get_count+put_count+reads+opens+writes+effects);
  assert(client->acknowledge(NULL,&t)==ALARM_PENDING);until(ALARM_STATE_READY);assert(snapshot().schedules[0].state==ALARM_SCHEDULE_DISMISSED);
- t=ring(3);stop_fail=true;before=gets+put_count+reads+opens+writes+effects;
+ t=ring(3);stop_fail=true;before=get_count+put_count+reads+opens+writes+effects;
  assert(client->stop_only(NULL)==1);assert(client->stop_only(NULL)==1);assert(client->stop_only(NULL)==ALARM_OUTPUT);assert(closes&&stops);
- int cleanup_count=stops+silences+closes;assert(client->stop_only(NULL)==ALARM_OUTPUT&&cleanup_count==stops+silences+closes);assert(before==gets+put_count+reads+opens+writes+effects);
+ int cleanup_count=stops+silences+closes;assert(client->stop_only(NULL)==ALARM_OUTPUT&&cleanup_count==stops+silences+closes);assert(before==get_count+put_count+reads+opens+writes+effects);
  stop_fail=false;assert(client->acknowledge(NULL,&t)==1);until(ALARM_STATE_READY);
  /* A pending record without its configuration is contradictory on startup. */
  ring(1);sizes[0]=0;boot(false);until(ALARM_STATE_BLOCKED);assert(snapshot().error==ALARM_STORAGE&&!effects&&!opens);
  for(unsigned failure=0;failure<3;failure++) {
   t=ring(3);assert(client->acknowledge(NULL,&t)==ALARM_PENDING);
-  before=gets+put_count+reads+opens+writes+effects;
+  before=get_count+put_count+reads+opens+writes+effects;
   if(failure==1)stop_fail=true;
   if(failure==2)close_fail=true;
   assert(client->stop_only(NULL)==1);assert(client->stop_only(NULL)==1);
-  assert(client->stop_only(NULL)==(failure?ALARM_OUTPUT:ALARM_OK));assert(before==gets+put_count+reads+opens+writes+effects);
+  assert(client->stop_only(NULL)==(failure?ALARM_OUTPUT:ALARM_OK));assert(before==get_count+put_count+reads+opens+writes+effects);
   assert(dismiss);stop_fail=close_fail=false;assert(client->refresh(NULL)==1);until(ALARM_STATE_READY);
   assert(snapshot().schedules[0].state==ALARM_SCHEDULE_DISMISSED&&client->acknowledge(NULL,&t)==0);
  }
