@@ -52,6 +52,23 @@ int main(void) {
     for(uint32_t i=0;i<c.type_count;i++)assert(decoded.types[i].symbol==c.types[i].symbol);
     uint8_t *roundtrip=malloc(size);assert(roundtrip);
     assert(points_catalog_encode(&decoded,roundtrip,size,&used)==POINTS_CATALOG_OK&&!memcmp(bytes,roundtrip,size));
+    /* Compare every representation byte with the canonical encoding oracle.
+     * Padding and unused name-tail bytes must remain irrelevant. */
+    assert(points_catalog_equal(&c,&decoded));
+    for(unsigned kind=0;kind<2;kind++) {
+        uint8_t *record=kind?(uint8_t*)&decoded.types[0]:(uint8_t*)&decoded.events[0];
+        size_t length=kind?sizeof(decoded.types[0]):sizeof(decoded.events[0]);
+        for(size_t j=0;j<length;j++) {
+            record[j]^=1;bool valid=points_catalog_encode(&decoded,roundtrip,size,&used)==POINTS_CATALOG_OK;
+            unsigned allocations=calls;
+            assert(points_catalog_equal(&c,&decoded)==(valid&&!memcmp(bytes,roundtrip,size)));
+            assert(calls==allocations);record[j]^=1;
+        }
+    }
+    decoded.revision++;assert(!points_catalog_equal(&c,&decoded));decoded.revision--;
+    decoded.next_event_id++;assert(!points_catalog_equal(&c,&decoded));decoded.next_event_id--;
+    decoded.next_type_id++;assert(!points_catalog_equal(&c,&decoded));decoded.next_type_id--;
+    decoded.time_domain=1;assert(!points_catalog_equal(&c,&decoded));decoded.time_domain=0;
     /* A saved edit changes only that event's scheduling boundary. */
     points_catalog_item edited=*points_catalog_find_event(&decoded,first);
     uint32_t other_rev=points_catalog_find_event(&decoded,10)->revision;

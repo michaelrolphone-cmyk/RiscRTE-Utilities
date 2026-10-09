@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "implementation_source": "0189ce87185b545af27015311c3bb4537e84c08d",
+  "source_worktree_dirty": false,
+  "copied_projection_abi_changed": false,
+  "checks": {
+    "actual_service": 32,
+    "slow_sleep_boundaries": 24,
+    "actual_clock": 74,
+    "points_face_families": 9,
+    "normal_sanitized_capacity_profiles": 24,
+    "canonical_equality_and_storage": "passed"
+  },
+  "old_slow_scan_sleep_result": "No ticket after181 scans at250ms per evaluation",
+  "new_slow_scan_sleep_result": "Ticket after2 scans",
+  "hardware_qualified": false,
+  "files": {
+    "normal.json": {
+      "size_bytes": 48236,
+      "sha256": "2b24d3f267029d1c1de53669f9745680a305278f3ae28283439a6bd2c01ed51d"
+    },
+    "target.json": {
+      "size_bytes": 6300,
+      "sha256": "f3f66c70b464a46ab46b523998f36c364fe458d7cf7e456846002abff5f2bc43"
+    },
+    "sanitized.json": {
+      "size_bytes": 48264,
+      "sha256": "5cb73460266af705c45f89ec9d355a0d45c920882d2f6a3ef4d2423415420977"
+    }
+  }
+}

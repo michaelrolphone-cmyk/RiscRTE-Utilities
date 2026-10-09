@@ -32,7 +32,11 @@ static bool read_points_config(void) {
         if(points_catalog_migrate(&catalog_input.saved,&old,&meta,CATALOG_DOMAIN))return false;
         catalog_input.loaded=true;}
     else if(!catalog_storage_result(r))return false;
-    return points_catalog_clone(&points_staging,&catalog_input.saved)==POINTS_CATALOG_OK;
+    /* This provider only reads the catalog; it never saves or resolves it.
+     * Transfer the decoded owner into staging instead of keeping a second
+     * complete saved copy. The file token/missing/retention state stays here. */
+    points_catalog_dispose(&points_staging);points_staging=catalog_input.saved;
+    memset(&catalog_input.saved,0,sizeof(catalog_input.saved));return true;
 }
 static bool read_points_occ(void) {
     int32_t r=points_catalog_ledger_load(&ledger_store,app_data,&points_staged_occ,CATALOG_DOMAIN);
@@ -56,14 +60,7 @@ static bool catalog_recorded_point(const points_catalog *c,const points_catalog_
 }
 static bool reconcile_points(void) {
     if(points_configured.revision&&points_staging.revision<points_configured.revision)return false;
-    if(points_staging.revision==points_configured.revision) {
-        uint32_t a,b,used;
-        if(!points_catalog_size(points_staging.event_count,points_staging.type_count,&a)||
-           !points_catalog_size(points_configured.event_count,points_configured.type_count,&b)||a!=b)return false;
-        uint8_t *x=POINTS_CATALOG_ALLOC(a),*y=POINTS_CATALOG_ALLOC(b);bool same=false;
-        if(x&&y&&!points_catalog_encode(&points_staging,x,a,&used)&&!points_catalog_encode(&points_configured,y,b,&used))same=!memcmp(x,y,a);
-        POINTS_CATALOG_FREE(x);POINTS_CATALOG_FREE(y);if(!same)return false;
-    }
+    if(points_staging.revision==points_configured.revision&&!points_catalog_equal(&points_staging,&points_configured))return false;
     if(points_staged_occ.revision>points_staging.revision||!points_catalog_ledger_advances(&points_staged_occ,&points_occ))return false;
     if(points_staged_occ.revision==points_staging.revision&&points_staged_occ.count!=points_staging.event_count)return false;
     for(uint32_t i=0;i<points_staged_occ.count;i++) {

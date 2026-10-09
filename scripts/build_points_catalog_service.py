@@ -55,5 +55,5 @@ def main():
  run([loader,*[out/row['profile']/'driver.elf' for row in rows]])
  source_paths=['Services/alarm_service/service.c','Services/alarm_service/catalog.inc','sdk/points-catalog-service-sources.json',*sorted(str(p.relative_to(ROOT)) for p in (ROOT/'lib/Alarm/include').glob('*.h'))]
  (out/'build-evidence.json').write_text(json.dumps({'schema':1,'source_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'runtime_checkout':runtime_sha,'compiler':compiler,'target_loader':'passed eight alignments and all relocation sites','pins':PIN,'modules':rows,'sources':{p:sha(ROOT/p) for p in source_paths},'hardware_verified':False},indent=2)+'\n')
- print('Watch0.4.5 API1 / X4 native UTC0.4.6 API2 target ELF validation PASS; both unselected legacy ELFs exactly match baseline')
+ print('Watch0.4.7 API1 / X4 native UTC0.4.8 API2 target ELF validation PASS; both unselected legacy ELFs exactly match baseline')
 if __name__=='__main__':main()

@@ -65,6 +65,35 @@
   "qualified_original_source": "9bd572791a8304194ceb2b7542fc9cbd124e911b",
   "schema": 1,
   "selected_source_hashes": {
+    "Services/alarm_service/catalog-native-utc-manifest.json": "2990b997960533f9083da7d854a50360c6bdbc135ed6374442e14b27af76b777",
+    "Services/alarm_service/catalog-native-utc-storage-policy.example.json": "ff2db841f4ac91bc310ba3c5ae151389272e0bd82e48a4838f540879e7348a72",
+    "Services/alarm_service/catalog-watch-manifest.json": "cdfe65c91d953380e6f3f7f40abd873ba5cb2632e7acb61ffabace1ec74bba68",
+    "Services/alarm_service/catalog-watch-storage-policy.example.json": "de3f8217c4ca21dccd6f88c596b0094914ae99304b3d7c1f4581c780a39a3953",
+    "Services/alarm_service/catalog.inc": "f1597544233d4149d3e55bc6ce6502976c374f589df36e8989c11b2768b14382",
+    "Services/alarm_service/service.c": "8204276e7f1202f67ca754212cce16c254dc207400a0c6316c7ec8037e9cb4d3",
+    "docs/POINTS_CATALOG_SERVICE.md": "087662436a89b0ec1b75b4ce7c8bcbd05e5035fe866a42f1350952eddbe51b61",
+    "docs/POINTS_STORAGE_CATALOG.md": "ac93ce440d364894fc4d557dc6de59af59f878353beca07c02dcace163c041d6",
+    "lib/Alarm/include/AlarmRecords.h": "e04d9cfa6c32a70125ef618b85d048936afad2204fb97d459cda8c36fd0b2066",
+    "lib/Alarm/include/AlarmServiceV2.h": "d7e750a8093e1b5e698483254edc38533b7242a3446d0bca5866c9dfd6ad07a1",
+    "lib/Alarm/include/PointsCatalog.h": "de18146b3e2694c370be364e169603c12eb333346c7ed5d3cbdb3cce004e80a4",
+    "lib/Alarm/include/PointsCatalogLedger.h": "7ef0280b2b9d28db56dc77931336a6386255b6e1481f3b2dad469418b7c5a1d1",
+    "lib/Alarm/include/PointsCatalogLedgerStorage.h": "7c4155384fdbdc79a7d34ba05113187bb1b9bbff03a0c5d723be27f1b314c60b",
+    "lib/Alarm/include/PointsCatalogProjection.h": "df15444df2afdb7e202be1feee03154353523fd12ab781417ada4a3f0661bfea",
+    "lib/Alarm/include/PointsCatalogSchedule.h": "cef89783a87ac52fbb81d8e146dd126a0c823a8b18a35e90836b7e9745bf3aa9",
+    "lib/Alarm/include/PointsCatalogStorage.h": "46e03ffebc97df202422627bdcb67ec76401dc1a37a1cf6faa47a2f5b394c195",
+    "lib/Alarm/include/PointsRecords.h": "ee59148062a39b2973e70c9c4816c1109686df0440d0ffd0d56ef0bff8820332",
+    "lib/Alarm/include/PointsServiceProjection.h": "42710361e60a6f644377302d1492ef24bbfd392aebe72acac3b8c5414702977a",
+    "lib/Alarm/include/PointsUtcSchedule.h": "b1ff4460410ec793d2fe7711562412c0e735e80c7fc4b881d761dab4e973e188",
+    "scripts/build_points_catalog_service.py": "b4eefb0b149fa2ac6e7933c05f0e10eee3562358ba828ccb546b05d39b8b55b2",
+    "scripts/test_points_catalog.py": "212662cf547036b7bf1ac10236ec81336fb2fc692ae6259a6f4eb16c9812e2f0",
+    "scripts/test_points_catalog_service.py": "d9d506473e52d1a8205fe1fc6c3e838c40a8c719988b3e5d722000b01d52de3f",
+    "sdk/points-catalog-service-sources.json": "9aea02b6f29e50cdd233244c722aa2d32c59aa02ca436182922124b61ad3fc10",
+    "test/native_apps/points_catalog_service_test.c": "70cf3f20d7f58b5d56f5f7bcdd631c76b1875ad1bc3c9ef89d8f42baa624a779",
+    "tests/points_catalog_storage_retention_test.c": "0bb1eab4c35c610c5bd4a86c36066345beb2caead96fa80cc8df940cf7c51018",
+    "tests/points_catalog_storage_test.c": "e3548ec1e95d5e5e8ad54dfd7f07cc8a3f870ec7355a4848222ce9bcc3ba72db",
+    "tests/points_catalog_test.c": "e598468400089b128ea8b0ce21026cd87f0e56d04c36414a1476e7e446a0788b"
+  },
+  "initial_selected_source_hashes": {
     "Services/alarm_service/catalog-native-utc-manifest.json": "e7d288cb234af1acde3fd372be9c5246d15623989d79494c3b4193870e1320ec",
     "Services/alarm_service/catalog-native-utc-storage-policy.example.json": "ff2db841f4ac91bc310ba3c5ae151389272e0bd82e48a4838f540879e7348a72",
     "Services/alarm_service/catalog-watch-manifest.json": "a31d3e1a7baf345806aff64ea101554394ce9960dac0cc47bc96078cd26f7a82",
@@ -92,5 +121,14 @@
     "tests/points_catalog_storage_retention_test.c": "0bb1eab4c35c610c5bd4a86c36066345beb2caead96fa80cc8df940cf7c51018",
     "tests/points_catalog_storage_test.c": "e3548ec1e95d5e5e8ad54dfd7f07cc8a3f870ec7355a4848222ce9bcc3ba72db",
     "tests/points_catalog_test.c": "54c530bfba7f21a32bd8aa911fa5c2593f4dfc59da67bb32e1f63f0320fd2e3a"
+  },
+  "successor": {
+    "versions": {
+      "watch": "0.4.7",
+      "native-utc": "0.4.8"
+    },
+    "purpose": "Bound large-catalog memory and resample sleep time after scans",
+    "prior_production_source": "9bd572791a8304194ceb2b7542fc9cbd124e911b",
+    "copied_projection_abi_changed": false
   }
 }

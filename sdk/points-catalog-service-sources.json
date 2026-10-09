@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "reservation": "2026-10-09: alarm-service0.4.5 Watch API1 /0.4.6 native UTC API2; selected catalog profiles only.",
+  "reservation": "2026-10-09: alarm-service 0.4.7 Watch API1 / 0.4.8 native UTC API2; selected catalog capacity and slow-scan sleep repair.",
   "base_sha": "0d3c1fbb4488549a47459279cbcaadb7f9fbd064",
   "runtime_sha": "34095f642d307f157ac0ed32ee5cb7f6532f9ac1",
   "runtime_inputs": {
@@ -25,8 +25,8 @@
     "lib/PortableApps/time/denver/twatch_caps.h": "b8b3003c77c72eb251227329c94fda7244389fb45c7a7e92aa01a5ddce50600e"
   },
   "versions": {
-    "watch": "0.4.5",
-    "native-utc": "0.4.6"
+    "watch": "0.4.7",
+    "native-utc": "0.4.8"
   },
   "hardware_verified": false,
   "required_bound_kv_keys": 10,

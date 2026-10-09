@@ -123,6 +123,26 @@ static inline bool points_catalog_valid(const points_catalog *c) {
     }
     return true;
 }
+/* Equality of the canonical wire values without two whole-file scratch
+ * buffers. Struct padding and unused bytes after a name's terminator are not
+ * serialized and must not change equality. */
+static inline bool points_catalog_equal(const points_catalog *a,const points_catalog *b) {
+    if(!points_catalog_valid(a)||!points_catalog_valid(b)||a->revision!=b->revision||
+       a->next_event_id!=b->next_event_id||a->next_type_id!=b->next_type_id||
+       a->event_count!=b->event_count||a->type_count!=b->type_count||a->time_domain!=b->time_domain)return false;
+    for(uint32_t i=0;i<a->event_count;i++) {
+        const points_catalog_item *x=&a->events[i],*y=&b->events[i];
+        if(x->id!=y->id||x->type_id!=y->type_id||x->revision!=y->revision||x->created!=y->created||
+           x->duration_minutes!=y->duration_minutes||x->mode!=y->mode||x->weekdays!=y->weekdays||
+           x->hour!=y->hour||x->minute!=y->minute||x->enabled!=y->enabled||x->notify_end!=y->notify_end||x->warn3!=y->warn3)return false;
+    }
+    for(uint32_t i=0;i<a->type_count;i++) {
+        const points_catalog_type *x=&a->types[i],*y=&b->types[i];
+        if(x->id!=y->id||x->revision!=y->revision||x->color!=y->color||strcmp(x->name,y->name)||
+           x->duration_minutes!=y->duration_minutes||x->mode!=y->mode||x->flags!=y->flags||x->symbol!=y->symbol)return false;
+    }
+    return true;
+}
 static inline int points_catalog_encode(const points_catalog *c,uint8_t *bytes,uint32_t capacity,uint32_t *used) {
     if(used)*used=0;
     uint32_t n;
