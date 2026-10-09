@@ -152,3 +152,10 @@ software-rendered screenshots do not establish physical qualification.
 
 The capability-selected paper profile and its build/grant evidence are documented
 in [Nova7 paper HID](docs/BLE_HID_PAPER.md).
+## Optional native UTC visual alarms
+
+The [native UTC visual alarm profile](docs/NATIVE_UTC_VISUAL_ALARMS.md) provides
+a separate development-only 0.4.3 service and pure Points timezone hooks. It
+uses the readonly native-time provider and nine explicit keys, with no product
+activation or migration. Existing Watch and raw-RTC visual ELF bytes remain
+exactly unchanged.

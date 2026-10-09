@@ -4,14 +4,26 @@
 #include <stddef.h>
 #include <string.h>
 #define ALARM_RECORD_SIZE 32u
+#ifdef ALARM_NATIVE_UTC
+/* UTC seconds since 2000; native signed Unix seconds stop in January 2038. */
+#define ALARM_RTC_MAX (2147483647u-946684800u)
+#else
 #define ALARM_RTC_MAX 3155759999u
+#endif
 #define ALARM_COUNTDOWN_MAX 359999u /* 99:59:59 */
 #define ALARM_RECOVERY_SECONDS 60u
 #define ALARM_INVOCATION_MS 20000u
+#ifdef ALARM_NATIVE_UTC
+#define ALARM_CONFIG_KEY "alarm_utc_cfg"
+#define ALARM_TIMER_KEY "timer_utc_cfg"
+#define ALARM_OCCURRENCE_KEY "alarm_utc_occ"
+#define ALARM_TIMER_OCCURRENCE_KEY "timer_utc_occ"
+#else
 #define ALARM_CONFIG_KEY "alarm_cfg"
 #define ALARM_TIMER_KEY "timer_cfg"
 #define ALARM_OCCURRENCE_KEY "alarm_occ"
 #define ALARM_TIMER_OCCURRENCE_KEY "timer_occ"
+#endif
 #define ALARM_MODE_KEY "alert_mode"
 enum { ALARM_OCC_NONE, ALARM_OCC_PENDING, ALARM_OCC_ACKED, ALARM_OCC_EXPIRED };
 typedef struct { uint32_t revision, deadline, created, duration; uint8_t kind, enabled; } alarm_config;

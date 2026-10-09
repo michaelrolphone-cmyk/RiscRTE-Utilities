@@ -1,0 +1,15 @@
+RTE_PROVIDER id=test-rtc phase=start
+RTE_PROVIDER id=test-rtc phase=ready
+RTE_PROVIDER id=test-haptic phase=start
+RTE_PROVIDER id=test-haptic phase=ready
+RTE_PROVIDER id=test-audio phase=start
+RTE_PROVIDER id=test-audio phase=ready
+RTE_PROVIDER id=alarm-service phase=start
+RTE_PROVIDER id=alarm-service phase=ready
+RTE_APP phase=entry
+RTE_APP phase=returned
+RTE_APP phase=entry
+RTE_APP phase=returned
+RTE_APP phase=entry
+RTE_APP phase=returned
+Actual ordinary alarm ELF, Runtime/Graph/Module, app handoff and namespace integration passed
