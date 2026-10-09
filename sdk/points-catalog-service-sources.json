@@ -2,7 +2,7 @@
   "schema": 1,
   "reservation": "2026-10-09: parent freshly checked Utilities alarm-service PR inventory through 0.4.4 and reserved 0.4.5 Watch API1 / 0.4.6 native UTC API2; no publication.",
   "base_sha": "0d3c1fbb4488549a47459279cbcaadb7f9fbd064",
-  "runtime_sha": "cc41f4c7dc6386bbb4ec7c7f7789b398b375aa1f",
+  "runtime_sha": "34095f642d307f157ac0ed32ee5cb7f6532f9ac1",
   "runtime_inputs": {
     "sdk/driver/RiscProviderV2.h": "62478822fa8943ddfd1607f8923de52d7b5b6fc8a0db2df6ca07c65c95c62d41",
     "sdk/driver/RiscBoundAppDataV1.h": "f4c6b9e475409515ee3b385a85790f592e8d943b0f811707926a32be4e1a6a42",
@@ -30,5 +30,7 @@
   },
   "hardware_verified": false,
   "required_bound_kv_keys": 10,
-  "runtime_admission": "Parent integration must repin Runtime0.1.83 after its generic nine-to-ten bound-key qualification; cc41f4c supplies the tested API/loader only."
+  "runtime_admission": "Runtime0.1.83 exact-file provider storage and ten bound KV keys are qualified normally and with ASan/UBSan; public source is tree-equivalent to the local target-build pin.",
+  "runtime_public_sha": "3fcbba6a04626f8484a523e7da59fb44c82e6e49",
+  "runtime_tree": "a3cfc65b221581ad682d438df4952defc6cf61ed"
 }
