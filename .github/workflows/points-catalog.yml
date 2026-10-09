@@ -1,0 +1,55 @@
+name: Storage-scaled Points catalog
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  points-catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 3fcbba6a04626f8484a523e7da59fb44c82e6e49
+          path: .dependencies/points-runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 16058588cd8e64021b8c89c4fbad3f2ecc736a5a
+          path: .dependencies/points-system
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify original source and run model/storage/service regressions
+        run: |
+          python scripts/check_points_catalog_sources.py
+          python -m unittest discover -s tests -v
+          python scripts/test_points_catalog.py --runtime .dependencies/points-runtime
+          python scripts/test_points_catalog_service.py --runtime .dependencies/points-runtime --system-apps .dependencies/points-system
+          python scripts/test_points_catalog_latency.py --runtime .dependencies/points-runtime --system-apps .dependencies/points-system
+          python scripts/probe_points_catalog_capacity.py --runtime .dependencies/points-runtime --system-apps .dependencies/points-system --output dist/points-capacity/normal.json
+          python scripts/probe_points_catalog_capacity.py --sanitize --runtime .dependencies/points-runtime --system-apps .dependencies/points-system --output dist/points-capacity/sanitized.json
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Build both selected profiles and prove legacy bytes
+        run: |
+          export NATIVE_APP_CC="$HOME/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc"
+          python scripts/build_points_catalog_service.py --runtime .dependencies/points-runtime --system-apps .dependencies/points-system
+      - uses: actions/upload-artifact@v4
+        with:
+          name: points-catalog-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            dist/points-catalog-service/
+            dist/points-capacity/
+          retention-days: 14
+          if-no-files-found: error

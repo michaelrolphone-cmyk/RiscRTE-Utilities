@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "source_sha": "0189ce87185b545af27015311c3bb4537e84c08d",
+  "working_tree_dirty": false,
+  "runtime_checkout": "3fcbba6a04626f8484a523e7da59fb44c82e6e49",
+  "compiler": "xtensa-esp32s3-elf-gcc (crosstool-NG esp-2021r2-patch5) 8.4.0",
+  "target_loader": "passed eight alignments and all relocation sites",
+  "pins": {
+    "schema": 1,
+    "reservation": "2026-10-09: alarm-service 0.4.7 Watch API1 / 0.4.8 native UTC API2; selected catalog capacity and slow-scan sleep repair.",
+    "base_sha": "0d3c1fbb4488549a47459279cbcaadb7f9fbd064",
+    "runtime_sha": "34095f642d307f157ac0ed32ee5cb7f6532f9ac1",
+    "runtime_inputs": {
+      "sdk/driver/RiscProviderV2.h": "62478822fa8943ddfd1607f8923de52d7b5b6fc8a0db2df6ca07c65c95c62d41",
+      "sdk/driver/RiscBoundAppDataV1.h": "f4c6b9e475409515ee3b385a85790f592e8d943b0f811707926a32be4e1a6a42",
+      "sdk/driver/RiscBoundKeyValueV1.h": "0d77dffef1e6513cbf9b3cf38266f7c9ebcc25d000605838821241ba742cd672",
+      "sdk/driver/RiscPlatformClockV1.h": "41a12f6529f38731ee874f8bc166e1cf89fe376a1448fe5a4dd4c9abac90e5e2",
+      "sdk/driver/RiscPlatformRealtimeV1.h": "ed642c0f37350f7f1402342c7710564019db9c4750f3572f153d2ef1e37eca98",
+      "sdk/app/RiscAppDataV1.h": "49ced12bd617ce9e29626f97ee21d824edcf5f8272524a7da8780c60979df201"
+    },
+    "system_checkout_sha": "393c2aae1c52fa5b03274a6bca319d18395116a4",
+    "system_inputs": {
+      "lib/PortableApps/include/PortableTimeZone.h": "3cfb6687d8f3675beb020a059b8cd3b3d8beffd42c11c6fd61d14b48af729c54",
+      "lib/PortableApps/src/PortableTimeZone.c": "28c0fecf7a4d83bde07d2b72cb591122cf3c49c3219c8344b97b82a90625c5e7",
+      "lib/PortableApps/src/PortableTimeZoneCatalog.c": "29d4c86037f7554c94a4404d5e39e28091430a1f9c23b5e35224aed3df826f20",
+      "lib/PortableApps/time/TIMEZONE_PROVENANCE.json": "4dda9d416b6ca815155dbf3ecac6452789564ff1312bba2d28a6d5a9b7eaab1b",
+      "LICENSE": "7212963b5b1b5ee34ca158163356beb1e6945dd2cc5d320f1fe7573c424ea640",
+      "lib/PortableApps/include/PortableTime.h": "350b8c5255dafa9e25c4a20cfb458cdcda3439da929dab05e0de0c82e981ff6e",
+      "lib/PortableApps/include/PortableRtcClock.h": "43508db1cd392606cf37a7e55ad15e3770de1284af13a431876fd5d7785b838c",
+      "lib/PortableApps/time/denver/display_time.h": "9460e26e1d6faf574a212cdec86d9477de7a0e5d50168d5e7e76613be2868a03",
+      "lib/PortableApps/time/denver/twatch_calendar.h": "67e4a670e4ee8a485843e99be0d198d0b60d84a0bc8d84fc77a3d0e4bde39733",
+      "lib/PortableApps/time/denver/twatch_caps.h": "b8b3003c77c72eb251227329c94fda7244389fb45c7a7e92aa01a5ddce50600e"
+    },
+    "versions": {
+      "watch": "0.4.7",
+      "native-utc": "0.4.8"
+    },
+    "hardware_verified": false,
+    "required_bound_kv_keys": 10,
+    "runtime_admission": "Runtime0.1.83 exact-file provider storage and ten bound KV keys are qualified normally and with ASan/UBSan; public source is tree-equivalent to the local target-build pin.",
+    "runtime_public_sha": "3fcbba6a04626f8484a523e7da59fb44c82e6e49",
+    "runtime_tree": "a3cfc65b221581ad682d438df4952defc6cf61ed",
+    "system_public_sha": "16058588cd8e64021b8c89c4fbad3f2ecc736a5a",
+    "system_public_verification": "All ten selected files verified by exact public Git blob identity against the qualified source inputs."
+  },
+  "modules": [
+    {
+      "profile": "watch",
+      "version": "0.4.7",
+      "sha256": "d0432b51c7e9ad33b4feebc129fa0b1eb4e203edc9bf0b7b072c48ef058f155c",
+      "size_bytes": 48152,
+      "imports": [
+        "free",
+        "malloc",
+        "memcmp",
+        "memcpy",
+        "memset",
+        "strcmp",
+        "strlen"
+      ],
+      "exports": [
+        "t5_driver_get"
+      ],
+      "legacy_exact_base_bytes": true
+    },
+    {
+      "profile": "native-utc",
+      "version": "0.4.8",
+      "sha256": "ce636cfd3b0151f85b3c58606e009f594ab0cf98ff4d8565f3a8cd786a51b559",
+      "size_bytes": 77456,
+      "imports": [
+        "free",
+        "malloc",
+        "memcmp",
+        "memcpy",
+        "memset",
+        "strcmp",
+        "strlen"
+      ],
+      "exports": [
+        "t5_driver_get"
+      ],
+      "legacy_exact_base_bytes": true
+    }
+  ],
+  "sources": {
+    "Services/alarm_service/service.c": "8204276e7f1202f67ca754212cce16c254dc207400a0c6316c7ec8037e9cb4d3",
+    "Services/alarm_service/catalog.inc": "f1597544233d4149d3e55bc6ce6502976c374f589df36e8989c11b2768b14382",
+    "sdk/points-catalog-service-sources.json": "9aea02b6f29e50cdd233244c722aa2d32c59aa02ca436182922124b61ad3fc10",
+    "lib/Alarm/include/AlarmDnd.h": "719233156a13d08ec0113670a2a5a6d8cddf7fca120a36244a95575127bebd95",
+    "lib/Alarm/include/AlarmOutputV1.h": "b19cbe20602aa4fd3b184910e781e944c28fe30e72dcf919701d9b8eeab750c2",
+    "lib/Alarm/include/AlarmRecords.h": "e04d9cfa6c32a70125ef618b85d048936afad2204fb97d459cda8c36fd0b2066",
+    "lib/Alarm/include/AlarmServiceV1.h": "c70c087550306c123255e1ace41aeb504809e16b0193e382ec8dfbd7cb5531f5",
+    "lib/Alarm/include/AlarmServiceV2.h": "d7e750a8093e1b5e698483254edc38533b7242a3446d0bca5866c9dfd6ad07a1",
+    "lib/Alarm/include/AlarmVolume.h": "7010a97ce2b2d21ac35d50e52e1f419e14c46e06fe9c73151efb7c4ae651fdf6",
+    "lib/Alarm/include/PointsCatalog.h": "de18146b3e2694c370be364e169603c12eb333346c7ed5d3cbdb3cce004e80a4",
+    "lib/Alarm/include/PointsCatalogLedger.h": "7ef0280b2b9d28db56dc77931336a6386255b6e1481f3b2dad469418b7c5a1d1",
+    "lib/Alarm/include/PointsCatalogLedgerStorage.h": "7c4155384fdbdc79a7d34ba05113187bb1b9bbff03a0c5d723be27f1b314c60b",
+    "lib/Alarm/include/PointsCatalogProjection.h": "df15444df2afdb7e202be1feee03154353523fd12ab781417ada4a3f0661bfea",
+    "lib/Alarm/include/PointsCatalogSchedule.h": "cef89783a87ac52fbb81d8e146dd126a0c823a8b18a35e90836b7e9745bf3aa9",
+    "lib/Alarm/include/PointsCatalogStorage.h": "46e03ffebc97df202422627bdcb67ec76401dc1a37a1cf6faa47a2f5b394c195",
+    "lib/Alarm/include/PointsRecords.h": "ee59148062a39b2973e70c9c4816c1109686df0440d0ffd0d56ef0bff8820332",
+    "lib/Alarm/include/PointsSchedule.h": "9e34d32dbf989ee28f287813744748ab2d3193857a71bcab66e1f9b41749306c",
+    "lib/Alarm/include/PointsServiceProjection.h": "42710361e60a6f644377302d1492ef24bbfd392aebe72acac3b8c5414702977a",
+    "lib/Alarm/include/PointsUtcSchedule.h": "b1ff4460410ec793d2fe7711562412c0e735e80c7fc4b881d761dab4e973e188"
+  },
+  "hardware_verified": false
+}

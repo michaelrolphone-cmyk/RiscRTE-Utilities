@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build reserved catalog services and prove unchanged legacy target bytes."""
-import argparse,hashlib,json,os,shutil,subprocess
+import argparse,hashlib,json,os,shutil,subprocess,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 PIN=json.loads((ROOT/'sdk/points-catalog-service-sources.json').read_text())
@@ -8,7 +8,8 @@ def run(argv):subprocess.run(list(map(str,argv)),check=True)
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def main():
  p=argparse.ArgumentParser();p.add_argument('--runtime',type=Path,required=True);p.add_argument('--system-apps',type=Path,required=True);a=p.parse_args();runtime=a.runtime.resolve();system=a.system_apps.resolve()
- if subprocess.check_output(['git','rev-parse','HEAD'],cwd=runtime,text=True).strip()!=PIN['runtime_sha']:raise ValueError('Exact provider-bound Runtime checkpoint required')
+ runtime_sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=runtime,text=True).strip()
+ if runtime_sha not in (PIN['runtime_sha'],PIN['runtime_public_sha']) or subprocess.check_output(['git','rev-parse','HEAD^{tree}'],cwd=runtime,text=True).strip()!=PIN['runtime_tree'] or subprocess.check_output(['git','status','--porcelain'],cwd=runtime,text=True).strip():raise ValueError('Clean exact provider-bound Runtime checkpoint required')
  for checkout,key in [(runtime,'runtime_inputs'),(system,'system_inputs')]:
   for path,digest in PIN[key].items():
    if sha(checkout/path)!=digest:raise ValueError('Frozen input differs: '+path)
@@ -21,9 +22,15 @@ def main():
  flags=['-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wall','-Wextra','-Werror','-Wl,--version-script='+str(mapping)]
  includes=[ROOT/'lib/Alarm/include',runtime/'sdk/driver',runtime/'sdk/app',system/'lib/PortableApps/include']
  baseline=out/'baseline';(baseline/'include').mkdir(parents=True,exist_ok=True)
- for name in subprocess.check_output(['git','ls-tree','-r','--name-only',PIN['base_sha'],'lib/Alarm/include/'],cwd=ROOT,text=True).splitlines():
-  (baseline/'include'/Path(name).name).write_bytes(subprocess.check_output(['git','show',PIN['base_sha']+':'+name],cwd=ROOT))
- (baseline/'service.c').write_bytes(subprocess.check_output(['git','show',PIN['base_sha']+':Services/alarm_service/service.c'],cwd=ROOT))
+ custody=json.loads((ROOT/'docs/evidence/points-catalog/source-custody.json').read_bytes())
+ archive=ROOT/'docs/evidence/points-catalog'/custody['baseline_archive']['file']
+ if archive.name!='baseline-source.zip' or archive.stat().st_size!=custody['baseline_archive']['size_bytes'] or sha(archive)!=custody['baseline_archive']['sha256']:raise ValueError('Original baseline archive differs')
+ with zipfile.ZipFile(archive) as z:
+  if len(z.namelist())!=len(custody['baseline_members']) or set(z.namelist())!=set(custody['baseline_members']):raise ValueError('Baseline member set differs')
+  for name,expected in custody['baseline_members'].items():
+   raw=z.read(name);path=Path(name)
+   if path.is_absolute() or '..' in path.parts or len(raw)!=expected['size_bytes'] or hashlib.sha256(raw).hexdigest()!=expected['sha256']:raise ValueError('Baseline member differs')
+   (baseline/path).parent.mkdir(parents=True,exist_ok=True);(baseline/path).write_bytes(raw)
  rows=[]
  for native in (False,True):
   name='native-utc' if native else 'watch'
@@ -47,6 +54,6 @@ def main():
  loader=out/'target-loader';run([os.environ.get('CC','cc'),'-std=gnu11','-O1','-g','-I'+str(ROOT/'test/alarm-loader-stubs'),'-I'+str(runtime/'lib/elf_loader/include'),ROOT/'test/alarm_target_loader.c',runtime/'lib/elf_loader/src/esp_elf.c',runtime/'lib/elf_loader/src/arch/esp_elf_xtensa.c',runtime/'lib/elf_loader/src/esp_elf_validate.c','-o',loader])
  run([loader,*[out/row['profile']/'driver.elf' for row in rows]])
  source_paths=['Services/alarm_service/service.c','Services/alarm_service/catalog.inc','sdk/points-catalog-service-sources.json',*sorted(str(p.relative_to(ROOT)) for p in (ROOT/'lib/Alarm/include').glob('*.h'))]
- (out/'build-evidence.json').write_text(json.dumps({'schema':1,'source_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':compiler,'target_loader':'passed eight alignments and all relocation sites','pins':PIN,'modules':rows,'sources':{p:sha(ROOT/p) for p in source_paths},'hardware_verified':False},indent=2)+'\n')
- print('Watch0.4.5 API1 / X4 native UTC0.4.6 API2 target ELF validation PASS; both unselected legacy ELFs exactly match baseline')
+ (out/'build-evidence.json').write_text(json.dumps({'schema':1,'source_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'runtime_checkout':runtime_sha,'compiler':compiler,'target_loader':'passed eight alignments and all relocation sites','pins':PIN,'modules':rows,'sources':{p:sha(ROOT/p) for p in source_paths},'hardware_verified':False},indent=2)+'\n')
+ print('Watch0.4.7 API1 / X4 native UTC0.4.8 API2 target ELF validation PASS; both unselected legacy ELFs exactly match baseline')
 if __name__=='__main__':main()

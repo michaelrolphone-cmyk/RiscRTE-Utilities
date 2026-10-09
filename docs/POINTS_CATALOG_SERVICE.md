@@ -17,10 +17,11 @@ products. No release or product installation is part of this checkpoint.
 `storage.app-data.bound@1`, each bound by exact filename to app-data namespace 5.
 The policy examples contain the exact boot `storage` and `app_data` members.
 Both profiles require ten explicit bound KV keys, including read-only legacy
-Points configuration, metadata and occurrence keys. Runtime 0.1.83 integration
-must qualify its generic ten-key admission boundary; the initial cc41f4c SDK
-checkpoint supplies the app-data API but its nine-key admission is insufficient.
-The parent integration updates that source pin after the ten-key change passes.
+Points configuration, metadata and occurrence keys. Runtime 0.1.83 now supplies
+the qualified exact-file provider API and ten-key admission boundary. Public
+commit 3fcbba6a04626f8484a523e7da59fb44c82e6e49 is tree-equivalent to the recorded
+local target-build pin 34095f642d307f157ac0ed32ee5cb7f6532f9ac1. Both are accepted
+by the build recipe; the actual selected checkout is recorded.
 
 The service uses the filesystem catalog when present. Before the editor's first
 file save, it reads legacy configuration and metadata, preserving custom names,
@@ -55,7 +56,7 @@ existing arbitration, acknowledgement, recovery and sleep-ticket behavior.
 `PointsCatalogProjection.h` contains only POD types. `PointsServiceProjection.h`
 adds separate size/tag/version-checked suffixes after unchanged Watch v1 sleep
 and X4 v2 descriptor prefixes. `points_service_project` returns previous plus
-four upcoming start/end rows, copied labels/colors, full 32-bit stable IDs and
+four upcoming start/end rows, copied labels/colors/symbols, full 32-bit stable IDs and
 revisions, source seconds, catalog revision, snapshot and exclusive `valid_until`.
 The bounded projection is not a catalog capacity limit.
 
@@ -64,7 +65,7 @@ an invocation-local reconciliation counter; `catalog_revision` is durable.
 `valid_until` is the fourth future deadline when full, otherwise seven days after
 the snapshot, bounded by the time domain. Consumers must stop advancing cached
 rows when `seconds >= valid_until`. A new retained schema is required; do not
-reinterpret an old eight-slot retained record. Sparse timer wakes use only the
+reinterpret an old eight-slot retained record. X4 sparse timer wakes use only the
 retained copy and must never call storage, service projection or SD.
 
 The projection callback copies previously computed data without dependency I/O.
@@ -90,3 +91,14 @@ both unselected legacy binaries unchanged, and runs the real Xtensa loader at
 eight alignments with independent relocated-section/redzone comparison. Exact
 source and dependency hashes are emitted in `dist/points-catalog-service/`.
 Hardware behavior and final product Runtime admission remain integration checks.
+
+## Focused publication custody
+
+The selected source was qualified at local 9bd572791a8304194ceb2b7542fc9cbd124e911b.
+The public recipe replaces its historical Git-baseline lookup with a sealed
+archive of exactly those alarm-service sources and headers. It also accepts
+the verified public Runtime alias. All production C/header inputs are unchanged.
+Run `scripts/check_points_catalog_sources.py` before the model/service tests.
+The focused public reconstruction produces byte-identical selected service ELFs,
+and its unselected Watch service also matches the preceding public Utilities
+PR51 bytes. No broader X4 application or product history is included.

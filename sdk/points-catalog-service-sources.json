@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "reservation": "2026-10-09: parent freshly checked Utilities alarm-service PR inventory through 0.4.4 and reserved 0.4.5 Watch API1 / 0.4.6 native UTC API2; no publication.",
+  "reservation": "2026-10-09: alarm-service 0.4.7 Watch API1 / 0.4.8 native UTC API2; selected catalog capacity and slow-scan sleep repair.",
   "base_sha": "0d3c1fbb4488549a47459279cbcaadb7f9fbd064",
   "runtime_sha": "34095f642d307f157ac0ed32ee5cb7f6532f9ac1",
   "runtime_inputs": {
@@ -25,12 +25,14 @@
     "lib/PortableApps/time/denver/twatch_caps.h": "b8b3003c77c72eb251227329c94fda7244389fb45c7a7e92aa01a5ddce50600e"
   },
   "versions": {
-    "watch": "0.4.5",
-    "native-utc": "0.4.6"
+    "watch": "0.4.7",
+    "native-utc": "0.4.8"
   },
   "hardware_verified": false,
   "required_bound_kv_keys": 10,
   "runtime_admission": "Runtime0.1.83 exact-file provider storage and ten bound KV keys are qualified normally and with ASan/UBSan; public source is tree-equivalent to the local target-build pin.",
   "runtime_public_sha": "3fcbba6a04626f8484a523e7da59fb44c82e6e49",
-  "runtime_tree": "a3cfc65b221581ad682d438df4952defc6cf61ed"
+  "runtime_tree": "a3cfc65b221581ad682d438df4952defc6cf61ed",
+  "system_public_sha": "16058588cd8e64021b8c89c4fbad3f2ecc736a5a",
+  "system_public_verification": "All ten selected files verified by exact public Git blob identity against the qualified source inputs."
 }

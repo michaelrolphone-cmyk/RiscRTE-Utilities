@@ -891,7 +891,9 @@ static int32_t prepare_sleep_internal(alarm_sleep_v1 *out) {
     if(active||haptic_uncertain||audio_uncertain||phase==BLOCKED)return error?error:ALARM_PENDING;
     if(!sleep_waiting){sleep_snapshot=view.snapshot;sleep_waiting=true;begin_reconcile();return ALARM_PENDING;}
     if(phase!=IDLE||view.snapshot==sleep_snapshot)return ALARM_PENDING;
+#ifndef POINTS_CATALOG_SERVICE
     if(now_ms()-sample_ms>100){begin_reconcile();return ALARM_PENDING;}
+#endif
     uint32_t deadline=0;
     for(unsigned i=0;i<2;i++)if(config[i].enabled&&config[i].deadline>seconds&&
         (!alarm_same_occurrence(&occurrences[i],&config[i])||occurrences[i].state==ALARM_OCC_PENDING)) {
@@ -916,6 +918,28 @@ static int32_t prepare_sleep_internal(alarm_sleep_v1 *out) {
         }
 #endif
     }
+#endif
+#ifdef POINTS_CATALOG_SERVICE
+    /* A storage-sized catalog may take more than 100 ms to evaluate. Resample
+     * after all scans instead of repeatedly discarding the same valid work.
+     * A deadline crossed during the scan requires reconciliation, never sleep.
+     * Keep the normal monotonic/RTC agreement check and terminal fence. */
+    uint32_t current;
+#ifdef ALARM_NATIVE_UTC
+    int32_t read_result=read_utc(&current);if(read_result!=ALARM_OK)return fail(read_result);
+#else
+    twatch_rtc_time_v1 t;
+    if(!rtc->read(rtc->context,&t)||t.weekday>6||
+       !alarm_calendar_seconds(t.year,t.month,t.day,t.hour,t.minute,t.second,&current))return fail(ALARM_RTC);
+#endif
+    uint64_t at=now_ms();
+    if(!anchored||at<previous_ms||at-previous_ms>UINT32_MAX)return fail(ALARM_RTC);
+    uint32_t elapsed=(uint32_t)(at-previous_ms)/1000;
+    uint64_t delta=current>=previous_seconds?current-previous_seconds:UINT64_MAX;
+    if(delta==UINT64_MAX||(delta>elapsed?delta-elapsed:elapsed-delta)>2)return fail(ALARM_RTC);
+    seconds=previous_seconds=current;sample_ms=previous_ms=at;
+    if(deadline&&deadline<=current){begin_reconcile();return ALARM_PENDING;}
+    update_view();
 #endif
     *out=(alarm_sleep_v1){sizeof(*out),view.snapshot,seconds,deadline};
     sleep_ticket=*out;sleep_ticket_valid=true;sleep_waiting=false;return ALARM_OK;
