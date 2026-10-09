@@ -1,3 +1,6 @@
+#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+static bool bp_release_seen;
+#endif
 /* Nova7 retaining-MONO1 presentation. The shared passive scanner and leased
  * sensor provider lifecycle remain authoritative. RF is changed only by an explicit tap. */
 static bool bp_down,bp_list;
@@ -89,6 +92,14 @@ static void paper_enable(void){
 static void bp_more(void){if(detail){detail_scroll=detail_scroll+11<bp_detail_lines?detail_scroll+11:0;dirty=true;}else{sensors=!sensors;scroll=selected=0;dirty=true;}}
 static bool paper_input(const t5_app_input_t*i){
  springboard_contact c={0};paper->contact(&c);bool tap=false,gesture=false;int x=0,y=0;
+#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+ /* Shared QuickActions may reject its top-edge gesture and return one
+  * eligible began+released contact. Consume that replay exactly once. */
+ if(!c.valid||c.cancelled||!c.tap_eligible){bp_down=false;c.down=false;}
+ if(!c.released)bp_release_seen=false;
+ if(c.valid&&c.began&&c.released&&c.tap_eligible&&!c.cancelled&&!bp_release_seen){bp_down=true;bp_x=c.x;bp_y=bp_last_y=c.y;bp_list=false;}
+ if(c.released)bp_release_seen=true;
+#endif
  if(c.down){if(!bp_down){bp_down=true;bp_x=c.x;bp_y=c.y;bp_list=!naming&&c.y>=112&&c.y<bp_h()-176;}bp_last_y=c.y;}
  else if(bp_down){int dy=bp_last_y-bp_y;bp_down=false;if(bp_list&&(dy>=44||dy<=-44)){gesture=true;if(detail){if(dy<0)bp_more();else{detail_scroll=detail_scroll>=11?detail_scroll-11:0;dirty=true;}}else move(dy<0?(int)bp_rows():-(int)bp_rows());}else if(dy<44&&dy>-44){tap=true;x=bp_x;y=bp_y;}}
  if((i->buttons&T5_APP_BUTTON_BACK)||(tap&&portable_nova_hit(x,y,32,16,64,88)))return navigate_back();

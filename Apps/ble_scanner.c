@@ -246,6 +246,9 @@ void app_main(void){
  paper=paper_presentation_get();
  if((!paper&&(app->screen_width()!=240||app->screen_height()!=240))||(paper&&(!app->fill_rect||!app->draw_icon)))return;
  paper_enable_needed=false;bp_down=false;
+#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+ bp_release_seen=false;
+#endif
  scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=restore_failed=naming=false;selected=scroll=detail_scroll=detail_index=0;memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));dirty=true;message="Tap Scan to discover";
  contact_down=contact_list=contact_moved=false;contact_y=0;
  app->set_back_exits_app(false);uint32_t rendered=0;
