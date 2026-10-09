@@ -8,6 +8,16 @@
 #endif
 #include "PointsSchedule.h"
 #include "PortableTimeZone.h"
+/* Checked domain boundary for future native-UTC writers. The format retains
+ * uint32 seconds since 2000, with native Unix INT32_MAX as its upper bound. */
+static inline bool points_utc_from_unix(int64_t epoch,uint32_t *out) {
+    if(!out||epoch<INT64_C(946684800)||epoch>INT32_MAX)return false;
+    *out=(uint32_t)(epoch-INT64_C(946684800));return true;
+}
+static inline bool points_utc_to_unix(uint32_t seconds,int64_t *out) {
+    if(!out||seconds>ALARM_RTC_MAX)return false;
+    *out=INT64_C(946684800)+seconds;return true;
+}
 static inline bool points_utc_local_day(const portable_timezone_rule *rule,uint32_t raw,uint32_t *day) {
     portable_timezone_civil local;uint32_t seconds;
     if(!rule||!day||raw>ALARM_RTC_MAX||portable_timezone_utc_to_local(rule,
