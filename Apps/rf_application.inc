@@ -12,6 +12,7 @@
 #include "rf_neural_store.h"
 #include "PortableWatchKeyboard.h"
 #include "contexts_owner_export.h"
+#include "app_retained_fence.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -74,6 +75,9 @@ static rf_bulk_state *rf_bulk;
 /* The selected Runtime loads module BSS in PSRAM. Legacy adapters without
  * optional bulk allocation use this bounded resident block, never heap malloc. */
 static rf_bulk_state rf_resident_bulk;
+#ifdef PORTABLE_CONTEXTS_CLIENT
+static uint8_t *rf_contexts_readback(void){return rf_resident_bulk.event_files.readback;}
+#endif
 static bool rf_bulk_allocated;
 #define spectrum (rf_bulk->spectrum)
 #define history (rf_bulk->history)
@@ -209,6 +213,11 @@ static void retain(void){
  while(!portable_background_stop())runtime->yield_ms(50);
 #endif
 waterfall_log("SDR cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
+static void retain_app_data(void){
+ if(app_retained_fence(runtime))return;
+ /* Older Runtime: retain this stack without touching another provider. */
+ for(;;)runtime->yield_ms(50);
+}
 
 static void pause_capture(void){if(!portable_rf_suspend()){waterfall_drain();uncertain=false;owned=false;}}
 
@@ -627,7 +636,8 @@ void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);waterfall_api=app;waterfall_runtime=runtime;
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms)return;
 #ifdef PORTABLE_CONTEXTS_CLIENT
- int exported=contexts_owner_export(runtime,CONTEXTS_RADIO,RF_STORAGE_INSTANCE);
+ int exported=contexts_owner_export_models(runtime,CONTEXTS_RADIO,RF_STORAGE_INSTANCE,RF_APP_DATA_INSTANCE,rf_contexts_readback(),RT_BANK_MAX);
+ if(exported==CONTEXTS_OWNER_FENCED)return;
  if(exported==CONTEXTS_OWNER_RETAINED)retain();
  if(exported==CONTEXTS_OWNER_EXPORTED)return;
 #endif
@@ -638,10 +648,10 @@ void app_main(void){
  waterfall_preferences=(risc_runtime_capability_v1){.struct_size=sizeof(waterfall_preferences)};if(runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&waterfall_preferences)){preferences_acquired=true;preferences=waterfall_preferences.api;}
  capture_requested=input_gap=input_waiting=capture_error=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=urgent_draw=true;receiver_extended=false;
  pending_save=load_errors=0;storage_discard_confirm=false;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / RF OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
- waterfall_log("SDR app enter");restore();signature_restore();signature_mode=prefs.background_mode;manual_room=prefs.manual_room;event_restore();if(temporal_retained())retain();configure_dsp();build_palette();set_page(PAGE_MAIN);toggle();if(store_message)notify(store_message);
+ waterfall_log("SDR app enter");restore();signature_restore();signature_mode=prefs.background_mode;manual_room=prefs.manual_room;event_restore();if(temporal_retained()){retain_app_data();return;}configure_dsp();build_palette();set_page(PAGE_MAIN);toggle();if(store_message)notify(store_message);
  for(;;){
   if(waterfall_uncertain){waterfall_drain();uncertain=owned=running=false;}
-  if(temporal_retained())retain();
+  if(temporal_retained()){retain_app_data();return;}
   uint32_t now=app->millis();if(dirty&&(!running||urgent_draw||(uint32_t)(now-painted)>=(paper?900u:100u))){draw();urgent_draw=false;}
   t5_app_input_t input={0};
   if(!app->poll(&input,running?1:30)){
@@ -652,7 +662,7 @@ void app_main(void){
    break;
   }
   if(waterfall_uncertain)continue;
-  if(temporal_retained())retain();
+  if(temporal_retained()){retain_app_data();return;}
   normalize_input(&input);
   if(input.exit_requested){stop();if(signature_exit_ready()&&temporal_exit_ready())break;continue;}
   if(input.buttons&T5_APP_BUTTON_BACK){if(page==PAGE_KEYBOARD)keyboard_cancel();else if(page==PAGE_EVENT_CAPTURE){if(event_armed||event_training.ready)notify("SAVE OR CANCEL THE WINDOW");else set_page(PAGE_EVENT_LABEL);}else if(page==PAGE_EVENT_EXAMPLES)set_page(PAGE_EVENT_LABEL);else if(page==PAGE_EVENT_LABEL)set_page(PAGE_EVENTS);else if(page==PAGE_EVENTS||page==PAGE_SIGNATURES||page==PAGE_RECEIVER)set_page(PAGE_CONTROLS);else if(page==PAGE_SIGNATURE_EDIT)set_page(PAGE_SIGNATURES);else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else if(request_root_exit())break;continue;}
@@ -665,12 +675,14 @@ void app_main(void){
   else if(page==PAGE_LABEL&&(buttons&T5_APP_BUTTON_CONFIRM))save_label();
   else if(page==PAGE_KEYBOARD){if(buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))key_choice=key_choice?key_choice-1:PWK_COUNT-1;else if(buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))key_choice=(key_choice+1)%PWK_COUNT;else if(buttons&T5_APP_BUTTON_CONFIRM)keyboard_activate(key_choice);if(buttons)dirty=true;}
   if(input.tapped&&!consumed&&tap_action(ui_unx(input.touch_x),ui_uny(input.touch_y),&toggle_requested,&freeze_requested))break;
-  if(temporal_retained())retain();
+  if(temporal_retained()){retain_app_data();return;}
   if(freeze_requested)freeze();else if(toggle_requested)toggle();if(running)capture();if(running)temporal_tick();
   if(!input.buttons&&!input.tapped&&!contact_down&&!consumed)event_neural_tick();
  }
  stop();persist();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;waterfall_release(&waterfall_grant,&radio_acquired);waterfall_radio=NULL;if(store_acquired&&!runtime->release(&store_grant))retain();store_acquired=false;storage=NULL;waterfall_release(&waterfall_preferences,&preferences_acquired);preferences=NULL;if(rf_bulk_allocated)app->psram_free(rf_bulk);rf_bulk=NULL;waterfall_log("SDR app exit");
 #ifdef PORTABLE_CONTEXTS_CLIENT
- if(!contexts_owner_refresh(runtime,CONTEXTS_RADIO,RF_STORAGE_INSTANCE))retain();
+ int refreshed=contexts_owner_refresh_models(runtime,CONTEXTS_RADIO,RF_STORAGE_INSTANCE,RF_APP_DATA_INSTANCE,rf_contexts_readback(),RT_BANK_MAX);
+ if(refreshed==CONTEXTS_OWNER_FENCED)return;
+ if(refreshed==CONTEXTS_OWNER_RETAINED)retain();
 #endif
 }

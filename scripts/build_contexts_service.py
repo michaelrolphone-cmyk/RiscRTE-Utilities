@@ -25,5 +25,5 @@ def source(repo):return {'commit':subprocess.check_output(['git','-C',str(repo),
 evidence={'schema':1,'version':json.loads(manifest)['version'],'compiler':compiler,'sources':{'utilities':source(ROOT),'system-apps':source(a.system_apps),'drivers':source(a.drivers),'runtime':source(a.runtime)},'elf_sha256':hashlib.sha256(raw).hexdigest(),'size_bytes':len(raw),'imports':sorted(imports),'exports':sorted(exports),'hardware_verified':False}
 sizes=subprocess.check_output([cc.removesuffix('gcc')+'size',str(elf)],text=True).splitlines()[1].split()
 evidence['sections_bytes']={name:int(value) for name,value in zip(('text','data','bss'),sizes[:3])}
-evidence['models']={'signature_rooms_events':True,'temporal':False,'neural':False,'persistent_copy':False,'heap':False}
-(out/'build-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n');print('Contexts-service 0.1.0 target ELF, exact exports/imports and loader validation PASS')
+evidence['models']={'signature_rooms_events':True,'temporal':True,'neural':True,'persistent_copy':False,'heap':False}
+(out/'build-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n');print('Contexts-service '+evidence['version']+' target ELF, exact exports/imports and loader validation PASS')

@@ -1,16 +1,30 @@
 {
   "type": "driver",
   "id": "contexts-service",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "driver_abi": 2,
   "architecture": "xtensa-esp32s3",
   "file_name": "driver.elf",
   "requires": [
-    {"capability": "platform.clock", "api": 1},
-    {"capability": "audio.input", "api": 1},
-    {"capability": "radio.iq", "api": 1}
+    {
+      "capability": "platform.clock",
+      "api": 1
+    },
+    {
+      "capability": "audio.input",
+      "api": 1
+    },
+    {
+      "capability": "radio.iq",
+      "api": 1
+    }
   ],
-  "provides": [{"capability": "contexts.service", "api": 1}],
+  "provides": [
+    {
+      "capability": "contexts.service",
+      "api": 1
+    }
+  ],
   "physical_verification": "pending",
   "status": "development-only; awake signature monitoring; temporal and neural models not imported"
 }

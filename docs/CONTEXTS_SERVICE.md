@@ -1,15 +1,21 @@
-# Awake Contexts service (development)
+# Awake Contexts service 0.1.1 (development)
 
 `contexts.service@1` is an ordinary Utilities provider, built independently of
-the frozen Watch 1.0.12 cohort. It reuses the actual Audio Spectrum and RF
+the frozen Watch 1.0.12 and 1.0.13 cohorts. It reuses the actual Audio Spectrum and RF
 signature decoders, canonical FFTs, room trackers, foreground subtraction and
 single-frame event matchers. It never creates saved samples or trains a model.
 
-This increment recognizes saved signature rooms and events. Temporal example
-banks and neural checkpoints remain private to their existing owning apps and
-are **not imported**. Status reports `temporal_ready=false` and
-`neural_ready=false`. Their record kinds are reserved and rejected, not silently
-treated as signature records. Frequency-label catalogs are also not imported.
+This increment imports saved temporal example banks and validated neural
+checkpoints through their original owners. Temporal recognition retains every
+positive and negative sequence and the existing bounded DTW gates. Neural
+refinement can resolve only eligible ambiguous/negative temporal candidates;
+missing or stale checkpoints leave temporal inference intact. Frequency-label
+catalogs remain outside this import contract.
+
+The coordinated source allocation is Contexts/service **0.1.1**, Audio Spectrum
+**0.4.12** and Waterfall **0.2.8**. Waterfall 0.2.7 belongs to the independent X4
+cohort. These allocations were checked against live Utilities main, tags and
+open PRs on 2026-10-08. No new Watch product version is assigned here.
 
 ## Source and authority boundaries
 
@@ -39,14 +45,23 @@ partition.
 3. Before allocating its plot/training state or opening capture, the requested
    owner reads its existing private KV grant. It exports the canonical saved
    preferences and all eight signature records synchronously, then releases
-   storage and returns normally to Clock. Missing records produce valid empty
+   KV before acquiring its existing private AppData2 (audio) or AppData3 (RF).
+   Two canonical temporal banks and the optional neural checkpoint are copied
+   from fresh stat/read revisions using the owner's existing readback buffer.
+   A successful read must return exactly the requested revision and size.
+   Missing KV records produce valid empty
    signatures or the source app's existing virtual preference default; no
    persistent record is written.
-4. A source is ready only after every required record validates. Bad records,
+4. Signature readiness requires every required signature record to validate. Bad records,
    failed reads, missing grants and incomplete exports fail closed. Pending
    requests are cleared on failure, and the source never schedules its own
    retry. A retained grant or failed cleanup keeps the invocation retained.
    Once the queue settles, a failed source does not block the other ready source.
+   Temporal readiness independently requires both banks to be accounted for
+   and valid; confirmed absence is an empty bank, while partial/stale/unread
+   exports are rejected. Neural readiness additionally binds the complete bank
+   CRCs/generations, exact eligibility and held-example masks, dimensions,
+   checked promotion metadata, finite weights and RF receiver identity.
 5. Normal foreground app launches retain their existing behavior when no
    request is pending. On ordinary editor exit, an already-requested source is
    refreshed from saved records after the app releases its original grants.
@@ -57,6 +72,29 @@ identical export preserves model generation; a changed canonical collection
 advances it. Independent byte fingerprints avoid the fixed CRC residue obtained
 by hashing a complete record including its own CRC. No model survives a reboot
 except through its original owner.
+
+AppData RETAINED and failed AppData release invoke the existing Runtime terminal
+invocation fence, then return directly from the owner app. No later service
+finish/status, storage operation, release, diagnostic or fini occurs in that
+invocation. An abandoned export is resolved by the next launcher invocation.
+Without the Runtime fence suffix, optional AppData import is reported unsupported
+before any read. The ordinary RF editor uses the same terminal return discipline;
+its older-Runtime fallback only retains its stack and yields, without another
+background-service call.
+
+## Optional API and inference state
+
+The API1 prefix through `capture_audio` and the entire copied status layout stay
+unchanged. `CONTEXTS_SERVICE_V1_SIZE` is the required prefix; new owners and UI
+size-check the appended `export_model_error` and `model_details` methods. An old
+provider continues to support signatures and never receives AppData reads or
+new record kinds from a new owner. Older clients can use the new provider.
+
+Temporal event slots are a separate label collection. Event names are copied
+from that collection directly, never looked up through the signature/room
+catalog. Temporal/neural replacement has its own generation and cannot create a
+new room-preset entry. Model details distinguish missing, stale and failed
+imports; positive/negative counts and matching work are diagnostics.
 
 ## Cooperative lifecycle and observations
 
@@ -83,6 +121,21 @@ are not inferred from this host result.
 RF consumes one genuine configured256-pair burst at most every100ms.
 The intervals between RF bursts are unobserved. Complete format and receiver
 identity checks precede RF inference.
+
+Audio temporal columns average two genuine canonical FFT windows into the
+existing 64 ms representation. RF columns preserve actual timestamps and mark
+every independent burst's unobserved interval; identity changes, timestamp
+regression/wrap, pause or capture loss reset partial inference. No dropped
+interval is interpolated. With a nonempty temporal library, event publication
+uses its temporal/neural result and explicit unknown/ambiguity. Results expire
+from the observed event window's end, not from a later matching completion.
+
+Capture-only checkpoints form feature windows but never run DTW or neural
+prediction. Full `step` alternates eight-unit matching slices, permits at most
+128 work units, checks a 4 ms matching budget and drains already-owned audio
+between slices. A fixed-size coarse comparison remains atomic; physical timing
+still requires qualification. The finite 512-frame fixture injects matching
+cost and verifies capture-only calls never advance matching work.
 
 The common client must pause Contexts before foreground audio/RF, alarm output,
 sleep, app handoff, storage retention or incompatible BLE/radio work. Background
@@ -127,6 +180,7 @@ remains responsible for manual-control and low-battery priority.
 
 ```
 python scripts/test_contexts_service.py --drivers /path/drivers --runtime /path/runtime --system-apps /path/system-apps
+python scripts/test_contexts_rf_retained.py --system-apps /path/system-apps
 NATIVE_APP_CC=/path/xtensa-esp32s3-elf-gcc python scripts/build_contexts_service.py --drivers /path/drivers --runtime /path/runtime --system-apps /path/system-apps
 ```
 
@@ -138,8 +192,41 @@ build uses one driver SDK include family to avoid mixing separately copied
 
 The provider has bounded static model/DSP/workspace memory and no heap. The
 GCC 8.4 target build records ELF identity, imports/exports, section sizes and
-source provenance. Initial target BSS is approximately 43 KiB; the final build
-evidence gives the exact size. Full cohort peak memory, cadence, battery cost,
+source provenance. Draft 0.1.1 target BSS is 327,752 bytes, including 283,832
+bytes of temporal inference state. It keeps one canonical inference library per
+source and active neural weights, excluding editor transaction snapshots,
+recording buffers, candidate trainers and validation state. Owner export reuses
+existing readback buffers and adds no heap allocation. Full cohort peak memory, cadence, battery cost,
 microphone/RF behavior and physical Watch qualification remain deployment work.
 Host fixtures use real production DSP on generated PCM/IQ and inject storage,
 format, staleness and cleanup failures; they do not qualify hardware.
+
+## Component resource study
+
+The isolated GCC8.4 study uses ordinary target flags for ELF size/loader checks
+and a separate `-fstack-usage -fdump-ipa-cgraph` compile for stack measurements.
+Do not add those analysis flags to release ELF commands. The draft raw service
+is 82,496 bytes; the existing semantic compactor reduces a study copy to 54,932
+bytes while preserving loader sections, symbols and relocations. This is larger
+than the frozen 1.0.13 service and needs separately qualified product packaging.
+
+Production PSRAM allocation-failure and eight-alignment relocation fixtures
+map the draft service to 43,693 text and 332,153 data bytes. Substituting this
+component and the three rebuilt apps into the unchanged 1.0.13 memory subtotal
+keeps Clock as the largest app: 3,979,079 bytes including all selected providers,
+that app/raw input, and two frames, below the existing 4 MiB software budget.
+Owner export adds no buffer; the native AppData backend's existing read snapshot
+is at most 61,252 bytes. Either owner plus that snapshot remains below the Clock
+allowance. These are software allocation bounds, not measured physical free heap.
+
+Compiler-visible provider stack chains are 6,288 bytes for model import, 4,944
+for full step and 4,464 for capture-only entry. The owner export chain plus exact
+native loop/setup/run/runOne frames reaches 10,032 bytes against the configured
+16,384-byte executor stack. The existing ordinary RF editor chain is 10,256
+bytes with those native frames. Native callback/libc and interrupt frames are
+not included in these static chains; physical stack high-water remains separate.
+
+This slice is tested locally against System Apps model-client checkpoint
+395878094995413e01a9ae141187cfbc1f8fbdb8. Its public equivalent must replace the
+older Contexts workflow pin before publishing this slice. Frozen Watch stores,
+images, source revisions and historical native inputs are not rewritten.

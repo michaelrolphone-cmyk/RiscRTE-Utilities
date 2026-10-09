@@ -3,17 +3,21 @@
 #include "PortableNovaUi.h"
 #include "PortableContextsClient.h"
 #include "PortableBackgroundServices.h"
+#include "RiscAppDataV1.h"
 #include <stdio.h>
 #include <string.h>
 unsigned portable_contexts_face_count(void);
 const char *portable_contexts_face_name(unsigned id);
-enum { CT_HOME,CT_PRESETS,CT_ROOMS,CT_EDIT,CT_FIELD,CT_DISCARD };
+enum { CT_HOME,CT_PRESETS,CT_ROOMS,CT_EDIT,CT_FIELD,CT_DISCARD,CT_MODELS };
 static const t5_app_api_v1 *ctx_app;
 static const risc_runtime_api_v1 *ctx_runtime;
 static const contexts_service_v1 *ctx_service;
 static portable_context_preset ctx_presets[8],ctx_draft;
 static int32_t ctx_results[8];
 static contexts_status_v1 ctx_status;
+static contexts_model_details_v1 ctx_models[2];
+static bool ctx_model_valid[2];
+static unsigned ctx_model_source;
 static contexts_label_v1 ctx_rooms[16];
 static unsigned ctx_page,ctx_selected,ctx_list,ctx_room_scroll,ctx_room_count,ctx_field;
 static bool ctx_enabled,ctx_enabled_valid,ctx_dirty,ctx_retained,ctx_exit,ctx_status_valid;
@@ -54,6 +58,13 @@ static bool ctx_read_status(void) {
     bool valid=ctx_service&&ctx_service->status(ctx_service->context,&next);
     bool changed=valid!=ctx_status_valid||(valid&&memcmp(&next,&ctx_status,sizeof(next)));
     ctx_status_valid=valid;if(valid)ctx_status=next;
+    bool extended=ctx_service&&ctx_service->struct_size>=CONTEXTS_MODEL_DETAILS_V1_SIZE&&ctx_service->model_details;
+    for(unsigned i=0;i<2;i++){
+        contexts_model_details_v1 detail={.struct_size=sizeof(detail)};
+        bool readable=extended&&ctx_service->model_details(ctx_service->context,i?CONTEXTS_RADIO:CONTEXTS_AUDIO,&detail);
+        changed|=readable!=ctx_model_valid[i]||(readable&&memcmp(&detail,&ctx_models[i],sizeof(detail)));
+        ctx_model_valid[i]=readable;if(readable)ctx_models[i]=detail;
+    }
     return changed;
 }
 static void ctx_collect_rooms(void) {
@@ -113,6 +124,7 @@ static void ctx_change(int direction) {
 static void ctx_back(void) {
     if(ctx_page==CT_HOME){ctx_exit=true;return;}
     if(ctx_page==CT_PRESETS){ctx_page=CT_HOME;ctx_note("");return;}
+    if(ctx_page==CT_MODELS){ctx_page=CT_HOME;ctx_note("");return;}
     if(ctx_page==CT_FIELD){ctx_page=CT_EDIT;ctx_note("");return;}
     if(ctx_page==CT_ROOMS&&ctx_room_return_edit){ctx_page=CT_EDIT;ctx_note("");return;}
     if(ctx_page==CT_DISCARD){ctx_page=CT_EDIT;ctx_note("");return;}
@@ -137,8 +149,13 @@ static void ctx_tap(int x,int y) {
             if(!portable_background_stop()){ctx_retained=true;return;}
             if(portable_contexts_enable(requested)){ctx_enabled=requested;ctx_note(requested?"ON / LOAD MODELS TO BEGIN":"MONITORING OFF");}
             else{ctx_enabled_valid=false;ctx_note("SAVE UNCONFIRMED / RETRY");}
-        } else if(ctx_hit(x,y,12,188,104,44))ctx_load_models();
+        } else if(ctx_hit(x,y,12,80,216,49)){ctx_model_source=0;ctx_page=CT_MODELS;ctx_note("");}
+        else if(ctx_hit(x,y,12,132,216,49)){ctx_model_source=1;ctx_page=CT_MODELS;ctx_note("");}
+        else if(ctx_hit(x,y,12,188,104,44))ctx_load_models();
         else if(ctx_hit(x,y,124,188,104,44)){ctx_page=CT_PRESETS;ctx_list=0;ctx_note("");}
+    } else if(ctx_page==CT_MODELS){
+        if(ctx_hit(x,y,12,188,104,44))ctx_load_models();
+        else if(ctx_hit(x,y,124,188,104,44))ctx_back();
     } else if(ctx_page==CT_PRESETS) {
         for(unsigned row=0;row<3;row++)if(ctx_hit(x,y,12,43+(int)row*46,216,42)&&ctx_list+row<8){ctx_open_preset(ctx_list+row);return;}
         if(ctx_hit(x,y,12,188,44,44)){if(ctx_list)ctx_list--;ctx_dirty=true;}
@@ -190,7 +207,17 @@ static void ctx_draw_source(const char *title,const contexts_source_status_v1 *s
     if(!ctx_status_valid){portable_nova_text(2,14,y+17,212,"MONITOR UNAVAILABLE",NOVA_CAP);return;}
     portable_nova_text(2,70,y+1,156,ctx_source_caption(s),NOVA_CAP);
     snprintf(line,sizeof(line),"ROOM: %.16s",s->room_name[0]?s->room_name:"--");portable_nova_text(2,14,y+17,212,line,s->room_valid&&s->current?NOVA_WHITE:NOVA_CAP);
-    snprintf(line,sizeof(line),"EVENT: %.16s",s->event_valid&&s->current?s->event_name:"--");portable_nova_text(2,14,y+31,212,line,NOVA_TEXT);
+    unsigned i=s->source==CONTEXTS_RADIO?1u:0u;
+    const char *engine=ctx_model_valid[i]&&s->event_valid&&s->current?
+        ctx_models[i].event_engine==CONTEXTS_EVENT_NEURAL?"NEURAL":ctx_models[i].event_engine==CONTEXTS_EVENT_TEMPORAL?"TEMPORAL":"EVENT":"EVENT";
+    snprintf(line,sizeof(line),"%s: %.16s",engine,s->event_valid&&s->current?s->event_name:"--");portable_nova_text(2,14,y+31,212,line,NOVA_TEXT);
+}
+static const char *ctx_import_caption(uint32_t state,int32_t error,bool neural){
+    if(state==CONTEXTS_IMPORT_READY)return "READY";
+    if(state==CONTEXTS_IMPORT_MISSING)return neural?"NO SAVED MODEL":"NO SAVED EVENTS";
+    if(error==RISC_APP_DATA_STALE||error==CONTEXTS_IMPORT_STALE)return "STALE / RELOAD";
+    if(state==CONTEXTS_IMPORT_FAILED)return "LOAD FAILED / RETRY";
+    return "SIGNATURES ONLY";
 }
 static void ctx_value(char *out,size_t size) {
     switch(ctx_field) {
@@ -206,13 +233,21 @@ static void ctx_value(char *out,size_t size) {
 }
 static void ctx_draw(void) {
     char text[64];portable_nova_begin();
-    const char *title=ctx_page==CT_HOME?"CONTEXTS":ctx_page==CT_PRESETS?"ROOM PRESETS":ctx_page==CT_ROOMS?"SAVED ROOMS":ctx_page==CT_DISCARD?"DISCARD DRAFT?":"ROOM PRESET";
+    const char *title=ctx_page==CT_HOME?"CONTEXTS":ctx_page==CT_MODELS?(ctx_model_source?"RADIO MODELS":"AUDIO MODELS"):ctx_page==CT_PRESETS?"ROOM PRESETS":ctx_page==CT_ROOMS?"SAVED ROOMS":ctx_page==CT_DISCARD?"DISCARD DRAFT?":"ROOM PRESET";
     portable_nova_text(0,12,9,30,"<",NOVA_CYAN);portable_nova_center(0,44,8,186,title,NOVA_CYAN);
     portable_nova_center(2,44,27,186,ctx_message?ctx_message:"",NOVA_CAP);
     if(ctx_page==CT_HOME) {
         portable_nova_button(12,42,216,36,!ctx_enabled_valid?"RETRY SAVED SETTINGS":ctx_enabled?"MONITORING: ON":"MONITORING: OFF",ctx_enabled_valid&&ctx_enabled);
-        ctx_draw_source("AUDIO",&ctx_status.audio,84);portable_nova_rule(12,129,216);ctx_draw_source("RADIO",&ctx_status.radio,134);
+        ctx_draw_source("AUDIO >",&ctx_status.audio,84);portable_nova_rule(12,129,216);ctx_draw_source("RADIO >",&ctx_status.radio,134);
         portable_nova_button(12,188,104,44,"LOAD MODELS",false);portable_nova_button(124,188,104,44,"PRESETS",false);
+    } else if(ctx_page==CT_MODELS){
+        const contexts_source_status_v1 *s=ctx_model_source?&ctx_status.radio:&ctx_status.audio;
+        const contexts_model_details_v1 *d=&ctx_models[ctx_model_source];
+        int32_t bank_error=d->bank_error[0]?d->bank_error[0]:d->bank_error[1];
+        portable_nova_row(12,43,216,40,"SAVED SIGNATURES",s->signatures_ready?"READY":ctx_source_caption(s),false);
+        portable_nova_row(12,87,216,40,"TEMPORAL EVENTS",ctx_model_valid[ctx_model_source]?ctx_import_caption(d->temporal_state,bank_error,false):"SIGNATURES ONLY",false);
+        portable_nova_row(12,131,216,40,"NEURAL REFINEMENT",ctx_model_valid[ctx_model_source]?ctx_import_caption(d->neural_state,d->neural_error,true):"SIGNATURES ONLY",false);
+        portable_nova_button(12,188,104,44,"LOAD MODELS",false);portable_nova_button(124,188,104,44,"BACK",false);
     } else if(ctx_page==CT_PRESETS||ctx_page==CT_ROOMS) {
         unsigned start=ctx_page==CT_PRESETS?ctx_list:ctx_room_scroll,total=ctx_page==CT_PRESETS?8:ctx_room_count;
         for(unsigned row=0;row<3&&start+row<total;row++) {
