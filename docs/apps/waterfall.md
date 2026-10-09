@@ -1,4 +1,4 @@
-# Waterfall: RF spectrum, history and learned events 0.2.8
+# Waterfall: RF spectrum, history and learned events 0.2.13
 
 Waterfall uses receive-only complex IQ bursts through the generic `radio.iq@1`
 capability. It provides the Spectrum application's SPEC, FALL and MONITOR views,

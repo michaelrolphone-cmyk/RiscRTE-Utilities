@@ -70,7 +70,7 @@ class AudioInventory(unittest.TestCase):
     def test_spectrum_declares_alarm_and_input(self):
         side=json.loads((ROOT/'Apps/audio_spectrum.json').read_text())
         self.assertEqual(side['category'],['Audio Tools'])
-        self.assertEqual(side['version'],'0.4.12')
+        self.assertEqual(side['version'],'0.4.14')
         self.assertEqual(side['requires'][-2]['api'],'>=2')
         self.assertEqual(side['requires'][-1],{'capability':'storage.app-data','api':'>=1'})
         self.assertEqual(side['min_firmware_version'],'0.1.32')
