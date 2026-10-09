@@ -11,7 +11,9 @@
     "ble_scanner": "0.2.9",
     "ble_touchpad": "0.1.9",
     "ble_buttons": "0.1.9",
-    "waterfall": "0.2.5"
+    "waterfall": "0.2.5",
+    "alarms": "0.2.9",
+    "countdown": "0.1.13"
   },
   "defines": [
     "PORTABLE_BLE_BROADCAST",

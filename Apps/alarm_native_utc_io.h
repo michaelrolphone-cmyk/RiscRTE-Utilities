@@ -27,13 +27,23 @@ static bool native_kv_status(int32_t rc) {
     if(rc==RISC_KEY_VALUE_OK||rc==RISC_KEY_VALUE_NOT_FOUND||rc==RISC_KEY_VALUE_BUFFER_SMALL||rc==RISC_KEY_VALUE_INVALID||rc==RISC_KEY_VALUE_IO)return true;
     native_retain();return false;
 }
+#ifdef PORTABLE_BLE_BROADCAST
+bool portable_broadcast_stop(void);
+static bool native_io_ready(void) {
+    if(native_retained||portable_adapter_retained())return false;
+    if(!portable_broadcast_stop()){native_retain();return false;}
+    return true;
+}
+#else
+#define native_io_ready() (!native_retained)
+#endif
 static int32_t native_get(void *context,const char *key,void *buffer,uint32_t cap,uint32_t *size) {
-    if(native_retained)return RISC_KEY_VALUE_CONTEXT;
+    if(!native_io_ready())return RISC_KEY_VALUE_CONTEXT;
     const risc_key_value_v1 *kv=context;int32_t rc=kv->get(kv->context,key,buffer,cap,size);
     return native_kv_status(rc)?rc:RISC_KEY_VALUE_CONTEXT;
 }
 static int32_t native_put(void *context,const char *key,const void *buffer,uint32_t size) {
-    if(native_retained)return RISC_KEY_VALUE_CONTEXT;
+    if(!native_io_ready())return RISC_KEY_VALUE_CONTEXT;
     const risc_key_value_v1 *kv=context;int32_t rc=kv->put(kv->context,key,buffer,size);
     return native_kv_status(rc)?rc:RISC_KEY_VALUE_CONTEXT;
 }
@@ -42,7 +52,7 @@ static int32_t native_result(int32_t rc) {
     return native_retained?ALARM_RETAINED:rc;
 }
 static int32_t native_status(void *unused,alarm_status_v1 *out) {
-    (void)unused;if(native_retained)return ALARM_RETAINED;
+    (void)unused;if(!native_io_ready())return ALARM_RETAINED;
     int32_t rc=native_result(native_service->status(native_service->context,out));
     if(rc==ALARM_OK) {
         if(native_result(out->error)==ALARM_RETAINED)return ALARM_RETAINED;
@@ -50,10 +60,10 @@ static int32_t native_status(void *unused,alarm_status_v1 *out) {
     }
     return native_retained?ALARM_RETAINED:rc;
 }
-static int32_t native_step(void *unused) {(void)unused;return native_retained?ALARM_RETAINED:native_result(native_service->step(native_service->context));}
-static int32_t native_refresh(void *unused) {(void)unused;return native_retained?ALARM_RETAINED:native_result(native_service->refresh(native_service->context));}
-static int32_t native_ack(void *unused,const alarm_token_v1 *token) {(void)unused;return native_retained?ALARM_RETAINED:native_result(native_service->acknowledge(native_service->context,token));}
-static int32_t native_stop(void *unused) {(void)unused;return native_retained?ALARM_RETAINED:native_result(native_service->stop_only(native_service->context));}
+static int32_t native_step(void *unused) {(void)unused;return !native_io_ready()?ALARM_RETAINED:native_result(native_service->step(native_service->context));}
+static int32_t native_refresh(void *unused) {(void)unused;return !native_io_ready()?ALARM_RETAINED:native_result(native_service->refresh(native_service->context));}
+static int32_t native_ack(void *unused,const alarm_token_v1 *token) {(void)unused;return !native_io_ready()?ALARM_RETAINED:native_result(native_service->acknowledge(native_service->context,token));}
+static int32_t native_stop(void *unused) {(void)unused;return !native_io_ready()?ALARM_RETAINED:native_result(native_service->stop_only(native_service->context));}
 static bool native_load_zone(void) {
     if(native_retained)return false;
     native_zone_valid=false;

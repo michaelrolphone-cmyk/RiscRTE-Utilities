@@ -35,12 +35,32 @@ static const risc_key_value_v1 test_kv={1,sizeof(test_kv),NULL,test_get,test_put
 static int32_t test_status(void*c,alarm_status_v1*s){assert(!retained_flag);service_calls++;if(service_retained){*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_BLOCKED,.error=-9,.output_uncertain=1};return ALARM_OK;}return fake_alarm_status(c,s);}
 static int32_t test_step(void*c){assert(!retained_flag);service_calls++;return service_retained?-9:fake_alarm_step(c);}
 static alarm_service_descriptor_v2 test_alarm={.base={2,sizeof(test_alarm),NULL,test_status,test_step,test_step,fake_alarm_ack,fake_alarm_prepare,test_step},.tag=ALARM_SERVICE_DESCRIPTOR_TAG,.descriptor_version=1,.output_modes=ALARM_MODE_VISUAL};
+#ifdef PORTABLE_BLE_BROADCAST
+#include "TelemetryBroadcastV1.h"
+static bool bt_active,bt_pause_fail,bt_release_fail;
+static unsigned bt_pauses;
+static bool bt_step(void*c,bool allow,const telemetry_broadcast_policy_v1*p){(void)c;assert(!retained_flag);bt_active=allow&&p->enabled&&p->settings_valid&&p->radios_allowed;return true;}
+static bool bt_pause(void*c){(void)c;assert(!retained_flag);bt_pauses++;if(bt_pause_fail)return false;bt_active=false;return true;}
+static bool bt_status(void*c,telemetry_broadcast_status_v1*p){(void)c;assert(!retained_flag);*p=(telemetry_broadcast_status_v1){.struct_size=sizeof(*p),.state=bt_active?TELEMETRY_BROADCAST_LIVE:TELEMETRY_BROADCAST_OFF};return true;}
+static int32_t bt_enumerate(void*c,uint32_t i,risc_telemetry_field_v1*p){(void)c;(void)i;(void)p;assert(!retained_flag);return 0;}
+static int32_t bt_read(void*c,uint32_t i,int32_t*p){(void)c;(void)i;(void)p;assert(!retained_flag);return 0;}
+static const telemetry_broadcast_v1 test_broadcast={1,sizeof(test_broadcast),NULL,bt_step,bt_pause,bt_status,bt_enumerate,bt_read};
+#endif
 static bool test_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){assert(!retained_flag);if(!strcmp(n,"rtc.clock")){assert(!"Native app/toolbar must never acquire RTC");return false;}if(!strcmp(n,"runtime.realtime.control")){assert(!"No native control authority");return false;}
+
+#ifdef PORTABLE_BLE_BROADCAST
+ if(!strcmp(n,TELEMETRY_BROADCAST_CAPABILITY)){assert(v==1&&!id);fixture_grants++;g->api=&test_broadcast;}
+ else
+#endif
  if(!strcmp(n,RISC_REALTIME_CAPABILITY)){assert(v==1&&!id&&!reader_live);if(deny_reader)return false;reader_live=true;fixture_grants++;g->api=&reader_api;}
  else {if(!strcmp(n,ALARM_SERVICE_CAPABILITY))assert(v==2);if(!legacy_fixture_acquire(n,!strcmp(n,ALARM_SERVICE_CAPABILITY)?1:v,id,g))return false;if(g->api==&kv_api)g->api=&test_kv;if(g->api==&alarm_api)g->api=&test_alarm;}
  g->slot=1;g->generation=1;return true;
 }
 static bool test_release(risc_runtime_capability_v1*g){assert(!retained_flag);if(g->api==&reader_api){native_release_count++;if(release_reader_failure)return false;assert(reader_live);reader_live=false;fixture_grants--;}
+
+#ifdef PORTABLE_BLE_BROADCAST
+ else if(g->api==&test_broadcast){if(bt_release_fail)return false;fixture_grants--;}
+#endif
  else if(g->api==&battery_api){battery_releases++;fixture_grants--;}
  else if(!legacy_fixture_release(g))return false;
  *g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;
@@ -78,8 +98,25 @@ int main(int argc,char **argv){assert(argc==4);directory=argv[1];unsigned scenar
  case 14:zone("Asia/Kathmandu");start(20);home_at=60;break;
  case 15:touch(20,200,20,0,0);touch(21,200,100,0,0);touch(40,130,345,0,0);touch(60,140,450,0,0);touch(80,340,553,0,0);touch(120,240,620,0,0);touch(121,240,560,0,0);home_at=160;break;
  case 16:native_epoch=INT64_C(2147483647)-30;start(20);home_at=60;break;
+
+#ifdef PORTABLE_BLE_BROADCAST
+ case 17:case 18:case 19:break;
+#endif
  default:assert(0);}
- assert(app_module_init()==0);app_main();
+ assert(app_module_init()==0);
+#ifdef PORTABLE_BLE_BROADCAST
+ if(scenario>=17&&scenario<=19){
+  runtime=risc_runtime_get_api(1);assert(open_dependencies());bt_active=true;unsigned pauses=bt_pauses;
+  if(scenario==18)bt_pause_fail=true;
+  if(scenario==19)bt_release_fail=true;
+  uint8_t bytes[256];uint32_t size=0;int32_t rc=storage->get(storage->context,DAILY_ALARM_KIND==1?"alarm_utc_cfg":"timer_utc_cfg",bytes,sizeof(bytes),&size);
+  assert(bt_pauses>pauses);
+  if(scenario==17){assert(!bt_active&&rc==RISC_KEY_VALUE_NOT_FOUND);close_dependencies();app_module_fini();assert(!fixture_grants&&!retained_flag);}
+  else {assert(retained_flag&&native_retained&&rc==RISC_KEY_VALUE_CONTEXT);unsigned held=fixture_grants;close_dependencies();app_module_fini();assert(fixture_grants==held);}
+  printf("Telemetry private storage boundary kind=%u scenario=%u passed\n",DAILY_ALARM_KIND,scenario);return 0;
+ }
+#endif
+ app_main();
  bool expect_retained=(scenario>=5&&scenario<=9)||scenario==13;
  if(expect_retained){assert(retained_flag&&retain_count==1&&portable_adapter_retained()&&!launches);unsigned before=fixture_grants;app_module_fini();assert(fixture_grants==before&&polls==frozen_polls&&ticks==frozen_ticks&&presents==frozen_presents&&frames==frozen_frames&&subs==frozen_subs&&fixture_grants==frozen_grants&&native_reads==frozen_reads&&service_calls==frozen_calls&&pixel_hash()==frozen_pixels);}
  else {assert(!retained_flag&&!reader_live);if(scenario==0)assert(puts_count==2&&!writer.saved.enabled);if(scenario==1)assert(!puts_count);if(scenario==2)assert(puts_count==1&&launches==1);if(scenario==3)assert(puts_count==3&&!writer.uncertain&&launches==1);if(scenario==4)assert(puts_count==1&&!writer.uncertain&&launches==1);if((scenario>=10&&scenario<=12)||scenario==16)assert(!puts_count&&launches==1);if(scenario==14){assert(puts_count==1&&launches==1);}app_module_fini();assert(!fixture_grants&&!frames&&!subs);}
