@@ -103,10 +103,12 @@ watch_subscriptions[i]=watch_touch->subscribe(watch_touch->context);assert(watch
 #endif
 subs++;return i;}assert(!"too many subscribers");return 0;}
 static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n>0&&n<5&&subscribers[n].live&&subs);
+/* A rejected unsubscribe preserves the real provider token for retry. */
+if(getenv("HID_RENDER_CLEANUP")&&++unsub_attempts==1)return false;
 #ifdef HID_RENDER_WATCH_TOUCH
 assert(watch_touch->unsubscribe(watch_touch->context,watch_subscriptions[n]));watch_subscriptions[n]=0;
 #endif
-if(getenv("HID_RENDER_CLEANUP")&&++unsub_attempts==1)return false;
+
 subscribers[n].live=false;subs--;return true;}
 static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);
  /* The adapter owns time advancement; the app's second poll sees the same report. */
