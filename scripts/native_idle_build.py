@@ -70,6 +70,7 @@ def version(args, name, original):
 def grants(args, original):
     result = [dict(item) for item in original]
     if selected(args):
+        result = [{key:g[key] for key in ('capability','api','instance_id')} for g in result]
         # Runtime selector 0 means the unique authorized provider; the boot
         # grant names its physical instance, shared by scanner and sleep.
         for item in result:

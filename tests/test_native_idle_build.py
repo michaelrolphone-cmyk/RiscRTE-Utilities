@@ -29,7 +29,11 @@ class NativeIdleBuild(unittest.TestCase):
                 grants = idle.grants(self.args(True), old + [{'capability':'telemetry.broadcast','api':1,'instance_id':0}])
                 self.assertLessEqual(len(grants),16)
                 for item in old:
-                    self.assertIn(dict(item,instance_id=16) if item['capability']=='bluetooth.hci' else item,grants)
+                    expected = {k:item[k] for k in ('capability','api','instance_id')}
+                    if expected['capability']=='bluetooth.hci':
+                        expected['instance_id']=16
+                    self.assertIn(expected,grants)
+                self.assertTrue(all(set(g)=={'capability','api','instance_id'} for g in grants))
                 for cap, instance in [('x4.power',17),('storage.volume',9),('net.wifi',15),('bluetooth.hci',16)]:
                     self.assertIn({'capability':cap,'api':1,'instance_id':instance}, grants)
                 if name == 'ble_scanner':
