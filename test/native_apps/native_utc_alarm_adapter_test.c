@@ -65,7 +65,14 @@ static bool test_release(risc_runtime_capability_v1*g){assert(!retained_flag);if
  else if(!legacy_fixture_release(g))return false;
  *g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;
 }
-static const risc_runtime_api_v1 native_runtime={.api_version=1,.struct_size=sizeof(native_runtime),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=test_acquire,.release=test_release,.retain_invocation=test_retain};
+#ifdef TEST_RESIDENT_CLIENT
+#include "resident_test_bridge.h"
+#define EXPECTED_HOME_LAUNCHES 0
+#else
+#define TEST_RESIDENT_BINDING
+#define EXPECTED_HOME_LAUNCHES 1
+#endif
+static const risc_runtime_api_v1 native_runtime={TEST_RESIDENT_BINDING .api_version=1,.struct_size=sizeof(native_runtime),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=test_acquire,.release=test_release,.retain_invocation=test_retain};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&native_runtime:NULL;}
 #include NOVA_APP_SOURCE
 static void touch(unsigned at,int px,int py,int wx,int wy){
@@ -119,7 +126,7 @@ int main(int argc,char **argv){assert(argc==4);directory=argv[1];unsigned scenar
  app_main();
  bool expect_retained=(scenario>=5&&scenario<=9)||scenario==13;
  if(expect_retained){assert(retained_flag&&retain_count==1&&portable_adapter_retained()&&!launches);unsigned before=fixture_grants;app_module_fini();assert(fixture_grants==before&&polls==frozen_polls&&ticks==frozen_ticks&&presents==frozen_presents&&frames==frozen_frames&&subs==frozen_subs&&fixture_grants==frozen_grants&&native_reads==frozen_reads&&service_calls==frozen_calls&&pixel_hash()==frozen_pixels);}
- else {assert(!retained_flag&&!reader_live);if(scenario==0)assert(puts_count==2&&!writer.saved.enabled);if(scenario==1)assert(!puts_count);if(scenario==2)assert(puts_count==1&&launches==1);if(scenario==3)assert(puts_count==3&&!writer.uncertain&&launches==1);if(scenario==4)assert(puts_count==1&&!writer.uncertain&&launches==1);if((scenario>=10&&scenario<=12)||scenario==16)assert(!puts_count&&launches==1);if(scenario==14){assert(puts_count==1&&launches==1);}app_module_fini();assert(!fixture_grants&&!frames&&!subs);}
+ else {assert(!retained_flag&&!reader_live);if(scenario==0)assert(puts_count==2&&!writer.saved.enabled);if(scenario==1)assert(!puts_count);if(scenario==2)assert(puts_count==1&&launches==EXPECTED_HOME_LAUNCHES);if(scenario==3)assert(puts_count==3&&!writer.uncertain&&launches==EXPECTED_HOME_LAUNCHES);if(scenario==4)assert(puts_count==1&&!writer.uncertain&&launches==EXPECTED_HOME_LAUNCHES);if((scenario>=10&&scenario<=12)||scenario==16)assert(!puts_count&&launches==EXPECTED_HOME_LAUNCHES);if(scenario==14){assert(puts_count==1&&launches==EXPECTED_HOME_LAUNCHES);}app_module_fini();assert(!fixture_grants&&!frames&&!subs);}
 #ifdef PORTABLE_PAPER_TRANSITIONS
  if(scenario>=30)motion_verify(scenario);
 #endif

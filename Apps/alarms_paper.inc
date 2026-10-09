@@ -38,7 +38,11 @@ static void alarms_paper_draw(void){
  }else if(alarm_page==1){
   for(unsigned i=0;i<2;i++){
    if(!i&&!alarm_24h())snprintf(value,sizeof(value),"Hour: %u %s",values[0]%12?values[0]%12:12,values[0]<12?"AM":"PM");
+#ifdef PORTABLE_UNPADDED_HOURS
+   else snprintf(value,sizeof(value),i==0?"%s: %u":"%s: %02u",alarm_fields[i],values[i]);
+#else
    else snprintf(value,sizeof(value),"%s: %02u",alarm_fields[i],values[i]);
+#endif
    up_button(32,168+(int)i*112,416,88,value,NULL,false);
   }
   up_wrap(440,"Draft only. Back, then Arm once.");
@@ -50,7 +54,11 @@ static void alarms_paper_draw(void){
  }else{
   up_text(32,136,416,alarm_fields[alarm_field],true,true);
   unsigned shown=values[alarm_field];if(!alarm_field&&!alarm_24h())shown=shown%12?shown%12:12;
+#ifdef PORTABLE_UNPADDED_HOURS
+  snprintf(value,sizeof(value),alarm_field==0?"%u":"%02u",shown);up_center(248,value,true);
+#else
   snprintf(value,sizeof(value),"%02u",shown);up_center(248,value,true);
+#endif
   up_button(32,408,200,88,"-",NULL,false);up_button(248,408,200,88,"+",NULL,false);
   if(!alarm_field&&!alarm_24h())up_button(32,520,200,56,values[0]<12?"AM":"PM",NULL,true);
   up_button(32,584,416,88,"Done","solid:f054",false);

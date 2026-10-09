@@ -134,9 +134,15 @@ static void draw(void) {
 #endif
 #ifdef PORTABLE_NOVA_UI
  portable_nova_begin();portable_nova_header("STOPWATCH");
- char value[12],large[9];sw_format(clock_state.elapsed_ms,value);memcpy(large,value,8);large[8]=0;
+ char value[12],large[9];sw_format(clock_state.elapsed_ms,value);
+#ifdef PORTABLE_UNPADDED_HOURS
+ const char *fraction=value;while(*fraction&&*fraction!='.')++fraction;
+ size_t whole=(size_t)(fraction-value);memcpy(large,value,whole);large[whole]=0;
+#else
+ const char *fraction=value+8;memcpy(large,value,8);large[8]=0;
+#endif
  portable_nova_center(4,16,68,208,large,NOVA_CYAN);
- portable_nova_center(0,16,111,208,value+8,NOVA_TEXT);
+ portable_nova_center(0,16,111,208,fraction,NOVA_TEXT);
  portable_nova_center(1,16,135,208,clock_state.running?"Running":loaded?"Paused":"Storage error",NOVA_CAP);
  if(status && strcmp(status,"RUNNING") && strcmp(status,"PAUSED"))portable_nova_center(2,16,157,208,status,NOVA_CYAN);
  portable_nova_button(16,180,64,48,pending_pause?"Save":clock_state.running?"Pause":"Start",false);

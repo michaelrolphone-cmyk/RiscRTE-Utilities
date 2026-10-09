@@ -37,18 +37,33 @@ static const risc_key_value_v1 test_kv={1,sizeof(test_kv),NULL,test_get,test_put
 static int32_t test_status(void*c,alarm_status_v1*s){assert(!retained_flag);service_calls++;if(service_retained){*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_BLOCKED,.error=-9,.output_uncertain=1};return ALARM_OK;}return fake_alarm_status(c,s);}
 static int32_t test_step(void*c){assert(!retained_flag);service_calls++;return service_retained?-9:fake_alarm_step(c);}
 static alarm_service_descriptor_v2 test_alarm={.base={2,sizeof(test_alarm),NULL,test_status,test_step,test_step,fake_alarm_ack,fake_alarm_prepare,test_step},.tag=ALARM_SERVICE_DESCRIPTOR_TAG,.descriptor_version=1,.output_modes=ALARM_MODE_VISUAL};
+#ifdef TEST_RESIDENT_CLIENT
+#define TEST_RESIDENT_IO() assert(!retained_flag)
+#include "resident_telemetry_fixture.h"
+#endif
 static bool test_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){assert(!retained_flag);if(!strcmp(n,"rtc.clock")){assert(!"Native app/toolbar must never acquire RTC");return false;}if(!strcmp(n,"runtime.realtime.control")){assert(!"No native control authority");return false;}
  if(!strcmp(n,RISC_REALTIME_CAPABILITY)){assert(v==1&&!id&&!reader_live);if(deny_reader)return false;reader_live=true;fixture_grants++;g->api=&reader_api;}
+#ifdef TEST_RESIDENT_CLIENT
+ else if(!strcmp(n,"telemetry.broadcast")){fixture_grants++;g->api=&resident_bt;}
+#endif
  else {if(!strcmp(n,ALARM_SERVICE_CAPABILITY))assert(v==2);if(!legacy_fixture_acquire(n,!strcmp(n,ALARM_SERVICE_CAPABILITY)?1:v,id,g))return false;if(g->api==&kv_api)g->api=&test_kv;if(g->api==&alarm_api)g->api=&test_alarm;}
  g->slot=(!strcmp(n,"storage.key-value")&&id==2)?2:1;g->generation=1;return true;
 }
 static bool test_release(risc_runtime_capability_v1*g){assert(!retained_flag);if(g->api==&reader_api){native_release_count++;if(release_reader_failure)return false;assert(reader_live);reader_live=false;fixture_grants--;}
+#ifdef TEST_RESIDENT_CLIENT
+ else if(g->api==&resident_bt)fixture_grants--;
+#endif
  else if(fail_store_release&&g->api==&test_kv&&g->slot==2)return false;
  else if(g->api==&battery_api){battery_releases++;fixture_grants--;}
  else if(!legacy_fixture_release(g))return false;
  *g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;
 }
-static const risc_runtime_api_v1 native_runtime={.api_version=1,.struct_size=sizeof(native_runtime),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=test_acquire,.release=test_release,.retain_invocation=test_retain};
+#ifdef TEST_RESIDENT_CLIENT
+#include "resident_test_bridge.h"
+#else
+#define TEST_RESIDENT_BINDING
+#endif
+static const risc_runtime_api_v1 native_runtime={TEST_RESIDENT_BINDING .api_version=1,.struct_size=sizeof(native_runtime),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=test_acquire,.release=test_release,.retain_invocation=test_retain};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&native_runtime:NULL;}
 #include NOVA_APP_SOURCE
 static void touch(unsigned at,int px,int py,int wx,int wy){
@@ -133,7 +148,12 @@ int main(int argc,char **argv){
 #endif
  if(expected_retained){assert(retained_flag&&retain_count==1&&portable_adapter_retained());unsigned before=fixture_grants;app_module_fini();assert(fixture_grants==before&&polls==frozen_polls&&ticks==frozen_ticks&&presents==frozen_presents&&frames==frozen_frames&&subs==frozen_subs&&native_reads==frozen_reads&&service_calls==frozen_calls&&pixel_hash()==frozen_pixels);}
  else{
-  assert(!retained_flag&&!reader_live&&launches==1);
+  assert(!retained_flag&&!reader_live);
+#ifdef TEST_RESIDENT_CLIENT
+  assert(launches<=1);
+#else
+  assert(launches==1);
+#endif
 #if NOVA_APP_ID == 2
   if(scenario<30)switch(scenario){
   case 0:case 18:case 23:assert(!clock_state.running&&clock_state.elapsed_ms>1000&&clock_state.saved.elapsed_ms==clock_state.elapsed_ms&&puts_count==2);break;

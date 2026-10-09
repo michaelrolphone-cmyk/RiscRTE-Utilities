@@ -1,7 +1,13 @@
 #include "utility_paper.h"
 static void stopwatch_paper_draw(void) {
- up_begin("STOPWATCH");char value[12],large[9];sw_format(clock_state.elapsed_ms,value);memcpy(large,value,8);large[8]=0;
- up_center(210,large,true);up_center(310,value+8,false);
+ up_begin("STOPWATCH");char value[12],large[9];sw_format(clock_state.elapsed_ms,value);
+#ifdef PORTABLE_UNPADDED_HOURS
+ const char *fraction=value;while(*fraction&&*fraction!='.')++fraction;
+ size_t whole=(size_t)(fraction-value);memcpy(large,value,whole);large[whole]=0;
+#else
+ const char *fraction=value+8;memcpy(large,value,8);large[8]=0;
+#endif
+ up_center(210,large,true);up_center(310,fraction,false);
  up_text(32,386,416,clock_state.running?"Running":loaded?"Paused":"Storage error",false,true);
  up_wrap(434,status);
  up_text(32,538,416,"Display updates once per second",false,true);

@@ -17,10 +17,18 @@ static void countdown_paper_draw(void) {
   up_button(248,584,200,88,writer.uncertain?"Wait":"Cancel","solid:f0c8",false);
   up_button(32,688,200,88,"Back","solid:f053",false);up_button(248,688,200,88,"Refresh","solid:f021",false);
  } else if(alarm_page==1) {
+#ifdef PORTABLE_UNPADDED_HOURS
+  for(unsigned i=0;i<3;i++){snprintf(value,sizeof(value),i==0?"%s: %u":"%s: %02u",alarm_fields[i],values[i]);up_button(32,168+(int)i*112,416,88,value,NULL,false);}
+#else
   for(unsigned i=0;i<3;i++){snprintf(value,sizeof(value),"%s: %02u",alarm_fields[i],values[i]);up_button(32,168+(int)i*112,416,88,value,NULL,false);}
+#endif
   up_wrap(540,"Draft only. Back, then Start.");up_button(32,688,416,88,"Back","solid:f053",false);
  } else {
+#ifdef PORTABLE_UNPADDED_HOURS
+  up_text(32,136,416,alarm_fields[alarm_field],true,true);snprintf(value,sizeof(value),alarm_field==0?"%u":"%02u",values[alarm_field]);up_center(248,value,true);
+#else
   up_text(32,136,416,alarm_fields[alarm_field],true,true);snprintf(value,sizeof(value),"%02u",values[alarm_field]);up_center(248,value,true);
+#endif
   up_button(32,408,200,88,"-",NULL,false);up_button(248,408,200,88,"+",NULL,false);
   up_button(32,584,416,88,"Done","solid:f054",false);up_button(32,688,416,88,"Back","solid:f053",false);
  }

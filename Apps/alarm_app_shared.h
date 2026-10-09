@@ -160,8 +160,16 @@ static void draw(void) {
         }
     }
 #endif
+#ifdef PORTABLE_UNPADDED_HOURS
+    if(DAILY_ALARM_KIND==1)snprintf(value,sizeof(value),"%u:%02u",shown[0],shown[1]);
+#else
     if(DAILY_ALARM_KIND==1)snprintf(value,sizeof(value),"%02u:%02u",shown[0],shown[1]);
+#endif
+#ifdef PORTABLE_UNPADDED_HOURS
+    else snprintf(value,sizeof(value),"%u:%02u:%02u",shown[0],shown[1],shown[2]);
+#else
     else snprintf(value,sizeof(value),"%02u:%02u:%02u",shown[0],shown[1],shown[2]);
+#endif
     int scale=w>=220?3:2;daily_draw_text(app,(w-daily_draw_width(value,scale))/2,71,value,scale);
     for(unsigned i=0;i<columns;i++){app->draw_label(8+(int)i*cell,46,cell,"+");app->draw_label(8+(int)i*cell,117,cell,"-");}
     const char *state=notice?notice:"";

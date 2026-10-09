@@ -48,8 +48,16 @@ static bool alarm_24h(void) {
 #endif
 }
 static void alarm_value_text(char *out,size_t cap,const unsigned *shown) {
+#ifdef PORTABLE_UNPADDED_HOURS
+    if(DAILY_ALARM_KIND==2)snprintf(out,cap,"%u:%02u:%02u",shown[0],shown[1],shown[2]);
+#else
     if(DAILY_ALARM_KIND==2)snprintf(out,cap,"%02u:%02u:%02u",shown[0],shown[1],shown[2]);
+#endif
+#ifdef PORTABLE_UNPADDED_HOURS
+    else if(alarm_24h())snprintf(out,cap,"%u:%02u",shown[0],shown[1]);
+#else
     else if(alarm_24h())snprintf(out,cap,"%02u:%02u",shown[0],shown[1]);
+#endif
     else snprintf(out,cap,"%u:%02u %s",shown[0]%12?shown[0]%12:12,shown[1],shown[0]<12?"AM":"PM");
 }
 static const char *alarm_state_text(void) {
@@ -165,7 +173,11 @@ static void draw(void) {
         unsigned count=DAILY_ALARM_KIND==1?2:3;
         for(unsigned i=0;i<count;i++) {
             if(i==0 && !alarm_24h())snprintf(value,sizeof(value),"Hour: %u %s",values[0]%12?values[0]%12:12,values[0]<12?"AM":"PM");
+#ifdef PORTABLE_UNPADDED_HOURS
+            else snprintf(value,sizeof(value),i==0?"%s: %u":"%s: %02u",alarm_fields[i],values[i]);
+#else
             else snprintf(value,sizeof(value),"%s: %02u",alarm_fields[i],values[i]);
+#endif
             portable_nova_button(20,58+(int)i*50,200,44,value,false);
         }
         portable_nova_center(2,16,215,208,
@@ -178,7 +190,11 @@ static void draw(void) {
     } else {
         portable_nova_center(1,16,62,208,alarm_fields[alarm_field],NOVA_CAP);
         unsigned shown_value=values[alarm_field];if(alarm_field==0 && !alarm_24h())shown_value=shown_value%12?shown_value%12:12;
+#ifdef PORTABLE_UNPADDED_HOURS
+        snprintf(value,sizeof(value),alarm_field==0?"%u":"%02u",shown_value);
+#else
         snprintf(value,sizeof(value),"%02u",shown_value);
+#endif
         portable_nova_button(16,94,48,48,"-",false);portable_nova_button(176,94,48,48,"+",false);
         portable_nova_center(4,72,94,96,value,NOVA_CYAN);
         if(alarm_field==0 && !alarm_24h()) {
