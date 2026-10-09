@@ -28,7 +28,8 @@ int main(void) {
     assert(last&&last->type_id==7&&last->created==123456&&last->revision==41&&last->weekdays==65);
     assert(last->duration_minutes==45&&last->notify_end&&last->warn3);
     assert(!strcmp(points_catalog_find_type(&c,6)->name,"  commute "));
-    points_catalog_type custom={.color=0xABCDEF,.duration_minutes=22,.mode=ALARM_MODE_VIBRATE,
+    assert(points_catalog_find_type(&c,1)->symbol==1&&points_catalog_find_type(&c,5)->symbol==7);
+    points_catalog_type custom={.color=0xABCDEF,.symbol=6,.duration_minutes=22,.mode=ALARM_MODE_VIBRATE,
         .flags=POINTS_TYPE_DURATION|POINTS_TYPE_NOTIFY_END|POINTS_TYPE_WARN3};
     strcpy(custom.name,"Exercise");uint32_t type=0;
     assert(points_catalog_save_type(&c,&custom,&type)==POINTS_CATALOG_OK&&type==8);
@@ -40,7 +41,7 @@ int main(void) {
     for(unsigned i=0;i<1500;i++){uint32_t id;event.hour=(uint8_t)(i%24);
         assert(points_catalog_add_event(&c,&event,&id)==POINTS_CATALOG_OK&&id==10+i);}
     assert(c.event_count==1508&&points_catalog_find_event(&c,1509));
-    for(unsigned i=0;i<40;i++) {snprintf(custom.name,sizeof(custom.name),"Custom type %u",i);uint32_t id;
+    for(unsigned i=0;i<40;i++) {snprintf(custom.name,sizeof(custom.name),"Custom type %u",i);custom.symbol=(uint8_t)(i%8);uint32_t id;
         assert(points_catalog_save_type(&c,&custom,&id)==POINTS_CATALOG_OK&&id==9+i);}
     assert(c.type_count==48);uint32_t size=0;
     assert(points_catalog_size(c.event_count,c.type_count,&size)&&size>48000&&size<65536);
@@ -48,6 +49,7 @@ int main(void) {
     assert(points_catalog_encode(&c,bytes,size,&used)==POINTS_CATALOG_OK&&used==size);
     points_catalog decoded={0};assert(points_catalog_decode(&decoded,bytes,size)==POINTS_CATALOG_OK);
     assert(decoded.event_count==c.event_count&&decoded.type_count==48&&decoded.next_event_id==1510);
+    for(uint32_t i=0;i<c.type_count;i++)assert(decoded.types[i].symbol==c.types[i].symbol);
     uint8_t *roundtrip=malloc(size);assert(roundtrip);
     assert(points_catalog_encode(&decoded,roundtrip,size,&used)==POINTS_CATALOG_OK&&!memcmp(bytes,roundtrip,size));
     /* A saved edit changes only that event's scheduling boundary. */
@@ -59,8 +61,9 @@ int main(void) {
     assert(points_catalog_find_event(&decoded,10)->revision==other_rev);
     assert(points_catalog_find_event(&decoded,8)->created==123456);
     assert(points_catalog_delete_type(&decoded,8)==POINTS_CATALOG_IN_USE);
-    custom=*points_catalog_find_type(&decoded,8);strcpy(custom.name,"Training");
+    custom=*points_catalog_find_type(&decoded,8);strcpy(custom.name,"Training");custom.color=0x112233;
     assert(points_catalog_save_type(&decoded,&custom,&type)==POINTS_CATALOG_OK&&type==8);
+    assert(points_catalog_find_type(&decoded,8)->symbol==6);
     assert(points_catalog_find_event(&decoded,first)->revision==2);
     custom.flags=0;custom.duration_minutes=0;
     assert(points_catalog_save_type(&decoded,&custom,&type)==POINTS_CATALOG_IN_USE);
@@ -80,9 +83,16 @@ int main(void) {
     memcpy(bad,bytes,size);bad[POINTS_CATALOG_HEADER_BYTES+25]=1;repair_hash(bad,size);unchanged_invalid(&decoded,bad,size);
     memcpy(bad,bytes,size);alarm_write32(bad+POINTS_CATALOG_HEADER_BYTES+32,1);repair_hash(bad,size);unchanged_invalid(&decoded,bad,size);
     uint32_t types_at=POINTS_CATALOG_HEADER_BYTES+c.event_count*POINTS_CATALOG_EVENT_BYTES;
+    memcpy(bad,bytes,size);bad[types_at+48]=8;repair_hash(bad,size);unchanged_invalid(&decoded,bad,size);
     memcpy(bad,bytes,size);bad[types_at+63]=1;repair_hash(bad,size);unchanged_invalid(&decoded,bad,size);
     memcpy(bad,bytes,size);bad[types_at+43]='x';repair_hash(bad,size);unchanged_invalid(&decoded,bad,size);
     unchanged_invalid(&decoded,bytes,size-1);
+    /* Previously reserved-zero schema2 type bytes remain readable. */
+    memcpy(bad,bytes,size);
+    for(uint32_t i=0;i<c.type_count;i++)bad[types_at+i*POINTS_CATALOG_TYPE_BYTES+48]=0;
+    repair_hash(bad,size);points_catalog older={0};assert(points_catalog_decode(&older,bad,size)==POINTS_CATALOG_OK);
+    for(uint32_t i=0;i<older.type_count;i++)assert(older.types[i].symbol==0);
+    points_catalog_dispose(&older);
     assert(!points_catalog_size(UINT32_MAX,UINT32_MAX,&used));
     /* Allocation refusal must leave the old catalog and every ID untouched. */
     for(unsigned which=1;which<=2;which++) {

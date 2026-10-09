@@ -32,7 +32,7 @@ typedef struct {
     uint32_t id, revision, color;
     char name[POINTS_CATALOG_NAME_MAX+1];
     uint16_t duration_minutes;
-    uint8_t mode, flags;
+    uint8_t mode, flags, symbol;
 } points_catalog_type;
 typedef struct {
     uint32_t revision, next_event_id, next_type_id, event_count, type_count, time_domain;
@@ -86,7 +86,7 @@ static inline const points_catalog_item *points_catalog_find_event(const points_
 }
 static inline bool points_catalog_type_valid(const points_catalog_type *t) {
     if(!t||!t->id||!t->revision||t->color>0xffffffu||t->mode>ALARM_MODE_BOTH||
-       (t->flags&~7u)||t->duration_minutes>720||!t->name[0])return false;
+       (t->flags&~7u)||t->symbol>7||t->duration_minutes>720||!t->name[0])return false;
     unsigned n=0;while(n<=POINTS_CATALOG_NAME_MAX&&t->name[n]) {
         if((unsigned char)t->name[n]<32||(unsigned char)t->name[n]>126)return false;
         ++n;
@@ -143,7 +143,7 @@ static inline int points_catalog_encode(const points_catalog *c,uint8_t *bytes,u
     for(uint32_t i=0;i<c->type_count;i++,p+=POINTS_CATALOG_TYPE_BYTES) {
         const points_catalog_type *t=&c->types[i];
         alarm_write32(p,t->id);alarm_write32(p+4,t->revision);alarm_write32(p+8,t->color);
-        memcpy(p+12,t->name,strlen(t->name));points_catalog_put16(p+44,t->duration_minutes);p[46]=t->mode;p[47]=t->flags;
+        memcpy(p+12,t->name,strlen(t->name));points_catalog_put16(p+44,t->duration_minutes);p[46]=t->mode;p[47]=t->flags;p[48]=t->symbol;
     }
     alarm_write32(bytes+n-4,points_catalog_hash(bytes,n-4));*used=n;return POINTS_CATALOG_OK;
 }
@@ -177,9 +177,9 @@ static inline int points_catalog_decode(points_catalog *out,const uint8_t *bytes
             .hour=p[20],.minute=p[21],.enabled=p[22],.notify_end=p[23],.warn3=p[24]};
     }
     for(uint32_t i=0;i<c.type_count;i++,p+=POINTS_CATALOG_TYPE_BYTES) {
-        if(!points_catalog_zero(p+48,16)){points_catalog_dispose(&c);return POINTS_CATALOG_INVALID;}
+        if(!points_catalog_zero(p+49,15)){points_catalog_dispose(&c);return POINTS_CATALOG_INVALID;}
         points_catalog_type *t=&c.types[i];t->id=alarm_read32(p);t->revision=alarm_read32(p+4);t->color=alarm_read32(p+8);
-        memcpy(t->name,p+12,sizeof(t->name));t->duration_minutes=points_catalog_u16(p+44);t->mode=p[46];t->flags=p[47];
+        memcpy(t->name,p+12,sizeof(t->name));t->duration_minutes=points_catalog_u16(p+44);t->mode=p[46];t->flags=p[47];t->symbol=p[48];
         size_t len=0;while(len<sizeof(t->name)&&t->name[len])++len;
         if(len==sizeof(t->name)||!points_catalog_zero(p+12+len,sizeof(t->name)-len)){
             points_catalog_dispose(&c);return POINTS_CATALOG_INVALID;
@@ -204,19 +204,20 @@ static inline int points_catalog_migrate(points_catalog *out,const points_config
     if(!out||!points_config_valid(old)||!points_meta_valid(meta)||domain>POINTS_TIME_NATIVE_UTC)return POINTS_CATALOG_INVALID;
     static const char *const names[]={"Work","Work End","Lunch","Break","Bedtime"};
     static const uint32_t colors[]={0x3d9bffu,0xff3d71u,0xffb020u,0x3dff9au,0x6d7bffu};
+    static const uint8_t symbols[]={1,5,3,2,7};
     static const uint32_t custom_colors[]={0xffd24au,0xff7a1au,0xff3d71u,0xb24dffu,0x6d7bffu,0x3d9bffu,0x19e3ffu,0x3dff9au};
     points_catalog c={.revision=old->revision,.next_event_id=POINTS_MAX+1,.next_type_id=8,.type_count=7,.time_domain=domain};
     for(unsigned i=0;i<POINTS_MAX;i++)if(old->points[i].kind)++c.event_count;
     c.types=POINTS_CATALOG_ALLOC(c.type_count*sizeof(*c.types));if(!c.types)return POINTS_CATALOG_MEMORY;
     memset(c.types,0,c.type_count*sizeof(*c.types));
     for(unsigned i=0;i<5;i++) {
-        c.types[i]=(points_catalog_type){.id=i+1,.revision=1,.color=colors[i],.flags=(i==2||i==3)?POINTS_TYPE_DURATION:0};
+        c.types[i]=(points_catalog_type){.id=i+1,.revision=1,.color=colors[i],.symbol=symbols[i],.flags=(i==2||i==3)?POINTS_TYPE_DURATION:0};
         memcpy(c.types[i].name,names[i],strlen(names[i])+1);
     }
     for(unsigned i=0;i<POINTS_CUSTOM_COUNT;i++) {
         const points_custom_type *m=&meta->custom[i];
         c.types[5+i]=(points_catalog_type){.id=6+i,.revision=meta->revision?meta->revision:1,
-            .color=custom_colors[m->color%POINTS_COLOR_COUNT],.flags=POINTS_TYPE_DURATION};
+            .color=custom_colors[m->color%POINTS_COLOR_COUNT],.symbol=m->color%POINTS_COLOR_COUNT,.flags=POINTS_TYPE_DURATION};
         if(m->name[0])memcpy(c.types[5+i].name,m->name,sizeof(m->name));
         else memcpy(c.types[5+i].name,i?"Custom 2":"Custom 1",9);
     }

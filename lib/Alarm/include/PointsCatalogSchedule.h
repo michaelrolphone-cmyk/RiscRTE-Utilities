@@ -39,7 +39,7 @@ static inline bool points_catalog_event_for_day(POINTS_RULE_ARGUMENT const point
 #endif
     const points_catalog_type *type=points_catalog_find_type(c,e->type_id);if(!type)return false;
     *out=(points_catalog_event){.event_id=id,.type_id=e->type_id,.revision=e->revision,.deadline=event.deadline,
-        .parent_day=day,.edge=(uint8_t)edge,.mode=e->mode,.color=type->color};
+        .parent_day=day,.edge=(uint8_t)edge,.mode=e->mode,.color=type->color,.symbol=type->symbol};
     memcpy(out->label,type->name,sizeof(out->label));return true;
 }
 static inline bool points_catalog_event_before(const points_catalog_event *a,const points_catalog_event *b) {

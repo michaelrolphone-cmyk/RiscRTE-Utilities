@@ -17,6 +17,7 @@ static void catalog_free(void *p){assert(!allocation_terminal);free(p);}
 #define POINTS_CATALOG_ALLOC catalog_alloc
 #define POINTS_CATALOG_FREE catalog_free
 #include "../../Services/alarm_service/service.c"
+_Static_assert(sizeof(points_catalog_event)==60,"Copied projection row ABI changed");
 typedef struct {uint8_t *data;uint32_t size;uint64_t revision;} file;
 static file files[2];static uint8_t blobs[12][64];static uint32_t sizes[12];
 static uint64_t ms;static uint32_t base;static unsigned io,put_count,opens,writes,effects,closes,stops,silences;
@@ -88,7 +89,7 @@ static void save_catalog(const points_catalog *c){uint32_t n,used;assert(points_
     uint8_t *b=malloc(n);assert(b&&!points_catalog_encode(c,b,n,&used));free(files[0].data);files[0].data=b;files[0].size=n;files[0].revision++;}
 static points_catalog make_catalog(unsigned count){points_config old={.revision=1};points_meta meta=points_default_meta();points_catalog c={0};
     assert(!points_catalog_migrate(&c,&old,&meta,CATALOG_DOMAIN));
-    for(unsigned i=0;i<5;i++){points_catalog_type t={.color=0x123456,.mode=3,.flags=POINTS_TYPE_DURATION};snprintf(t.name,sizeof(t.name),"Type %u",i);uint32_t id;assert(!points_catalog_save_type(&c,&t,&id));}
+    for(unsigned i=0;i<5;i++){points_catalog_type t={.color=0x123456,.symbol=(uint8_t)(7-i),.mode=3,.flags=POINTS_TYPE_DURATION};snprintf(t.name,sizeof(t.name),"Type %u",i);uint32_t id;assert(!points_catalog_save_type(&c,&t,&id));}
     for(unsigned i=0;i<count;i++){points_catalog_item e={.type_id=8+i%5,.created=noon()-3600,.mode=3,.enabled=1,.weekdays=127,.hour=12,.minute=i%60};uint32_t id;assert(!points_catalog_add_event(&c,&e,&id));}
     return c;}
 static void boot(bool clear){if(provider)assert(provider->quiesce());if(clear){for(unsigned i=0;i<2;i++){free(files[i].data);files[i]=(file){0};}
@@ -116,6 +117,7 @@ static void test_scaled(void){boot(true);points_catalog c=make_catalog(20);save_
     points_catalog_projection p={.struct_size=sizeof(p)};alarm_service_v1 invalid=*client;invalid.struct_size=sizeof(invalid);
     assert(points_service_project(&invalid,&p)==ALARM_INVALID);
     unsigned calls=io;assert(!points_service_project(client,&p)&&io==calls&&p.count==4&&p.previous.event_id==first&&p.next[0].event_id==c.events[1].id);
+    assert(p.previous.symbol==7&&p.next[0].symbol==6&&p.next[0].reserved[0]==0);
     assert(p.valid_until==p.next[3].deadline&&p.next[0].label[0]);p.next[0].label[0]='!';assert(!points_service_project(client,&p)&&p.next[0].label[0]!='!');
     uint32_t generation=points_occ.generation;boot(false);idle();assert(points_occ.generation==generation&&!opens&&!effects);
     alarm_sleep_v1 plan=sleep_plan();assert(plan.deadline==noon()+60);alarm_sleep_v1 wrong=plan;wrong.deadline++;assert(resume_sleep(NULL,&wrong)==ALARM_STALE);
@@ -147,7 +149,7 @@ static void test_virtual_legacy_metadata(void){
     points_config_encode(&old,blobs[5]);sizes[5]=64;points_meta meta=points_default_meta();memcpy(meta.custom[1].name,"Edited Wake",12);meta.custom[1].color=2;
     points_meta_encode(&meta,blobs[9]);sizes[9]=64;settle(8);assert(!files[0].data&&files[1].data&&!put_count);
     points_catalog_projection p={.struct_size=sizeof(p)};assert(!points_service_project(client,&p)&&p.has_previous&&p.previous.event_id==8&&
-        !strcmp(p.previous.label,"Edited Wake")&&p.previous.color==0xff3d71u);
+        !strcmp(p.previous.label,"Edited Wake")&&p.previous.color==0xff3d71u&&p.previous.symbol==2);
     boot(false);idle();assert(!opens&&!effects&&!files[0].data);
 }
 static void test_uncertain(void){boot(true);points_catalog c=make_catalog(1);save_catalog(&c);replace_result=RISC_APP_DATA_COMMIT_UNKNOWN;settle(c.events[0].id);assert(!ledger_store.uncertain);
