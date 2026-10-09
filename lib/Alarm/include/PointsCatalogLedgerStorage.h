@@ -5,11 +5,12 @@
 typedef struct {
     uint64_t file_revision;
     uint8_t *pending;
+    uint8_t *retained_read;
     uint32_t pending_size;
     bool missing,uncertain,retained;
 } points_catalog_ledger_storage;
 static inline void points_catalog_ledger_storage_dispose(points_catalog_ledger_storage *s) {
-    if(s){POINTS_CATALOG_FREE(s->pending);memset(s,0,sizeof(*s));}
+    if(s&&!s->retained){POINTS_CATALOG_FREE(s->pending);memset(s,0,sizeof(*s));}
 }
 static inline int32_t points_catalog_ledger_storage_result(points_catalog_ledger_storage *s,int32_t r) {
     if(r==RISC_APP_DATA_RETAINED||r==RISC_APP_DATA_CONTEXT)s->retained=true;
@@ -23,6 +24,10 @@ static inline int32_t points_catalog_ledger_read(points_catalog_ledger_storage *
     if(n<68||!version)return RISC_APP_DATA_IO;
     uint8_t *b=POINTS_CATALOG_ALLOC(n);if(!b)return RISC_APP_DATA_NO_SPACE;
     uint32_t used=0;uint64_t actual=0;r=api->read(api->context,POINTS_LEDGER_FILE,version,b,n,&used,&actual);
+    if(r==RISC_APP_DATA_RETAINED||r==RISC_APP_DATA_CONTEXT) {
+        s->retained_read=b;
+        return points_catalog_ledger_storage_result(s,r);
+    }
     if(r||used!=n||actual!=version){POINTS_CATALOG_FREE(b);return points_catalog_ledger_storage_result(s,r?r:RISC_APP_DATA_IO);}
     *out=b;*size=n;*rev=version;return RISC_APP_DATA_OK;
 }

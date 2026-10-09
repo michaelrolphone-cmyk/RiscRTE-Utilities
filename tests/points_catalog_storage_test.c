@@ -82,12 +82,16 @@ int main(void) {
     assert(points_catalog_storage_resolve(&s,&api)==RISC_APP_DATA_RETAINED);
     assert(points_catalog_storage_load(&s,&api,0)==RISC_APP_DATA_RETAINED);
     assert(points_catalog_storage_save(&s,&api,&d)==RISC_APP_DATA_RETAINED);
-    assert(stats+reads+writes==calls);points_catalog_dispose(&d);points_catalog_storage_dispose(&s);
+    assert(stats+reads+writes==calls);
+    points_catalog_storage_dispose(&s);assert(s.retained);
+    /* Test-only process reset: the old invocation's allocator is reclaimed. */
+    s.retained=false;points_catalog_dispose(&d);points_catalog_storage_dispose(&s);
     /* A fresh invocation reloads the exact complete committed data. */
     mode=NORMAL;assert(points_catalog_storage_load(&s,&api,0)==0&&s.saved.event_count==12);
     stat_retained=true;assert(points_catalog_storage_load(&s,&api,0)==RISC_APP_DATA_RETAINED);
     calls=stats+reads+writes;assert(points_catalog_storage_load(&s,&api,0)==RISC_APP_DATA_RETAINED&&stats+reads+writes==calls);
-    points_catalog_storage_dispose(&s);free(disk);
+    points_catalog_storage_dispose(&s);assert(s.retained);
+    s.retained=false;points_catalog_storage_dispose(&s);free(disk);
     puts("Points file writer: storage-full, pre/post commit failure, stale revision, reset and terminal retention PASS");
     return 0;
 }

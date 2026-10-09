@@ -11,10 +11,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-static bool allocation_denied;
-static void *catalog_alloc(size_t n){return allocation_denied?NULL:malloc(n);}
+static bool allocation_denied,allocation_terminal;
+static void *catalog_alloc(size_t n){assert(!allocation_terminal);return allocation_denied?NULL:malloc(n);}
+static void catalog_free(void *p){assert(!allocation_terminal);free(p);}
 #define POINTS_CATALOG_ALLOC catalog_alloc
-#define POINTS_CATALOG_FREE free
+#define POINTS_CATALOG_FREE catalog_free
 #include "../../Services/alarm_service/service.c"
 typedef struct {uint8_t *data;uint32_t size;uint64_t revision;} file;
 static file files[2];static uint8_t blobs[12][64];static uint32_t sizes[12];
@@ -26,7 +27,7 @@ static unsigned key_index(const char *key) {const char *keys[]={ALARM_CONFIG_KEY
     for(unsigned i=0;i<12;i++)if(!strcmp(key,keys[i]))return i;
     assert(0);return 0;}
 static int32_t get(void *c,const char *k,void *b,uint32_t cap,uint32_t *n) {(void)c;io++;*n=0;
-    if(kv_result)return kv_result;
+    if(kv_result){if(kv_result==RISC_BOUND_KEY_VALUE_CONTEXT)allocation_terminal=true;return kv_result;}
     unsigned i=key_index(k);if(!sizes[i])return RISC_BOUND_KEY_VALUE_NOT_FOUND;
     assert(cap>=sizes[i]);memcpy(b,blobs[i],sizes[i]);*n=sizes[i];return 0;}
 static int32_t put(void *c,const char *k,const void *b,uint32_t n) {(void)c;io++;unsigned i=key_index(k);
@@ -34,16 +35,17 @@ static int32_t put(void *c,const char *k,const void *b,uint32_t n) {(void)c;io++
 static unsigned replacements;
 static unsigned file_index(const char *name){if(!strcmp(name,POINTS_CATALOG_FILE))return 0;assert(!strcmp(name,POINTS_LEDGER_FILE));return 1;}
 static int32_t fstat_(void *c,const char *name,uint32_t *size,uint64_t *revision){(void)c;io++;*size=0;*revision=0;
-    if(stat_result)return stat_result;
+    if(stat_result){if(stat_result==RISC_APP_DATA_CONTEXT||stat_result==RISC_APP_DATA_RETAINED)allocation_terminal=true;return stat_result;}
     file *f=&files[file_index(name)];if(!f->data)return RISC_APP_DATA_NOT_FOUND;
     *size=f->size;*revision=f->revision;return 0;}
 static int32_t fread_(void *c,const char *name,uint64_t revision,void *out,uint32_t cap,uint32_t *used,uint64_t *actual){(void)c;io++;*used=0;*actual=0;
-    if(read_result)return read_result;
+    if(read_result){if(read_result==RISC_APP_DATA_CONTEXT||read_result==RISC_APP_DATA_RETAINED)allocation_terminal=true;return read_result;}
     file *f=&files[file_index(name)];if(revision!=f->revision)return RISC_APP_DATA_STALE;
     assert(f->data&&cap>=f->size);memcpy(out,f->data,f->size);*used=f->size;*actual=f->revision;return 0;}
 static int32_t freplace_(void *c,const char *name,uint64_t revision,const void *b,uint32_t n){(void)c;io++;assert(file_index(name)==1);replacements++;
     file *f=&files[1];if(revision!=f->revision)return RISC_APP_DATA_STALE;
     if(persist_replace){uint8_t *copy=malloc(n);assert(copy);memcpy(copy,b,n);free(f->data);f->data=copy;f->size=n;f->revision++;}
+    if(replace_result==RISC_APP_DATA_CONTEXT||replace_result==RISC_APP_DATA_RETAINED)allocation_terminal=true;
     return replace_result;}
 static uint64_t monotonic(void *c){(void)c;io++;return ms;}
 #ifdef ALARM_NATIVE_UTC
@@ -218,11 +220,13 @@ static void test_cleanup(void){
 static void test_retained(int mode){boot(true);points_catalog c=make_catalog(1);save_catalog(&c);points_catalog_dispose(&c);
     if(mode==1){for(unsigned i=0;i<1000&&phase!=START_AUDIO;i++)tick(false);
     assert(phase==START_AUDIO);kv_result=RISC_BOUND_KEY_VALUE_CONTEXT;}
-    else if(mode>=3){for(unsigned i=0;i<1000&&phase!=WRITE_OCC;i++)tick(false);
+    else if(mode==3||mode==4||mode==7){for(unsigned i=0;i<1000&&phase!=WRITE_OCC;i++)tick(false);
         assert(phase==WRITE_OCC);if(mode==3)replace_result=RISC_APP_DATA_RETAINED;
-        else {tick(false);assert(phase==VERIFY_OCC);read_result=RISC_APP_DATA_RETAINED;}}
+        else {tick(false);assert(phase==VERIFY_OCC);read_result=mode==7?RISC_APP_DATA_CONTEXT:RISC_APP_DATA_RETAINED;}}
     else {for(unsigned i=0;i<1000&&phase!=LOAD_POINTS_CFG;i++)tick(false);
-    assert(phase==LOAD_POINTS_CFG);stat_result=mode==2?RISC_APP_DATA_CONTEXT:RISC_APP_DATA_RETAINED;}
+    assert(phase==LOAD_POINTS_CFG);
+    if(mode>=5)read_result=mode==6?RISC_APP_DATA_CONTEXT:RISC_APP_DATA_RETAINED;
+    else stat_result=mode==2?RISC_APP_DATA_CONTEXT:RISC_APP_DATA_RETAINED;}
     assert(client->step(NULL)==ALARM_RETAINED&&custody_retained);unsigned before=io;alarm_sleep_v1 sleep={.struct_size=sizeof(sleep)};alarm_token_v1 token_={0};
     assert(client->step(NULL)==ALARM_RETAINED&&client->refresh(NULL)==ALARM_RETAINED&&client->prepare_sleep(NULL,&sleep)==ALARM_RETAINED&&
         client->stop_only(NULL)==ALARM_RETAINED&&client->acknowledge(NULL,&token_)==ALARM_RETAINED&&resume_sleep(NULL,&sleep)==ALARM_RETAINED);

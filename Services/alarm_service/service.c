@@ -591,7 +591,10 @@ static int32_t do_step(void) {
 #ifdef POINTS_CATALOG_SERVICE
             points_catalog_ledger confirmed={0};
             int32_t result=points_catalog_ledger_load(&ledger_store,app_data,&confirmed,CATALOG_DOMAIN);
-            if(!catalog_storage_result(result)){points_catalog_ledger_dispose(&confirmed);return fail(ALARM_STORAGE);}
+            if(!catalog_storage_result(result)){
+                if(!custody_retained)points_catalog_ledger_dispose(&confirmed);
+                return fail(ALARM_STORAGE);
+            }
             points_catalog_ledger_dispose(&points_occ);points_occ=confirmed;persistence_pending=false;
 #else
             uint8_t expected[POINTS_RECORD_SIZE],actual[POINTS_RECORD_SIZE];uint32_t n=0;points_ledger_encode(&points_desired,expected);

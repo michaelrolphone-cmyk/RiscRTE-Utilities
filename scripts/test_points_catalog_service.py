@@ -15,5 +15,5 @@ for native in (False,True):
   subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,
     *['-I'+str(i) for i in [root/'lib/Alarm/include',a.runtime/'sdk/app',a.runtime/'sdk/driver',a.system_apps/'lib/PortableApps/include']],
     *map(str,sources),'-o',str(target)],check=True)
-  for retained in range(5):subprocess.run([str(target),str(retained)],check=True,env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'))
+  for retained in range(8):subprocess.run([str(target),str(retained)],check=True,env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'))
 print('Selected Points catalog Watch/X4 production service normal + ASan/UBSan PASS')

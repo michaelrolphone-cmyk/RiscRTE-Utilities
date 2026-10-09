@@ -24,11 +24,12 @@ for native in (False,True):
         subprocess.run([str(target)],env=env,check=True,timeout=120)
 print('Points catalog raw/native UTC normal/ASan/UBSan PASS')
 if args.runtime:
-    for sanitize in (False,True):
-        target=out/f'catalog-storage-{int(sanitize)}'
-        flags=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer'] if sanitize else []
-        subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,
-                        '-I'+str(ROOT/'lib/Alarm/include'),'-I'+str(args.runtime/'sdk/app'),
-                        str(ROOT/'tests/points_catalog_storage_test.c'),'-o',str(target)],check=True,timeout=120)
-        subprocess.run([str(target)],env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'),check=True,timeout=120)
+    for test in ('points_catalog_storage_test','points_catalog_storage_retention_test'):
+        for sanitize in (False,True):
+            target=out/f'{test}-{int(sanitize)}'
+            flags=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer'] if sanitize else []
+            subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,
+                            '-I'+str(ROOT/'lib/Alarm/include'),'-I'+str(args.runtime/'sdk/app'),'-I'+str(args.runtime/'sdk/driver'),
+                            str(ROOT/'tests'/f'{test}.c'),'-o',str(target)],check=True,timeout=120)
+            subprocess.run([str(target)],env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'),check=True,timeout=120)
     print('Points catalog file writer normal/ASan/UBSan PASS')

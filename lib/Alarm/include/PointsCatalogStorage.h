@@ -11,6 +11,8 @@ typedef struct {
     points_catalog saved;
     uint64_t file_revision;
     uint8_t *pending;
+    /* A terminal backend result can still own the supplied read buffer. */
+    uint8_t *retained_read;
     uint32_t pending_size;
     bool loaded, missing, uncertain, retained;
     int32_t error;
@@ -24,7 +26,7 @@ static inline int32_t points_catalog_storage_result(points_catalog_storage *s,in
     s->error=result;return result;
 }
 static inline void points_catalog_storage_dispose(points_catalog_storage *s) {
-    if(!s)return;
+    if(!s||s->retained)return;
     points_catalog_dispose(&s->saved);POINTS_CATALOG_FREE(s->pending);memset(s,0,sizeof(*s));
 }
 static inline int32_t points_catalog_read_document(points_catalog_storage *s,const risc_app_data_v1 *api,
@@ -40,6 +42,10 @@ static inline int32_t points_catalog_read_document(points_catalog_storage *s,con
     if(!data)return points_catalog_storage_result(s,POINTS_STORAGE_MEMORY);
     uint32_t actual=0;uint64_t token=0;
     rc=api->read(api->context,POINTS_CATALOG_FILE,expected,data,n,&actual,&token);
+    if(rc==RISC_APP_DATA_RETAINED||rc==RISC_APP_DATA_CONTEXT) {
+        s->retained_read=data;
+        return points_catalog_storage_result(s,rc);
+    }
     if(rc!=RISC_APP_DATA_OK||actual!=n||token!=expected) {
         POINTS_CATALOG_FREE(data);
         return points_catalog_storage_result(s,rc==RISC_APP_DATA_OK?RISC_APP_DATA_IO:rc);

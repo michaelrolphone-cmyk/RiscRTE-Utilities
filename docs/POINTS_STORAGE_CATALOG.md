@@ -42,3 +42,9 @@ Run `python3 scripts/test_points_catalog.py`.
 Remaining integration: persistent writer and ledger migration, actual alarm
 service scheduling, bounded face snapshot, visible weekday/type editors on
 Watch and X4, selected target builds and actual Runtime lifecycle tests.
+
+## Terminal read-buffer custody
+
+A catalog or occurrence-ledger backend read returning RETAINED or CONTEXT keeps its supplied allocation reachable in the storage state. No allocator call, further file call or storage-state disposal is allowed after that result. The provider's verification phase also avoids freeing even an empty temporary ledger after the terminal fence. A fresh invocation is a host lifecycle operation; application code cannot clear this state to retry.
+
+The writer regression instruments the allocator and covers catalog/ledger load and ambiguous-write resolution for both terminal statuses, plus ordinary I/O errors. The real provider regression instruments allocations and executes all eight terminal paths in both Watch and native-UTC profiles, normally and under ASan/UBSan. Before the final provider correction, its retained ledger-read case reproduced an allocator call after the backend fence.
