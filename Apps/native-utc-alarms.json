@@ -2,10 +2,10 @@
   "schema": 1,
   "profile": "native-utc-alarms-paper-nova",
   "versions": {
-    "alarms": "0.2.6",
-    "countdown": "0.1.10"
+    "alarms": "0.2.7",
+    "countdown": "0.1.11"
   },
-  "reservation": "2026-10-07: parent reserves native-only X4 0.1.9 fix cohort versions; Watch/raw profiles unchanged. Local only.",
+  "reservation": "2026-10-08: native-only X4 direct stage-log test cohort; Watch/raw profiles unchanged. Local only.",
   "native_time": "runtime.realtime@1 readonly, one open/read/close per sample; UNSET and malformed snapshots unavailable; no RTC recovery or control",
   "absolute_time": "UTC seconds since 2000, bounded by signed Unix seconds INT32_MAX",
   "timezone": "Explicit namespace 1 time_zone TZ1 record; missing is virtual UTC; malformed/unavailable blocks local alarm planning and local clock display",
@@ -79,8 +79,8 @@
   "handoff": "Unconfirmed saves block Home/Back/Quick launch until explicit retry verifies the same pending record",
   "publication": "Local development only; combined System dependencies require separate source clearance",
   "hardware_verified": false,
-  "system_sha": "c1ff014792c9ecbc195c402e9b4c3e2c3c9d34d3",
-  "adapter_sha": "c1ff014792c9ecbc195c402e9b4c3e2c3c9d34d3",
+  "system_sha": "63f0fcdb2b2e943733a87c1d0dcb6916912319d0",
+  "adapter_sha": "63f0fcdb2b2e943733a87c1d0dcb6916912319d0",
   "runtime_sha": "30dcec5ce6ce33223f2b203a2399283e1f758567",
   "alarm_sdk_sha": "637e13b0bce62ad49b756bec2468a6271d163fc7"
 }
