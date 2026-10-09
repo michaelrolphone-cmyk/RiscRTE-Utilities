@@ -2,13 +2,12 @@
 """Build opt-in native UTC apps and prove exact flag-off paper/Watch ELF bytes.
 System source is consumed in place via temporary header symlinks, never vendored.
 """
-import argparse,hashlib,io,json,os,shutil,subprocess,tarfile,tempfile
+import argparse,hashlib,importlib.util,io,json,os,shutil,subprocess,tarfile,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 BASE='bb81ab0cdc137e1b2fddcfbe191880c1c6e649ad'
-SYSTEM='1d589d90bf27c7ffb76420de46564088ddb3714f'
-ADAPTER='81f884b8a053cf917054fb1433c7850714cd0c48'
-RUNTIME='30dcec5ce6ce33223f2b203a2399283e1f758567'
+PROFILE=json.loads((ROOT/'Apps/native-utc-alarms.json').read_text())
+SYSTEM=PROFILE['system_sha'];ADAPTER=PROFILE['adapter_sha'];RUNTIME=PROFILE['runtime_sha']
 NATIVE_FLAGS=['-DALARM_NATIVE_UTC','-DALARM_SERVICE_TAGGED_V2','-DPORTABLE_NOVA_UI','-DPORTABLE_PAPER_UTILITIES','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_APP_LAUNCH_GUARD','-DPORTABLE_NATIVE_CUSTODY_FENCE','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_DISPLAY_ROTATION=90','-DPORTABLE_INPUT_NAVIGATION','-DPORTABLE_HOME_APP="default.elf"','-DALARM_RETURN_APP="springboard.elf"','-DPORTABLE_QUICK_ACTIONS']
 IMPORTS={'risc_runtime_get_api','memcpy','memset','memcmp','strcmp','strlen','snprintf','malloc','free','strcpy'}
 EXPORTS={'app_main','app_module_init','app_module_fini'}
@@ -18,7 +17,7 @@ def run(cmd,**kw):return subprocess.run(list(map(str,cmd)),check=True,**kw)
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def exact(repo,pin):
  if subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip()!=pin or subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=repo,text=True).strip():raise ValueError('Clean exact source required: '+str(repo)+' @ '+pin)
-def symlink_headers(adapter,system,runtime,stage):
+def symlink_headers(adapter,system,runtime,stage,out):
  include=stage/'include';include.mkdir()
  for path in (adapter/'lib/PortableApps/include').iterdir():
   if path.is_file():(include/path.name).symlink_to(path)
@@ -30,6 +29,12 @@ def symlink_headers(adapter,system,runtime,stage):
   p=include/name
   if p.exists():p.unlink()
   p.symlink_to(runtime/'sdk/app'/name)
+ spec=importlib.util.spec_from_file_location('alarm_sdk',system/'scripts/portable_alarm_build.py');helper=importlib.util.module_from_spec(spec);spec.loader.exec_module(helper)
+ if helper.UTILITIES_COMMIT!=PROFILE['alarm_sdk_sha']:raise ValueError('Pinned alarm SDK mismatch')
+ for name in helper.HEADERS:
+  path=include/name
+  if path.exists():path.unlink()
+ helper.stage(argparse.Namespace(tagged_alarm_utilities=ROOT,alarm_client=True),argparse.ArgumentParser(),out,include)
  return include
 def main():
  p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);p.add_argument('--adapter',type=Path,required=True);p.add_argument('--runtime',type=Path,required=True);p.add_argument('--raw-system',type=Path,required=True);p.add_argument('--watch-system',type=Path,required=True);a=p.parse_args()
@@ -44,7 +49,7 @@ def main():
  common=['-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror']
  profile=json.loads((ROOT/'Apps/native-utc-alarms.json').read_text());rows=[];source_hashes={}
  with tempfile.TemporaryDirectory(prefix='native-alarm-target-') as tmp:
-  stage=Path(tmp);include=symlink_headers(adapter,system,runtime,stage)
+  stage=Path(tmp);include=symlink_headers(adapter,system,runtime,stage,out)
   catalog=stage/'catalog.c';catalog.write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[1]={{.compatible=false}};\nconst unsigned portable_catalog_count=0;\n')
   baseline=stage/'base';baseline.mkdir();archive=subprocess.check_output(['git','archive',BASE,'Apps','lib/Alarm/include'],cwd=ROOT)
   with tarfile.open(fileobj=io.BytesIO(archive)) as tar:tar.extractall(baseline,filter='data')
@@ -68,6 +73,8 @@ def main():
      grants=profile['common_grants']+profile['app_grants'][name]
      manifest={'type':'application','id':name,'version':profile['versions'][name],'architecture':'xtensa-esp32s3','file_name':name+'.elf','entry':'app_main','requires':[dict(capability=c,api=v) for c,v in dict.fromkeys((g['capability'],g['api']) for g in grants)]}
      (folder/(name+'.json')).write_text(json.dumps(manifest,indent=2)+'\n');(folder/(name+'.boot-policy.json')).write_text(json.dumps({'manifest':name+'.json','grants':[{k:g[k] for k in ['capability','api','instance_id']} for g in grants]},indent=2)+'\n')
+     receipt={'schema':1,'app':name,'version':manifest['version'],'source_repo':'michaelrolphone-cmyk/RiscRTE-Utilities','source_revision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'system_source_revision':ADAPTER,'runtime_source_revision':RUNTIME,'alarm_source_revision':PROFILE['alarm_sdk_sha'],'alarm_api':2,'time_policy':'native-realtime-iana','elf_sha256':sha(elf),'elf_bytes':elf.stat().st_size,'requires':manifest['requires'],'sdk_sha256':{header:sha(include/header) for header in ('RiscRuntimeV1.h','RiscRealtimeV1.h','AlarmServiceV1.h','AlarmServiceV2.h')}}
+     (folder/'x4-native-app.json').write_text(json.dumps(receipt,indent=2)+'\n')
      for source in sources:
       if source==catalog:continue
       dep=subprocess.check_output([cc,'-std=c11','-M',*defines,*includes,source],text=True).replace('\\\n',' ')
@@ -85,5 +92,7 @@ def main():
   for path in (adapter/'lib/PortableApps'/folder).iterdir():
    if 'LICENSE' in path.name or 'OFL' in path.name or path.name=='SOURCES.json':shutil.copy2(path,dest/path.name)
  record={'schema':1,'source_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'system_time_sha':SYSTEM,'system_adapter_sha':ADAPTER,'runtime_sha':RUNTIME,'provider_sha':'637e13b0bce62ad49b756bec2468a6271d163fc7','app_baseline_sha':BASE,'compiler':compiler,'native_defines':NATIVE_FLAGS,'modules':rows,'sources':source_hashes,'licenses':{str(p.relative_to(licenses)):sha(p) for p in licenses.rglob('*') if p.is_file()},'hardware_verified':False,'publication':'Local development only; separately owned System publication remains blocked'}
+ record['test_sources']={str(x.relative_to(ROOT)):sha(x) for base in ('test/native_apps','tests','scripts') for x in (ROOT/base).rglob('*') if x.is_file() and x.suffix in ('.py','.c','.h','.sh')}
+ record['system_sources']={str(x.relative_to(system)):sha(x) for x in (system/'lib/PortableApps').rglob('*') if x.is_file()}
  (out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n');print('Native Alarms/Countdown target ELF validation passed; four flag-off paper/Watch ELFs exactly match bb81ab0')
 if __name__=='__main__':main()

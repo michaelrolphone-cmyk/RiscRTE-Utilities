@@ -56,6 +56,8 @@ def main():
   for path in (system/'lib/PortableApps'/directory).iterdir():
    if 'LICENSE' in path.name or 'OFL' in path.name or path.name=='SOURCES.json':shutil.copy2(path,dest/path.name)
  record['licenses']={str(p.relative_to(licenses)):sha(p) for p in licenses.rglob('*') if p.is_file()}
+ record['test_sources']={str(x.relative_to(ROOT)):sha(x) for base in ('test/native_apps','tests','scripts') for x in (ROOT/base).rglob('*') if x.is_file() and x.suffix in ('.py','.c','.h','.sh')}
+ record['system_sources']={str(x.relative_to(system)):sha(x) for x in (system/'lib/PortableApps').rglob('*') if x.is_file()}
  (out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n')
  print('Native utility target imports/manifests/loader and flag-off byte comparison passed')
 if __name__=='__main__':main()
