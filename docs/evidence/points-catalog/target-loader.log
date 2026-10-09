@@ -1,0 +1,9 @@
+Native ELF structural validation tests passed
+Native ELF structural validation tests passed
+/workspace/shared/runtime-bound-appdata-0183/lib/elf_loader/src/esp_elf.c: In function ‘esp_elf_load_section’:
+/workspace/shared/runtime-bound-appdata-0183/lib/elf_loader/src/esp_elf.c:435:35: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+  435 |     elf->sec[ELF_SEC_TEXT].addr = (Elf32_Addr)elf->ptext;
+      |                                   ^
+PASS /workspace/shared/points-catalog-storage-custody/dist/points-catalog-service/watch/driver.elf: 8 alignments, 2904 relocation-site checks, exact sections and redzones intact
+PASS /workspace/shared/points-catalog-storage-custody/dist/points-catalog-service/native-utc/driver.elf: 8 alignments, 9896 relocation-site checks, exact sections and redzones intact
+Watch0.4.5 API1 / X4 native UTC0.4.6 API2 target ELF validation PASS; both unselected legacy ELFs exactly match baseline
