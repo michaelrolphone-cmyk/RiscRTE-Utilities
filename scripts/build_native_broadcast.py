@@ -25,6 +25,13 @@ for name in a.app or APPS:
  grants=PROFILE['common_grants']+PROFILE['app_grants'][name]+[{'capability':'telemetry.broadcast','api':1,'instance_id':0}];assert len(grants)<=16
  pairs=list(dict.fromkeys((g['capability'],g['api']) for g in grants));manifest=dict(type='application',id=name,version=VERSIONS[name],architecture='xtensa-esp32s3',file_name=name+'.elf',entry='app_main',requires=[dict(capability=c,api=v) for c,v in pairs]);(dest/(name+'.json')).write_text(json.dumps(manifest,indent=2)+'\n');(dest/(name+'.boot-policy.json')).write_text(json.dumps({'manifest':name+'.json','grants':grants},indent=2)+'\n')
  receipt={'schema':1,'app':name,'version':VERSIONS[name],'source_repo':'michaelrolphone-cmyk/RiscRTE-Utilities','source_revision':git(ROOT,'rev-parse','HEAD'),'system_source_revision':git(system,'rev-parse','HEAD'),'runtime_source_revision':RUNTIME,'alarm_source_revision':PROFILE['alarm_sdk_sha'],'alarm_api':2,'time_policy':'native-realtime-iana','elf_sha256':sha(elf),'elf_bytes':elf.stat().st_size,'requires':manifest['requires'],'sdk_sha256':{n:sha(inc/n) for n in ['RiscRuntimeV1.h','RiscRealtimeV1.h','AlarmServiceV1.h','AlarmServiceV2.h']},'build_defines':defines,'source_dirty':bool(git(ROOT,'status','--porcelain')),'system_dirty':bool(git(system,'status','--porcelain')),'compiler':compiler,'ble_broadcast':{'enabled':True,'default':'off','grant_lifetime':'transient','foreground_excluded':competing},'paper_motion':True,'hardware_verified':False}
+ receipt['compiled_dependencies_sha256']={}
+ for source in sources(name,system):
+  dependency=subprocess.check_output([cc,'-std=c11','-M',*defines,*include,source],text=True).replace('\\\n',' ')
+  for token in dependency.split()[1:]:
+   path=Path(token).resolve()
+   for label,base in [('CompiledSDK',inc),('Utilities',ROOT),('System',system)]:
+    if path.is_relative_to(base):receipt['compiled_dependencies_sha256'][label+'/'+str(path.relative_to(base))]=sha(path);break
  licenses=dest/'licenses';licenses.mkdir(exist_ok=True)
  for repo,label in [(ROOT,'Utilities-MIT.txt'),(system,'System-MIT.txt'),(runtime,'Runtime-MIT.txt')]:shutil.copyfile(repo/'LICENSE',licenses/label)
  for folder in ['fonts','paper_fonts','quick_fonts']:
