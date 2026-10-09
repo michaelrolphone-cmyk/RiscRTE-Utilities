@@ -46,4 +46,4 @@ class NativeIdleBuild(unittest.TestCase):
             idle.validate(self.args(True),argparse.ArgumentParser(),Path('unused'),Path('unused'))
 
     def test_reserved_versions(self):
-        self.assertEqual(idle.VERSIONS,{'battery':'1.1.9','calculator':'0.1.16','stopwatch':'0.1.16','countdown':'0.1.15','alarms':'0.2.11','ble_scanner':'0.2.11','ble_touchpad':'0.1.11','ble_buttons':'0.1.11','waterfall':'0.2.7'})
+        self.assertEqual(idle.VERSIONS,{'battery':'1.1.9','calculator':'0.1.16','stopwatch':'0.1.16','countdown':'0.1.15','alarms':'0.2.11','ble_scanner':'0.2.11','ble_touchpad':'0.1.14','ble_buttons':'0.1.14','waterfall':'0.2.7'})

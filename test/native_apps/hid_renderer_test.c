@@ -26,6 +26,9 @@ static bool hid_owned,allow_pair,paired_confirm,paired_reject;
 static unsigned diagnostic_lines, pairing_contacts, pairing_requests, pairing_results, pairing_confirmations;
 static bool diagnostic_moved,diagnostic_multitouch,diagnostic_gap,diagnostic_transport,diagnostic_closed,transport_failed;
 static unsigned hid_opens,hid_closes,hid_polls,hid_keyboard_reports,hid_mouse_reports,hid_releases;
+static unsigned hid_scroll_reports,drag_moves,drag_releases;
+static int scroll_x,scroll_y;
+static bool drag_held;
 static uint8_t held_mod,held_key,held_mouse;
 static uint64_t touch_sequence;
 static unsigned touch_count;
@@ -202,15 +205,30 @@ static bool fake_hid_status(void*c,uint64_t t,risc_bluetooth_hid_status_v1*s){(v
 }
 static bool fake_hid_confirm(void*c,uint64_t t,bool accept){(void)c;assert(t==77&&hid_owned);pairing_confirmations++;if(getenv("HID_RENDER_PAIR_RECOVERED"))assert(polls>=60);paired_confirm=accept;paired_reject=!accept;return true;}
 static bool fake_hid_keyboard(void*c,uint64_t t,uint8_t mods,const uint8_t keys[6]){(void)c;assert(hid_owned&&t==77);held_mod=mods;held_key=keys[0];hid_keyboard_reports++;return true;}
+static void observe_pointer(uint8_t b,int x,int y){
+ if(getenv("HID_RENDER_SCROLL_X")||getenv("HID_RENDER_SCROLL_Y")||getenv("HID_RENDER_SCROLL_FREE"))assert(!b&&!x&&!y);
+ if(b==1&&(x||y)){drag_moves++;drag_held=true;}
+ if(!b&&drag_held){drag_releases++;drag_held=false;}
+}
 static bool fake_hid_mouse(void*c,uint64_t t,uint8_t b,int8_t x,int8_t y,int8_t w){(void)c;(void)x;(void)y;(void)w;assert(hid_owned&&t==77);
  if(getenv("HID_RENDER_MOUSE_RECONNECT"))assert(polls<40||polls>=70);
  if(getenv("HID_RENDER_TRANSPORT_RECONNECT")&&polls>=40)assert(hid_opens==2);
- held_mouse=b;hid_mouse_reports++;return true;}
+ observe_pointer(b,x,y);held_mouse=b;hid_mouse_reports++;return true;}
+static bool fake_hid_scroll(void*c,uint64_t t,uint8_t b,int16_t x,int16_t y,int16_t wx,int16_t wy){
+ assert(x>=-127&&x<=127&&y>=-127&&y<=127&&wx>=-127&&wx<=127&&wy>=-127&&wy<=127);
+ if(getenv("HID_RENDER_SCROLL_X"))assert(!wy);
+ if(getenv("HID_RENDER_SCROLL_Y"))assert(!wx);
+ if(wx||wy){hid_scroll_reports++;scroll_x+=wx;scroll_y+=wy;}
+ return fake_hid_mouse(c,t,b,(int8_t)x,(int8_t)y,0);
+}
 static bool fake_hid_release(void*c,uint64_t t){(void)c;assert(hid_owned&&t==77);held_mod=held_key=held_mouse=0;hid_releases++;return true;}
 static bool fake_hid_close(void*c,uint64_t t){(void)c;assert(hid_owned&&t==77);if(getenv("HID_RENDER_CLEANUP")&&++close_attempts==1)return false;held_mod=held_key=held_mouse=0;hid_owned=false;hid_closes++;return true;}
 static bool fake_hid_forget(void*c){(void)c;assert(!hid_owned);return true;}
 static bool fake_hid_battery(void*c,uint64_t t,uint8_t p){(void)c;assert(hid_owned&&t==77&&p==73);return true;}
-static const risc_bluetooth_hid_v1 hid_api={1,sizeof(hid_api),NULL,fake_hid_open,fake_hid_poll,fake_hid_status,fake_hid_confirm,fake_hid_keyboard,fake_hid_mouse,fake_hid_release,fake_hid_close,fake_hid_forget,fake_hid_battery};
+static const risc_bluetooth_hid_scroll_api_v1 hid_api={
+ .base={.base={1,sizeof(hid_api),NULL,fake_hid_open,fake_hid_poll,fake_hid_status,fake_hid_confirm,fake_hid_keyboard,fake_hid_mouse,fake_hid_release,fake_hid_close,fake_hid_forget,fake_hid_battery}},
+ .mouse_scroll=fake_hid_scroll
+};
 static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)id;assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1){assert(id==0||id==(paper_profile?4:6));g->api=&touch_api;}else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&kv_api;else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&radio_api;else if(!strcmp(n,"bluetooth.hid")&&v==1){assert(id==0);g->api=&hid_api;}else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else return false;grants++;return true;}
 static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);if(g->api==&hid_api&&getenv("HID_RENDER_CLEANUP")&&++release_attempts==1)return false;g->api=NULL;grants--;return true;}
 static const risc_runtime_api_v1 runtime_api={1,sizeof(runtime_api),fake_health,fake_yield,fake_diag,fake_launch,fake_acquire,fake_release};
@@ -238,6 +256,10 @@ if(getenv("HID_RENDER_PAIR_MOVED"))assert(diagnostic_moved);
 if(getenv("HID_RENDER_PAIR_MULTITOUCH"))assert(diagnostic_multitouch);
 if(getenv("HID_RENDER_PAIR")&&getenv("HID_RENDER_GAP"))assert(diagnostic_gap);
 if(getenv("HID_RENDER_MOUSE"))assert(hid_mouse_reports>=2);
+if(getenv("HID_RENDER_TAP_DRAG"))assert(drag_moves>=2&&drag_releases==1&&!drag_held&&!hid_scroll_reports);
+if(getenv("HID_RENDER_SCROLL_X"))assert(hid_scroll_reports>=2&&scroll_x>0&&!scroll_y);
+if(getenv("HID_RENDER_SCROLL_Y"))assert(hid_scroll_reports>=2&&!scroll_x&&scroll_y<0);
+if(getenv("HID_RENDER_SCROLL_FREE"))assert(hid_scroll_reports>=2&&scroll_x>0&&scroll_y<0);
 if(getenv("HID_RENDER_MOUSE_RECONNECT"))assert(hid_opens==1&&hid_closes==1&&hid_mouse_reports>=3);
 if(getenv("HID_RENDER_TRANSPORT_RECONNECT"))assert(hid_opens==2&&hid_closes==2&&diagnostic_transport&&diagnostic_closed);
 if(getenv("HID_RENDER_LOW_BATTERY"))assert(hid_opens==1&&hid_closes==1&&low_battery_seen);

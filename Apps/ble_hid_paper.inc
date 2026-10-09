@@ -38,7 +38,7 @@ static void paper_draw(void){
   if(!HID_TOUCHPAD){hp_text(32,440,416,"Choose a button to configure",false,true);for(unsigned i=0;i<4;i++){snprintf(text,sizeof(text),"Button %u",i+1);hp_button(32+(int)(i%2)*216,496+(int)(i/2)*104,200,88,text,NULL,false);}}
  }else{
   hp_text(32,152,416,message?message:"Pair or reconnect in Settings",false,true);
-  if(HID_TOUCHPAD){app->fill_rect(32,224,416,400,true);app->fill_rect(35,227,410,394,false);hp_text(152,378,280,"TOUCHPAD",true,true);hp_text(64,450,352,"Tap: left click",false,true);hp_text(64,490,352,"Two-finger tap: right click",false,true);hid_assignment mouse={.kind=HID_ACTION_MOUSE};hp_text(64,562,352,assignment_ready(&mouse)?"Mouse input ready":"Mouse input unavailable",false,true);}
+  if(HID_TOUCHPAD){app->fill_rect(32,224,416,400,true);app->fill_rect(35,227,410,394,false);hp_text(152,350,280,"TOUCHPAD",true,true);hp_text(64,410,352,"Tap: left click",false,true);hp_text(64,450,352,"Tap then drag: hold click",false,true);hp_text(64,490,352,"Two-finger tap: right click",false,true);hp_text(64,530,352,hid&&!scroll_api()?"Scroll needs driver update":"Two-finger move: scroll X/Y",false,true);hid_assignment mouse={.kind=HID_ACTION_MOUSE};hp_text(64,562,352,assignment_ready(&mouse)?"Mouse input ready":"Mouse input unavailable",false,true);}
   else for(unsigned i=0;i<4;i++){
    int x=32+(int)(i%2)*216,y=224+(int)(i/2)*208;assignment_label(assignments+i,text);hp_button(x,y,200,192,text,NULL,held_button==(int)i);
    snprintf(text,sizeof(text),"%u  %s  %02X",i+1,assignments[i].kind==0?"KEY":"MOUSE",assignments[i].modifiers);hp_text(x+16,y+136,168,text,false,held_button!=(int)i);hp_text(x+16,y+160,168,assignment_ready(assignments+i)?"READY":"UNAVAILABLE",false,held_button!=(int)i);

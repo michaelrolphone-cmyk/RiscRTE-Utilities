@@ -9,7 +9,7 @@ includes=[ROOT/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/incl
 base=[os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*['-I'+str(i) for i in includes]]
 for san in (False,True):
  flags=['-fsanitize='+os.environ.get('HID_SANITIZERS','address,undefined'),'-fno-sanitize-recover=all','-fno-omit-frame-pointer'] if san else []
- for name,source,extra in [('model','hid_model_test.c',[]),('touchpad','hid_app_test.c',['-DHID_TOUCHPAD=1']),('buttons','hid_app_test.c',['-DHID_TOUCHPAD=0'])]:
+ for name,source,extra in [('model','hid_model_test.c',[]),('gestures','hid_touchpad_gesture_test.c',[]),('touchpad','hid_app_test.c',['-DHID_TOUCHPAD=1']),('buttons','hid_app_test.c',['-DHID_TOUCHPAD=0'])]:
   exe=out/f'{name}-{int(san)}';subprocess.run([*base,*flags,*extra,str(ROOT/'tests'/source),'-o',str(exe)],check=True);subprocess.run([str(exe)],check=True,env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'))
 for pad in (0,1):
  exe=out/f'render-{pad}';frames=out/('touchpad-frames' if pad else 'buttons-frames');frames.mkdir(exist_ok=True)

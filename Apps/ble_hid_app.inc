@@ -175,10 +175,22 @@ static bool touch_buttons(const risc_touch_snapshot_v1*s,uint32_t now){
  if(held_button>=0&&(uint32_t)(now-reported)>=400&&assignments[held_button].kind<=HID_ACTION_MOUSE){if(!send_assignment(assignments+held_button,true))return false;reported=now;}
  return true;
 }
+static const risc_bluetooth_hid_scroll_api_v1 *scroll_api(void){
+ if(!hid||hid->struct_size<sizeof(risc_bluetooth_hid_scroll_api_v1))return NULL;
+ const risc_bluetooth_hid_scroll_api_v1 *v=(const void*)hid;return v->mouse_scroll?v:NULL;
+}
 static bool touch_pad(const risc_touch_snapshot_v1*s,uint32_t now){
  hid_gesture_output o=paper?hid_gesture_sample_bounds(&gesture,s,now,32,224,448,624):hid_gesture_sample(&gesture,s,now);
- if((o.dx||o.dy)&&!hid->mouse(hid->context,token,0,o.dx,o.dy,0))return false;
- if(o.click){if(!hid->mouse(hid->context,token,o.click,0,0,0))return false;if(!hid->mouse(hid->context,token,0,0,0,0))return false;}
+ const risc_bluetooth_hid_scroll_api_v1 *scroll=scroll_api();
+ /* Refresh a stationary drag well inside the provider's release watchdog. */
+ bool report=o.dx||o.dy||o.button_changed||(o.buttons&&(uint32_t)(now-reported)>=400);
+ if(report||((o.wheel_x||o.wheel_y)&&scroll)){
+  bool ok=scroll?scroll->mouse_scroll(hid->context,token,o.buttons,o.dx,o.dy,o.wheel_x,o.wheel_y):
+    hid->mouse(hid->context,token,o.buttons,o.dx,o.dy,0);
+  if(!ok)return false;
+  reported=now;
+ }
+ if(o.click){if(!hid->mouse(hid->context,token,o.click,0,0,0))return false;if(!hid->mouse(hid->context,token,0,0,0,0))return false;reported=now;}
  return true;
 }
 /* Confirmation consumes a fresh raw contact that begins after an observed
@@ -328,7 +340,7 @@ static void draw(void){
   if(!HID_TOUCHPAD){portable_nova_center(2,8,155,224,"Choose a button to configure",NOVA_CAP);for(unsigned i=0;i<4;i++){snprintf(text,sizeof(text),"%u",i+1);portable_nova_button(8+(int)i*58,184,50,48,text,false);}}
  }else{
   portable_nova_center(2,8,51,224,message?message:"Pair or reconnect in Settings",NOVA_CAP);
-  if(HID_TOUCHPAD){portable_nova_round(8,80,224,110,8,NOVA_DIM);portable_nova_center(1,12,94,216,"TOUCHPAD",NOVA_TEXT);portable_nova_center(2,12,122,216,"Tap: left click",NOVA_CAP);portable_nova_center(2,12,146,216,"Two-finger tap: right click",NOVA_CAP);}
+  if(HID_TOUCHPAD){portable_nova_round(8,80,224,110,8,NOVA_DIM);portable_nova_center(1,12,88,216,"TOUCHPAD",NOVA_TEXT);portable_nova_center(2,12,111,216,"Tap: left click",NOVA_CAP);portable_nova_center(2,12,131,216,"Tap then drag: hold click",NOVA_CAP);portable_nova_center(2,12,151,216,"Two-finger tap: right click",NOVA_CAP);portable_nova_center(2,12,171,216,hid&&!scroll_api()?"Scroll needs driver update":"Two-finger move: scroll X/Y",NOVA_CAP);}
   else for(unsigned i=0;i<4;i++){
    int x=8+(int)(i%2)*116,y=80+(int)(i/2)*59;portable_nova_round(x,y,108,51,5,held_button==(int)i?NOVA_CYAN:assignment_ready(assignments+i)?NOVA_DIM:NOVA_LINE);assignment_label(assignments+i,text);portable_nova_center(1,x+3,y+4,102,text,assignment_ready(assignments+i)?NOVA_TEXT:NOVA_CAP);if(assignments[i].modifiers){static const char*mods[]={"LC","LS","LA","LG","RC","RS","RA","RG"};unsigned used=0;text[0]=0;for(unsigned bit=0;bit<8;bit++)if(assignments[i].modifiers&(1u<<bit))used+=(unsigned)snprintf(text+used,sizeof(text)-used,"%s%s",used?" ":"",mods[bit]);}else snprintf(text,sizeof(text),"%u / %s",i+1,assignments[i].kind==0?"key":"mouse");portable_nova_center(2,x+3,y+28,102,text,NOVA_CAP);
   }

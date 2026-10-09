@@ -12,7 +12,7 @@ SYSTEM = '5a5cdbf92a6d307708cfa432b28caa9218c1a109'
 RUNTIME = '317b74e363877cb6e5a90198211f897744e4a6d3'
 VERSIONS = {'battery':'1.1.9', 'calculator':'0.1.16', 'stopwatch':'0.1.16',
             'countdown':'0.1.15', 'alarms':'0.2.11', 'ble_scanner':'0.2.11',
-            'ble_touchpad':'0.1.13', 'ble_buttons':'0.1.13', 'waterfall':'0.2.7'}
+            'ble_touchpad':'0.1.14', 'ble_buttons':'0.1.14', 'waterfall':'0.2.7'}
 
 def options(parser):
     parser.add_argument('--x4-idle-source', type=Path, help='Explicit product reversible Light helper')

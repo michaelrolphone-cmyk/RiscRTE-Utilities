@@ -13,6 +13,10 @@ scenes={
  'back-top-active':([(3,50,218),(30,20,20)],['ACTIVE','BACK']),
  'reconnect':([(3,50,218)],['ACTIVE']),
  'left-tap':([(3,50,218),(30,100,120)],['ACTIVE','MOUSE']),
+ 'tap-drag':([(3,50,218),(30,100,120),(32,100,120),(33,114,120),(34,128,120)],['ACTIVE','TAP_DRAG']),
+ 'scroll-x':([(3,50,218),(30,80,115),(30,140,115),(31,96,116),(31,156,116),(32,112,115),(32,172,115)],['ACTIVE','SCROLL_X']),
+ 'scroll-y':([(3,50,218),(30,80,115),(30,140,115),(31,81,127),(31,141,127),(32,80,139),(32,140,139)],['ACTIVE','SCROLL_Y']),
+ 'scroll-free':([(3,50,218),(30,80,115),(30,140,115),(31,92,122),(31,152,122),(32,104,129),(32,164,129)],['ACTIVE','SCROLL_FREE']),
  'right-tap':([(3,50,218),(30,100,120),(30,180,120)],['ACTIVE','MOUSE']),
  'keys':([(3,50,218),(30,40,160),(31,40,160),(32,40,160)],['ACTIVE','KEYS']),
  'pair-accept':([(3,180,218),(10,50,76),(30,180,218)],['ACTIVE','PAIR','PAIR_ACCEPT']),
@@ -98,7 +102,7 @@ for san in (False,True):
   subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*['-I'+str(i) for i in [system/'Apps',ROOT/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include']],*extra,*map(str,sources),*(['-lstdc++'] if a.runtime else []),'-o',str(exe)],check=True)
   for scene,(actions,checks) in scenes.items():
    if name=='ble_touchpad' and scene in ('keys','nested-back','edit-save','edit-home','edit-cancel','save-retry','quick-edit'):continue
-   if name=='ble_buttons' and scene in ('left-tap','right-tap','mouse-reconnect','transport-reconnect'):continue
+   if name=='ble_buttons' and scene in ('left-tap','right-tap','mouse-reconnect','transport-reconnect','tap-drag','scroll-x','scroll-y','scroll-free'):continue
    folder=out/scene;folder.mkdir(exist_ok=True)
    for f in folder.glob('frame-*.*'):f.unlink()
    path=folder/'actions.txt';path.write_text(''.join(f'{n} {x} {y}\n' for n,x,y in actions));env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0',**{'HID_RENDER_'+c:'1' for c in checks})
