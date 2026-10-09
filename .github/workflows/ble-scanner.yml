@@ -32,6 +32,8 @@ jobs:
           python scripts/test_ble_scanner.py --system-apps .dependencies/ble-system
           python scripts/test_ble_renderer.py --system-apps .dependencies/ble-system --drivers .dependencies/ble-drivers
           python scripts/test_ble_paper.py --system-apps .dependencies/ble-system --drivers .dependencies/ble-drivers
+      - name: Retained cleanup retries normal ASan UBSan
+        run: python scripts/test_ble_cleanup_retry.py --system-apps .dependencies/ble-system --drivers .dependencies/ble-drivers --presentation-sdk .dependencies/ble-system/Apps --output build/ble-cleanup-retry
       - name: Install pinned target compiler
         run: |
           python -m pip install platformio==6.1.19
@@ -49,5 +51,6 @@ jobs:
             build/ble-scanner/frames/
             build/ble-renderer/
             build/ble-paper/
+            build/ble-cleanup-retry/
           retention-days: 14
           if-no-files-found: error
