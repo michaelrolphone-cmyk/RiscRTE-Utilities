@@ -100,7 +100,8 @@ __attribute__((visibility("hidden"))) bool portable_app_native_local_time(twatch
 static bool native_acquire(const char *name,uint32_t version,uint64_t instance) {
     risc_runtime_capability_v1 *g=&grants[acquired];*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};
     bool ok=runtime->acquire(name,version,instance,g);
-    if(!ok){if(g->struct_size!=sizeof(*g)||g->slot||g->generation||g->api)native_retain();return false;}
+    /* A false result, including an empty handle, cannot prove native cleanup. */
+    if(!ok){native_retain();return false;}
     if(g->struct_size!=sizeof(*g)||!g->slot||!g->generation||!g->api){native_retain();return false;}
     acquired++;return true;
 }

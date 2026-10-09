@@ -123,3 +123,7 @@ static bool waterfall_open_radio(void) {
 
 
 #include "rf_application.inc"
+
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+bool portable_radio_capture_active(void) { return portable_rf_capture_active(); }
+#endif

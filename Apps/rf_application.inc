@@ -189,7 +189,15 @@ static void receiver_tap(int,int);
 #include "rf_temporal_app.inc"
 
 static bool rf_services_safe(void){return !rf_bulk||(!uncertain&&!temporal_retained());}
-static void rf_radio_suspended(void){if(!rf_bulk)return;running=owned=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;}
+static void rf_radio_suspended(void){
+ if(!rf_bulk)return;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ /* A typed idle/low-battery suspension consumes foreground capture intent.
+  * Background radio restoration must never restart capture on wake. */
+ capture_requested=false;
+#endif
+ running=owned=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;
+}
 bool portable_rf_services_safe(void){return rf_services_safe();}
 bool portable_rf_capture_active(void){return capture_requested&&running&&owned&&!uncertain;}
 bool portable_rf_suspend(void){
