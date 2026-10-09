@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "service_version": "0.4.3",
+  "reservation": "Live remote refs checked 2026-10-07; raw visual source 23a4887 reserves 0.4.2, published service tags stop at 0.4.1. This profile reserves 0.4.3. No tag/release created.",
+  "base_sha": "23a4887f1eeb7b7ce867c0e243158b899e43f0f8",
+  "system_sha": "d52a74bfb4acc01cc3f0a9dda2c95ba2ba679ee9",
+  "system_sources": {
+    "lib/PortableApps/include/PortableTimeZone.h": "3cfb6687d8f3675beb020a059b8cd3b3d8beffd42c11c6fd61d14b48af729c54",
+    "lib/PortableApps/src/PortableTimeZone.c": "28c0fecf7a4d83bde07d2b72cb591122cf3c49c3219c8344b97b82a90625c5e7",
+    "lib/PortableApps/src/PortableTimeZoneCatalog.c": "29d4c86037f7554c94a4404d5e39e28091430a1f9c23b5e35224aed3df826f20",
+    "lib/PortableApps/time/TIMEZONE_PROVENANCE.json": "4dda9d416b6ca815155dbf3ecac6452789564ff1312bba2d28a6d5a9b7eaab1b",
+    "LICENSE": "7212963b5b1b5ee34ca158163356beb1e6945dd2cc5d320f1fe7573c424ea640"
+  },
+  "runtime_sha": "30dcec5ce6ce33223f2b203a2399283e1f758567",
+  "runtime_version": "0.1.52",
+  "timezone_entries": 419,
+  "hardware_verified": false
+}
