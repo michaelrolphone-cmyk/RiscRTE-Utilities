@@ -28,6 +28,15 @@ static const char *ctx_message;
 static const uint16_t ctx_bits[]={PORTABLE_CONTEXT_SLEEP,PORTABLE_CONTEXT_IDLE,PORTABLE_CONTEXT_DEEP,
     PORTABLE_CONTEXT_BRIGHTNESS,PORTABLE_CONTEXT_VOLUME,PORTABLE_CONTEXT_DND,PORTABLE_CONTEXT_ALERT,PORTABLE_CONTEXT_FACE};
 static const char *ctx_fields[]={"SLEEP MODE","IDLE SLEEP","DEEP SLEEP","BRIGHTNESS","VOLUME","DO NOT DISTURB","NOTIFICATIONS","WATCH FACE"};
+#ifdef PORTABLE_CONTEXTS_PAPER
+#include "PaperPresentation.h"
+#include "PortablePaperScroll.h"
+#include "PortableNativeCustody.h"
+static const paper_presentation *ctx_paper;
+static bool ctx_paper_leave(const char *destination);
+static void ctx_paper_discarded(void);
+static void ctx_paper_cancel_exit(void);
+#endif
 static void ctx_note(const char *message){ctx_message=message;ctx_dirty=true;}
 static bool ctx_storage_open(risc_runtime_capability_v1 *grant) {
     *grant=(risc_runtime_capability_v1){.struct_size=sizeof(*grant)};
@@ -53,21 +62,54 @@ static void ctx_load(void) {
     if(!ctx_storage_close(&grant))return;
     ctx_note(unread?"SAVED SETTINGS UNREAD":"");
 }
+#ifdef PORTABLE_CONTEXTS_PAPER
+static bool ctx_paper_source_changed(const contexts_source_status_v1 *a,const contexts_source_status_v1 *b) {
+    return a->model_state!=b->model_state||a->capture_error!=b->capture_error||a->current!=b->current||
+        a->room_valid!=b->room_valid||a->room_ambiguous!=b->room_ambiguous||a->event_valid!=b->event_valid||
+        a->signatures_ready!=b->signatures_ready||strcmp(a->room_name,b->room_name)||strcmp(a->event_name,b->event_name);
+}
+#endif
 static bool ctx_read_status(void) {
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper){
+        if(!portable_paper_scroll_settled()||!portable_paper_scroll_available())return false;
+        ctx_service=portable_contexts_service();
+    }
+#endif
     contexts_status_v1 next={.struct_size=sizeof(next)};
     bool valid=ctx_service&&ctx_service->status(ctx_service->context,&next);
     bool changed=valid!=ctx_status_valid||(valid&&memcmp(&next,&ctx_status,sizeof(next)));
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper){
+        if(valid&&next.cleanup_pending){portable_adapter_retain();return false;}
+        changed=valid!=ctx_status_valid||(valid&&(ctx_paper_source_changed(&next.audio,&ctx_status.audio)||ctx_paper_source_changed(&next.radio,&ctx_status.radio)));
+    }
+#endif
     ctx_status_valid=valid;if(valid)ctx_status=next;
     bool extended=ctx_service&&ctx_service->struct_size>=CONTEXTS_MODEL_DETAILS_V1_SIZE&&ctx_service->model_details;
     for(unsigned i=0;i<2;i++){
         contexts_model_details_v1 detail={.struct_size=sizeof(detail)};
         bool readable=extended&&ctx_service->model_details(ctx_service->context,i?CONTEXTS_RADIO:CONTEXTS_AUDIO,&detail);
-        changed|=readable!=ctx_model_valid[i]||(readable&&memcmp(&detail,&ctx_models[i],sizeof(detail)));
+        bool model_changed=readable!=ctx_model_valid[i]||(readable&&memcmp(&detail,&ctx_models[i],sizeof(detail)));
+#ifdef PORTABLE_CONTEXTS_PAPER
+        if(ctx_paper){const contexts_model_details_v1 *old=&ctx_models[i];
+            model_changed=readable!=ctx_model_valid[i]||(readable&&(detail.temporal_state!=old->temporal_state||
+                detail.neural_state!=old->neural_state||detail.bank_error[0]!=old->bank_error[0]||
+                detail.bank_error[1]!=old->bank_error[1]||detail.neural_error!=old->neural_error||detail.event_engine!=old->event_engine));
+        }
+#endif
+        changed|=model_changed;
         ctx_model_valid[i]=readable;if(readable)ctx_models[i]=detail;
     }
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper&&ctx_page!=CT_HOME&&ctx_page!=CT_MODELS)return false;
+#endif
     return changed;
 }
 static void ctx_collect_rooms(void) {
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper)ctx_service=portable_contexts_service();
+#endif
     ctx_room_return_edit=ctx_page==CT_EDIT;
     ctx_room_count=0;ctx_room_scroll=0;
     if(!ctx_service){ctx_note("MONITOR UNAVAILABLE");return;}
@@ -105,6 +147,9 @@ static void ctx_discard(void) {
     /* A failed put may already have committed. Reload before describing the
      * saved state; discard applies only to the local draft. */
     ctx_draft_dirty=ctx_save_uncertain=false;ctx_page=CT_PRESETS;ctx_load();
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper)ctx_paper_discarded();
+#endif
 }
 static void ctx_change(int direction) {
     if(ctx_save_uncertain){ctx_note("RETRY SAVE OR DISCARD");return;}
@@ -122,7 +167,14 @@ static void ctx_change(int direction) {
     ctx_draft_dirty=true;ctx_note("");
 }
 static void ctx_back(void) {
-    if(ctx_page==CT_HOME){ctx_exit=true;return;}
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper)ctx_paper_cancel_exit();
+#endif
+    if(ctx_page==CT_HOME){
+#ifdef PORTABLE_CONTEXTS_PAPER
+        if(ctx_paper){(void)ctx_paper_leave("springboard.elf");return;}
+#endif
+        ctx_exit=true;return;}
     if(ctx_page==CT_PRESETS){ctx_page=CT_HOME;ctx_note("");return;}
     if(ctx_page==CT_MODELS){ctx_page=CT_HOME;ctx_note("");return;}
     if(ctx_page==CT_FIELD){ctx_page=CT_EDIT;ctx_note("");return;}
@@ -132,10 +184,16 @@ static void ctx_back(void) {
     ctx_page=CT_PRESETS;ctx_note("");
 }
 static void ctx_load_models(void) {
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper)ctx_service=portable_contexts_service();
+#endif
     if(!ctx_enabled_valid||!ctx_enabled){ctx_note("TURN MONITORING ON FIRST");return;}
     if(!ctx_service){ctx_note("MONITOR UNAVAILABLE");return;}
     if(!portable_background_stop()){ctx_retained=true;return;}
     if(!ctx_service->request_export(ctx_service->context,CONTEXTS_ALL)){ctx_note("MODELS BUSY / RETRY");return;}
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper){(void)ctx_paper_leave("default.elf");return;}
+#endif
     ctx_exit=true; /* Clock owns the bounded owner-app rendezvous. */
 }
 static bool ctx_hit(int x,int y,int l,int t,int w,int h){return x>=l&&x<l+w&&y>=t&&y<t+h;}
@@ -233,7 +291,13 @@ static void ctx_value(char *out,size_t size) {
       default:{const char *name=ctx_draft.face<portable_contexts_face_count()?portable_contexts_face_name(ctx_draft.face):NULL;snprintf(out,size,"%s",name?name:"UNAVAILABLE");break;}
     }
 }
+#ifdef PORTABLE_CONTEXTS_PAPER
+#include "contexts_paper.inc"
+#endif
 static void ctx_draw(void) {
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper){ctx_paper_draw();return;}
+#endif
     char text[64];portable_nova_begin();
     const char *title=ctx_page==CT_HOME?"CONTEXTS":ctx_page==CT_MODELS?(ctx_model_source?"RADIO MODELS":"AUDIO MODELS"):ctx_page==CT_PRESETS?"ROOM PRESETS":ctx_page==CT_ROOMS?"SAVED ROOMS":ctx_page==CT_DISCARD?"DISCARD DRAFT?":"ROOM PRESET";
     portable_nova_text(0,12,9,30,"<",NOVA_CYAN);portable_nova_center(0,44,8,186,title,NOVA_CYAN);
@@ -292,23 +356,52 @@ static void ctx_retain(void) {
 void app_main(void) {
     ctx_app=t5_app_get_api(1);ctx_runtime=risc_runtime_get_api(1);
     if(!ctx_app||!ctx_app->poll||!ctx_app->present||!ctx_app->millis||!ctx_runtime||!ctx_runtime->acquire||!ctx_runtime->release||!ctx_runtime->yield_ms||!ctx_runtime->diagnostic)return;
+#ifdef PORTABLE_CONTEXTS_PAPER
+    ctx_paper=paper_presentation_get();ctx_paper_reset();
+    if(ctx_paper)ctx_runtime=portable_app_custody_runtime();
+    if(ctx_paper&&ctx_app->set_back_exits_app)ctx_app->set_back_exits_app(false);
+#endif
     ctx_service=portable_contexts_service();ctx_page=CT_HOME;ctx_selected=ctx_list=ctx_room_scroll=ctx_room_count=ctx_field=0;
     ctx_enabled=ctx_enabled_valid=ctx_retained=ctx_exit=ctx_status_valid=ctx_draft_dirty=ctx_save_uncertain=false;
     ctx_status=(contexts_status_v1){0};ctx_message="";ctx_refresh_at=0;ctx_dirty=true;ctx_load();
     while(!ctx_exit) {
+#ifdef PORTABLE_CONTEXTS_PAPER
+        if(ctx_paper&&(ctx_retained||portable_adapter_retained())){portable_adapter_retain();return;}
+#endif
         if(ctx_retained)ctx_retain();
         uint32_t now=ctx_app->millis();
         if(!ctx_refresh_at||(uint32_t)(now-ctx_refresh_at)>=250){if(ctx_read_status())ctx_dirty=true;ctx_refresh_at=now;}
         if(ctx_dirty)ctx_draw();
         t5_app_input_t input={0};if(!ctx_app->poll(&input,30))break;
+    #ifdef PORTABLE_CONTEXTS_PAPER
+        if(ctx_paper){
+            if(input.exit_requested)break;
+            ctx_paper_input(&input);
+        }
+#endif
         if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)){ctx_back();continue;}
-        if(input.tapped)ctx_tap(input.touch_x,input.touch_y);
+        if(input.tapped){
+#ifdef PORTABLE_CONTEXTS_PAPER
+            if(ctx_paper)ctx_paper_tap(input.touch_x,input.touch_y);else
+#endif
+            ctx_tap(input.touch_x,input.touch_y);
+        }
         if(ctx_page==CT_FIELD) {
-            if(input.buttons&T5_APP_BUTTON_LEFT)ctx_change(-1);
-            if(input.buttons&T5_APP_BUTTON_RIGHT)ctx_change(1);
+            bool editable=true;
+#ifdef PORTABLE_CONTEXTS_PAPER
+            if(ctx_paper)editable=ctx_paper_field_available(ctx_field);
+#endif
+            if(editable&&(input.buttons&T5_APP_BUTTON_LEFT))ctx_change(-1);
+            if(editable&&(input.buttons&T5_APP_BUTTON_RIGHT))ctx_change(1);
             if(input.buttons&T5_APP_BUTTON_UP){ctx_field=(ctx_field+7)%8;ctx_note("");}
             if(input.buttons&T5_APP_BUTTON_DOWN){ctx_field=(ctx_field+1)%8;ctx_note("");}
         }
     }
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper&&(ctx_retained||portable_adapter_retained())){portable_adapter_retain();return;}
+#endif
     if(ctx_retained)ctx_retain();
+#ifdef PORTABLE_CONTEXTS_PAPER
+    if(ctx_paper&&ctx_app->set_back_exits_app)ctx_app->set_back_exits_app(true);
+#endif
 }

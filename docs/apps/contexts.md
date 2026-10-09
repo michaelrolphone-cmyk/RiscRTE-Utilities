@@ -50,3 +50,10 @@ artifacts; Watch cohort integration and physical qualification are separate.
 An RF-only provider reports Audio as `SOURCE UNAVAILABLE`; genuine model-load
 failures keep the retry caption. Reloading all sources queues only the sources
 that provider actually supports. No absent Audio model export is requested.
+
+## Explicit X4 paper profile
+
+[Contexts paper 0.1.3](../CONTEXTS_PAPER.md) adds capability-selected 480×800
+rendering, continuous lists, shared Quick Controls and X4 automatic Light.
+Select it with `build_contexts_app.py --profile x4-paper`; the default Watch
+app and service stay 0.1.2. This local profile does not activate a product.

@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "profile": "x4-native-paper-contexts",
+  "version": "0.1.3",
+  "watch_version": "0.1.2",
+  "service_version": "0.1.2",
+  "home": "default.elf",
+  "local_back": "springboard.elf",
+  "logical_size": [
+    480,
+    800
+  ],
+  "native_framebuffer": [
+    800,
+    480
+  ],
+  "rotation": 90,
+  "reader_flip": true,
+  "required_grants": [
+    {
+      "capability": "display.output",
+      "api": 1,
+      "instance_id": 3
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1,
+      "instance_id": 4
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1,
+      "instance_id": 6
+    },
+    {
+      "capability": "board.battery",
+      "api": 1,
+      "instance_id": 7
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2,
+      "instance_id": 0
+    },
+    {
+      "capability": "contexts.service",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "x4.power",
+      "api": 1,
+      "instance_id": 17
+    },
+    {
+      "capability": "storage.volume",
+      "api": 1,
+      "instance_id": 9
+    },
+    {
+      "capability": "net.wifi",
+      "api": 1,
+      "instance_id": 15
+    },
+    {
+      "capability": "bluetooth.hci",
+      "api": 1,
+      "instance_id": 16
+    }
+  ],
+  "publication": "none; local development only"
+}
