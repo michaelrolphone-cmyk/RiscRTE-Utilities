@@ -17,7 +17,7 @@ catalog=out/'catalog.c';catalog.write_text('#include "PortableApps.h"\nconst t5_
 mapping=out/'exports.map';mapping.write_text('{ global: '+ '; '.join(sorted(EXPORTS))+'; local: *; };\n')
 validator=out/'validate';subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-I'+str(ROOT/'test/native_apps/stubs'),'-I'+str(ROOT/'lib/elf_loader/include'),ROOT/'lib/elf_loader/src/esp_elf_validate.c',ROOT/'test/native_apps/validate_test.c','-o',validator],check=True)
 for name in a.app or APPS:
- dest=out/name;dest.mkdir(exist_ok=True);elf=dest/(name+'.elf');defines=flags(name,paper_transitions=True)+['-DPORTABLE_BLE_BROADCAST','-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF'];competing=name.startswith('ble_') or name=='waterfall'
+ dest=out/name;dest.mkdir(exist_ok=True);elf=dest/(name+'.elf');defines=flags(name,paper_transitions=True)+['-DPORTABLE_BLE_BROADCAST','-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF','-DPORTABLE_PAPER_PREFERENCES'];competing=name.startswith('ble_') or name=='waterfall'
  if competing:defines+=['-DPORTABLE_BLE_FOREGROUND']
  include=['-I'+str(d) for d in [inc,system/'lib/NativeApps/include',ROOT/'lib/Bluetooth/include',ROOT/'Apps',system/'Apps']]
  subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror',*defines,*include,*sources(name,system),catalog,'-lgcc','-o',elf],check=True)

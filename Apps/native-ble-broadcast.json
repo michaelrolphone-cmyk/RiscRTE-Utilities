@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "profile": "x4-native-paper-ble-telemetry",
-  "system_sha": "038951b5ac38f0123b7c5b507ff62f0b58a517eb",
+  "system_sha": "da4a308941d68d66c750cf253540840bd5069be1",
   "drivers_sha": "4088b6892c2e2654b0342f04a7d191068e4a8e2e",
   "service_version": "0.1.0",
   "versions": {

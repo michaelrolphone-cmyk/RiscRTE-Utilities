@@ -43,7 +43,7 @@ def main():
  for repo,pin in [(system,SYSTEM),(adapter,ADAPTER),(runtime,RUNTIME),(raw,'a7f08a9db7342a69ef5b9bc03e3b1ea60dafbb7c'),(watch,'13f32d3e5fee262a960f5fe0add63db835381893')]:exact(repo,pin)
  adapter=motion.select(a,p,adapter);adapter_sha=subprocess.check_output(['git','-C',str(adapter),'rev-parse','HEAD'],text=True).strip()
  native_flags=NATIVE_FLAGS+([motion.DEFINE] if a.paper_transitions else [])
- if a.ble_broadcast:native_flags+=['-DPORTABLE_BLE_BROADCAST','-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF']
+ if a.ble_broadcast:native_flags+=['-DPORTABLE_BLE_BROADCAST','-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF','-DPORTABLE_PAPER_PREFERENCES']
  cc=os.environ.get('NATIVE_APP_CC')
  if not cc:raise ValueError('Set NATIVE_APP_CC to the existing pinned Xtensa GCC; no installs')
  compiler=subprocess.check_output([cc,'--version'],text=True).splitlines()[0]

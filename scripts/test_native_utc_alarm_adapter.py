@@ -11,7 +11,7 @@ adapter=motion.select(a,p,adapter)
 out=ROOT/('build/native-broadcast-alarm-adapter' if a.ble_broadcast else 'build/native-paper-motion-alarm-adapter' if a.paper_transitions else 'build/native-utc-adapter');out.mkdir(parents=True,exist_ok=True)
 flags=['-DPORTABLE_STAGE_LOGS','-DALARM_NATIVE_UTC','-DALARM_SERVICE_TAGGED_V2','-DPORTABLE_NOVA_UI','-DPORTABLE_PAPER_UTILITIES','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_APP_LAUNCH_GUARD','-DPORTABLE_NATIVE_CUSTODY_FENCE','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_DISPLAY_ROTATION=90','-DPORTABLE_INPUT_NAVIGATION','-DPORTABLE_HOME_APP="default.elf"','-DALARM_RETURN_APP="springboard.elf"','-DPORTABLE_QUICK_ACTIONS']
 if a.paper_transitions:flags.append(motion.DEFINE)
-if a.ble_broadcast:flags+=['-DPORTABLE_BLE_BROADCAST','-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF']
+if a.ble_broadcast:flags+=['-DPORTABLE_BLE_BROADCAST','-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF','-DPORTABLE_PAPER_PREFERENCES']
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 used=[adapter/'lib/PortableApps/src'/name for name in ['adapter.c','quick_actions.c','quick_render.c','quick_session.c']]+[system/'lib/PortableApps/src'/name for name in ['PortableRealtimeClient.c','PortableTimeZone.c','PortableTimeZoneCatalog.c','PortableTimeZonePreference.c']]
 receipt={'source_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'app_sources':{str(path.relative_to(ROOT)):digest(path) for path in (ROOT/'Apps').glob('*') if path.is_file() and path.name.startswith(('alarm','countdown','utility_paper'))},'paper_motion':motion.receipt(adapter,a.ble_broadcast) if a.paper_transitions else None,'system_time_ref':SYSTEM,'adapter_ref':subprocess.check_output(['git','rev-parse','HEAD'],cwd=adapter,text=True).strip(),'runtime_ref':subprocess.check_output(['git','rev-parse','HEAD'],cwd=runtime,text=True).strip(),'profile':'native-utc-app-local-composition','publication':'blocked on separately owned System source clearance','hardware':False,'sources':{str(path):digest(path) for path in used},'runs':[]}
@@ -29,4 +29,9 @@ with tempfile.TemporaryDirectory(prefix='native-alarm-adapter-') as tmp:
      frames=out/f'{name}-{paper}-{case}-{int(san)}';frames.mkdir(exist_ok=True)
      subprocess.run([binary,frames,str(case),str(paper)],check=True,timeout=60,env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0',UBSAN_OPTIONS='halt_on_error=1'))
      receipt['runs'].append({'app':name,'paper':bool(paper),'scenario':case,'sanitized':san})
+   if a.ble_broadcast:
+    for case in (0,15,30,31,32,33,34):
+     frames=out/f'{name}-flipped-{case}-{int(san)}';frames.mkdir(exist_ok=True)
+     subprocess.run([binary,frames,str(case),'1'],check=True,timeout=60,env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0',UBSAN_OPTIONS='halt_on_error=1',TEST_PAPER_FLIP='1'))
+     receipt['runs'].append({'app':name,'paper':True,'scenario':case,'sanitized':san,'flipped':True})
 (out/'evidence.json').write_text(json.dumps(receipt,indent=2)+'\n');print('Production native alarm adapter composition passed')

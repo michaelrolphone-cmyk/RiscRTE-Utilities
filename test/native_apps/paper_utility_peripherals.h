@@ -65,6 +65,10 @@ static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;*s=(risc_touc
  if(polls==motion_multi_at&&s->contact_count){s->contact_count=2;s->contacts[1]=s->contacts[0];s->contacts[1].id=2;}
  if(polls==motion_replace_at&&s->contact_count)s->contacts[0].id=2;
 #endif
+
+#ifdef PORTABLE_PAPER_PREFERENCES
+ if(paper_profile&&getenv("TEST_PAPER_FLIP"))for(unsigned n=0;n<s->contact_count;n++)if(s->contacts[n].x<480&&s->contacts[n].y<800){s->contacts[n].x=479-s->contacts[n].x;s->contacts[n].y=799-s->contacts[n].y;}
+#endif
  return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
 static bool fake_battery(void*c,risc_battery_sample_v1*s){(void)c;assert(!battery_release_uncertain);if(battery_case==12||(battery_case==15&&polls<40))return false;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};if(battery_case==13){s->percent=0;s->flags=RISC_BATTERY_PROFILE_MISSING;}if(battery_case==14)s->flags=255;return true;}
@@ -72,7 +76,12 @@ static const risc_battery_gauge_api_v1 battery_api={1,sizeof(battery_api),NULL,f
 static bool fake_rtc(void*c,twatch_rtc_time_v1*s){(void)c;*s=(twatch_rtc_time_v1){2026,10,4,0,20,(uint8_t)(34+ticks/60000),(uint8_t)(12+ticks/1000%60)};return true;}
 static bool fake_write(void*c,const twatch_rtc_time_v1*s){(void)c;(void)s;assert(!"Unexpected RTC write in read-only audit");return false;}
 static const twatch_rtc_api_v1 rtc_api={.api_version=2,.struct_size=sizeof(rtc_api),.read=fake_rtc,.write=fake_write};
-static int32_t fake_get(void*c,const char*k,void*b,uint32_t cap,uint32_t*s){(void)c;assert(!frames);*s=0;for(unsigned i=0;i<32;i++)if(!strcmp(k,cells[i].key)){*s=cells[i].size;if(cap<*s)return RISC_KEY_VALUE_BUFFER_SMALL;memcpy(b,cells[i].bytes,*s);return 0;}return RISC_KEY_VALUE_NOT_FOUND;}
+static int32_t fake_get(void*c,const char*k,void*b,uint32_t cap,uint32_t*s){(void)c;assert(!frames);*s=0;
+#ifdef PORTABLE_PAPER_PREFERENCES
+ if(paper_profile&&!strcmp(k,"reader_flip_ui")&&getenv("TEST_PAPER_FLIP")){const uint8_t value[]={0x52,1,1,0xa4};assert(cap>=4);memcpy(b,value,4);*s=4;return 0;}
+#endif
+ for(unsigned i=0;i<32;i++){if(!strcmp(k,cells[i].key)){*s=cells[i].size;if(cap<*s)return RISC_KEY_VALUE_BUFFER_SMALL;memcpy(b,cells[i].bytes,*s);return 0;}}
+ return RISC_KEY_VALUE_NOT_FOUND;}
 static int32_t fake_put(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(!frames);puts_count++;if(fail_put_once){fail_put_once=false;return RISC_KEY_VALUE_IO;}assert(n<=64&&strlen(k)<16);unsigned i;for(i=0;i<32&&cells[i].key[0]&&strcmp(k,cells[i].key);i++){} assert(i<32);strcpy(cells[i].key,k);memcpy(cells[i].bytes,b,n);cells[i].size=n;return 0;}
 static const risc_key_value_v1 kv_api={1,sizeof(kv_api),NULL,fake_get,fake_put};
 static int32_t fake_alarm_status(void*c,alarm_status_v1*s){(void)c;*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_READY,.mode=0};return ALARM_OK;}
