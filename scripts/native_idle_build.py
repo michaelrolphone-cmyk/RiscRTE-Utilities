@@ -70,8 +70,11 @@ def version(args, name, original):
 def grants(args, original):
     result = [dict(item) for item in original]
     if selected(args):
-        # Scanner hci@0 is foreground service custody, distinct from physical
-        # hci@16 used for saved background intent and typed sleep shutdown.
+        # Runtime selector 0 means the unique authorized provider; the boot
+        # grant names its physical instance, shared by scanner and sleep.
+        for item in result:
+            if item['capability']=='bluetooth.hci':
+                item['instance_id']=16
         for name, instance in [('x4.power',17),('storage.volume',9),('net.wifi',15),('bluetooth.hci',16)]:
             item = {'capability':name,'api':1,'instance_id':instance}
             if not any(all(old.get(k)==v for k,v in item.items()) for old in result):
@@ -92,7 +95,7 @@ def record(args, receipt, defines, required_grants):
     receipt['grant_bindings'] = {}
     for g in required_grants:
         receipt['grant_bindings'].setdefault(g['capability'],[]).append(g['instance_id'])
-    receipt['sdk_sha256'] = args.x4_idle_receipt['final_sdk_sha256']
+    receipt['sdk_sha256'].update(args.x4_idle_receipt['sdk_sha256'])
     receipt['automatic_idle_light'] = True
     receipt['preferences'] = {'instance':1,'idle_timer_key':'sleep_idle','unused_deep_timer_key':'sleep_deep'}
 
