@@ -8,6 +8,7 @@
 #define ALARM_STATUS_CUE_SUPPORTED 1u
 #define ALARM_KIND_ALARM 1u
 #define ALARM_KIND_COUNTDOWN 2u
+#define ALARM_MODE_VISUAL 0u /* Copied effective mode; never a persisted preference. */
 #define ALARM_MODE_VIBRATE 1u
 #define ALARM_MODE_SOUND 2u
 #define ALARM_MODE_BOTH 3u
@@ -67,6 +68,19 @@ typedef struct {
        OUTPUT means retain the invocation/resources; no normal handoff. */
     int32_t (*stop_only)(void *);
 } alarm_service_v1;
+/* Optional append-only descriptor. The v1 function table/status layouts stay
+ * unchanged. Legacy providers require both physical outputs; a visual-only
+ * provider advertises zero and never resolves audio/haptic dependencies. */
+typedef struct {
+    alarm_service_v1 service;
+    uint32_t output_modes; /* ALARM_MODE_VIBRATE | ALARM_MODE_SOUND, or zero. */
+} alarm_service_outputs_v1;
+static inline uint32_t alarm_service_output_modes(const alarm_service_v1 *service) {
+    if(!service || service->api_version!=ALARM_SERVICE_API_V1 ||
+       service->struct_size<sizeof(*service))return ALARM_MODE_VISUAL;
+    if(service->struct_size<sizeof(alarm_service_outputs_v1))return ALARM_MODE_BOTH;
+    return ((const alarm_service_outputs_v1 *)service)->output_modes&ALARM_MODE_BOTH;
+}
 #if defined(__cplusplus)
 #define ALARM_STATIC_ASSERT static_assert
 #else
@@ -77,6 +91,7 @@ ALARM_STATIC_ASSERT(sizeof(alarm_status_v1)==104,"alarm copied status ABI");
 ALARM_STATIC_ASSERT(sizeof(alarm_sleep_v1)==16,"alarm sleep decision ABI");
 #if UINTPTR_MAX == UINT32_MAX
 ALARM_STATIC_ASSERT(sizeof(alarm_service_v1)==36,"alarm service target ABI");
+ALARM_STATIC_ASSERT(sizeof(alarm_service_outputs_v1)==40,"alarm output descriptor target ABI");
 #endif
 #undef ALARM_STATIC_ASSERT
 #endif

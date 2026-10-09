@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);p.add_argument('--runtime',type=Path,required=True);a=p.parse_args()
 out=ROOT/'build/points';out.mkdir(parents=True,exist_ok=True)
 inc=[ROOT/'lib/Alarm/include',a.runtime/'sdk/driver',a.system_apps/'lib/PortableApps/include']
-for fixture in ['tests/points_records_test.c','test/native_apps/points_service_test.c']:
+for fixture in ['tests/points_records_test.c','test/native_apps/points_service_test.c','test/native_apps/visual_alarm_service_test.c']:
  for denver in (False,True):
   for sanitized in (False,True):
    target=out/(Path(fixture).stem+f'-{int(denver)}-{int(sanitized)}')
