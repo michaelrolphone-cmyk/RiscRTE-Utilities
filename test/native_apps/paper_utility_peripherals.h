@@ -25,6 +25,12 @@ static uint16_t pixels[800*484];
 static const char *directory;
 static struct {unsigned at;int x,y;} actions[256];static unsigned action_count;
 static struct {char key[16];unsigned char bytes[64];uint32_t size;} cells[32];
+#ifdef PORTABLE_PAPER_TRANSITIONS
+static unsigned motion_opened,motion_closed,motion_restored,motion_start_frames,motion_frames;
+static unsigned motion_multi_at,motion_replace_at;
+static uint32_t motion_background;
+static uint32_t motion_pixel_hash(void){uint32_t h=2166136261u;for(unsigned i=0;i<sizeof(pixels);i++)h=(h^((const unsigned char*)pixels)[i])*16777619u;return h;}
+#endif
 static void save_frame(void) {
  if(!directory)return;
  char path[1024];snprintf(path,sizeof(path),"%s/frame-%03u.%s",directory,presents,paper_profile?"pbm":"ppm");
@@ -37,7 +43,12 @@ static void save_frame(void) {
 }
 static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;return polls<stop_poll;}
 static void fake_yield(uint32_t n){ticks+=n;}
-static bool fake_diag(const char*s){fprintf(stderr,"%s\n",s);return true;}
+static bool fake_diag(const char*s){
+#ifdef PORTABLE_PAPER_TRANSITIONS
+ if(strstr(s,"name=quick-controls-open")){motion_opened++;motion_start_frames=presents;motion_background=motion_pixel_hash();}
+ if(strstr(s,"name=quick-controls-close")){motion_closed++;motion_frames+=presents-motion_start_frames;if(motion_background==motion_pixel_hash())motion_restored++;}
+#endif
+ fprintf(stderr,"%s\n",s);return true;}
 static bool fake_launch(const char*s){launches++;snprintf(destination,sizeof(destination),"%s",s);if(refuse_launch&&launches==1)return false;stop_poll=polls;return true;}
 static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=paper_profile?800:240,.height=paper_profile?480:240,.nominal_refresh_millihz=paper_profile?1000:60000,.typical_present_latency_us=paper_profile?200000:16000,.flags=RISC_DISPLAY_INFO_PARTIAL_DAMAGE|(paper_profile?RISC_DISPLAY_INFO_RETAINS_IMAGE:0),.supported_formats=RISC_DISPLAY_FORMAT_BIT(paper_profile?RISC_DISPLAY_FORMAT_MONO1:RISC_DISPLAY_FORMAT_RGB565)};return true;}
 static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!battery_release_uncertain);assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=paper_profile?800:240,.height=paper_profile?480:240,.stride_bytes=paper_profile?104:488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
@@ -49,7 +60,12 @@ static uint64_t fake_sub(void*c){(void)c;subs++;return 1;}
 static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n==1&&subs);subs--;return true;}
 static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);polls++;return true;}
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;(void)n;(void)e;return 0;}
-static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;*s=(risc_touch_snapshot_v1){.width=paper_profile?480:240,.height=paper_profile?800:240};if(raw_home_at&&polls==raw_home_at)s->buttons=RISC_TOUCH_BUTTON_PRIMARY;for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=actions[i].x,.y=actions[i].y};if(cancel_contact){s->contact_count=2;s->contacts[1]=s->contacts[0];s->contacts[1].id=2;}}return true;}
+static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;*s=(risc_touch_snapshot_v1){.width=paper_profile?480:240,.height=paper_profile?800:240};if(raw_home_at&&polls==raw_home_at)s->buttons=RISC_TOUCH_BUTTON_PRIMARY;for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=actions[i].x,.y=actions[i].y};if(cancel_contact){s->contact_count=2;s->contacts[1]=s->contacts[0];s->contacts[1].id=2;}}
+#ifdef PORTABLE_PAPER_TRANSITIONS
+ if(polls==motion_multi_at&&s->contact_count){s->contact_count=2;s->contacts[1]=s->contacts[0];s->contacts[1].id=2;}
+ if(polls==motion_replace_at&&s->contact_count)s->contacts[0].id=2;
+#endif
+ return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
 static bool fake_battery(void*c,risc_battery_sample_v1*s){(void)c;assert(!battery_release_uncertain);if(battery_case==12||(battery_case==15&&polls<40))return false;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};if(battery_case==13){s->percent=0;s->flags=RISC_BATTERY_PROFILE_MISSING;}if(battery_case==14)s->flags=255;return true;}
 static const risc_battery_gauge_api_v1 battery_api={1,sizeof(battery_api),NULL,fake_battery};

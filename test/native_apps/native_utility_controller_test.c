@@ -51,7 +51,12 @@ static bool test_release(risc_runtime_capability_v1*g){assert(!retained_flag);if
 static const risc_runtime_api_v1 native_runtime={.api_version=1,.struct_size=sizeof(native_runtime),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=test_acquire,.release=test_release,.retain_invocation=test_retain};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&native_runtime:NULL;}
 #include NOVA_APP_SOURCE
-static void touch(unsigned at,int px,int py,int wx,int wy){assert(action_count<256);actions[action_count].at=at;actions[action_count].x=paper_profile?px:wx;actions[action_count++].y=paper_profile?py:wy;}
+static void touch(unsigned at,int px,int py,int wx,int wy){
+#ifdef PORTABLE_PAPER_TRANSITIONS
+ if(py==560)py=500;
+#endif
+assert(action_count<256);actions[action_count].at=at;actions[action_count].x=paper_profile?px:wx;actions[action_count++].y=paper_profile?py:wy;}
+#include "native_paper_motion_cases.h"
 static void zone(const char *id){uint8_t data[44]={0};data[0]='T';data[1]='Z';data[2]=1;strcpy((char*)data+4,id);data[3]=0xa5;for(unsigned i=0;i<44;i++)if(i!=3)data[3]^=data[i];(void)fake_put(NULL,"time_zone",data,44);puts_count=0;}
 #if NOVA_APP_ID == 2
 static void toggle_at(unsigned at){touch(at,90,628,48,204);}
@@ -65,6 +70,10 @@ static void seed_record(bool raw,bool future){
 int main(int argc,char **argv){
  assert(argc==3);unsigned scenario=(unsigned)atoi(argv[1]);paper_profile=atoi(argv[2])!=0;directory=NULL;memset(pixels,0xa5,sizeof(pixels));stop_poll=260;home_at=220;zone("America/Denver");
  bool expected_retained=false;
+#ifdef PORTABLE_PAPER_TRANSITIONS
+ if(scenario>=30)motion_case(scenario);else
+#endif
+ {
 #if NOVA_APP_ID == 2
  switch(scenario){
  case 0:toggle_at(20);toggle_at(100);break;
@@ -113,6 +122,7 @@ int main(int argc,char **argv){
  default:assert(0);
  }
 #endif
+ }
  assert(app_module_init()==0);
 #if NOVA_APP_ID != 2
  if(scenario>=2&&scenario<=6){twatch_rtc_time_v1 result={0};assert(!portable_app_native_local_time(&result));}
@@ -125,7 +135,7 @@ int main(int argc,char **argv){
  else{
   assert(!retained_flag&&!reader_live&&launches==1);
 #if NOVA_APP_ID == 2
-  switch(scenario){
+  if(scenario<30)switch(scenario){
   case 0:case 18:case 23:assert(!clock_state.running&&clock_state.elapsed_ms>1000&&clock_state.saved.elapsed_ms==clock_state.elapsed_ms&&puts_count==2);break;
   case 1:assert(!clock_state.running&&puts_count==4&&clock_state.elapsed_ms==clock_state.saved.elapsed_ms);break;
   case 2:assert(!clock_state.running&&!clock_state.elapsed_ms&&puts_count==3);break;
@@ -147,6 +157,9 @@ int main(int argc,char **argv){
   if(scenario==0)assert(power_details&&power_detail_page==1);
 #endif
   app_module_fini();assert(!fixture_grants&&!frames&&!subs);
+#ifdef PORTABLE_PAPER_TRANSITIONS
+  if(scenario>=30)motion_verify(scenario);
+#endif
  }
  printf("Native controller app=%u paper=%u case=%u reads=%u retained=%u passed\n",NOVA_APP_ID,paper_profile,scenario,native_reads,retain_count);return 0;
 }

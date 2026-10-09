@@ -7,6 +7,7 @@ import json
 import subprocess
 import tarfile
 from pathlib import Path
+import native_paper_motion as motion
 
 ROOT=Path(__file__).resolve().parents[1]
 PROFILE=json.loads((ROOT/'Apps/native-utc-utilities.json').read_text())
@@ -26,11 +27,14 @@ def extract(repo,pin,destination,*paths):
  destination.mkdir(parents=True,exist_ok=True)
  data=subprocess.check_output(['git','-C',str(repo),'archive',pin,*paths])
  with tarfile.open(fileobj=io.BytesIO(data)) as tar:tar.extractall(destination,filter='data')
-def stage(system,runtime,folder,out):
+def stage(system,runtime,folder,out,adapter=None):
+ adapter=adapter or system
  include=folder/'include';include.mkdir(parents=True)
- for path in (system/'lib/PortableApps/include').iterdir():
+ for path in (adapter/'lib/PortableApps/include').iterdir():
   if path.is_file():(include/path.name).symlink_to(path)
- (folder/'time').symlink_to(system/'lib/PortableApps/time',target_is_directory=True)
+ for path in (system/'lib/PortableApps/time').rglob('*'):
+  if path.is_file():
+   dest=folder/'time'/path.relative_to(system/'lib/PortableApps/time');dest.parent.mkdir(parents=True,exist_ok=True);dest.symlink_to(path)
  for name in ['RiscRuntimeV1.h','RiscRealtimeV1.h']:
   path=include/name
   if path.exists():path.unlink()
@@ -42,7 +46,7 @@ def stage(system,runtime,folder,out):
  helper.stage(argparse.Namespace(tagged_alarm_utilities=ROOT,alarm_client=True),argparse.ArgumentParser(),out,include)
  return include
 
-def flags(name,native=True,paper=True):
+def flags(name,native=True,paper=True,paper_transitions=False):
  f=['-DPORTABLE_NOVA_UI','-DPORTABLE_ALARM_CLIENT']
  if paper:f+=['-DPORTABLE_DISPLAY_ROTATION=90','-DPORTABLE_INPUT_NAVIGATION','-DPORTABLE_HOME_APP="default.elf"','-DPORTABLE_QUICK_ACTIONS']
  else:f+=['-DPORTABLE_FORCE_FULL_FRAMES']
@@ -60,23 +64,27 @@ def flags(name,native=True,paper=True):
  if native:
   f+=['-DPORTABLE_STAGE_LOGS','-DALARM_SERVICE_TAGGED_V2','-DPORTABLE_NATIVE_CUSTODY_FENCE','-DPORTABLE_NATIVE_TIME_TOOLBAR']
   if name=='stopwatch':f+=['-DPORTABLE_STOPWATCH_NATIVE_UTC','-DPORTABLE_APP_LAUNCH_GUARD']
+ if paper_transitions:
+  if not native or not paper:raise ValueError('Paper motion requires the explicit native paper profile')
+  f.append(motion.DEFINE)
  return f
 
-def sources(name,system,native=True,paper=True,repo=ROOT):
- result=[repo/'Apps'/(name+'.c'),system/'lib/PortableApps/src/adapter.c']
- if paper or name.startswith('ble_'):result += [system/'lib/PortableApps/src'/n for n in QUICK]
+def sources(name,system,native=True,paper=True,repo=ROOT,adapter=None):
+ adapter=adapter or system
+ result=[repo/'Apps'/(name+'.c'),adapter/'lib/PortableApps/src/adapter.c']
+ if paper or name.startswith('ble_'):result += [adapter/'lib/PortableApps/src'/n for n in QUICK]
  if not paper and name.startswith('ble_'):result += [system/'lib/PortableApps/src/quick_radios.c']
  if native:result += [system/'lib/PortableApps/src'/n for n in TIME]
  if name=='waterfall':result += [system/'lib/NativeApps/src/SingleFloatDivisionCompat.c']
  return result
 
 def include_paths(system,headers,repo=ROOT):return [headers,system/'lib/NativeApps/include',repo/'lib/Bluetooth/include',repo/'Apps',system/'Apps']
-def manifests(name,out):
+def manifests(name,out,paper_transitions=False):
  grants=PROFILE['common_grants']+PROFILE['app_grants'][name]
  assert len(grants)==len({(g['capability'],g['api'],g['instance_id']) for g in grants})
  pairs=list(dict.fromkeys((g['capability'],g['api']) for g in grants))
  assert ('alarm.service',2) in pairs and ('alarm.service',1) not in pairs and not any(c.startswith('rtc.') or c=='runtime.realtime.control' for c,v in pairs)
- manifest=dict(type='application',id=name,version=PROFILE['versions'][name],architecture='xtensa-esp32s3',file_name=name+'.elf',entry='app_main',requires=[dict(capability=c,api=v) for c,v in pairs])
+ manifest=dict(type='application',id=name,version=motion.version(name,PROFILE['versions'][name],paper_transitions),architecture='xtensa-esp32s3',file_name=name+'.elf',entry='app_main',requires=[dict(capability=c,api=v) for c,v in pairs])
  (out/(name+'.json')).write_text(json.dumps(manifest,indent=2)+'\n')
  (out/(name+'.boot-policy.json')).write_text(json.dumps(dict(manifest=name+'.json',grants=[{k:g[k] for k in ('capability','api','instance_id')} for g in grants]),indent=2)+'\n')
  return manifest

@@ -8,6 +8,21 @@ static unsigned nu_reads,nu_opens,nu_closes,nu_alarm_opens;
 static unsigned nu_frozen_ticks,nu_frozen_grants,nu_frozen_ops,nu_frozen_frames,nu_frozen_subs,nu_frozen_reads;
 static uint32_t nu_frozen_raster;
 static uint32_t nu_raster_hash(void){const uint8_t *p=(const void*)&NU_RASTER;uint32_t h=2166136261u;for(unsigned i=0;i<sizeof(NU_RASTER);i++)h=(h^p[i])*16777619u;return h;}
+#ifdef PORTABLE_PAPER_TRANSITIONS
+static unsigned nu_quick_open,nu_quick_close,nu_quick_restore;
+static uint32_t nu_quick_background;
+static bool nu_diagnostic(const char *text){
+ if(strstr(text,"name=quick-controls-open")){nu_quick_open++;nu_quick_background=nu_raster_hash();}
+ if(strstr(text,"name=quick-controls-close")){nu_quick_close++;if(nu_raster_hash()==nu_quick_background)nu_quick_restore++;}
+ return NU_RUNTIME.diagnostic(text);
+}
+#endif
+static void nu_check_motion(void){
+#ifdef PORTABLE_PAPER_TRANSITIONS
+ const char *expected=getenv("NATIVE_QUICK_EXPECT");
+ if(expected){assert(nu_quick_open==(unsigned)atoi(expected)&&nu_quick_close==nu_quick_open&&nu_quick_restore==nu_quick_close);}
+#endif
+}
 static bool nu_fault_case(void){const char *mode=getenv("NATIVE_TIME_CASE");return mode&&(!strcmp(mode,"context")||!strcmp(mode,"release-failure")||!strcmp(mode,"zone-context"));}
 static bool nu_retain(void){assert(!nu_retained);nu_retained=true;nu_frozen_ticks=NU_TICKS;nu_frozen_grants=NU_GRANTS;nu_frozen_ops=NU_OPS;nu_frozen_frames=NU_FRAMES;nu_frozen_subs=NU_SUBS;nu_frozen_reads=nu_reads;nu_frozen_raster=nu_raster_hash();return true;}
 void __real_free(void *pointer);void __wrap_free(void *pointer){assert(!nu_retained);__real_free(pointer);}
@@ -73,7 +88,11 @@ static bool nu_release(risc_runtime_capability_v1 *grant){
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t version){
  if(version!=1)return NULL;
  static risc_runtime_api_v1 native_runtime;native_runtime=NU_RUNTIME;
- native_runtime.health=nu_health;native_runtime.request_launch=nu_launch;native_runtime.acquire=nu_acquire;native_runtime.release=nu_release;native_runtime.retain_invocation=nu_retain;return &native_runtime;
+ native_runtime.health=nu_health;native_runtime.request_launch=nu_launch;native_runtime.acquire=nu_acquire;native_runtime.release=nu_release;native_runtime.retain_invocation=nu_retain;
+#ifdef PORTABLE_PAPER_TRANSITIONS
+ native_runtime.diagnostic=nu_diagnostic;
+#endif
+ return &native_runtime;
 }
 static void nu_check_clock(void){
  if(nu_fault_case())return;
