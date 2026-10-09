@@ -4,8 +4,16 @@
 #include "PortableNovaUi.h"
 #include "PortablePowerStatus.h"
 #include "RiscRuntimeV1.h"
+#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+#include "PortableNativeCustody.h"
+#endif
 #include <stdio.h>
 #include <string.h>
+#ifdef PORTABLE_BLE_BROADCAST
+#include "PortableBroadcastClient.h"
+static bool power_broadcast,power_broadcast_error,power_broadcast_requested;
+static telemetry_broadcast_status_v1 power_broadcast_state;
+#endif
 #ifdef PORTABLE_RETURN_APP
 #error Power details require nested Back via BATTERY_RETURN_APP
 #endif
@@ -49,7 +57,12 @@ static const char *power_caption(void) {
     if (power_extended() && !power_flag(PORTABLE_POWER_BATTERY_PRESENT)) return "Presence not detected";
     if (power_flag(PORTABLE_POWER_THERMAL_LIMIT)) return "PMIC limiting charge";
     if (power_flag(PORTABLE_POWER_CHARGE_DONE)) return "Charger reports done";
-    if (power_sample.flags & RISC_BATTERY_CHARGING) return "PMIC reports charging";
+    if (power_sample.flags & RISC_BATTERY_CHARGING) {
+#if defined(PORTABLE_BLE_BROADCAST) && defined(PORTABLE_PAPER_UTILITIES)
+        if(!power_extended())return "Gauge reports charging";
+#endif
+        return "PMIC reports charging";
+    }
     if (power_flag(PORTABLE_POWER_INPUT_READY)) return "Not reporting charge";
     if (power_percent_known() && power_sample.percent <= 20) return "Connect USB to charge";
     return power_extended() ? "USB not available" : "Basic telemetry only";
@@ -217,12 +230,42 @@ static void power_detail_view(void) {
     portable_nova_button(176,192,52,44,"Next",false);
     power_app->present(false);
 }
+#ifdef PORTABLE_BLE_BROADCAST
+static const char *power_broadcast_label(void) {
+    switch(power_broadcast_state.state) {
+      case TELEMETRY_BROADCAST_OFF:return "Disabled";
+      case TELEMETRY_BROADCAST_BLE_OFF:return "Bluetooth is off";
+      case TELEMETRY_BROADCAST_PAUSED:return "Paused";
+      case TELEMETRY_BROADCAST_STARTING:return "Starting";
+      case TELEMETRY_BROADCAST_LIVE:return "Broadcasting";
+      case TELEMETRY_BROADCAST_RETRY:return "Waiting / retrying";
+      case TELEMETRY_BROADCAST_RETAINED:return "Cleanup pending";
+      default:return "Settings unavailable";
+    }
+}
+static void power_broadcast_view(void) {
+    portable_nova_begin();portable_nova_header("BLE BROADCAST");
+    portable_nova_row(12,52,216,50,"Sensor status",power_broadcast_label(),false);
+    portable_nova_wrap(2,16,108,208,17,2,"Available sensor values only. No estimated temperature.",NOVA_TEXT);
+    portable_nova_wrap(2,16,147,208,17,2,"Open to nearby receivers without pairing.",NOVA_CAP);
+    if(power_broadcast_state.omitted_fields)portable_nova_center(2,12,177,216,"Some fields exceed BLE limit",POWER_AMBER);
+    if(power_broadcast_error)portable_nova_center(2,12,177,216,"Not saved. Try again.",POWER_RED);
+    portable_nova_button(36,192,168,44,power_broadcast_error?"Retry":power_broadcast_state.enabled?"Disable":"Enable",false);
+    power_app->present(false);
+}
+#endif
 #ifdef PORTABLE_PAPER_UTILITIES
 #include "battery_paper.inc"
 #endif
 static void power_render(void) {
+#if defined(PORTABLE_NATIVE_TIME_TOOLBAR) && defined(PORTABLE_BLE_BROADCAST)
+ if(portable_adapter_retained())return;
+#endif
 #ifdef PORTABLE_PAPER_UTILITIES
  if(utility_paper){battery_paper_draw();return;}
+#endif
+#ifdef PORTABLE_BLE_BROADCAST
+ if(power_broadcast){power_broadcast_view();return;}
 #endif
  if(power_details)power_detail_view();else power_overview(); }
 static bool power_refresh(void) {
@@ -230,9 +273,18 @@ static bool power_refresh(void) {
     bool ok=portable_power_read(&next);
     bool changed=ok!=power_read_ok || memcmp(&next,&power_sample,sizeof(next));
     power_read_ok=ok;power_sample=next;power_sample_at=power_app->millis();
+#ifdef PORTABLE_BLE_BROADCAST
+    telemetry_broadcast_status_v1 state={.struct_size=sizeof(state)};
+    if(!portable_broadcast_status(&state))state.state=TELEMETRY_BROADCAST_SETTINGS_ERROR;
+    changed|=memcmp(&state,&power_broadcast_state,sizeof(state))!=0;
+    power_broadcast_state=state;
+#endif
     return changed;
 }
 static bool power_back(void) {
+#ifdef PORTABLE_BLE_BROADCAST
+    if(power_broadcast){power_broadcast=false;power_render();return false;}
+#endif
     if (power_details) { power_details=false;power_render();return false; }
 #ifdef BATTERY_RETURN_APP
     const risc_runtime_api_v1 *rt=risc_runtime_get_api(1);
@@ -255,6 +307,10 @@ void app_main(void) {
 #endif
     power_sample=(risc_battery_sample_v1){0,255,RISC_BATTERY_PROFILE_MISSING};
     power_read_ok=power_details=power_navigation_failed=false;power_detail_page=0;
+    #ifdef PORTABLE_BLE_BROADCAST
+    power_broadcast=power_broadcast_error=power_broadcast_requested=false;
+    memset(&power_broadcast_state,0,sizeof(power_broadcast_state));
+#endif
     (void)power_refresh();power_render();
     for (;;) {
         t5_app_input_t input={0};if(!power_app->poll(&input,50))return;
@@ -269,6 +325,24 @@ void app_main(void) {
         if(power_details && (input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))) {power_detail_page=(power_detail_page+3)%4;render=true;}
         if(power_details && (input.buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))) {power_detail_page=(power_detail_page+1)%4;render=true;}
         bool refresh=(input.buttons&T5_APP_BUTTON_CONFIRM)!=0;
+#ifdef PORTABLE_BLE_BROADCAST
+        if(power_broadcast && (refresh || (input.tapped &&
+#ifdef PORTABLE_PAPER_UTILITIES
+          (utility_paper ? up_hit(input.touch_x,input.touch_y,32,584,416,88) :
+#endif
+          portable_nova_hit(input.touch_x,input.touch_y,36,192,168,44)
+#ifdef PORTABLE_PAPER_UTILITIES
+          )
+#endif
+          ))) {
+            if(!power_broadcast_error)power_broadcast_requested=!power_broadcast_state.enabled;
+            power_broadcast_error=!portable_broadcast_enable(power_broadcast_requested);
+#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+            if(portable_adapter_retained())return;
+#endif
+            (void)power_refresh();power_render();continue;
+        }
+#endif
         if(input.tapped) {
 #ifdef PORTABLE_PAPER_UTILITIES
             if(utility_paper){battery_paper_tap(input.touch_x,input.touch_y,&refresh);render=true;}else

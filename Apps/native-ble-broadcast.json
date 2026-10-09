@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "profile": "x4-native-paper-ble-telemetry",
+  "system_sha": "e4e7a8251cdbf260e4373a24c4ea3db7b75a533b",
+  "drivers_sha": "4088b6892c2e2654b0342f04a7d191068e4a8e2e",
+  "service_version": "0.1.0",
+  "versions": {
+    "calculator": "0.1.14",
+    "stopwatch": "0.1.14",
+    "battery": "1.1.7",
+    "ble_scanner": "0.2.9",
+    "ble_touchpad": "0.1.9",
+    "ble_buttons": "0.1.9",
+    "waterfall": "0.2.5"
+  },
+  "defines": [
+    "PORTABLE_BLE_BROADCAST",
+    "PORTABLE_BLE_BROADCAST_DEFAULT_OFF"
+  ],
+  "foreground_excluded": [
+    "ble_scanner",
+    "ble_touchpad",
+    "ble_buttons",
+    "waterfall"
+  ],
+  "default": "off",
+  "shared_preferences_instance": 1,
+  "telemetry_fields": [
+    "battery_percent",
+    "battery_millivolts",
+    "charging"
+  ],
+  "hardware_verified": false,
+  "publication": "local only; inherited System ancestry blocked"
+}
