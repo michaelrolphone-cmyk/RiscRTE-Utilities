@@ -66,6 +66,11 @@ int main(int argc,char **argv) {
     ctx_page=CT_HOME;ctx_load_models();assert(!requests&&!ctx_exit);ctx_tap(120,60);assert(ctx_enabled&&writes==3);ctx_load_models();assert(requests==1&&ctx_exit&&live.export_pending==CONTEXTS_ALL);
     ctx_exit=false;ctx_page=CT_HOME;live.audio.current=false;live.audio.room_valid=false;live.radio.room_valid=false;live.radio.room_ambiguous=true;ctx_read_status();screenshot(argv[1],"contexts-paused-ambiguous");
     ctx_page=CT_FIELD;ctx_field=7;ctx_draft.face=2;screenshot(argv[1],"contexts-watch-face");
+    live.audio=(contexts_source_status_v1){.source=CONTEXTS_AUDIO,.model_state=CONTEXTS_MODEL_UNAVAILABLE,.model_error=CONTEXTS_EXPORT_UNSUPPORTED,.age_ms=UINT32_MAX};
+    ctx_page=CT_HOME;ctx_read_status();assert(!strcmp(ctx_source_caption(&live.audio),"SOURCE UNAVAILABLE"));screenshot(argv[1],"contexts-rf-only");
+    contexts_source_status_v1 failed={.model_state=CONTEXTS_MODEL_FAILED,.model_error=CONTEXTS_EXPORT_UNSUPPORTED};
+    assert(!strcmp(ctx_source_caption(&failed),"MODEL LOAD FAILED / RETRY"));
+    assert(!strcmp(ctx_import_caption(CONTEXTS_IMPORT_UNAVAILABLE,CONTEXTS_IMPORT_UNSUPPORTED,false),"SOURCE UNAVAILABLE"));
     ctx_field=1;ctx_draft.idle_ms=3599000;ctx_change(1);assert(ctx_draft.idle_ms==3600000);ctx_draft.idle_ms=6000;ctx_change(-1);assert(ctx_draft.idle_ms==5000);
     ctx_field=3;ctx_draft.brightness=99;ctx_change(1);assert(ctx_draft.brightness==100);ctx_draft.brightness=15;ctx_change(-1);assert(ctx_draft.brightness==10);
     contexts_service_v1 extended=service;extended.model_details=get_models;ctx_service=&extended;ctx_page=CT_HOME;

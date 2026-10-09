@@ -126,10 +126,50 @@ static void finite_matching_test(bool worst){
  else{assert(ct_m[0].event_slot==0&&ct_m[0].details.event_engine==CONTEXTS_EVENT_NEURAL);contexts_source_status_v1 s=source_view(CONTEXTS_AUDIO);assert(s.event_valid&&!strcmp(s.event_name,"Sound 0"));}
  assert(provider->pause(NULL));assert(!ct_a.match.running&&!ct_m[0].event_valid&&source_view(CONTEXTS_AUDIO).temporal_ready);
 }
+static void rf_only_models_test(void){
+ import_models(CONTEXTS_RADIO,true);
+ contexts_source_status_v1 s=source_view(CONTEXTS_RADIO);
+ assert(s.signatures_ready&&s.temporal_ready&&s.neural_ready);
+ assert(!memcmp(&ct_r.library,&library,sizeof(library))&&!memcmp(&ct_r.neural,&trainer.active,sizeof(rn_model)));
+ assert(details(CONTEXTS_RADIO).positive_examples==6&&details(CONTEXTS_RADIO).negative_examples==4);
+ assert(source_view(CONTEXTS_AUDIO).model_state==CONTEXTS_MODEL_UNAVAILABLE);
+ match_radio(&library.labels[0].examples[2],true,0);
+ match_radio(&library.labels[1].examples[2],true,1);
+ match_radio(&library.labels[0].examples[4],false,-1);
+ uint32_t generation=s.model_generation;
+ import_models(CONTEXTS_RADIO,false);assert(source_view(CONTEXTS_RADIO).model_generation==generation);
+ match_radio(&library.labels[0].examples[2],false,-1);assert(ct_m[1].event_ambiguous);
+ uint8_t bad[RN_RECORD_SIZE];memcpy(bad,radio_checkpoint,sizeof(bad));
+ rf_capture_identity other=library.identity;other.raw_gain++;rf_identity_encode(&other,bad+64);
+ rf_signature_put32(bad+RN_RECORD_SIZE-4,rf_signature_crc(bad,RN_RECORD_SIZE-4));assert(rn_record_valid(bad,sizeof(bad)));
+ begin_source(CONTEXTS_RADIO);banks(CONTEXTS_RADIO);
+ assert(!provider->export_record(NULL,CONTEXTS_RADIO,CONTEXTS_RECORD_NEURAL,0,bad,sizeof(bad)));
+ assert(provider->finish_export(NULL,CONTEXTS_RADIO,0));
+ assert(source_view(CONTEXTS_RADIO).temporal_ready&&!source_view(CONTEXTS_RADIO).neural_ready&&details(CONTEXTS_RADIO).neural_error==CONTEXTS_IMPORT_STALE);
+ begin_source(CONTEXTS_RADIO);
+ assert(provider->export_record(NULL,CONTEXTS_RADIO,CONTEXTS_RECORD_TEMPORAL_BANK,0,radio_banks[0],radio_sizes[0]));
+ assert(provider->finish_export(NULL,CONTEXTS_RADIO,0));
+ assert(!source_view(CONTEXTS_RADIO).temporal_ready&&details(CONTEXTS_RADIO).bank_error[1]==CONTEXTS_IMPORT_INCOMPLETE);
+ begin_source(CONTEXTS_RADIO);
+ for(unsigned b=0;b<2;b++)assert(provider->export_record(NULL,CONTEXTS_RADIO,CONTEXTS_RECORD_TEMPORAL_BANK,b,NULL,0));
+ assert(provider->export_record(NULL,CONTEXTS_RADIO,CONTEXTS_RECORD_NEURAL,0,NULL,0));
+ assert(provider->finish_export(NULL,CONTEXTS_RADIO,0));assert(details(CONTEXTS_RADIO).temporal_state==CONTEXTS_IMPORT_MISSING);
+ import_models(CONTEXTS_RADIO,true);
+ ct_reset(1);rt_match_begin(&ct_r.match,&library.labels[0].examples[2]);ct_m[1].details.match_pending=true;ct_m[1].query_at=test_now;
+ unsigned work=ct_r.match.work_units;assert(provider->capture_audio(NULL));assert(ct_r.match.work_units==work);
+ contexts_policy_v1 rf_policy={sizeof(rf_policy),true,true,true,true,CONTEXTS_ALL};
+ radio_active=true;radio_at=test_now; /* No new burst is due while matching this observation. */
+ unsigned rounds=0;
+ while(ct_r.match.running){work=ct_r.match.work_units;assert(provider->step(NULL,&rf_policy));assert(ct_r.match.work_units>work&&ct_r.match.work_units-work<=128&&++rounds<1000);}
+ assert(!input_opens&&!input_reads&&!input_closes);
+ puts("RF-only temporal/neural: real canonical imports, identity/stale/incomplete/missing gates, bounded matching and no Audio capture PASS");
+}
 int main(void){
  prepare_models();const risc_driver_v2 *driver=t5_driver_get(2);assert(driver);
  const risc_provider_dependency_v1 dependencies[]={{"platform.clock",1,&clock_table},{"audio.input",1,&input_table},{"radio.iq",1,&receiver_table}};
- assert(driver->start(dependencies,3));provider=driver->capability;
- import_tests();full_bank_tests();finite_matching_test(false);finite_matching_test(true);assert(driver->quiesce());driver->stop();
- printf("Contexts temporal/neural: copied canonical libraries, active checkpoint identity, ambiguity/negative fallback, retained room generation, incomplete/stale import, bounded matching with finite512-frame RX PASS (%zu model bytes)\n",sizeof(ct_a)+sizeof(ct_r)+sizeof(ct_m));
+ const risc_provider_dependency_v1 rf_dependencies[]={dependencies[0],dependencies[2]};
+ assert(driver->start(CONTEXTS_RF_ONLY?rf_dependencies:dependencies,CONTEXTS_RF_ONLY?2u:3u));provider=driver->capability;
+ if(CONTEXTS_RF_ONLY)rf_only_models_test();
+ else{import_tests();full_bank_tests();finite_matching_test(false);finite_matching_test(true);}assert(driver->quiesce());driver->stop();
+ if(!CONTEXTS_RF_ONLY)printf("Contexts temporal/neural: copied canonical libraries, active checkpoint identity, ambiguity/negative fallback, retained room generation, incomplete/stale import, bounded matching with finite512-frame RX PASS (%zu model bytes)\n",sizeof(ct_a)+sizeof(ct_r)+sizeof(ct_m));
 }

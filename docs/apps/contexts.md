@@ -1,4 +1,4 @@
-# Contexts 0.1.1 (development)
+# Contexts 0.1.2 (development)
 
 Contexts shows the current saved-signature room and event match from the awake
 Audio/RF monitoring service. Unknown, ambiguous, paused, input-failed and
@@ -46,3 +46,7 @@ controller/shared NOVA raster tests and generated 240×240 screen evidence, and
 `scripts/build_contexts_app.py --system-apps /path/system-apps` for a GCC 8.4
 target ELF with structural/import/export checks. These are development
 artifacts; Watch cohort integration and physical qualification are separate.
+
+An RF-only provider reports Audio as `SOURCE UNAVAILABLE`; genuine model-load
+failures keep the retry caption. Reloading all sources queues only the sources
+that provider actually supports. No absent Audio model export is requested.

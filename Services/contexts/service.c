@@ -1,6 +1,7 @@
 /* Signature inference in an ordinary ELF. No thread, poll suffix, file/KV
  * authority, automatic training, persistent model copy or settings mutation. */
 #include "ContextsServiceV1.h"
+#include "source_profile.h"
 #include "AudioInputV1.h"
 #include "RiscRadioIqV1.h"
 #include "RiscPlatformClockV1.h"
@@ -64,8 +65,11 @@ static void invalidate(contexts_source_status_v1 *s) {
     s->current=s->room_valid=s->event_valid=false;
 }
 static void reset_audio(void) {
-    spectrum_signature_init(&a.analyzer);spectrum_background_reset(&a.background);
-    spectrum_room_reset(&a.room);audio_active=false;have_observation[0]=false;invalidate(&view.audio);
+    if(CONTEXTS_HAS_AUDIO){
+        spectrum_signature_init(&a.analyzer);spectrum_background_reset(&a.background);
+        spectrum_room_reset(&a.room);
+    }
+    audio_active=false;have_observation[0]=false;invalidate(&view.audio);
     ct_reset(0);
 }
 static void reset_radio(void) {
@@ -74,7 +78,7 @@ static void reset_radio(void) {
     ct_reset(1);
 }
 static bool close_audio(void) {
-    if(audio_owned&&!microphone->close(microphone->context)) {
+    if(CONTEXTS_HAS_AUDIO&&audio_owned&&!microphone->close(microphone->context)) {
         view.cleanup_pending=true;view.state=CONTEXTS_RETAINED;return false;
     }
     audio_owned=false;reset_audio();return true;
@@ -230,7 +234,7 @@ static bool audio_step(uint64_t now) {
 static bool capture_audio(void *context) {
     (void)context;if(!enter())return false;
     if(view.cleanup_pending){leave();return false;}
-    if(!audio_permitted||!audio_owned){leave();return true;}
+    if(!CONTEXTS_HAS_AUDIO||!audio_permitted||!audio_owned){leave();return true;}
     uint64_t now=clock_api->monotonic_ms(clock_api->context);
     bool ok=audio_drain(now);leave();return ok;
 }
@@ -268,7 +272,7 @@ static bool step(void *context,const contexts_policy_v1 *p) {
         bool ok=pause_internal();if(ok&&!p->enabled)view.state=CONTEXTS_OFF;leave();return ok;
     }
     bool pending=view.export_active||view.export_pending;
-    bool audio_ready=(p->sources&CONTEXTS_AUDIO)&&view.audio.model_state==CONTEXTS_MODEL_READY;
+    bool audio_ready=CONTEXTS_HAS_AUDIO&&(p->sources&CONTEXTS_AUDIO)&&view.audio.model_state==CONTEXTS_MODEL_READY;
     bool radio_ready=(p->sources&CONTEXTS_RADIO)&&view.radio.model_state==CONTEXTS_MODEL_READY;
     if(pending||(!audio_ready&&!radio_ready)) {
         bool ok=pause_internal();if(ok)view.state=pending?CONTEXTS_LOADING:CONTEXTS_UNAVAILABLE;
@@ -279,7 +283,7 @@ static bool step(void *context,const contexts_policy_v1 *p) {
     audio_permitted=audio;
     if(!audio&&!close_audio()){leave();return false;}
     if(!radio&&!close_radio()){leave();return false;}
-    if(audio&&!audio_step(now)){leave();return false;}
+    if(CONTEXTS_HAS_AUDIO&&audio&&!audio_step(now)){leave();return false;}
     if(radio) {
         now=clock_api->monotonic_ms(clock_api->context);
         if(now==UINT64_MAX){bool ok=pause_internal();leave();return ok;}
@@ -294,7 +298,7 @@ static bool step(void *context,const contexts_policy_v1 *p) {
             if((i?radio:audio)&&ct_m[i].details.match_pending)ct_tick(i);
             now=clock_api->monotonic_ms(clock_api->context);
             if(now==UINT64_MAX||now<began){bool ok=pause_internal();leave();return ok;}
-            if(audio_permitted&&audio_owned&&!audio_drain(now)){leave();return false;}
+            if(CONTEXTS_HAS_AUDIO&&audio_permitted&&audio_owned&&!audio_drain(now)){leave();return false;}
             now=clock_api->monotonic_ms(clock_api->context);
             if(now==UINT64_MAX||now<began){bool ok=pause_internal();leave();return ok;}
             if(now-began>=4u||(!ct_m[0].details.match_pending&&!ct_m[1].details.match_pending))break;
@@ -320,7 +324,8 @@ static bool status(void *context,contexts_status_v1 *out) {
     leave();return true;
 }
 static bool request_export(void *context,uint32_t sources) {
-    (void)context;if(!sources||(sources&~CONTEXTS_ALL)||!enter())return false;
+    (void)context;if(!sources||(sources&~CONTEXTS_ALL)||!(sources&CONTEXTS_SUPPORTED_SOURCES)||!enter())return false;
+    sources&=CONTEXTS_SUPPORTED_SOURCES;
     if(!pause_internal()){leave();return false;}
     if(view.export_active){leave();return false;}
     view.export_pending|=sources;
@@ -329,7 +334,7 @@ static bool request_export(void *context,uint32_t sources) {
     view.state=CONTEXTS_LOADING;leave();return true;
 }
 static bool begin_export(void *context,uint32_t source) {
-    (void)context;if(!source_status(source)||!enter())return false;
+    (void)context;if(!contexts_source_supported(source)||!enter())return false;
     if(view.export_active||!(view.export_pending&source)||!pause_internal()){leave();return false;}
     unsigned index=source==CONTEXTS_AUDIO?0u:1u;
     exported[index]=0;export_invalid[index]=false;view.export_active=source;
@@ -340,7 +345,7 @@ static bool begin_export(void *context,uint32_t source) {
     view.state=CONTEXTS_LOADING;leave();return true;
 }
 static bool export_record(void *context,uint32_t source,uint32_t kind,uint32_t index,const void *bytes,uint32_t size) {
-    (void)context;if(!source_status(source)||!enter())return false;
+    (void)context;if(!contexts_source_supported(source)||!enter())return false;
     if(view.export_active!=source){leave();return false;}
     unsigned which=source==CONTEXTS_AUDIO?0u:1u;bool ok=false;uint16_t bit=0;
     if(kind==CONTEXTS_RECORD_TEMPORAL_BANK||kind==CONTEXTS_RECORD_NEURAL){
@@ -349,12 +354,12 @@ static bool export_record(void *context,uint32_t source,uint32_t kind,uint32_t i
     if(!bytes){leave();return false;}
     if(kind==CONTEXTS_RECORD_PREFERENCES&&index==0) {
         bit=256u;
-        ok=source==CONTEXTS_AUDIO?spectrum_preferences_decode(&a.prefs,bytes,size):rf_preferences_decode(&r.prefs,bytes,size);
+        ok=CONTEXTS_HAS_AUDIO&&source==CONTEXTS_AUDIO?spectrum_preferences_decode(&a.prefs,bytes,size):rf_preferences_decode(&r.prefs,bytes,size);
     } else if(kind==CONTEXTS_RECORD_SIGNATURE&&index<8) {
         bit=(uint16_t)(1u<<index);
-        ok=source==CONTEXTS_AUDIO?spectrum_signature_decode(&a.signatures[index],bytes,size):rf_signature_decode(&r.signatures[index],bytes,size);
+        ok=CONTEXTS_HAS_AUDIO&&source==CONTEXTS_AUDIO?spectrum_signature_decode(&a.signatures[index],bytes,size):rf_signature_decode(&r.signatures[index],bytes,size);
         if(ok) {
-            if(source==CONTEXTS_AUDIO)spectrum_signature_mean(&a.signatures[index],a.means[index]);
+            if(CONTEXTS_HAS_AUDIO&&source==CONTEXTS_AUDIO)spectrum_signature_mean(&a.signatures[index],a.means[index]);
             else rf_signature_mean(&r.signatures[index],r.means[index]);
         }
     }
@@ -370,7 +375,7 @@ static bool export_record(void *context,uint32_t source,uint32_t kind,uint32_t i
     leave();return ok&&!export_invalid[which];
 }
 static bool finish_export(void *context,uint32_t source,uint32_t result) {
-    (void)context;if(!source_status(source)||result>CONTEXTS_EXPORT_UNSUPPORTED||!enter())return false;
+    (void)context;if(!contexts_source_supported(source)||result>CONTEXTS_EXPORT_UNSUPPORTED||!enter())return false;
     if(view.export_active!=source&&!(view.export_pending&source)){leave();return false;}
     unsigned index=source==CONTEXTS_AUDIO?0u:1u;
     if(result==CONTEXTS_EXPORT_OK&&(view.export_active!=source||export_invalid[index]||exported[index]!=511u))result=CONTEXTS_EXPORT_INVALID;
@@ -392,14 +397,14 @@ static bool finish_export(void *context,uint32_t source,uint32_t result) {
     view.state=view.export_pending?CONTEXTS_LOADING:CONTEXTS_PAUSED;leave();return true;
 }
 static bool export_model_error(void *context,uint32_t source,uint32_t kind,uint32_t index,int32_t error){
-    (void)context;if(!source_status(source)||!enter())return false;
+    (void)context;if(!contexts_source_supported(source)||!enter())return false;
     bool ok=view.export_active==source&&ct_record_error(source==CONTEXTS_AUDIO?0u:1u,kind,index,error);
     leave();return ok;
 }
 static bool model_details(void *context,uint32_t source,contexts_model_details_v1 *out){
     (void)context;if(!source_status(source)||!out||out->struct_size<sizeof(*out)||!enter())return false;
     unsigned i=source==CONTEXTS_AUDIO?0u:1u;*out=ct_m[i].details;
-    if(view.cleanup_pending){out->event_engine=CONTEXTS_EVENT_NONE;out->event_age_ms=UINT32_MAX;out->match_pending=false;}
+    if(!contexts_source_supported(source)||view.cleanup_pending){out->event_engine=CONTEXTS_EVENT_NONE;out->event_age_ms=UINT32_MAX;out->match_pending=false;}
     else{
         uint64_t now=clock_api->monotonic_ms(clock_api->context),age=now>=ct_m[i].event_at?now-ct_m[i].event_at:UINT64_MAX;
         out->event_age_ms=out->event_engine&&age<=UINT32_MAX?(uint32_t)age:UINT32_MAX;
@@ -408,16 +413,16 @@ static bool model_details(void *context,uint32_t source,contexts_model_details_v
     leave();return true;
 }
 static int32_t label(void *context,uint32_t source,uint32_t slot,contexts_label_v1 *out) {
-    (void)context;if(!source_status(source)||!out||!enter())return -1;
+    (void)context;if(!contexts_source_supported(source)||!out||!enter())return -1;
     if(source_status(source)->model_state!=CONTEXTS_MODEL_READY){leave();return -1;}
     if(slot>=8){leave();return 0;}
     *out=(contexts_label_v1){.source=source,.slot=slot};
-    if(source==CONTEXTS_AUDIO){out->kind=a.signatures[slot].kind;memcpy(out->name,a.signatures[slot].name,17);}
+    if(CONTEXTS_HAS_AUDIO&&source==CONTEXTS_AUDIO){out->kind=a.signatures[slot].kind;memcpy(out->name,a.signatures[slot].name,17);}
     else{out->kind=r.signatures[slot].kind;memcpy(out->name,r.signatures[slot].name,17);}
     leave();return 1;
 }
 static bool claim_preset(void *context,uint32_t source,uint32_t slot,const char *name,uint32_t generation) {
-    (void)context;if(!source_status(source)||slot>=8||!name||!memchr(name,0,17)||!enter())return false;
+    (void)context;if(!contexts_source_supported(source)||slot>=8||!name||!memchr(name,0,17)||!enter())return false;
     contexts_source_status_v1 *s=source_status(source);
     if(view.cleanup_pending){leave();return false;}
     unsigned index=source==CONTEXTS_AUDIO?0u:1u;
@@ -434,28 +439,29 @@ static bool claim_preset(void *context,uint32_t source,uint32_t slot,const char 
     leave();return valid&&!same;
 }
 static bool preset_result(void *context,uint32_t source,uint32_t generation,uint32_t result) {
-    (void)context;if(result<CONTEXTS_PRESET_APPLIED||result>CONTEXTS_PRESET_PARTIAL||!enter())return false;
+    (void)context;if(!contexts_source_supported(source)||result<CONTEXTS_PRESET_APPLIED||result>CONTEXTS_PRESET_PARTIAL||!enter())return false;
     bool ok=source==view.preset_source&&generation==view.preset_generation&&view.preset_result==CONTEXTS_PRESET_CLAIMED;
     if(ok)view.preset_result=result;
     leave();return ok;
 }
 static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
-    if(started||busy||audio_owned||radio_retained||!deps||count!=3)return false;
+    if(started||busy||audio_owned||radio_retained||!deps||count!=(CONTEXTS_RF_ONLY?2u:3u))return false;
     const risc_platform_clock_api_v1 *c=NULL;const twatch_audio_in_api_v1 *m=NULL;
     const risc_radio_iq_extended_api_v1 *q=NULL;
     for(size_t i=0;i<count;i++) {
         if(!deps[i].capability_id||deps[i].api_version!=1||!deps[i].api)return false;
         if(!strcmp(deps[i].capability_id,"platform.clock")&&!c)c=deps[i].api;
-        else if(!strcmp(deps[i].capability_id,"audio.input")&&!m)m=deps[i].api;
+        else if(CONTEXTS_HAS_AUDIO&&!strcmp(deps[i].capability_id,"audio.input")&&!m)m=deps[i].api;
         else if(!strcmp(deps[i].capability_id,"radio.iq")&&!q)q=deps[i].api;
         else return false;
     }
     if(!c||c->api_version!=1||c->struct_size<sizeof(*c)||!c->monotonic_ms||
-       !m||m->api_version!=1||m->struct_size<sizeof(*m)||!m->open||!m->read||!m->close||
+       (CONTEXTS_HAS_AUDIO&&(!m||m->api_version!=1||m->struct_size<sizeof(*m)||!m->open||!m->read||!m->close))||
        !q||q->base.base.api_version!=1||q->base.base.struct_size<sizeof(*q)||
        !q->base.base.suspend||!q->capture_configured)return false;
     clock_api=c;microphone=m;receiver=q;
-    memset(&a,0,sizeof(a));memset(&r,0,sizeof(r));memset(exported,0,sizeof(exported));
+    if(CONTEXTS_HAS_AUDIO)memset(&a,0,sizeof(a));
+    memset(&r,0,sizeof(r));memset(exported,0,sizeof(exported));
     memset(export_invalid,0,sizeof(export_invalid));memset(observed,0,sizeof(observed));
     memset(record_digest,0,sizeof(record_digest));memset(model_digest,0,sizeof(model_digest));
     memset(claimed_name,0,sizeof(claimed_name));
@@ -464,6 +470,10 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
     view=(contexts_status_v1){.struct_size=sizeof(view),.state=CONTEXTS_OFF,
         .audio={.source=CONTEXTS_AUDIO,.room_slot=-1,.event_slot=-1,.age_ms=UINT32_MAX},
         .radio={.source=CONTEXTS_RADIO,.room_slot=-1,.event_slot=-1,.age_ms=UINT32_MAX}};
+    if(!CONTEXTS_HAS_AUDIO){
+        view.audio.model_state=CONTEXTS_MODEL_UNAVAILABLE;
+        view.audio.model_error=CONTEXTS_EXPORT_UNSUPPORTED;
+    }
     ct_init();temporal_turn=0;reset_audio();reset_radio();started=true;return true;
 }
 static bool quiesce(void) {

@@ -1,8 +1,8 @@
 #pragma once
 /* Capture checkpoints only form real bounded feature windows. DTW and neural
  * refinement run here solely when the ordinary full policy step calls ct_tick. */
-static bool ct_enabled(unsigned i){return ct_m[i].details.temporal_state==CONTEXTS_IMPORT_READY&&ct_m[i].details.positive_examples;}
-static bool ct_freeze(unsigned i){return ct_enabled(i)&&(ct_m[i].known_hold||(i?ct_r.match.running:ct_a.match.running));}
+static bool ct_enabled(unsigned i){return (i||CONTEXTS_HAS_AUDIO)&&ct_m[i].details.temporal_state==CONTEXTS_IMPORT_READY&&ct_m[i].details.positive_examples;}
+static bool ct_freeze(unsigned i){return ct_enabled(i)&&(ct_m[i].known_hold||((i||!CONTEXTS_HAS_AUDIO)?ct_r.match.running:ct_a.match.running));}
 static void ct_audio_observe(bool ready,bool active,const uint32_t power[128],uint64_t now){
  if(!ct_enabled(0))return;
  ct_metadata *m=&ct_m[0];
@@ -42,7 +42,7 @@ static void ct_radio_observe(bool ready,bool active,const uint32_t power[128],co
 static void ct_tick(unsigned i){
  if(!ct_enabled(i))return;
  ct_metadata *m=&ct_m[i];bool neural=false;int selected=-1;unsigned reason=0,score=0;
- if(i==0){
+ if(CONTEXTS_HAS_AUDIO&&i==0){
   if(!ct_a.match.running)return;
   st_match_tick(&ct_a.match,&ct_a.library,8);m->details.match_work_units=ct_a.match.work_units;m->details.match_pending=ct_a.match.running;
   if(!ct_a.match.complete)return;
@@ -59,7 +59,7 @@ static void ct_tick(unsigned i){
  m->event_at=m->query_at;m->event_valid=selected>=0;m->event_slot=selected;m->event_score=score;
  m->event_ambiguous=reason==(i?RT_RESULT_AMBIGUOUS:ST_RESULT_AMBIGUOUS);m->known_hold=m->event_valid;
  memset(m->event_name,0,sizeof(m->event_name));
- if(selected>=0)memcpy(m->event_name,i?ct_r.library.labels[selected].name:ct_a.library.labels[selected].name,17);
+ if(selected>=0)memcpy(m->event_name,(i||!CONTEXTS_HAS_AUDIO)?ct_r.library.labels[selected].name:ct_a.library.labels[selected].name,17);
 }
 static void ct_publish(unsigned i,contexts_source_status_v1 *s,uint64_t now,uint64_t signature_at,uint32_t hold_ms){
  ct_metadata *m=&ct_m[i];

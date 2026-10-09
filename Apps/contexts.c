@@ -192,6 +192,7 @@ static void ctx_tap(int x,int y) {
     }
 }
 static const char *ctx_source_caption(const contexts_source_status_v1 *s) {
+    if(s->model_state==CONTEXTS_MODEL_UNAVAILABLE)return "SOURCE UNAVAILABLE";
     if(s->model_state==CONTEXTS_MODEL_EMPTY)return "LOAD SAVED MODELS";
     if(s->model_state==CONTEXTS_MODEL_REQUESTED||s->model_state==CONTEXTS_MODEL_LOADING)return "LOADING MODELS";
     if(s->model_state==CONTEXTS_MODEL_FAILED)return "MODEL LOAD FAILED / RETRY";
@@ -213,6 +214,7 @@ static void ctx_draw_source(const char *title,const contexts_source_status_v1 *s
     snprintf(line,sizeof(line),"%s: %.16s",engine,s->event_valid&&s->current?s->event_name:"--");portable_nova_text(2,14,y+31,212,line,NOVA_TEXT);
 }
 static const char *ctx_import_caption(uint32_t state,int32_t error,bool neural){
+    if(state==CONTEXTS_IMPORT_UNAVAILABLE)return "SOURCE UNAVAILABLE";
     if(state==CONTEXTS_IMPORT_READY)return "READY";
     if(state==CONTEXTS_IMPORT_MISSING)return neural?"NO SAVED MODEL":"NO SAVED EVENTS";
     if(error==RISC_APP_DATA_STALE||error==CONTEXTS_IMPORT_STALE)return "STALE / RELOAD";

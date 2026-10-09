@@ -15,7 +15,7 @@
 enum { CONTEXTS_OFF, CONTEXTS_LOADING, CONTEXTS_PAUSED, CONTEXTS_LIVE,
        CONTEXTS_UNAVAILABLE, CONTEXTS_RETAINED };
 enum { CONTEXTS_MODEL_EMPTY, CONTEXTS_MODEL_REQUESTED, CONTEXTS_MODEL_LOADING,
-       CONTEXTS_MODEL_READY, CONTEXTS_MODEL_FAILED };
+       CONTEXTS_MODEL_READY, CONTEXTS_MODEL_FAILED, CONTEXTS_MODEL_UNAVAILABLE };
 enum { CONTEXTS_RECORD_PREFERENCES=1, CONTEXTS_RECORD_SIGNATURE=2,
        CONTEXTS_RECORD_TEMPORAL_BANK=3, CONTEXTS_RECORD_NEURAL=4 };
 enum { CONTEXTS_EXPORT_OK=0, CONTEXTS_EXPORT_STORAGE=1,
@@ -23,7 +23,7 @@ enum { CONTEXTS_EXPORT_OK=0, CONTEXTS_EXPORT_STORAGE=1,
 enum { CONTEXTS_PRESET_NONE, CONTEXTS_PRESET_CLAIMED,
        CONTEXTS_PRESET_APPLIED, CONTEXTS_PRESET_PARTIAL };
 enum { CONTEXTS_IMPORT_NOT_REQUESTED, CONTEXTS_IMPORT_MISSING,
-       CONTEXTS_IMPORT_READY, CONTEXTS_IMPORT_FAILED };
+       CONTEXTS_IMPORT_READY, CONTEXTS_IMPORT_FAILED, CONTEXTS_IMPORT_UNAVAILABLE };
 enum { CONTEXTS_IMPORT_INVALID=-100, CONTEXTS_IMPORT_INCOMPLETE=-101,
        CONTEXTS_IMPORT_UNSUPPORTED=-102, CONTEXTS_IMPORT_STALE=-103 };
 enum { CONTEXTS_EVENT_NONE, CONTEXTS_EVENT_SIGNATURE,
@@ -73,7 +73,10 @@ typedef struct {
     bool (*step)(void *,const contexts_policy_v1 *);
     bool (*pause)(void *);
     bool (*status)(void *,contexts_status_v1 *);
-    /* Explicit retry only: failed sources never requeue themselves. Parent
+    /* Profile-absent sources report MODEL_UNAVAILABLE and never queue an owner.
+     * A known mixed mask is intersected with this provider's real sources;
+     * unsupported-only or unknown-bit export requests fail without side effects.
+     * Explicit retry only: failed sources never requeue themselves. Parent
      * launches each requested owner once through ordinary app handoff. */
     bool (*request_export)(void *,uint32_t sources);
     bool (*begin_export)(void *,uint32_t source);
@@ -96,7 +99,9 @@ typedef struct {
      * RX, never open/configure, touch RF/storage, export or apply presets.
      * Call within 16 ms while drawing/servicing input. Complete 256-frame
      * quanta only; the native two-buffer queue has a 32 ms deadline. False
-     * latches cleanup failure before any later foreground provider I/O. */
+     * latches cleanup failure before any later foreground provider I/O.
+     * An RF-only profile keeps this required method: no I/O and true while
+     * healthy, false while any source retains cleanup custody. */
     bool (*capture_audio)(void *);
     /* Optional copied import error; no owner API/pointer is retained. For
      * temporal/neural export_record, NULL/0 means confirmed file absence.

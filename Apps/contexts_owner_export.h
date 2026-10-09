@@ -71,7 +71,7 @@ static int contexts_owner_export_models(const risc_runtime_api_v1 *runtime,uint3
     const contexts_service_v1 *service=portable_contexts_service();
     if(!service)return CONTEXTS_OWNER_NORMAL;
     contexts_status_v1 status={.struct_size=sizeof(status)};
-    if(!service->status(service->context,&status))return CONTEXTS_OWNER_RETAINED;
+    if(!service->status(service->context,&status)||status.cleanup_pending)return CONTEXTS_OWNER_RETAINED;
     if(!(status.export_pending&source))return CONTEXTS_OWNER_NORMAL;
     if(!portable_background_stop())return CONTEXTS_OWNER_RETAINED;
     if(status.export_active!=source&&!service->begin_export(service->context,source))return CONTEXTS_OWNER_RETAINED;
@@ -119,9 +119,9 @@ static int contexts_owner_refresh_models(const risc_runtime_api_v1 *runtime,uint
     const contexts_service_v1 *service=portable_contexts_service();
     if(!service)return CONTEXTS_OWNER_NORMAL;
     contexts_status_v1 status={.struct_size=sizeof(status)};
-    if(!service->status(service->context,&status))return CONTEXTS_OWNER_RETAINED;
+    if(!service->status(service->context,&status)||status.cleanup_pending)return CONTEXTS_OWNER_RETAINED;
     const contexts_source_status_v1 *s=source==CONTEXTS_AUDIO?&status.audio:&status.radio;
-    if(s->model_state==CONTEXTS_MODEL_EMPTY)return CONTEXTS_OWNER_NORMAL;
+    if(s->model_state==CONTEXTS_MODEL_EMPTY||s->model_state==CONTEXTS_MODEL_UNAVAILABLE)return CONTEXTS_OWNER_NORMAL;
     if(!service->request_export(service->context,source))return CONTEXTS_OWNER_RETAINED;
     return contexts_owner_export_models(runtime,source,instance,data_instance,buffer,capacity);
 }

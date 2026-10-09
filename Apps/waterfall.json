@@ -1,6 +1,6 @@
 {
   "min_firmware_version": "0.1.41",
-  "version": "0.2.8",
+  "version": "0.2.11",
   "display_name": "Waterfall",
   "file_name": "waterfall.elf",
   "icon": "solid:f0ec",

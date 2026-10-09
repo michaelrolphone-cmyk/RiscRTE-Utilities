@@ -1,4 +1,4 @@
-# Awake Contexts service 0.1.1 (development)
+# Awake Contexts service 0.1.2 (development)
 
 `contexts.service@1` is an ordinary Utilities provider, built independently of
 the frozen Watch 1.0.12 and 1.0.13 cohorts. It reuses the actual Audio Spectrum and RF
@@ -12,14 +12,62 @@ refinement can resolve only eligible ambiguous/negative temporal candidates;
 missing or stale checkpoints leave temporal inference intact. Frequency-label
 catalogs remain outside this import contract.
 
-The coordinated source allocation is Contexts/service **0.1.1**, Audio Spectrum
-**0.4.12** and Waterfall **0.2.8**. Waterfall 0.2.7 belongs to the independent X4
-cohort. These allocations were checked against live Utilities main, tags and
-open PRs on 2026-10-08. No new Watch product version is assigned here.
+The optional-source increment allocates Contexts/service **0.1.2**, Audio
+Spectrum **0.4.13** and Waterfall **0.2.11**. Waterfall 0.2.10 remains the
+independent X4 temporal-stack correction. Live Utilities refs, tags, open PRs,
+and the Watch/X4 owners were checked on 2026-10-08 before allocation. The full
+service also advances to 0.1.2 because its ELF identity changes. Frozen Watch
+1.0.14 and 1.0.15 continue to pin their original source and owner versions;
+this slice assigns no product version or product activation.
+
+## Explicit RF-only source profile
+
+The default build remains the full Audio + RF service. Pass `--profile rf-only`
+to `scripts/build_contexts_service.py` to compile `CONTEXTS_RF_ONLY=1` and copy
+`Services/contexts/rf-only-manifest.json`. Its only dependencies are the real
+`platform.clock@1` and configured-burst `radio.iq@1`. Startup rejects an Audio
+substitute, extra or duplicate dependencies, wrong API versions and incomplete
+RF tables. Full startup still requires all three original dependencies.
+
+Both profiles preserve the API1 prefix, function table and copied status sizes.
+A profile-absent Audio source reports `CONTEXTS_MODEL_UNAVAILABLE` (value 5),
+`CONTEXTS_EXPORT_UNSUPPORTED`, no readiness/observation, and age `UINT32_MAX`.
+Copied model details use `CONTEXTS_IMPORT_UNAVAILABLE` (value 4) with unsupported
+import errors. This is distinct from an owner's failed model load, which remains
+retryable. The UI labels absent input `SOURCE UNAVAILABLE`.
+
+`request_export(ALL)` intersects the known mask with provided sources and queues
+only RF. Audio-only, zero and unknown-bit requests reject before state change or
+I/O. Every Audio-specific export, label and preset request rejects. Read-only
+Audio status/details remain available. An Audio-only observation policy safely
+pauses capture and reports overall `CONTEXTS_UNAVAILABLE`; it does not create a
+custody failure. The existing Clock's EMPTY-only bootstrap consequently requests
+and launches only Waterfall. No Audio export or capture is queued.
+
+The required `capture_audio` method stays present. Healthy RF-only checkpoints
+return true without clock, Audio or RF I/O. Pending RF cleanup returns false and
+keeps the existing foreground I/O fence. `pause`/`quiesce` alone retry cleanup;
+`stop` cannot discard retained custody. Owner refresh treats absent Audio as a
+normal no-op only after a successful status read with no pending cleanup. Status
+failure, true cleanup retention, failed stop and old-provider import limits keep
+their failure behavior.
+
+RF-only builds remove the Audio signature/DSP and temporal/neural state. Pinned
+GCC 8.4 measures BSS at **175,640 bytes**, versus **327,752 bytes** for full:
+**152,112 bytes removed**. The RF-only target symbol table contains neither
+`a` nor `ct_a`. This measures the ordinary ELF recipe; it is not a product peak
+memory or hardware timing claim. The service keeps real RF signature, temporal
+and neural inference and the existing no-storage/no-training authority.
+
+Build outputs are separate: `dist/contexts-service` (full) and
+`dist/contexts-service-rf-only`. Build evidence records profile, source mask,
+version, dependencies, compiler, ELF identity and section sizes. X4 adoption,
+Clock's policy-row admission, source-owner integration and hardware qualification
+remain with their owners. This change does not alter any Runtime grant limit.
 
 ## Source and authority boundaries
 
-The service depends only on `platform.clock@1`, `audio.input@1`, and the existing
+The full service depends only on `platform.clock@1`, `audio.input@1`, and the existing
 configured-burst extension of `radio.iq@1`. It has no filesystem, app-data, KV,
 settings, display or alarm authority. Shared System Apps owns the cooperative
 client and settings application; Watch owns startup rendezvous and faces. One
@@ -182,6 +230,7 @@ remains responsible for manual-control and low-battery priority.
 python scripts/test_contexts_service.py --drivers /path/drivers --runtime /path/runtime --system-apps /path/system-apps
 python scripts/test_contexts_rf_retained.py --system-apps /path/system-apps
 NATIVE_APP_CC=/path/xtensa-esp32s3-elf-gcc python scripts/build_contexts_service.py --drivers /path/drivers --runtime /path/runtime --system-apps /path/system-apps
+NATIVE_APP_CC=/path/xtensa-esp32s3-elf-gcc python scripts/build_contexts_service.py --profile rf-only --drivers /path/drivers --runtime /path/runtime --system-apps /path/system-apps
 ```
 
 The owner app build opts into `PORTABLE_CONTEXTS_CLIENT`, includes
@@ -192,7 +241,7 @@ build uses one driver SDK include family to avoid mixing separately copied
 
 The provider has bounded static model/DSP/workspace memory and no heap. The
 GCC 8.4 target build records ELF identity, imports/exports, section sizes and
-source provenance. Draft 0.1.1 target BSS is 327,752 bytes, including 283,832
+source provenance. Full 0.1.2 target BSS is 327,752 bytes, including 283,832
 bytes of temporal inference state. It keeps one canonical inference library per
 source and active neural weights, excluding editor transaction snapshots,
 recording buffers, candidate trainers and validation state. Owner export reuses

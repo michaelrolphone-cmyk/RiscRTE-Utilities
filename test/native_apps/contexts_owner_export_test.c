@@ -6,6 +6,7 @@
 #include <stdio.h>
 static uint32_t pending,active,source,result,records,requests,acquires,releases,stops;
 static bool fail_get,fail_release,fail_stop,malformed,loaded;
+static bool audio_unavailable,cleanup_pending,status_failure;
 static bool data_mode,storage_retained,fenced,data_release_fail;
 static unsigned data_acquires,data_releases,data_stats,data_reads,model_records,model_errors,finishes,fences,live_grants,max_grants;
 static int data_failure;
@@ -14,7 +15,7 @@ static uint32_t stored_size[2];
 static void safe(void){assert(!storage_retained&&!fenced);}
 static bool capture_safe(void){stops++;return !fail_stop;}
 bool portable_contexts_stop(void){return capture_safe();}
-static bool get_status(void *c,contexts_status_v1 *out){(void)c;safe();*out=(contexts_status_v1){.struct_size=sizeof(*out),.export_pending=pending,.export_active=active,.audio={.model_state=loaded?CONTEXTS_MODEL_READY:CONTEXTS_MODEL_EMPTY},.radio={.model_state=loaded?CONTEXTS_MODEL_READY:CONTEXTS_MODEL_EMPTY}};return true;}
+static bool get_status(void *c,contexts_status_v1 *out){(void)c;safe();if(status_failure)return false;*out=(contexts_status_v1){.struct_size=sizeof(*out),.cleanup_pending=cleanup_pending,.export_pending=pending,.export_active=active,.audio={.model_state=audio_unavailable?CONTEXTS_MODEL_UNAVAILABLE:loaded?CONTEXTS_MODEL_READY:CONTEXTS_MODEL_EMPTY},.radio={.model_state=loaded?CONTEXTS_MODEL_READY:CONTEXTS_MODEL_EMPTY}};return true;}
 static bool request(void *c,uint32_t s){(void)c;requests++;pending|=s;return true;}
 static bool begin(void *c,uint32_t s){(void)c;assert((pending&s)&&!active);active=s;source=s;records=0;return true;}
 static bool record(void *c,uint32_t s,uint32_t kind,uint32_t index,const void *bytes,uint32_t size) {
@@ -77,6 +78,16 @@ static bool fence(void){assert(storage_retained||data_release_fail);fences++;fen
 static const risc_runtime_api_v1 runtime={.acquire=acquire,.release=release};
 int main(void) {
     assert(contexts_owner_export(&runtime,CONTEXTS_AUDIO,0)==CONTEXTS_OWNER_NORMAL);assert(!acquires&&!stops);
+    audio_unavailable=true;
+    assert(contexts_owner_export(&runtime,CONTEXTS_AUDIO,0)==CONTEXTS_OWNER_NORMAL);
+    assert(contexts_owner_refresh(&runtime,CONTEXTS_AUDIO,0));assert(!acquires&&!stops&&!requests);
+    cleanup_pending=true;
+    assert(contexts_owner_export(&runtime,CONTEXTS_AUDIO,0)==CONTEXTS_OWNER_RETAINED);
+    assert(!contexts_owner_refresh(&runtime,CONTEXTS_AUDIO,0));assert(!acquires&&!stops&&!requests);
+    cleanup_pending=false;status_failure=true;
+    assert(contexts_owner_export(&runtime,CONTEXTS_AUDIO,0)==CONTEXTS_OWNER_RETAINED);
+    assert(!contexts_owner_refresh(&runtime,CONTEXTS_AUDIO,0));assert(!acquires&&!stops&&!requests);
+    status_failure=audio_unavailable=false;
     pending=CONTEXTS_ALL;assert(contexts_owner_export(&runtime,CONTEXTS_AUDIO,0)==CONTEXTS_OWNER_EXPORTED);assert(records==9&&!result&&pending==CONTEXTS_RADIO&&acquires==1&&releases==1);
     assert(contexts_owner_export(&runtime,CONTEXTS_RADIO,13)==CONTEXTS_OWNER_EXPORTED);assert(records==9&&!result&&!pending&&acquires==2&&releases==2);
     pending=CONTEXTS_AUDIO;malformed=true;assert(contexts_owner_export(&runtime,CONTEXTS_AUDIO,0)==CONTEXTS_OWNER_EXPORTED);assert(result==CONTEXTS_EXPORT_INVALID&&!pending&&!active);
