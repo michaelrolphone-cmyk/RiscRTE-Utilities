@@ -1,5 +1,11 @@
 #include "utility_paper.h"
-static bool alarms_paper_sound(void){return (alarm_service_output_modes(service)&ALARM_MODE_SOUND)!=0;}
+static bool alarms_paper_sound(void){
+#ifdef ALARM_NATIVE_UTC
+return false;
+#else
+return (alarm_service_output_modes(service)&ALARM_MODE_SOUND)!=0;
+#endif
+}
 static void alarms_paper_draw(void){
  char value[64];up_begin("ALARMS");
  if(!alarm_page){
@@ -15,7 +21,11 @@ static void alarms_paper_draw(void){
   up_button(32,304,416,88,"Edit time","solid:f017",false);
   if(alarms_paper_sound())up_button(32,408,416,88,"Alarm volume","solid:f028",false);
   else up_text(32,432,416,service?"Visual alert only":"Service unavailable",false,true);
-  up_wrap(510,(!storage||!rtc||!service)?"ALARM SERVICE UNAVAILABLE":alarm_state_text());
+  up_wrap(510,(!storage||!service
+#ifndef ALARM_NATIVE_UTC
+||!rtc
+#endif
+)?"ALARM SERVICE UNAVAILABLE":alarm_state_text());
   up_button(32,584,200,88,service_valid&&service_state.occurrence.generation?"Dismiss":writer.uncertain?"Retry save":"Arm once","solid:f0f3",false);
   up_button(248,584,200,88,writer.uncertain?"Wait":"Cancel","solid:f0c8",false);
  }else if(alarm_page==1){

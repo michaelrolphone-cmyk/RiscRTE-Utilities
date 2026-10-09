@@ -5,9 +5,15 @@
 static unsigned alarm_page,alarm_field;
 #if DAILY_ALARM_KIND == 1
 #include "AlarmVolume.h"
+#ifdef ALARM_NATIVE_UTC
+static unsigned volume_choice;
+static bool volume_valid,volume_uncertain;
+#else
 static unsigned volume_value,volume_choice;
 static bool volume_valid,volume_missing,volume_uncertain;
+#endif
 static const char *volume_message;
+#ifndef ALARM_NATIVE_UTC
 static void volume_load(void) {
     if(volume_uncertain)return;
     volume_value=volume_choice=ALARM_VOLUME_DEFAULT;volume_valid=volume_missing=false;volume_message="";
@@ -27,6 +33,11 @@ static void volume_save(void) {
     }
     volume_uncertain=true;volume_message="Save unconfirmed - retry";
 }
+#endif /* !ALARM_NATIVE_UTC */
+#endif
+#ifdef ALARM_NATIVE_UTC
+#define volume_load() ((void)0)
+#define volume_save() ((void)0)
 #endif
 static const char *const alarm_fields[]={"Hour","Minute","Second"};
 static bool alarm_24h(void) {
@@ -44,7 +55,13 @@ static void alarm_value_text(char *out,size_t cap,const unsigned *shown) {
 static const char *alarm_state_text(void) {
     if(writer.uncertain)return "Save unconfirmed - retry";
     if(!writer.loaded)return "Saved data invalid - retry";
-    if(service_valid && service_state.state==ALARM_STATE_BLOCKED)return service_state.error==ALARM_RTC?"RTC changed - retry":"Service error - retry";
+    if(service_valid && service_state.state==ALARM_STATE_BLOCKED)return service_state.error==ALARM_RTC?
+#ifdef ALARM_NATIVE_UTC
+"Native time unavailable"
+#else
+"RTC changed - retry"
+#endif
+:"Service error - retry";
     if(service_valid && service_state.state==ALARM_STATE_DISMISSING)return "Stopping / saving dismiss";
     if(service_valid && service_state.occurrence.generation)return service_state.label;
     if(!editing && service_valid && service_state.schedules[DAILY_ALARM_KIND-1].revision==writer.saved.revision) {
@@ -59,9 +76,19 @@ static const char *alarm_state_text(void) {
 }
 static void alarm_retry(void) {
     if(writer.uncertain)save_action(false);else (void)alarm_writer_load(&writer,storage,DAILY_ALARM_KIND);
+#ifdef ALARM_NATIVE_UTC
+    if(native_retained)return;
+    (void)native_load_zone();if(native_retained)return;
+#endif
     editing=false;restore_saved_fields();service->refresh(service->context);notice="Refreshing";
+#ifdef ALARM_NATIVE_UTC
+    if(native_retained)return;
+#endif
 #if DAILY_ALARM_KIND == 1
-    (void)portable_time_format_load(alarm_preferences,&alarm_time_format);volume_load();
+    (void)portable_time_format_load(alarm_preferences,&alarm_time_format);
+#ifndef ALARM_NATIVE_UTC
+    volume_load();
+#endif
 #endif
 }
 #ifdef PORTABLE_PAPER_UTILITIES
@@ -72,6 +99,9 @@ static void alarm_retry(void) {
 #endif
 #endif
 static void draw(void) {
+#ifdef ALARM_NATIVE_UTC
+    if(native_retained)return;
+#endif
 #ifdef PORTABLE_PAPER_UTILITIES
     if(utility_paper){
 #if DAILY_ALARM_KIND == 2
@@ -102,10 +132,15 @@ static void draw(void) {
         alarm_value_text(value,sizeof(value),shown);
         portable_nova_row(16,56,208,54,caption,value,false);
 #if DAILY_ALARM_KIND == 1
+#ifdef ALARM_NATIVE_UTC
+        snprintf(value,sizeof(value),"%s",native_zone_valid?native_zone_name:"Time zone unavailable");
+        portable_nova_row(16,116,208,48,"Visual alert / Time zone",value,false);
+#else
         if(!volume_valid)snprintf(value,sizeof(value),"Invalid - choose a value");
         else if(!volume_value)snprintf(value,sizeof(value),"Muted (0%%)");
         else snprintf(value,sizeof(value),"%u%%%s",volume_value,volume_missing?" (default)":"");
         portable_nova_row(16,116,208,48,"Alarm volume",value,false);
+#endif
         portable_nova_center(3,16,169,208,alarm_state_text(),NOVA_CAP);
         portable_nova_button(184,4,48,44,"Retry",false);
 #else
@@ -151,6 +186,9 @@ static void draw(void) {
     app->present(false);
 }
 static bool alarm_back(void) {
+#ifdef ALARM_NATIVE_UTC
+    if(!portable_app_before_launch(NULL))return false;
+#endif
 #if DAILY_ALARM_KIND == 1
     if(volume_uncertain){volume_message="Retry save before leaving";return false;}
 #endif
@@ -181,7 +219,11 @@ static bool alarm_tap(int x,int y) {
         } else if(portable_nova_hit(x,y,124,184,100,44)) {if(!alert)save_action(true);}
         else if(portable_nova_hit(x,y,16,116,208,
 #if DAILY_ALARM_KIND == 1
-            48)){if(!alert){volume_load();alarm_page=3;}}
+            48)){if(!alert){
+#ifndef ALARM_NATIVE_UTC
+volume_load();alarm_page=3;
+#endif
+}}
 #else
             54)){if(!alert)alarm_retry();}
 #endif
