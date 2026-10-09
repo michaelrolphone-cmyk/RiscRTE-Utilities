@@ -61,23 +61,43 @@ static inline bool rt_frame_valid(const rt_frame *f){
  return peak==15&&f->level_db> -12000;
 }
 static inline unsigned rt_elapsed(const rt_example *e,unsigned first,unsigned last){return e->frames[last].timestamp_ms-e->frames[first].timestamp_ms;}
+/* Only derived metadata is needed while validating an immutable example.
+ * Keep the full frame sequence in place instead of copying it onto the stack. */
+typedef struct {
+ uint8_t onset,end,impacts,impact_at[8];
+ uint32_t duration_ms,attack_ms,decay_ms;
+ uint16_t peak_coord;int16_t peak_db;
+} rt_summary;
+_Static_assert(sizeof(rt_summary)<=32,"bounded temporal summary scratch");
+static inline void rt_summary_make(const rt_example *e,rt_summary *summary){
+ summary->peak_db=-12000;summary->peak_coord=0;summary->onset=e->pre;summary->end=e->count?e->count-1:0;summary->impacts=0;memset(summary->impact_at,0,sizeof(summary->impact_at));unsigned peak_index=e->pre,last_impact=0;bool have_impact=false;
+ for(unsigned i=e->pre;i<e->count;i++){if(e->frames[i].level_db>summary->peak_db){summary->peak_db=e->frames[i].level_db;summary->peak_coord=e->frames[i].peak_coord;peak_index=i;}if((e->frames[i].flags&RT_ACTIVE)&&e->frames[i].flux>=180&&(!have_impact||rt_elapsed(e,last_impact,i)>=RT_FRAME_MS)){last_impact=i;have_impact=true;if(summary->impacts<8)summary->impact_at[summary->impacts]=(uint8_t)i;if(summary->impacts<255)++summary->impacts;}}
+ while(summary->onset<e->count&&!(e->frames[summary->onset].flags&RT_ACTIVE))++summary->onset;
+ if(summary->onset>=e->count)summary->onset=e->pre;
+ while(summary->end>summary->onset&&!(e->frames[summary->end].flags&RT_ACTIVE))--summary->end;
+ if(peak_index<summary->onset)peak_index=summary->onset;
+ unsigned lo=summary->onset,hi=summary->onset,last_hi=peak_index,last_lo=peak_index;
+ for(unsigned i=summary->onset;i<=peak_index;i++){if(e->frames[i].level_db<summary->peak_db-700)lo=i;if(e->frames[i].level_db<summary->peak_db-100)hi=i;}
+ for(unsigned i=peak_index;i<=summary->end;i++){if(e->frames[i].level_db>=summary->peak_db-100)last_hi=i;if(e->frames[i].level_db>=summary->peak_db-700)last_lo=i;}
+ summary->duration_ms=(uint32_t)(rt_elapsed(e,summary->onset,summary->end)+1u);summary->attack_ms=(uint32_t)(hi>=lo?rt_elapsed(e,lo,hi):0);summary->decay_ms=(uint32_t)(last_lo>=last_hi?rt_elapsed(e,last_hi,last_lo):0);
+}
 static inline void rt_summarize(rt_example *e){
- e->peak_db=-12000;e->peak_coord=0;e->onset=e->pre;e->end=e->count?e->count-1:0;e->impacts=0;memset(e->impact_at,0,sizeof(e->impact_at));unsigned peak_index=e->pre,last_impact=0;bool have_impact=false;
- for(unsigned i=e->pre;i<e->count;i++){if(e->frames[i].level_db>e->peak_db){e->peak_db=e->frames[i].level_db;e->peak_coord=e->frames[i].peak_coord;peak_index=i;}if((e->frames[i].flags&RT_ACTIVE)&&e->frames[i].flux>=180&&(!have_impact||rt_elapsed(e,last_impact,i)>=RT_FRAME_MS)){last_impact=i;have_impact=true;if(e->impacts<8)e->impact_at[e->impacts]=(uint8_t)i;if(e->impacts<255)++e->impacts;}}
- while(e->onset<e->count&&!(e->frames[e->onset].flags&RT_ACTIVE))++e->onset;
- if(e->onset>=e->count)e->onset=e->pre;
- while(e->end>e->onset&&!(e->frames[e->end].flags&RT_ACTIVE))--e->end;
- if(peak_index<e->onset)peak_index=e->onset;
- unsigned lo=e->onset,hi=e->onset,last_hi=peak_index,last_lo=peak_index;
- for(unsigned i=e->onset;i<=peak_index;i++){if(e->frames[i].level_db<e->peak_db-700)lo=i;if(e->frames[i].level_db<e->peak_db-100)hi=i;}
- for(unsigned i=peak_index;i<=e->end;i++){if(e->frames[i].level_db>=e->peak_db-100)last_hi=i;if(e->frames[i].level_db>=e->peak_db-700)last_lo=i;}
- e->duration_ms=(uint32_t)(rt_elapsed(e,e->onset,e->end)+1u);e->attack_ms=(uint32_t)(hi>=lo?rt_elapsed(e,lo,hi):0);e->decay_ms=(uint32_t)(last_lo>=last_hi?rt_elapsed(e,last_hi,last_lo):0);
+ rt_summary summary;rt_summary_make(e,&summary);
+ e->peak_db=summary.peak_db;
+ e->peak_coord=summary.peak_coord;
+ e->onset=summary.onset;
+ e->end=summary.end;
+ e->impacts=summary.impacts;
+ memcpy(e->impact_at,summary.impact_at,sizeof(e->impact_at));
+ e->duration_ms=summary.duration_ms;
+ e->attack_ms=summary.attack_ms;
+ e->decay_ms=summary.decay_ms;
 }
 static inline bool rt_example_valid(const rt_example *e){
  if(!e||!e->id||e->kind<1||e->kind>2||e->count<2||e->count>RT_FRAMES||e->pre>RT_PRE||e->pre>=e->count||(e->flags&~(RT_CLIPPED|RT_CONFIRMED_END))||((e->flags&RT_CONFIRMED_END)&&!(e->flags&RT_CLIPPED)))return false;
  bool active=false;for(unsigned i=0;i<e->count;i++){if(!rt_frame_valid(&e->frames[i]))return false;if(i&&(e->frames[i].timestamp_ms<=e->frames[i-1].timestamp_ms||e->frames[i].timestamp_ms-e->frames[i-1].timestamp_ms>RT_DELTA_MAX_MS))return false;if(i>=e->pre)active|=!!(e->frames[i].flags&RT_ACTIVE);}if(!active)return false;
- rt_example copy=*e;rt_summarize(&copy);
- return copy.onset==e->onset&&copy.end==e->end&&copy.impacts==e->impacts&&copy.duration_ms==e->duration_ms&&copy.attack_ms==e->attack_ms&&copy.decay_ms==e->decay_ms&&copy.peak_coord==e->peak_coord&&copy.peak_db==e->peak_db&&!memcmp(copy.impact_at,e->impact_at,8);
+ rt_summary summary;rt_summary_make(e,&summary);
+ return summary.onset==e->onset&&summary.end==e->end&&summary.impacts==e->impacts&&summary.duration_ms==e->duration_ms&&summary.attack_ms==e->attack_ms&&summary.decay_ms==e->decay_ms&&summary.peak_coord==e->peak_coord&&summary.peak_db==e->peak_db&&!memcmp(summary.impact_at,e->impact_at,8);
 }
 static inline unsigned rt_example_count(const rt_label *l,unsigned kind){unsigned n=0;for(unsigned i=0;i<RT_EXAMPLES;i++)if(l->examples[i].id&&(!kind||l->examples[i].kind==kind))++n;return n;}
 static inline bool rt_label_valid(const rt_label *l){

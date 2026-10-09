@@ -55,22 +55,42 @@ static inline bool st_frame_valid(const st_frame *f){
  if(!f->peak_hz)return !peak&&f->level_db==-12000&&!f->flux&&!f->flags;
  return peak==15&&f->level_db> -12000;
 }
+/* Only derived metadata is needed while validating an immutable example.
+ * Keep the full frame sequence in place instead of copying it onto the stack. */
+typedef struct {
+ uint8_t onset,end,impacts,impact_at[8];
+ uint16_t duration_ms,attack_ms,decay_ms;
+ uint16_t peak_hz;int16_t peak_db;
+} st_summary;
+_Static_assert(sizeof(st_summary)<=32,"bounded temporal summary scratch");
+static inline void st_summary_make(const st_example *e,st_summary *summary){
+ summary->peak_db=-12000;summary->peak_hz=0;summary->onset=e->pre;summary->end=e->count?e->count-1:0;summary->impacts=0;memset(summary->impact_at,0,sizeof(summary->impact_at));unsigned peak_index=e->pre,last_impact=0;bool have_impact=false;
+ for(unsigned i=e->pre;i<e->count;i++){if(e->frames[i].level_db>summary->peak_db){summary->peak_db=e->frames[i].level_db;summary->peak_hz=e->frames[i].peak_hz;peak_index=i;}if((e->frames[i].flags&ST_ACTIVE)&&e->frames[i].flux>=180&&(!have_impact||i>=last_impact+2u)){last_impact=i;have_impact=true;if(summary->impacts<8)summary->impact_at[summary->impacts]=(uint8_t)i;if(summary->impacts<255)++summary->impacts;}}
+ while(summary->onset<e->count&&!(e->frames[summary->onset].flags&ST_ACTIVE))++summary->onset;
+ if(summary->onset>=e->count)summary->onset=e->pre;
+ while(summary->end>summary->onset&&!(e->frames[summary->end].flags&ST_ACTIVE))--summary->end;
+ unsigned lo=summary->onset,hi=summary->onset,last_hi=peak_index,last_lo=peak_index;
+ for(unsigned i=summary->onset;i<=peak_index;i++){if(e->frames[i].level_db<summary->peak_db-700)lo=i;if(e->frames[i].level_db<summary->peak_db-100)hi=i;}
+ for(unsigned i=peak_index;i<=summary->end;i++){if(e->frames[i].level_db>=summary->peak_db-100)last_hi=i;if(e->frames[i].level_db>=summary->peak_db-700)last_lo=i;}
+ summary->duration_ms=(uint16_t)((summary->end-summary->onset+1u)*ST_FRAME_MS);summary->attack_ms=(uint16_t)((hi>=lo?hi-lo:0)*ST_FRAME_MS);summary->decay_ms=(uint16_t)((last_lo>=last_hi?last_lo-last_hi:0)*ST_FRAME_MS);
+}
 static inline void st_summarize(st_example *e){
- e->peak_db=-12000;e->peak_hz=0;e->onset=e->pre;e->end=e->count?e->count-1:0;e->impacts=0;memset(e->impact_at,0,sizeof(e->impact_at));unsigned peak_index=e->pre,last_impact=0;bool have_impact=false;
- for(unsigned i=e->pre;i<e->count;i++){if(e->frames[i].level_db>e->peak_db){e->peak_db=e->frames[i].level_db;e->peak_hz=e->frames[i].peak_hz;peak_index=i;}if((e->frames[i].flags&ST_ACTIVE)&&e->frames[i].flux>=180&&(!have_impact||i>=last_impact+2u)){last_impact=i;have_impact=true;if(e->impacts<8)e->impact_at[e->impacts]=(uint8_t)i;if(e->impacts<255)++e->impacts;}}
- while(e->onset<e->count&&!(e->frames[e->onset].flags&ST_ACTIVE))++e->onset;
- if(e->onset>=e->count)e->onset=e->pre;
- while(e->end>e->onset&&!(e->frames[e->end].flags&ST_ACTIVE))--e->end;
- unsigned lo=e->onset,hi=e->onset,last_hi=peak_index,last_lo=peak_index;
- for(unsigned i=e->onset;i<=peak_index;i++){if(e->frames[i].level_db<e->peak_db-700)lo=i;if(e->frames[i].level_db<e->peak_db-100)hi=i;}
- for(unsigned i=peak_index;i<=e->end;i++){if(e->frames[i].level_db>=e->peak_db-100)last_hi=i;if(e->frames[i].level_db>=e->peak_db-700)last_lo=i;}
- e->duration_ms=(uint16_t)((e->end-e->onset+1u)*ST_FRAME_MS);e->attack_ms=(uint16_t)((hi>=lo?hi-lo:0)*ST_FRAME_MS);e->decay_ms=(uint16_t)((last_lo>=last_hi?last_lo-last_hi:0)*ST_FRAME_MS);
+ st_summary summary;st_summary_make(e,&summary);
+ e->peak_db=summary.peak_db;
+ e->peak_hz=summary.peak_hz;
+ e->onset=summary.onset;
+ e->end=summary.end;
+ e->impacts=summary.impacts;
+ memcpy(e->impact_at,summary.impact_at,sizeof(e->impact_at));
+ e->duration_ms=summary.duration_ms;
+ e->attack_ms=summary.attack_ms;
+ e->decay_ms=summary.decay_ms;
 }
 static inline bool st_example_valid(const st_example *e){
  if(!e||!e->id||e->kind<1||e->kind>2||e->count<2||e->count>ST_FRAMES||e->pre>ST_PRE||e->pre>=e->count||(e->flags&~(ST_CLIPPED|ST_CONFIRMED_END))||((e->flags&ST_CONFIRMED_END)&&!(e->flags&ST_CLIPPED)))return false;
  bool active=false;for(unsigned i=0;i<e->count;i++){if(!st_frame_valid(&e->frames[i]))return false;active|=!!(e->frames[i].flags&ST_ACTIVE);}if(!active)return false;
- st_example copy=*e;st_summarize(&copy);
- return copy.onset==e->onset&&copy.end==e->end&&copy.impacts==e->impacts&&copy.duration_ms==e->duration_ms&&copy.attack_ms==e->attack_ms&&copy.decay_ms==e->decay_ms&&copy.peak_hz==e->peak_hz&&copy.peak_db==e->peak_db&&!memcmp(copy.impact_at,e->impact_at,8);
+ st_summary summary;st_summary_make(e,&summary);
+ return summary.onset==e->onset&&summary.end==e->end&&summary.impacts==e->impacts&&summary.duration_ms==e->duration_ms&&summary.attack_ms==e->attack_ms&&summary.decay_ms==e->decay_ms&&summary.peak_hz==e->peak_hz&&summary.peak_db==e->peak_db&&!memcmp(summary.impact_at,e->impact_at,8);
 }
 static inline unsigned st_example_count(const st_label *l,unsigned kind){unsigned n=0;for(unsigned i=0;i<ST_EXAMPLES;i++)if(l->examples[i].id&&(!kind||l->examples[i].kind==kind))++n;return n;}
 static inline bool st_label_valid(const st_label *l){

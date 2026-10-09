@@ -201,32 +201,42 @@ microphone/RF behavior and physical Watch qualification remain deployment work.
 Host fixtures use real production DSP on generated PCM/IQ and inject storage,
 format, staleness and cleanup failures; they do not qualify hardware.
 
-## Component resource study
+## Validation stack study
 
-The isolated GCC8.4 study uses ordinary target flags for ELF size/loader checks
-and a separate `-fstack-usage -fdump-ipa-cgraph` compile for stack measurements.
-Do not add those analysis flags to release ELF commands. The draft raw service
-is 82,496 bytes; the existing semantic compactor reduces a study copy to 54,932
-bytes while preserving loader sections, symbols and relocations. This is larger
-than the frozen 1.0.13 service and needs separately qualified product packaging.
+Temporal validation recomputes derived metadata from the immutable frame sequence
+using a 22-byte audio summary or a 28-byte RF summary. The same calculation backs
+normal summarization. It no longer makes a full automatic example copy. Example,
+frame, library and saved-record layouts are unchanged; no heap or persistent
+scratch was introduced. Differential tests retain the prior calculation and
+check acceptance, summaries, mutation rejection and encoded records.
 
-Production PSRAM allocation-failure and eight-alignment relocation fixtures
-map the draft service to 43,693 text and 332,153 data bytes. Substituting this
-component and the three rebuilt apps into the unchanged 1.0.13 memory subtotal
-keeps Clock as the largest app: 3,979,079 bytes including all selected providers,
-that app/raw input, and two frames, below the existing 4 MiB software budget.
-Owner export adds no buffer; the native AppData backend's existing read snapshot
-is at most 61,252 bytes. Either owner plus that snapshot remains below the Clock
-allowance. These are software allocation bounds, not measured physical free heap.
+The isolated comparison uses the exact Watch `fa4729f` target recipe, including
+its five-app LTO policy, with only the two temporal headers changed. Separate
+`-fstack-usage -fdump-ipa-cgraph` builds reproduce the normal compacted ELF bytes.
+Fresh baseline builds also reproduce all six original packaged ELFs. These
+analysis flags are not part of the delivery recipe.
 
-Compiler-visible provider stack chains are 6,288 bytes for model import, 4,944
-for full step and 4,464 for capture-only entry. The owner export chain plus exact
-native loop/setup/run/runOne frames reaches 10,032 bytes against the configured
-16,384-byte executor stack. The existing ordinary RF editor chain is 10,256
-bytes with those native frames. Native callback/libc and interrupt frames are
-not included in these static chains; physical stack high-water remains separate.
+| Compiler-visible chain | Before | After |
+| --- | ---: | ---: |
+| Audio example validation | 2,592 | 128 |
+| RF example validation | 2,976 | 144 |
+| Service model import | 6,288 | 3,600 |
+| Service full step | 4,944 | 2,512 |
+| Service capture-only entry | 4,464 | 2,032 |
 
-This slice is tested locally against System Apps model-client checkpoint
-395878094995413e01a9ae141187cfbc1f8fbdb8. Its public equivalent must replace the
+The same conservative foreground/editor/render-callback calculation, including
+816 bytes of exact native caller frames and an arithmetic-helper allowance,
+falls from 15,680 to 10,688 bytes at the largest RF path. The configured executor
+stack is 16,384 bytes. Native capability/provider, libc, interrupt and unresolved
+indirect-call frames remain excluded; this is not a physical stack high-water or
+complete target stack-safety qualification.
+
+Compacted file size grows by 192 bytes for the service, 40 for Audio Spectrum and
+20 for Waterfall. Contexts and both Clock files stay byte-identical. BSS remains
+unchanged in all six components, including the service's 327,752 bytes. This is
+an isolated component comparison, not a rebuilt Watch store or release image.
+
+The model/client contract is tested locally against System Apps checkpoint
+4440e5f5f65846d37e60c3b0c8b799baec103f1c. Its public equivalent must replace the
 older Contexts workflow pin before publishing this slice. Frozen Watch stores,
 images, source revisions and historical native inputs are not rewritten.
