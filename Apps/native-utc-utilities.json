@@ -11,7 +11,7 @@
     "waterfall": "0.2.2"
   },
   "reservation": "2026-10-07: parent reserves native-only X4 0.1.9 fix cohort versions; Watch/raw profiles unchanged. Local only.",
-  "system_sha": "63beac6870d68fa2c0d44bb3dc33a7c1c0976ad6",
+  "system_sha": "c1ff014792c9ecbc195c402e9b4c3e2c3c9d34d3",
   "runtime_sha": "30dcec5ce6ce33223f2b203a2399283e1f758567",
   "alarm_sdk_sha": "637e13b0bce62ad49b756bec2468a6271d163fc7",
   "alarm_service_api": 2,

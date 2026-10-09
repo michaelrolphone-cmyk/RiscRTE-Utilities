@@ -79,8 +79,8 @@
   "handoff": "Unconfirmed saves block Home/Back/Quick launch until explicit retry verifies the same pending record",
   "publication": "Local development only; combined System dependencies require separate source clearance",
   "hardware_verified": false,
-  "system_sha": "1d589d90bf27c7ffb76420de46564088ddb3714f",
-  "adapter_sha": "81f884b8a053cf917054fb1433c7850714cd0c48",
+  "system_sha": "c1ff014792c9ecbc195c402e9b4c3e2c3c9d34d3",
+  "adapter_sha": "c1ff014792c9ecbc195c402e9b4c3e2c3c9d34d3",
   "runtime_sha": "30dcec5ce6ce33223f2b203a2399283e1f758567",
   "alarm_sdk_sha": "637e13b0bce62ad49b756bec2468a6271d163fc7"
 }
