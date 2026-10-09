@@ -8,11 +8,11 @@ import importlib.util
 from pathlib import Path
 import subprocess
 
-SYSTEM = '7b175418e3063d9f4c571acf06c366144831b2af'
-RUNTIME = 'c77e717571a80bc18009b9c3a98532fee32e6fd2'
+SYSTEM = '5a5cdbf92a6d307708cfa432b28caa9218c1a109'
+RUNTIME = '317b74e363877cb6e5a90198211f897744e4a6d3'
 VERSIONS = {'battery':'1.1.9', 'calculator':'0.1.16', 'stopwatch':'0.1.16',
             'countdown':'0.1.15', 'alarms':'0.2.11', 'ble_scanner':'0.2.11',
-            'ble_touchpad':'0.1.11', 'ble_buttons':'0.1.11', 'waterfall':'0.2.7'}
+            'ble_touchpad':'0.1.13', 'ble_buttons':'0.1.13', 'waterfall':'0.2.7'}
 
 def options(parser):
     parser.add_argument('--x4-idle-source', type=Path, help='Explicit product reversible Light helper')
