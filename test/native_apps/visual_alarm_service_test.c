@@ -1,3 +1,4 @@
+#define ALARM_SERVICE_TAGGED_V2
 /* Reuse dependency/storage fixtures; run only the real visual profile. */
 #define ALARM_VISUAL_ONLY
 #define ALARM_DND_CONTROL
@@ -12,7 +13,7 @@ static void visual_boot(bool clear) {
     driver_api=t5_driver_get(2);client=driver_api->capability;
     assert(!driver_api->start(deps,5)); /* No hidden/unused output dependencies. */
     assert(driver_api->start(deps,3));
-    assert(alarm_service_output_modes(client)==ALARM_MODE_VISUAL);
+    assert(alarm_service_descriptor(client)->output_modes==ALARM_MODE_VISUAL);
     assert(!audio&&!haptic);
 }
 static void visual_step(void) {
@@ -35,7 +36,7 @@ static alarm_token_v1 visual_point(unsigned mode) {
 }
 int main(void) {
     alarm_service_v1 legacy={.api_version=1,.struct_size=sizeof(legacy)};
-    assert(alarm_service_output_modes(&legacy)==ALARM_MODE_BOTH);
+    assert(!alarm_service_descriptor(&legacy));
     assert(sizeof(alarm_status_v1)==104);
     for(unsigned mode=1;mode<=3;mode++) {
         alarm_token_v1 t=visual_point(mode),bad=t;bad.generation++;

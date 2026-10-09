@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "service_version": "0.4.3",
-  "reservation": "Live remote refs checked 2026-10-07; raw visual source 23a4887 reserves 0.4.2, published service tags stop at 0.4.1. This profile reserves 0.4.3. No tag/release created.",
-  "base_sha": "23a4887f1eeb7b7ce867c0e243158b899e43f0f8",
-  "system_sha": "d52a74bfb4acc01cc3f0a9dda2c95ba2ba679ee9",
+  "service_version": "0.4.4",
+  "reservation": "2026-10-07: public refs checked; PR45 reserves 0.4.3. Reconciliation reserves 0.4.4, no release or tag.",
+  "base_sha": "bb81ab0cdc137e1b2fddcfbe191880c1c6e649ad",
+  "system_sha": "1d589d90bf27c7ffb76420de46564088ddb3714f",
   "system_sources": {
     "lib/PortableApps/include/PortableTimeZone.h": "3cfb6687d8f3675beb020a059b8cd3b3d8beffd42c11c6fd61d14b48af729c54",
     "lib/PortableApps/src/PortableTimeZone.c": "28c0fecf7a4d83bde07d2b72cb591122cf3c49c3219c8344b97b82a90625c5e7",

@@ -1,13 +1,10 @@
-# Opt-in native UTC visual alarm service 0.4.3
+# Opt-in native UTC visual alarm service 0.4.4
 
-This development profile builds the ordinary `alarm.service@1` singleton with
-`ALARM_NATIVE_UTC`, `ALARM_VISUAL_ONLY`, `ALARM_DND_CONTROL` and
-`POINTS_IN_TIME_SERVICE`. It does not activate a product, modify a Watch image,
-write a release, or qualify physical e-paper/wake behavior. Select only
-`native-utc-visual-manifest.json` with the matching ELF. The existing Watch
-0.4.1 and raw-RTC visual 0.4.2 manifests, flags, keys and target bytes are
-unchanged. Their exact base is Utilities
-`23a4887f1eeb7b7ce867c0e243158b899e43f0f8`.
+This profile derives from PR45, with the tagged API-2 descriptor and checked
+Light ticket reconciliation described in [the integration contract](ALARM_ABI_RECONCILIATION.md).
+Build with `ALARM_SERVICE_TAGGED_V2`, `ALARM_NATIVE_UTC`, `ALARM_VISUAL_ONLY`,
+`ALARM_DND_CONTROL`, and `POINTS_IN_TIME_SERVICE`. Matching API-2 consumers and
+grants are mandatory. This is development source, with no product activation.
 
 ## Authority and time domain
 
@@ -67,7 +64,7 @@ The readonly decoder accepts exactly the shared 44-byte TZ1 format.
 ## Frozen local-time projection
 
 The profile links the unchanged pure C timezone core and 419-entry catalog from
-System Apps `d52a74bfb4acc01cc3f0a9dda2c95ba2ba679ee9`. Exact selected source and
+System Apps `1d589d90bf27c7ffb76420de46564088ddb3714f`. Exact selected source and
 license hashes are recorded in `sdk/native-utc-alarm-sources.json`; a newer
 checkout is accepted only when those selected bytes match. These are frozen
 representative recurring rules from the Reader catalog, not complete historical
@@ -105,7 +102,7 @@ snapshot/deadline consumed immediately by the serialized UTC-aware caller.
 
 `ALARM_RETAINED` is the additive integer constant -9. It is a macro so adding
 it does not renumber GCC8.4 private symbols and change old target bytes. The
-existing 36-byte table, 40-byte visual descriptor and 104-byte status remain.
+base field offsets and 104-byte status remain; the tagged API-2 descriptor is 56 bytes.
 A native-time or bound-KV `CONTEXT` response during an authorized service phase
 conservatively latches invocation custody. This is an access denial, not proof
 of an electrical fault. Copied status is `BLOCKED`, error -9, with
@@ -121,35 +118,7 @@ including while active or retained. Only a fresh process/reset clears that
 fence. A transient native `IO`/UNSET is instead retryable `ALARM_RTC`; ordinary
 storage IO preserves existing exact-readback reconciliation.
 
-## Reproducible checks and limits
+## Validation
 
-Run with existing dependencies and compiler, without installing tools:
-
-```
-ASAN_OPTIONS=detect_leaks=0 python scripts/test_native_utc_alarm.py \
-  --system-apps /path/to/system --runtime /path/to/runtime-0.1.52
-bash scripts/test_native_utc_alarm_runtime.sh /path/to/runtime-0.1.52 /path/to/system
-ASAN_OPTIONS=detect_leaks=0 SANITIZE=1 bash scripts/test_native_utc_alarm_runtime.sh \
-  /path/to/runtime-0.1.52 /path/to/system
-NATIVE_APP_CC=/path/to/pinned-gcc8.4 python scripts/build_native_utc_alarm.py \
-  --system-apps /path/to/system --runtime /path/to/runtime-0.1.52
-```
-
-Local leak detection is disabled only because the executor uses ptrace; address
-and undefined-behavior checks remain enabled. CI uses sanitizer defaults.
-Production-source fixtures cover cold UNSET, snapshot/2038 limits, DST gap/fold,
-elapsed ends, timezone changes, replay/late delivery, token/ACK, storage faults,
-DND, cancellation, clock discontinuity, prepare/resume and no I/O after custody.
-A dynamically loaded native profile runs through actual Runtime/Graph/Module
-with all nine bindings, no RTC or native-write grant, polling, sleep/ACK, cold
-boot, and the real retain-invocation handshake. Only hardware/time/storage
-boundaries are modeled. Existing Watch/raw visual, Alarm/Countdown, volume, DND
-and real Runtime suites remain gates. The pinned compiler checks full ELF byte
-identity for both flag-off profiles plus imports, exports and structure.
-
-The production target loader checks all three ELFs at eight address alignments,
-with independently compared relocated sections and allocation redzones. It does
-not execute Xtensa instructions. Source/build records and logs are under
-`docs/evidence/native-utc-alarm-0.4.3`. No physical board, battery, panel wake or
-current-draw qualification is claimed. The consumed MIT license and Dave Allie
-catalog notice are preserved in the build's license output and source pin.
+Current checks and receipts are in [the reconciliation contract](ALARM_ABI_RECONCILIATION.md).
+Prior PR45 receipts are historical and are not claimed as tests of this branch.

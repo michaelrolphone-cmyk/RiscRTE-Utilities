@@ -1,3 +1,4 @@
+#define ALARM_SERVICE_TAGGED_V2
 #define ALARM_NATIVE_UTC
 #define ALARM_VISUAL_ONLY
 #define ALARM_DND_CONTROL
@@ -8,14 +9,14 @@
 #include <unistd.h>
 #include "../../Services/alarm_service/service.c"
 static uint8_t blobs[9][64];static uint32_t sizes[9];
-static uint64_t ms;static int64_t epoch;static unsigned gets,put_count,reads,clocks;
+static uint64_t ms;static int64_t epoch;static unsigned get_count,put_count,reads,clocks;
 static int read_result,get_result,put_result;static bool valid=true,forbid,put_commits=true;
 static unsigned malformed;
 static const alarm_service_v1 *client;static const risc_driver_v2 *provider;
 static const char *const keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,
     ALARM_TIMER_OCCURRENCE_KEY,POINTS_CONFIG_KEY,POINTS_OCCURRENCE_KEY,ALARM_DND_KEY,"time_zone"};
 static int index_key(const char *key){for(int i=0;i<9;i++)if(!strcmp(keys[i],key))return i;assert(!"legacy/unbound key access");return 0;}
-static int32_t get_blob(void*c,const char*k,void*b,uint32_t cap,uint32_t*n){assert(c==blobs&&!forbid);gets++;if(get_result)return get_result;int i=index_key(k);*n=0;if(!sizes[i])return -1;if(cap<sizes[i])return -2;memcpy(b,blobs[i],sizes[i]);*n=sizes[i];return 0;}
+static int32_t get_blob(void*c,const char*k,void*b,uint32_t cap,uint32_t*n){assert(c==blobs&&!forbid);get_count++;if(get_result)return get_result;int i=index_key(k);*n=0;if(!sizes[i])return -1;if(cap<sizes[i])return -2;memcpy(b,blobs[i],sizes[i]);*n=sizes[i];return 0;}
 static int32_t put_blob(void*c,const char*k,const void*b,uint32_t n){assert(c==blobs&&!forbid);int i=index_key(k);assert(i==3||i==4||i==6);put_count++;if(put_result==RISC_BOUND_KEY_VALUE_CONTEXT)return put_result;if(put_commits){memcpy(blobs[i],b,n);sizes[i]=n;}return put_result;}
 static uint64_t mono(void*c){assert(c==&ms&&!forbid);clocks++;return ms;}
 static int32_t native_read(void*c,risc_realtime_snapshot_v1*out){assert(c==&epoch&&!forbid&&out->struct_size==sizeof(*out));reads++;if(read_result)return read_result;
@@ -31,8 +32,8 @@ static const risc_platform_realtime_api_v1 real_table={1,sizeof(real_table),&epo
 static const risc_provider_dependency_v1 deps[]={{"storage.key-value.bound",1,&bound},{"platform.clock",1,&clock_table},{"platform.realtime",1,&real_table}};
 static uint32_t date(unsigned y,unsigned m,unsigned d,unsigned h,unsigned min,unsigned sec){uint32_t value;assert(alarm_calendar_seconds(y,m,d,h,min,sec,&value));return value;}
 static void boot(bool clear){if(provider)assert(provider->quiesce());if(clear){memset(blobs,0,sizeof(blobs));memset(sizes,0,sizeof(sizes));ms=0;}read_result=get_result=put_result=0;valid=put_commits=true;forbid=false;malformed=0;
- provider=t5_driver_get(2);client=provider->capability;assert(provider->start(deps,3));gets=put_count=reads=clocks=0;}
-static alarm_status_v1 snapshot(void){unsigned before=gets+put_count+reads+clocks;alarm_status_v1 s={.struct_size=sizeof(s)};assert(client->status(NULL,&s)==0);assert(before==gets+put_count+reads+clocks);return s;}
+ provider=t5_driver_get(2);client=provider->capability;assert(provider->start(deps,3));get_count=put_count=reads=clocks=0;}
+static alarm_status_v1 snapshot(void){unsigned before=get_count+put_count+reads+clocks;alarm_status_v1 s={.struct_size=sizeof(s)};assert(client->status(NULL,&s)==0);assert(before==get_count+put_count+reads+clocks);return s;}
 static void tick(void){client->step(NULL);ms++;assert(snapshot().mode==ALARM_MODE_VISUAL);}
 static void until(unsigned state){for(unsigned i=0;i<200;i++){if(snapshot().state==state)return;tick();}fprintf(stderr,"state=%u wanted=%u error=%d phase=%d\n",snapshot().state,state,error,phase);assert(0);}
 static void playing(void){until(ALARM_STATE_ALERT);for(unsigned i=0;i<40&&phase!=PLAYING;i++)tick();assert(phase==PLAYING);}
@@ -78,7 +79,7 @@ static void alerts_and_zone(void){for(unsigned mode=1;mode<=3;mode++){epoch=INT6
 static void ordinary_and_failures(void){for(unsigned kind=1;kind<=2;kind++){epoch=INT64_C(946684800)+date(2026,10,5,12,0,0);boot(true);clean_schedule();uint32_t now=(uint32_t)(epoch-946684800);alarm_config c={1,now,now-10,kind==2?10:0,(uint8_t)kind,1};alarm_config_encode(&c,blobs[kind-1]);sizes[kind-1]=32;playing();assert(snapshot().occurrence.kind==kind);ack();assert(occurrences[kind-1].state==ALARM_OCC_ACKED);}
  boot(true);save(schedule(12,0,3));put_commits=false;put_result=RISC_BOUND_KEY_VALUE_IO;until(ALARM_STATE_BLOCKED);assert(error==ALARM_STORAGE&&!active);put_commits=true;put_result=0;client->refresh(NULL);playing();
  // Foreground stop is storage/time free and cannot acknowledge by itself.
- unsigned before=gets+put_count+reads+clocks;forbid=true;assert(client->stop_only(NULL)==ALARM_PENDING);assert(client->stop_only(NULL)==ALARM_PENDING);assert(client->stop_only(NULL)==ALARM_OK);assert(before==gets+put_count+reads+clocks);assert(snapshot().error==ALARM_FOREGROUND);assert(client->step(NULL)==ALARM_FOREGROUND);forbid=false;ack();
+ unsigned before=get_count+put_count+reads+clocks;forbid=true;assert(client->stop_only(NULL)==ALARM_PENDING);assert(client->stop_only(NULL)==ALARM_PENDING);assert(client->stop_only(NULL)==ALARM_OK);assert(before==get_count+put_count+reads+clocks);assert(snapshot().error==ALARM_FOREGROUND);assert(client->step(NULL)==ALARM_FOREGROUND);forbid=false;ack();
  // IO-after-commit is reconciled by exact bytes; write success alone is unused.
  boot(true);save(schedule(12,0,3));put_result=RISC_BOUND_KEY_VALUE_IO;playing();assert(put_count);put_result=0;ack();
  // DND, cancellation before activation, and backward awake time remain guarded.
@@ -86,8 +87,20 @@ static void ordinary_and_failures(void){for(unsigned kind=1;kind<=2;kind++){epoc
  boot(true);points_config c=schedule(12,0,3);save(c);while(phase!=START_AUDIO)tick();c.revision++;c.points[0].enabled=0;save(c);tick();until(ALARM_STATE_READY);assert(!active);
  boot(true);clean_schedule();until(ALARM_STATE_READY);epoch-=100;ms+=1000;until(ALARM_STATE_BLOCKED);assert(error==ALARM_RTC);client->refresh(NULL);until(ALARM_STATE_READY);
 }
-static void retention(unsigned route){pid_t child=fork();assert(child>=0);if(child==0){epoch=INT64_C(946684800)+date(2026,10,5,12,0,0);boot(true);save(schedule(12,0,3));if(route==0)read_result=RISC_REALTIME_CONTEXT;else if(route==1)get_result=RISC_BOUND_KEY_VALUE_CONTEXT;else put_result=RISC_BOUND_KEY_VALUE_CONTEXT;
- until(ALARM_STATE_BLOCKED);assert(error==ALARM_RETAINED);unsigned before=gets+put_count+reads+clocks;forbid=true;alarm_status_v1 s=snapshot();assert(s.output_uncertain&&s.error==ALARM_RETAINED);alarm_sleep_v1 p={.struct_size=sizeof(p)};alarm_token_v1 t=s.occurrence;
- for(unsigned i=0;i<3;i++){assert(client->step(NULL)==ALARM_RETAINED);assert(client->refresh(NULL)==ALARM_RETAINED);assert(client->acknowledge(NULL,&t)==ALARM_RETAINED);assert(client->prepare_sleep(NULL,&p)==ALARM_RETAINED);assert(client->stop_only(NULL)==ALARM_RETAINED);assert(!provider->quiesce());provider->stop();assert(!provider->start(deps,3));snapshot();}
- assert(before==gets+put_count+reads+clocks);_exit(0);}int status;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
-int main(void){pure_projection();cold_and_bounds();alerts_and_zone();ordinary_and_failures();for(unsigned i=0;i<3;i++)retention(i);assert(provider->quiesce());puts("Native UTC visual: timezone, DST, 2038, replay, sleep, foreground and terminal custody passed");return 0;}
+static void retention(unsigned route){pid_t child=fork();assert(child>=0);if(child==0){epoch=INT64_C(946684800)+date(2026,10,5,12,0,0);boot(true);save(schedule(12,0,3));if(route==3){clean_schedule();alarm_sleep_v1 ticket=plan();read_result=RISC_REALTIME_CONTEXT;assert(alarm_service_resume(client,&ticket)==ALARM_RETAINED);}else if(route==0)read_result=RISC_REALTIME_CONTEXT;else if(route==1)get_result=RISC_BOUND_KEY_VALUE_CONTEXT;else put_result=RISC_BOUND_KEY_VALUE_CONTEXT;
+ until(ALARM_STATE_BLOCKED);assert(error==ALARM_RETAINED);unsigned before=get_count+put_count+reads+clocks;forbid=true;alarm_status_v1 s=snapshot();assert(s.output_uncertain&&s.error==ALARM_RETAINED);alarm_sleep_v1 p={.struct_size=sizeof(p)};alarm_token_v1 t=s.occurrence;
+ for(unsigned i=0;i<3;i++){assert(alarm_service_resume(client,&p)==ALARM_RETAINED);assert(client->step(NULL)==ALARM_RETAINED);assert(client->refresh(NULL)==ALARM_RETAINED);assert(client->acknowledge(NULL,&t)==ALARM_RETAINED);assert(client->prepare_sleep(NULL,&p)==ALARM_RETAINED);assert(client->stop_only(NULL)==ALARM_RETAINED);assert(!provider->quiesce());provider->stop();assert(!provider->start(deps,3));snapshot();}
+ assert(before==get_count+put_count+reads+clocks);_exit(0);}int status;assert(waitpid(child,&status,0)==child&&WIFEXITED(status)&&WEXITSTATUS(status)==0);}
+static void checked_native_resume(void) {
+ epoch=INT64_C(946684800)+date(2026,10,5,12,0,0);boot(true);clean_schedule();
+ alarm_sleep_v1 ticket=plan(),wrong=ticket;unsigned before=reads;
+ wrong.snapshot++;assert(alarm_service_resume(client,&wrong)==ALARM_STALE&&reads==before);
+ epoch+=3;ms+=300000;assert(alarm_service_resume(client,&ticket)==ALARM_OK&&reads==before+1);
+ assert(alarm_service_resume(client,&ticket)==ALARM_STALE);until(ALARM_STATE_READY);
+ ticket=plan();client->refresh(NULL);before=reads;
+ assert(alarm_service_resume(client,&ticket)==ALARM_STALE&&reads==before);until(ALARM_STATE_READY);
+ ticket=plan();valid=false;assert(alarm_service_resume(client,&ticket)==ALARM_RTC);
+ assert(alarm_service_resume(client,&ticket)==ALARM_STALE);valid=true;client->refresh(NULL);until(ALARM_STATE_READY);
+ ticket=plan();epoch-=10;assert(alarm_service_resume(client,&ticket)==ALARM_RTC);
+}
+int main(void){pure_projection();cold_and_bounds();checked_native_resume();alerts_and_zone();ordinary_and_failures();for(unsigned i=0;i<4;i++)retention(i);assert(provider->quiesce());puts("Native UTC visual: timezone, DST, 2038, replay, sleep, foreground and terminal custody passed");return 0;}

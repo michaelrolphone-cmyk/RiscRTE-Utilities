@@ -15,7 +15,15 @@
       "api": 1
     },
     {
-      "capability": "platform.realtime",
+      "capability": "rtc.clock",
+      "api": 2
+    },
+    {
+      "capability": "haptic.effect",
+      "api": 1
+    },
+    {
+      "capability": "audio.output",
       "api": 1
     }
   ],
@@ -26,5 +34,5 @@
     }
   ],
   "physical_verification": "pending",
-  "status": "development-only-native-utc-visual-points-and-alarms"
+  "status": "development-only-tagged-audio-haptic-points"
 }
