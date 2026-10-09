@@ -8,7 +8,7 @@ static unsigned grants,raw_subs,opens,closes,releases,confirms,forgets,key_repor
 static unsigned close_fail,grant_fail,unsub_fail;static bool open_bad,confirm_bad,report_bad,poll_bad,status_bad,pair_choice,confirm_choice,storage_bad,raw_fault,raw_gap,back_enabled;
 static bool deny_hid,deny_raw,deny_battery,fail_sub,fail_snapshot;
 static unsigned input_step,input_mode;static uint32_t tick;static uint64_t raw_seq,drained;static uint8_t policy=3,battery_value,last_mod,last_key,last_mouse;
-typedef struct {uint8_t kind,mod,key,buttons;int8_t dx,dy,wheel;} report_record;static report_record reports[256];static unsigned report_count;
+typedef struct {uint8_t kind,mod,key,buttons;int8_t dx,dy,wheel,wheel_x;} report_record;static report_record reports[256];static unsigned report_count;
 static uint8_t saved[40];static uint32_t saved_size;static bool have_token;static risc_touch_snapshot_v1 sample;
 static risc_bluetooth_hid_status_v1 fake_status;static char drawn[5000],diagnostics[8192];static unsigned diagnostic_count;
 static uint32_t millis(void){return tick;}
@@ -28,6 +28,11 @@ static bool hid_close(void*c,uint64_t t){(void)c;assert(t==7&&have_token);closes
 static bool hid_forget(void*c){(void)c;assert(!have_token);forgets++;return true;}
 static bool hid_battery(void*c,uint64_t t,uint8_t p){(void)c;assert(t==7&&have_token);battery_value=p;return true;}
 static risc_bluetooth_hid_v1 fake_hid={1,sizeof(fake_hid),NULL,hid_open,hid_poll,hid_status,hid_confirm,hid_keyboard,hid_mouse,hid_release,hid_close,hid_forget,hid_battery};
+static bool use_scroll;
+static bool hid_scroll(void*c,uint64_t t,uint8_t b,int16_t x,int16_t y,int16_t wx,int16_t wy){
+ bool ok=hid_mouse(c,t,b,(int8_t)x,(int8_t)y,(int8_t)wy);reports[report_count-1].wheel_x=(int8_t)wx;return ok;
+}
+static risc_bluetooth_hid_scroll_api_v1 fake_scroll;
 static uint64_t sub(void*c){(void)c;if(fail_sub)return 0;raw_subs++;return 33;}
 static bool unsub(void*c,uint64_t t){(void)c;assert(t==33&&raw_subs);if(unsub_fail){unsub_fail--;return false;}raw_subs--;return true;}
 static bool touch_poll(void*c,size_t n){(void)c;assert(n==1);return true;}
@@ -39,7 +44,7 @@ static int32_t put(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(!
 static const risc_key_value_v1 kv={1,sizeof(kv),NULL,get,put};
 static bool battery_read(void*c,risc_battery_sample_v1*s){(void)c;s->percent=73;s->flags=0;return true;}
 static const risc_battery_gauge_api_v1 gauge={1,sizeof(gauge),NULL,battery_read};
-static bool acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){assert(v==1);if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(id==1||id==11);g->api=&kv;}else if(!strcmp(n,"bluetooth.hid")){assert(id==0);if(deny_hid)return false;g->api=&fake_hid;}else if(!strcmp(n,"input.touch.raw")){assert(id==6);if(deny_raw)return false;g->api=&touch_api;}else{assert(!strcmp(n,"board.battery")&&id==0);if(deny_battery)return false;g->api=&gauge;}grants++;return true;}
+static bool acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){assert(v==1);if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(id==1||id==11);g->api=&kv;}else if(!strcmp(n,"bluetooth.hid")){assert(id==0);if(deny_hid)return false;if(use_scroll){fake_scroll=(risc_bluetooth_hid_scroll_api_v1){.base={.base=fake_hid},.mouse_scroll=hid_scroll};fake_scroll.base.base.struct_size=sizeof(fake_scroll);g->api=&fake_scroll.base.base;}else g->api=&fake_hid;}else if(!strcmp(n,"input.touch.raw")){assert(id==6);if(deny_raw)return false;g->api=&touch_api;}else{assert(!strcmp(n,"board.battery")&&id==0);if(deny_battery)return false;g->api=&gauge;}grants++;return true;}
 static bool release(risc_runtime_capability_v1*g){assert(grants&&g->api);if(grant_fail){grant_fail--;return false;}g->api=NULL;grants--;return true;}
 static bool launch(const char*n){assert(!strcmp(n,"springboard.elf")&&!grants&&!token&&!subscription);launches++;return true;}
 static void yield(uint32_t ms){tick+=ms;assert(++yields<20);}
@@ -67,7 +72,7 @@ static void np_pixel(int x,int y,uint32_t rgb,unsigned alpha){(void)x;(void)y;(v
 #include "nova_ui.inc"
 static void capture(const char*n){const char*dir=getenv("HID_FRAME_DIR");assert(dir);char p[512];snprintf(p,sizeof(p),"%s/%s.ppm",dir,n);FILE*f=fopen(p,"wb");assert(f);fprintf(f,"P6\n240 240\n255\n");for(unsigned i=0;i<240*240;i++){uint16_t v=pixels[i];uint8_t rgb[]={(uint8_t)((v>>11)*255/31),(uint8_t)(((v>>5)&63)*255/63),(uint8_t)((v&31)*255/31)};assert(fwrite(rgb,1,3,f)==3);}assert(!fclose(f));}
 #endif
-static void reset(void){assert(!grants&&!have_token&&!raw_subs);diagnostics[0]=0;diagnostic_count=0;pair_trace_down=pair_trace_cancelled=pair_trace_gap=false;app=&fake_app;runtime=&fake_rt;hid=NULL;raw=NULL;hid_acquired=raw_acquired=held_acquired=closing=had_ready=close_error=save_failed=pair_armed=pair_down=pair_sent=false;token=subscription=sequence=0;held_button=-1;button_gate=true;view=HID_VIEW_MAIN;message=NULL;dirty=true;hid_defaults(assignments);hid_gesture_reset(&gesture,true);opens=closes=releases=confirms=forgets=key_reports=mouse_reports=writes=launches=yields=report_count=0;deny_hid=deny_raw=deny_battery=fail_sub=fail_snapshot=open_bad=confirm_bad=report_bad=poll_bad=status_bad=storage_bad=raw_fault=raw_gap=false;close_fail=grant_fail=unsub_fail=0;tick=raw_seq=drained=ui_block_until=0;sample=(risc_touch_snapshot_v1){.width=240,.height=240};fake_status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(fake_status),.state=RISC_HID_READY,.flags=RISC_HID_KEYBOARD_READY|RISC_HID_MOUSE_READY|RISC_HID_ENCRYPTED|RISC_HID_AUTHENTICATED,.connection_generation=1};policy=3;input_mode=input_step=0;}
+static void reset(void){use_scroll=false;assert(!grants&&!have_token&&!raw_subs);diagnostics[0]=0;diagnostic_count=0;pair_trace_down=pair_trace_cancelled=pair_trace_gap=false;app=&fake_app;runtime=&fake_rt;hid=NULL;raw=NULL;hid_acquired=raw_acquired=held_acquired=closing=had_ready=close_error=save_failed=pair_armed=pair_down=pair_sent=false;token=subscription=sequence=0;held_button=-1;button_gate=true;view=HID_VIEW_MAIN;message=NULL;dirty=true;hid_defaults(assignments);hid_gesture_reset(&gesture,true);opens=closes=releases=confirms=forgets=key_reports=mouse_reports=writes=launches=yields=report_count=0;deny_hid=deny_raw=deny_battery=fail_sub=fail_snapshot=open_bad=confirm_bad=report_bad=poll_bad=status_bad=storage_bad=raw_fault=raw_gap=false;close_fail=grant_fail=unsub_fail=0;tick=raw_seq=drained=ui_block_until=0;sample=(risc_touch_snapshot_v1){.width=240,.height=240};fake_status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(fake_status),.state=RISC_HID_READY,.flags=RISC_HID_KEYBOARD_READY|RISC_HID_MOUSE_READY|RISC_HID_ENCRYPTED|RISC_HID_AUTHENTICATED,.connection_generation=1};policy=3;input_mode=input_step=0;}
 #ifndef HID_RENDER
 static void step(unsigned n,int x,int y){sample.contact_count=(uint8_t)n;sample.contacts[0]=(risc_touch_contact_v1){.id=1,.x=(uint16_t)x,.y=(uint16_t)y};sample.contacts[1]=(risc_touch_contact_v1){.id=2,.x=170,.y=120};raw_seq++;tick+=20;pump();}
 int main(void){
@@ -121,6 +126,29 @@ int main(void){
  reset();start_session(true);fake_status.state=RISC_HID_PAIR_CONFIRM;fake_status.pairing_number=42;confirm_bad=true;
  step(0,0,0);step(1,180,220);step(0,0,0);
  assert(confirms==1&&!token&&!grants&&strstr(diagnostics,"action=accept result=failed"));
+ if(HID_TOUCHPAD){
+  /* Production pump: held drags refresh, release on every interruption, and
+   * report failure drains both grants instead of leaving a mouse button down. */
+  for(unsigned cause=0;cause<7;cause++){
+   reset();use_scroll=true;start_session(true);step(0,0,0);step(1,100,120);step(0,0,0);step(1,100,120);step(1,120,120);assert(last_mouse==1);
+   unsigned before=mouse_reports;for(unsigned i=0;i<45;i++)step(1,120,120);assert(last_mouse==1&&mouse_reports==before+2);
+   if(cause==0)step(0,0,0);
+   else if(cause==1){raw_gap=true;step(1,120,120);}
+   else if(cause==2){fake_status.state=RISC_HID_ADVERTISING;step(1,120,120);}
+   else if(cause==3)tap(180,220); /* Settings */
+   else if(cause==4){close_fail=2;stop_session("Cancel");}
+   else if(cause==5){report_bad=true;step(1,130,120);report_bad=false;}
+   else{tick+=101;step(1,120,120);}
+   assert(!last_mouse&&!gesture.dragging);if(token)stop_session("Next");assert(!grants&&!raw_subs);
+  }
+  reset();use_scroll=true;start_session(true);step(0,0,0);step(2,80,100);
+  sample.contacts[0].x+=12;sample.contacts[0].y+=12;sample.contacts[1].x+=12;sample.contacts[1].y+=12;raw_seq++;tick+=20;pump();
+  assert(reports[report_count-1].wheel_x==3&&reports[report_count-1].wheel==-3&&!last_mouse);
+  step(0,0,0);stop_session("Next");
+  /* Legacy prefix supports drag, but never translates horizontal to vertical. */
+  reset();start_session(true);step(0,0,0);step(2,80,100);unsigned before=mouse_reports;
+  sample.contacts[0].x+=12;sample.contacts[1].x+=12;raw_seq++;tick+=20;pump();assert(mouse_reports==before&&!scroll_api());draw();assert(strstr(drawn,"Scroll needs driver update"));stop_session("Next");
+ }
  reset();pair_trace_down=pair_trace_cancelled=pair_trace_gap=true;app_main();assert(!grants&&!opens&&back_enabled&&!pair_trace_down&&!pair_trace_cancelled&&!pair_trace_gap);reset();input_mode=1;app_main();assert(launches==1&&input_step==1&&back_enabled&&!grants);
  puts("HID application: scoped grants, touch, secure pairing, holds, interruptions, close retries, persistence and navigation passed");
 }

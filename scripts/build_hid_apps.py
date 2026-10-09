@@ -56,7 +56,7 @@ def build(system, *, paper=False, output=None):
         elf.with_suffix('.json').write_text(json.dumps(manifest,indent=2)+'\n')
         rows.append({'id':name,'version':side['version'],'size_bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'imports':sorted(imports)})
     record={'schema':1,'purpose':'development-ble-hid-no-hardware-qualification','source_pins':pin,'profile':{'paper':paper,'defines':defines,'quick_sources':quick},'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}
-    record['source_files']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [ROOT/'Apps/ble_touchpad.c',ROOT/'Apps/ble_buttons.c',ROOT/'Apps/ble_hid_app.inc',ROOT/'Apps/ble_hid_model.h',ROOT/'Apps/ble_hid_paper.inc',ROOT/'Apps/paper-hid.json']}
+    record['source_files']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [ROOT/'Apps/ble_touchpad.c',ROOT/'Apps/ble_buttons.c',ROOT/'Apps/ble_hid_app.inc',ROOT/'Apps/ble_hid_model.h',ROOT/'Apps/ble_touchpad_gesture.h',ROOT/'Apps/ble_hid_paper.inc',ROOT/'Apps/paper-hid.json']}
     if paper:record['deployment']=json.loads((ROOT/'Apps/paper-hid.json').read_text())
     (out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n')
     for name in ('LICENSE-FontAwesome.txt','LICENSE-Orbitron.txt','LICENSE-Rajdhani.txt','SOURCES.json'):
