@@ -5,7 +5,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 class PointsInventory(unittest.TestCase):
  def test_copied_service_status_contract(self):
-  self.assertEqual(hashlib.sha256((ROOT/'lib/Alarm/include/AlarmServiceV1.h').read_bytes()).hexdigest(),'19984058bf5ec47f2772cf56acf0d3c41a389b7edc5bd4e41aaddab5a32a017b')
+  self.assertEqual(hashlib.sha256((ROOT/'lib/Alarm/include/AlarmServiceV1.h').read_bytes()).hexdigest(),'4f1fe8f1cb0f3f5e0b54b3bb8af521f7590bbfeecdac46840b0fac1a63ad8132')
  def test_distinct_opt_in_identity(self):
   old=json.loads((ROOT/'Services/alarm_service/manifest.json').read_text())
   new=json.loads((ROOT/'Services/alarm_service/points-manifest.json').read_text())

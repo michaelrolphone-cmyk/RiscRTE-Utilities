@@ -26,7 +26,7 @@
 #error "The visual-only profile has no audio volume authority"
 #endif
 
-#if defined(ALARM_NATIVE_UTC) && (!defined(ALARM_VISUAL_ONLY) || !defined(POINTS_IN_TIME_SERVICE))
+#if defined(ALARM_NATIVE_UTC) && (!defined(ALARM_VISUAL_ONLY) || !defined(POINTS_IN_TIME_SERVICE) || !defined(ALARM_DND_CONTROL))
 #error "Native UTC requires the explicit visual Points profile"
 #endif
 
