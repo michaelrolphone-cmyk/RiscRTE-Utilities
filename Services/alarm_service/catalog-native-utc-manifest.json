@@ -1,0 +1,34 @@
+{
+  "type": "driver",
+  "id": "alarm-service",
+  "version": "0.4.6",
+  "driver_abi": 2,
+  "architecture": "xtensa-esp32s3",
+  "file_name": "driver.elf",
+  "requires": [
+    {
+      "capability": "storage.key-value.bound",
+      "api": 1
+    },
+    {
+      "capability": "platform.clock",
+      "api": 1
+    },
+    {
+      "capability": "platform.realtime",
+      "api": 1
+    },
+    {
+      "capability": "storage.app-data.bound",
+      "api": 1
+    }
+  ],
+  "provides": [
+    {
+      "capability": "alarm.service",
+      "api": 2
+    }
+  ],
+  "physical_verification": "pending",
+  "status": "development-only-storage-scaled-points"
+}
