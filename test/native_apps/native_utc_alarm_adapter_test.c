@@ -1,3 +1,7 @@
+/* The reused API 1 peripheral double is private to this fixture. The production
+ * native adapter below receives only the tagged API 2 test_alarm descriptor. */
+#include "AlarmServiceV1.h"
+typedef struct {alarm_service_v1 service;uint32_t output_modes;} alarm_service_outputs_v1;
 /* Actual controllers plus production shared adapter. Hardware alone is fake. */
 #define fake_acquire legacy_fixture_acquire
 #define fake_release legacy_fixture_release
