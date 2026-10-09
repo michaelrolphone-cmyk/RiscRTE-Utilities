@@ -144,9 +144,8 @@ bool portable_audio_suspend(void){
  owned=false;message="STOPPED / MIC OFF";return true;
 }
 static void retain(void){
-#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
- while(!portable_background_stop())runtime->yield_ms(50);
-#endif
+/* A failed input/storage release or retained owner request already holds
+ * uncertain custody. Do not touch unrelated background providers here. */
 runtime->diagnostic("AUDIO input cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
 static void pause_capture(void){if(!portable_audio_suspend())retain();}
 static void stop(void){capture_requested=false;pause_capture();}
@@ -508,7 +507,8 @@ void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->diagnostic||!runtime->yield_ms)return;
 #ifdef PORTABLE_CONTEXTS_CLIENT
- int exported=contexts_owner_export(runtime,CONTEXTS_AUDIO,0);
+ int exported=contexts_owner_export_models(runtime,CONTEXTS_AUDIO,0,2,event_files.readback,sizeof(event_files.readback));
+ if(exported==CONTEXTS_OWNER_FENCED)return;
  if(exported==CONTEXTS_OWNER_RETAINED)retain();
  if(exported==CONTEXTS_OWNER_EXPORTED)return;
 #endif
@@ -551,6 +551,8 @@ void app_main(void){
  if(temporal_retained())return;
  stop();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;if(acquired&&!runtime->release(&grant))retain();if(store_acquired&&!runtime->release(&store_grant))retain();acquired=store_acquired=false;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};microphone=NULL;storage=NULL;
 #ifdef PORTABLE_CONTEXTS_CLIENT
- if(!contexts_owner_refresh(runtime,CONTEXTS_AUDIO,0))retain();
+ int refreshed=contexts_owner_refresh_models(runtime,CONTEXTS_AUDIO,0,2,event_files.readback,sizeof(event_files.readback));
+ if(refreshed==CONTEXTS_OWNER_FENCED)return;
+ if(refreshed==CONTEXTS_OWNER_RETAINED)retain();
 #endif
 }

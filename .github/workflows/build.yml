@@ -19,6 +19,8 @@ jobs:
           python-version: '3.11'
       - name: Test SDK baseline, manifests, integrity and drift classification
         run: python -m unittest discover -s tests -v
+      - name: Preserve canonical temporal summary validation
+        run: python scripts/test_temporal_summary_validation.py
       - name: Exercise app UI and provider interaction fixtures
         run: |
           python scripts/test_apps.py

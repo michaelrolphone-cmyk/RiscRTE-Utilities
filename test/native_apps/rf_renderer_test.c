@@ -16,7 +16,7 @@
 #include <stdlib.h>
 
 int app_module_init(void);void app_module_fini(void);
-void rf_serial_start(void);void rf_serial_line(const char*);void rf_serial_finish(int,int);
+void rf_serial_start(void);void rf_serial_line(const char*);void rf_serial_finish(int,int,int);
 #ifdef RF_RENDER_WATCH_TOUCH
 const risc_touch_api_v1 *hid_watch_touch_start(void);void hid_watch_touch_stop(void);
 static const risc_touch_api_v1 *fx_watch;
@@ -265,7 +265,7 @@ if(getenv("RF_RENDER_EXPECT_LAUNCH"))fx_expected_launch=(unsigned)atoi(getenv("R
 #endif
  fx_returned=true;app_module_fini();assert(!fx_grants&&!fx_frames&&!fx_subs&&!fx_radio_retained);}
  else {assert(fx_storage_retained&&fx_grants&&!running&&!owned&&fx_retained_yields==6);fprintf(stderr,"RF retained storage: no normal peripheral calls after uncertain cleanup\n");}
- fx_guards();assert(fx_checks);if(fx_storage_retained)break;}assert(fx_launches==fx_expected_launch);if(getenv("RF_RENDER_RELEASE_RETRY"))assert(fx_release_failures==1);if(fx_serial)rf_serial_finish(fx_returned,getenv("RF_RENDER_NO_DIAGNOSTIC")==NULL);
+ fx_guards();assert(fx_checks);if(fx_storage_retained)break;}assert(fx_launches==fx_expected_launch);if(getenv("RF_RENDER_RELEASE_RETRY"))assert(fx_release_failures==1);if(fx_serial)rf_serial_finish(fx_returned,getenv("RF_RENDER_NO_DIAGNOSTIC")==NULL,fx_storage_retained);
 #ifdef RF_RENDER_WATCH_TOUCH
  if(fx_returned)hid_watch_touch_stop();
 #endif

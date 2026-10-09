@@ -41,3 +41,4 @@ jobs:
         run: |
           python3 scripts/test_contexts_service.py --drivers .dependencies/drivers --runtime .dependencies/runtime --system-apps .dependencies/system
           python3 scripts/test_contexts_app.py --system-apps .dependencies/system
+          python3 scripts/test_contexts_rf_retained.py --system-apps .dependencies/system
