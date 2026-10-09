@@ -1,4 +1,4 @@
-# Audio Spectrum 0.4.11
+# Audio Spectrum 0.4.14
 
 The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
 and saved frequency labels on the Watch's 240 × 240 display. The supplied design

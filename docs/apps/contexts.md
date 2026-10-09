@@ -1,10 +1,17 @@
-# Contexts 0.1.0 (development)
+# Contexts 0.1.1 (development)
 
 Contexts shows the current saved-signature room and event match from the awake
 Audio/RF monitoring service. Unknown, ambiguous, paused, input-failed and
-model-load-failed sources remain visibly distinct. The current service imports
-saved signature models only; temporal collections, neural checkpoints and
-frequency-label catalogs are not yet imported.
+model-load-failed sources remain visibly distinct. The service imports saved
+temporal event collections and validated neural checkpoints as well as legacy
+signatures. Frequency-label catalogs remain outside this import contract.
+
+Tap **Audio >** or **Radio >** to inspect model readiness. Missing saved events,
+missing neural checkpoints, stale checkpoints and failed loads have separate
+captions. Recognized events show their temporal or neural engine on the home
+screen. An older service remains usable with a **Signatures only** fallback.
+Neural inference refines eligible ambiguous temporal matches; it never trains
+automatically or substitutes a model for unread source examples.
 
 Monitoring is off when its preference is absent. Opening Contexts never writes
 a default or creates a preset. The monitoring button explicitly enables or

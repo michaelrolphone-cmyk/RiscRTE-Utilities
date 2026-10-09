@@ -153,7 +153,8 @@ software-rendered screenshots do not establish physical qualification.
 Watch deployments may select the [ordinary BLE broadcast service and Battery controls](docs/BLE_BROADCAST.md).
 
 The separate [Contexts development app](docs/apps/contexts.md) and
-[awake signature service](docs/CONTEXTS_SERVICE.md) reuse saved Audio/RF room and
-event signatures through their original owners. They add no Runtime policy,
+[awake Contexts service](docs/CONTEXTS_SERVICE.md) reuse saved Audio/RF room
+signatures, temporal events and validated neural checkpoints through their
+original owners. They add no Runtime policy,
 persistent model copies or automatic training, and do not change a released
 Watch cohort.

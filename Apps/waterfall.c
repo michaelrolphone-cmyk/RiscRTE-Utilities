@@ -81,12 +81,10 @@ bool portable_radio_suspend(void) {
     return true;
 }
 
-static void waterfall_yield(void) {
-#if defined(PORTABLE_BLE_BROADCAST) || defined(PORTABLE_CONTEXTS_CLIENT)
-    while(!portable_background_stop())waterfall_runtime->yield_ms(50);
-#endif
-    waterfall_runtime->yield_ms(50);
-}
+/* Retry loops may hold uncertain RF or storage custody. Yielding here must
+ * not acquire/pause unrelated background providers while cleanup is pending.
+ * Safe foreground boundaries already stop those services explicitly. */
+static void waterfall_yield(void) { waterfall_runtime->yield_ms(50); }
 static void waterfall_drain(void) {
     while (!portable_radio_suspend()) waterfall_yield();
 }
