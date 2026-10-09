@@ -289,3 +289,19 @@ The model/client contract is tested locally against System Apps checkpoint
 4440e5f5f65846d37e60c3b0c8b799baec103f1c. Its public equivalent must replace the
 older Contexts workflow pin before publishing this slice. Frozen Watch stores,
 images, source revisions and historical native inputs are not rewritten.
+# Public contract qualification for the RF-only profile
+
+The RF-only header appends `CONTEXTS_MODEL_UNAVAILABLE` and
+`CONTEXTS_IMPORT_UNAVAILABLE`; the complete existing ABI stays unchanged.
+`scripts/check_contexts_contract.py` binds the public System model header to
+commit `eae8924528f5c91254718afbc39c7d09eda7b78a` and verifies exact C-token
+equality after removing only those two appended enum values. It rejects any
+other constant, member, callback type or ordering change. The production
+service and editor tests run normally and with ASan/UBSan.
+
+The editor test copies that public System include directory into a temporary
+SDK and selects the verified RF-only header there. This is necessary because
+`PortableContextsClient.h` uses a quoted sibling include. The renderer and
+controller remain the real source; no System source checkout is changed. The
+resident X4 builder still requires its separately specified, qualified inputs.
+
