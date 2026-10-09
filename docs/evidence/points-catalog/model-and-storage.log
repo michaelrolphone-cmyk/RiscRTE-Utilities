@@ -1,0 +1,10 @@
+Points catalog: 1508 events, 48 types, stable IDs, legacy migration, corruption and allocation refusal PASS
+Points catalog: 1508 events, 48 types, stable IDs, legacy migration, corruption and allocation refusal PASS
+Points catalog: 1508 events, 48 types, stable IDs, legacy migration, corruption and allocation refusal PASS
+Points catalog: 1508 events, 48 types, stable IDs, legacy migration, corruption and allocation refusal PASS
+Points file writer: storage-full, pre/post commit failure, stale revision, reset and terminal retention PASS
+Points file writer: storage-full, pre/post commit failure, stale revision, reset and terminal retention PASS
+Catalog and ledger read custody: 8 terminal load/resolve cases and recoverable errors PASS
+Catalog and ledger read custody: 8 terminal load/resolve cases and recoverable errors PASS
+Points catalog raw/native UTC normal/ASan/UBSan PASS
+Points catalog file writer normal/ASan/UBSan PASS
