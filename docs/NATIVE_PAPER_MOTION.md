@@ -20,12 +20,12 @@ Use the existing GCC 8.4.0 2021r2-patch5 compiler; no install is needed:
 export NATIVE_APP_CC=/workspace/scratch/c744abbbbd60/watch-build-tools/platformio-core/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc
 python3 scripts/build_native_utc_utilities.py \
   --system-apps ../x4-plain-app-logs-63 --runtime ../x4-alarm-app-runtime-public \
-  --paper-transitions --motion-system ../x4-complete-ui-012
+  --paper-transitions --motion-system ../x4-controls-radio-015
 python3 scripts/build_native_utc_alarm_apps.py \
   --system-apps ../x4-plain-app-logs-63 --adapter ../x4-plain-app-logs-63 \
   --runtime ../x4-alarm-app-runtime-public --raw-system ../x4-points-system-raw \
   --watch-system ../x4-alarm-app-system-watch \
-  --paper-transitions --motion-system ../x4-complete-ui-012
+  --paper-transitions --motion-system ../x4-controls-radio-015
 ```
 
 The default selected destinations are `dist/native-paper-motion-utilities` and
@@ -43,15 +43,15 @@ The three composed host runners accept the same paired motion options:
 ```sh
 python3 scripts/test_native_utc_utility_controllers.py \
   --system-apps ../x4-plain-app-logs-63 --runtime ../x4-alarm-app-runtime-public \
-  --paper-transitions --motion-system ../x4-complete-ui-012
+  --paper-transitions --motion-system ../x4-controls-radio-015
 python3 scripts/test_native_utc_alarm_adapter.py \
   --system-apps ../x4-plain-app-logs-63 --adapter ../x4-plain-app-logs-63 \
   --runtime ../x4-alarm-app-runtime-public \
-  --paper-transitions --motion-system ../x4-complete-ui-012
+  --paper-transitions --motion-system ../x4-controls-radio-015
 python3 scripts/test_native_utc_utilities.py \
   --system-apps ../x4-plain-app-logs-63 --runtime ../x4-alarm-app-runtime-public \
   --drivers ../watch-power-drivers \
-  --paper-transitions --motion-system ../x4-complete-ui-012
+  --paper-transitions --motion-system ../x4-controls-radio-015
 python3 -m unittest discover -s tests
 ```
 
