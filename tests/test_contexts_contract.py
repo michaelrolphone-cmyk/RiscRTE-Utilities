@@ -12,11 +12,14 @@ class ContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.current = (ROOT / 'lib/Contexts/include/ContextsServiceV1.h').read_bytes()
-        # A committed exact copy of the public dependency is not required:
-        # tests receive the same explicitly pinned checkout as the production gate.
+        # Aggregate inventory jobs have no external checkouts. Their fixture is
+        # the exact public eae8924 header, bound by the production verifier's
+        # SHA-256. The dedicated CI job additionally tests its fetched checkout.
         import os
-        cls.public = (Path(os.environ['CONTEXTS_SYSTEM_APPS']) /
-                      'lib/PortableApps/include/ContextsServiceV1.h').read_bytes()
+        dependency = os.environ.get('CONTEXTS_SYSTEM_APPS')
+        header = (Path(dependency) / 'lib/PortableApps/include/ContextsServiceV1.h'
+                  if dependency else ROOT / 'tests/fixtures/contexts-public-model.h')
+        cls.public = header.read_bytes()
 
     def test_selected_pair(self):
         contract.verify(self.current, self.public)
