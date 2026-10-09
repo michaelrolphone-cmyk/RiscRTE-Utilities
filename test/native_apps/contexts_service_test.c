@@ -187,4 +187,5 @@ int main(void) {
     assert(service->step(NULL,&policy));close_fail=true;now+=40;assert(!service->capture_audio(NULL)&&status().cleanup_pending);before_reads=reads;assert(!service->capture_audio(NULL)&&reads==before_reads);close_fail=false;assert(service->pause(NULL));
     assert(driver->quiesce());driver->stop();assert(!service->step(NULL,&policy));
     printf("Contexts: actual PCM/IQ room inference, copied owner exports, model identity, ambiguity, staleness, once-per-room presets, no training, exclusive pause and retained cleanup PASS\n");
+    return 0;
 }

@@ -11,10 +11,6 @@
       "api": 1
     },
     {
-      "capability": "audio.input",
-      "api": 1
-    },
-    {
       "capability": "radio.iq",
       "api": 1
     }
@@ -26,5 +22,5 @@
     }
   ],
   "physical_verification": "pending",
-  "status": "development-only; awake signature and temporal event monitoring with validated saved neural refinement; owner-mediated import; no automatic training"
+  "status": "development-only; explicit RF-only saved-model inference; audio unavailable; owner-mediated RF import; no automatic training"
 }

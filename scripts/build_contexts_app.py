@@ -49,4 +49,14 @@ def build(system):
     (out/'LICENSE-Utilities.txt').write_bytes((ROOT/'LICENSE').read_bytes())
     print('Validated Contexts app target ELF')
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);a=p.parse_args();build(a.system_apps.resolve())
+    p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True)
+    p.add_argument('--profile',choices=['watch','x4-paper'],default='watch')
+    p.add_argument('--runtime',type=Path);p.add_argument('--x4-idle-source',type=Path);p.add_argument('--x4-idle-sdk',type=Path)
+    p.add_argument('--output',type=Path,default=ROOT/'dist/contexts-paper');a=p.parse_args()
+    if a.profile=='x4-paper':
+        if not all((a.runtime,a.x4_idle_source,a.x4_idle_sdk)):p.error('x4-paper requires Runtime and typed X4 idle source/SDK')
+        from build_contexts_paper import build as paper_build
+        paper_build(a)
+    else:
+        if any((a.runtime,a.x4_idle_source,a.x4_idle_sdk)):p.error('Native inputs require --profile x4-paper')
+        build(a.system_apps.resolve())
