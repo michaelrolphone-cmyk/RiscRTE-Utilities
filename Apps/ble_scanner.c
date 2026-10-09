@@ -50,8 +50,20 @@ static void retain(void){runtime->diagnostic("BLE cleanup-unconfirmed; invocatio
 bool portable_radio_services_safe(void){return !uncertain;}
 bool portable_radio_suspend(void){
  if(uncertain)return false;
- if(token){if(!host->close(host->context,token)){uncertain=true;return false;}token=0;risc_ble_sensor_status_v1 state={.struct_size=sizeof(state)};if(host->status(host->context,&state)&&state.restore_failed){restore_failed=true;message="Bluetooth restore failed";}}
- if(acquired){if(!runtime->release(&grant)){uncertain=true;return false;}acquired=false;grant=(risc_runtime_capability_v1){0};host=NULL;}
+ /* A refused close keeps the same token and grant. Retry that cleanup only:
+  * returning to the adapter would make a transient refusal terminal, while
+  * ordinary input, background capture or rendering cannot run with uncertain
+  * controller custody. A permanent refusal retains this invocation's stack. */
+ if(token){
+  while(!host->close(host->context,token)){uncertain=true;runtime->yield_ms(50);}
+  token=0;uncertain=false;
+  risc_ble_sensor_status_v1 state={.struct_size=sizeof(state)};
+  if(host->status(host->context,&state)&&state.restore_failed){restore_failed=true;message="Bluetooth restore failed";}
+ }
+ if(acquired){
+  while(!runtime->release(&grant)){uncertain=true;runtime->yield_ms(50);}
+  uncertain=false;acquired=false;grant=(risc_runtime_capability_v1){0};host=NULL;
+ }
  if(active()){scan.phase=BLE_COMPLETE;if(!restore_failed)message="Paused - tap Scan";}
  dirty=true;return true;
 }

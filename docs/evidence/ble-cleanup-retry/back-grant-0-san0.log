@@ -1,0 +1,3 @@
+launch=springboard.elf
+Scanner cleanup: attempts=1 waits=0 retained=0 sleep=0 PASS
+Production app/adapter capture: 9 frames, 41 polls, 820 ms; all grants released; stride guards intact

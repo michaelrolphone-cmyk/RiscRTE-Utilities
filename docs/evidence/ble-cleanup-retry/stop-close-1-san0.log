@@ -1,0 +1,2 @@
+Scanner cleanup: attempts=2 waits=1 retained=0 sleep=0 PASS
+Production app/adapter capture: 10 frames, 240 polls, 4831 ms; all grants released; stride guards intact

@@ -1,0 +1,2 @@
+BLE cleanup-unconfirmed; invocation retained
+probe: /workspace/shared/watch-scanner-cleanup/test/native_apps/ble_cleanup_probe.h:22: probe_yield: Assertion `probe_failures<0&&probe_attempts>=12' failed.

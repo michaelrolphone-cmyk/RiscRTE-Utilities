@@ -1,0 +1,4 @@
+PORTABLE_APP sleep=idle
+PORTABLE_APP sleep=refused
+Scanner cleanup: attempts=2 waits=1 retained=0 sleep=1 PASS
+Production app/adapter capture: 6 frames, 30 polls, 70650 ms; all grants released; stride guards intact
