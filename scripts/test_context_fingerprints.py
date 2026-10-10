@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix='fingerprints-') as temporary:
     for sanitize in (False, True):
         flags = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                  '-fno-omit-frame-pointer', '-no-pie'] if sanitize else []
-        for source in ('tests/context_fingerprint_test.c',
+        for source in ('tests/context_fingerprint_test.c', 'tests/contexts_rules_test.c',
                        'test/native_apps/contexts_fingerprint_test.c'):
             target = Path(temporary) / ('check-' + str(sanitize))
             includes = (root/'Apps', root/'lib/Contexts/include',

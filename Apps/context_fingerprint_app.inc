@@ -20,7 +20,7 @@ static cf_match cfa_room,cfa_event;
 static uint8_t cfa_bytes[CF_STORE_MAX];
 static bool cfa_loaded,cfa_changed,cfa_failed,cfa_training_ready,cfa_segment_active,cfa_training_saved;
 static uint32_t cfa_saved_at,cfa_seen,cfa_event_at;
-static uint64_t cfa_time_us,cfa_utc;
+static uint64_t cfa_time_us,cfa_utc,cfa_quiet_us,cfa_onset_us;
 static uint32_t cfa_utc_at,cfa_last_capture_ms;
 static bool cfa_have_capture;
 static uint64_t cfa_seconds(void){return cfa_utc?cfa_utc+(uint32_t)(app->millis()-cfa_utc_at)/1000u:0;}
@@ -51,7 +51,7 @@ static void cfa_begin(void){
     cf_init(&cfa_event_pipeline,&cfa_config,cfa_identity());cfa_event_pipeline.config.window_ms=100;
     cf_enable(&cfa_fusion,cfa_source(),false);cf_enable(&cfa_fusion,cfa_source(),true);
     cf_enable(&cfa_event_fusion,cfa_source(),false);cf_enable(&cfa_event_fusion,cfa_source(),true);
-    cfa_training_ready=cfa_segment_active=cfa_training_saved=false;cfa_room=(cf_match){.slot=-1};cfa_event=cfa_room;cfa_time_us=(uint64_t)app->millis()*1000u;cfa_seen=0;cfa_have_capture=false;
+    cfa_onset_us=cfa_quiet_us=0;cfa_training_ready=cfa_segment_active=cfa_training_saved=false;cfa_room=(cf_match){.slot=-1};cfa_event=cfa_room;cfa_time_us=(uint64_t)app->millis()*1000u;cfa_seen=0;cfa_have_capture=false;
 }
 static void cfa_load(void){
     if(cfa_loaded||cfa_failed||!event_files.api)return;
@@ -83,7 +83,7 @@ static void cfa_save(void){
     CFA_RESUME();
 }
 static void cfa_reset_window(cf_pipeline*p){cf_window_reset(p,cfa_time_us);}
-static void cfa_arm(void){cfa_training_ready=cfa_segment_active=cfa_training_saved=false;cfa_room=(cf_match){.slot=-1};cfa_event=cfa_room;cfa_reset_window(&cfa_event_pipeline);}
+static void cfa_arm(void){cfa_onset_us=cfa_quiet_us=0;cfa_training_ready=cfa_segment_active=cfa_training_saved=false;cfa_room=(cf_match){.slot=-1};cfa_event=cfa_room;cfa_reset_window(&cfa_event_pipeline);}
 static bool cfa_confirm(unsigned slot,const char*name,unsigned kind){
     if(!cfa_loaded||cfa_failed||slot>=CF_PROFILES||!cfa_fusion.have[cfa_source()])return false;
     cf_profile*p=&cfa_bank.profiles[slot];
@@ -92,6 +92,12 @@ static bool cfa_confirm(unsigned slot,const char*name,unsigned kind){
     cfa_changed|=ok;return ok;
 }
 static void cfa_event_boundary(bool training,bool collecting,bool ready){
+#if CFA_SOURCE == 0
+    /* PCM is segmented at the envelope cadence below. */
+    (void)training;(void)collecting;(void)ready;return;
+#else
+    if(cfa_event_pipeline.sparse&&cfa_event_pipeline.resolution_ms>0&&cfa_event_pipeline.resolution_ms<20)return;
+#endif
     if(collecting&&!cfa_segment_active)cfa_reset_window(&cfa_event_pipeline);
     cfa_segment_active=collecting;
     if(!ready||(training&&cfa_training_ready))return;
@@ -143,6 +149,7 @@ static void cfa_rename_event(unsigned slot,const char*name){
     }
 }
 static void cfa_discard(void){pause_capture();if(temporal_retained())return;cfa_loaded=cfa_failed=cfa_changed=false;memset(&cfa_bank,0,sizeof(cfa_bank));cfa_load();cfa_room.slot=cfa_event.slot=-1;if(!temporal_retained())CFA_RESUME();}
+static const char*cfa_name(unsigned kind,const char*fallback){int slot=kind==CF_ROOM?cfa_room.slot:cfa_event.slot;return slot>=0&&slot<(int)CF_PROFILES?cfa_bank.profiles[slot].name:fallback;}
 static bool cfa_has_events(void){for(unsigned i=0;i<CF_PROFILES;i++)if(cfa_bank.profiles[i].kind==CF_EVENT)return true;return false;}
 static bool cfa_unsaved(void){return cfa_changed;}
 static void cfa_retry(void){pause_capture();if(temporal_retained())return;if(cfa_failed){cfa_failed=false;cfa_load();}if(temporal_retained())return;cfa_save();if(!temporal_retained())CFA_RESUME();}
@@ -164,7 +171,25 @@ static void cfa_apply(void){
     }
     if(cfa_changed&&!signature_goal&&!event_armed&&!event_training.ready&&(uint32_t)(app->millis()-cfa_saved_at)>=60000u)cfa_save();
 }
+static void cfa_segment(uint64_t stamp,bool gap){
+ if(gap){cfa_onset_us=cfa_quiet_us=0;cfa_event.slot=-1;}
+ if(cfa_event_pipeline.active){if(!cfa_onset_us){cfa_onset_us=stamp;cf_window_reset(&cfa_event_pipeline,stamp);}cfa_quiet_us=stamp;}
+ if(cfa_onset_us&&(stamp-cfa_quiet_us>=500000u||stamp-cfa_onset_us>=10000000u)){
+  if(cf_take(&cfa_event_pipeline,stamp,&cfa_event_window)){
+   if(event_armed&&!cfa_training_ready){cfa_training_window=cfa_event_window;cfa_training_ready=true;}
+   else if(!event_armed){cf_publish(&cfa_event_fusion,cfa_source(),&cfa_event_window,stamp);cfa_event_at=app->millis();cfa_event=cf_match_profiles(&cfa_bank,&cfa_event_fusion,CF_EVENT,stamp,cfa_seconds(),&cfa_config);}
+  }
+  cfa_onset_us=0;cf_window_reset(&cfa_event_pipeline,stamp);
+ }
+}
 #if CFA_SOURCE == 1
+static void cfa_envelope(const risc_radio_iq_envelope_v1*v){
+ cfa_time_us=v->timestamp_us;
+ bool gap=(v->flags&RISC_RADIO_IQ_ENVELOPE_GAP)!=0;
+ cf_envelope_sample(&cfa_pipeline,v->magnitude,v->timestamp_us,v->observed_us,gap);
+ cf_envelope_sample(&cfa_event_pipeline,v->magnitude,v->timestamp_us,v->observed_us,gap);
+ cfa_segment(v->timestamp_us,gap);
+}
 static void cfa_iq(const uint32_t*pairs,size_t count,uint32_t rate,uint32_t stamp){
     cfa_capture_clock(stamp);
     cf_iq_snapshot(&cfa_pipeline,pairs,count,rate,cfa_time_us);
@@ -174,7 +199,12 @@ static void cfa_iq(const uint32_t*pairs,size_t count,uint32_t rate,uint32_t stam
 static void cfa_pcm(const int16_t*pcm,size_t count,uint32_t rate,bool continuous){
     cfa_capture_clock(app->millis());
     uint64_t start=cfa_pipeline.contiguous&&continuous?cfa_pipeline.expected_us:cfa_time_us;
-    cf_pcm(&cfa_pipeline,pcm,count,rate,start,continuous);cf_pcm(&cfa_event_pipeline,pcm,count,rate,start,continuous);
+    if(!rate)return;
+    size_t stride=rate/1000u;if(!stride)stride=1;
+    for(size_t at=0;at<count;at+=stride){size_t n=count-at<stride?count-at:stride;uint64_t stamp=start+(uint64_t)at*1000000u/rate;
+        cf_pcm(&cfa_pipeline,pcm+at,n,rate,stamp,continuous||at!=0);cf_pcm(&cfa_event_pipeline,pcm+at,n,rate,stamp,continuous||at!=0);
+        cfa_segment(stamp,at==0&&!continuous);
+    }
     uint64_t wall=cfa_time_us;cfa_time_us=start+(uint64_t)count*1000000u/rate;cfa_observe();cfa_time_us=wall;
 }
 #endif

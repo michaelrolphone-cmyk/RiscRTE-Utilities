@@ -168,6 +168,17 @@ static inline bool cf_pcm(cf_pipeline *p,const int16_t *pcm,size_t count,uint32_
     for(size_t k=0;k<count;k++)cf_magnitude(p,cf_abs((float)pcm[k])/32768.f,start_us+(uint64_t)k*1000000u/rate);
     p->expected_us=start_us+(uint64_t)count*1000000u/rate;return true;
 }
+/* Timestamped driver envelope, independent of foreground/render cadence.
+ * Burst sampling coverage stays explicit; loss invalidates the current window. */
+static inline bool cf_envelope_sample(cf_pipeline*p,float value,uint64_t stamp,uint32_t sampled_us,bool gap){
+ if(!p||!cf_finite(value)||value<0||value>1.5f||!sampled_us)return false;
+ if(!p->started){p->started=true;p->window_start_us=stamp;}
+ if(p->snapshot_at){
+  if(stamp<=p->snapshot_at||stamp-p->snapshot_at>500000u||gap){cf_gap(p);p->hist_overflow=true;}
+  else p->resolution_ms=cf_max(p->resolution_ms,cf_float_u64(stamp-p->snapshot_at)/1000.f);
+ }
+ p->sparse=true;p->snapshot_at=stamp;p->sampled_us+=sampled_us;cf_tick(p,value,stamp);return true;
+}
 /* Independent radio dumps also carry useful slow envelope observations.
  * Their timestamps are explicitly coarse; intervals faster than four sample
  * spacings are rejected. This path cannot identify a 100ms beacon from a

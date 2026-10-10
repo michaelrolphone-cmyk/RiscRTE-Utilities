@@ -25,7 +25,8 @@ static bool ctx_paper_leave(const char *destination) {
     ctx_exit=true;return true;
 }
 bool portable_app_before_launch(const char *destination) {
-    if(ctx_paper&&(ctx_draft_dirty||ctx_save_uncertain)){
+    if(ctx_paper&&contexts_fingerprint_api(ctx_service))return cu_before_launch(destination);
+    if(ctx_paper&&(ctx_draft_dirty||ctx_save_uncertain||cu_unsaved())){
         ctxp_destination=destination;ctx_page=CT_DISCARD;ctx_note("SAVE OR DISCARD BEFORE LEAVING");return false;
     }
     return true;

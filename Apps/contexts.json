@@ -1,6 +1,6 @@
 {
   "min_firmware_version": "0.1.55",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "display_name": "Contexts",
   "file_name": "contexts.elf",
   "icon": "solid:f015",

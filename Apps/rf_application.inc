@@ -61,6 +61,27 @@ static bool receiver_extended;
 static unsigned receiver_scroll;
 static uint32_t burst_at,last_burst_at;
 static bool burst_gap;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+/* Only the continuous foreground profile retries clean, transient failures.
+ * Three further attempts, separated by 250/500/1000 ms, then explicit Start.
+ * Provider custody is never inferred from an error: CLEANUP_RETAINED follows
+ * the existing suspend-only drain before any ordinary app work can resume. */
+#define RF_CAPTURE_RETRY_LIMIT 3u
+#define RF_CAPTURE_RETRY_BASE_MS 250u
+static unsigned capture_retries;
+static uint32_t capture_retry_at,capture_retry_delay,capture_ok_count,capture_fault_count;
+static void capture_retry_reset(void){capture_retries=0;capture_retry_at=capture_retry_delay=0;}
+static bool capture_retryable(int result){
+ return result==RISC_RADIO_IQ_PLL_FAILED||result==RISC_RADIO_IQ_PBUS_FAILED||
+        result==RISC_RADIO_IQ_DUMP_TIMEOUT||result==RISC_RADIO_IQ_BUSY;
+}
+static void capture_recovery_log(const char *state,int result){
+ char line[128];snprintf(line,sizeof(line),"SDR %s rc=%d retry=%u/%u wait_ms=%lu ok=%lu faults=%lu",
+  state,result,capture_retries,RF_CAPTURE_RETRY_LIMIT,(unsigned long)capture_retry_delay,
+  (unsigned long)capture_ok_count,(unsigned long)capture_fault_count);waterfall_log(line);
+}
+#endif
+
 typedef struct {
  rf_dsp_state spectrum;
  uint8_t history[PLOT_W][RF_PLOT_MAX_H];
@@ -200,6 +221,7 @@ static void cfa_begin(void);
 static void cfa_save(void);
 static bool cfa_unsaved(void);
 static bool cfa_has_events(void);
+static const char*cfa_name(unsigned,const char*);
 static void cfa_retry(void);
 static void cfa_discard(void);
 static void cfa_forget(unsigned);
@@ -216,8 +238,17 @@ static void cfa_apply(void);
 #define CFA_UNKNOWN_REASON RT_RESULT_UNKNOWN
 #include "context_fingerprint_app.inc"
 
+static const risc_radio_iq_temporal_api_v1 *rf_timed;
+static bool rf_timed_running;
+static risc_radio_iq_format_v1 rf_timed_format;
+static risc_radio_iq_envelope_v1 rf_envelope[256];
+static uint64_t rf_fft_stamp;
 static bool rf_services_safe(void){return !rf_bulk||(!uncertain&&!temporal_retained());}
-static void rf_radio_suspended(void){if(!rf_bulk)return;running=owned=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;}
+static void rf_radio_suspended(void){if(!rf_bulk)return;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ capture_requested=false;capture_retry_reset();
+#endif
+rf_timed_running=false;running=owned=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;}
 bool portable_rf_services_safe(void){return rf_services_safe();}
 bool portable_rf_capture_active(void){return capture_requested&&running&&owned&&!uncertain;}
 #ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
@@ -225,7 +256,7 @@ bool portable_radio_capture_active(void){return portable_rf_capture_active();}
 #endif
 bool portable_rf_suspend(void){
  bool was_running=running;running=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;contact_down=contact_plot=false;
- if(!portable_radio_suspend()){uncertain=true;return false;}uncertain=owned=false;if(was_running)message="STOPPED / RF OFF";return true;
+ if(!portable_radio_suspend()){uncertain=true;return false;}uncertain=owned=rf_timed_running=false;if(was_running)message="STOPPED / RF OFF";return true;
 }
 
 static void retain(void){
@@ -248,6 +279,7 @@ static bool acquire_receiver(void){
  if(!waterfall_open_radio())return false;
  const risc_radio_iq_extended_api_v1 *api=(const void*)waterfall_radio;
  receiver_extended=waterfall_radio->struct_size>=sizeof(*api)&&api->capabilities&&api->capture_configured;
+ rf_timed=risc_radio_iq_temporal(api);
  receiver_caps=(risc_radio_iq_capabilities_v1){.struct_size=sizeof(receiver_caps)};
  if(receiver_extended&&!api->capabilities(waterfall_radio->context,&receiver_caps))receiver_extended=false;
  return true;
@@ -306,6 +338,10 @@ static void toggle(void){
  if(!acquire_receiver()){capture_requested=false;message=waterfall_status==WATERFALL_AIRPLANE?"AIRPLANE MODE":waterfall_status==WATERFALL_NO_POLICY?"RADIO POLICY UNAVAILABLE":"RF UNAVAILABLE / START RETRY";capture_error=true;notify(message);return;}
  if(!receiver_extended){rf_capture_identity defaults=rf_identity_default();if(prefs.fft_size!=256||!rf_identity_equal(&prefs.identity,&defaults)){capture_requested=false;message="LEGACY: 256 / DEFAULT RF ONLY";capture_error=true;notify(message);return;}}
  configure_dsp();(void)rf_dsp_init(&spectrum,&dsp_config);temporal_start();rf_room_reset(&room_tracker);signature_audio.available=false;event_slot=-1;
+
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ capture_retry_reset();capture_ok_count=capture_fault_count=0;
+#endif
  owned=waterfall_enabled=running=started=true;capture_error=input_waiting=input_gap=frozen=false;last_pcm_at=rendered=app->millis();last_burst_at=0;message=receiver_extended?"NOMINAL RF / UNCALIBRATED":"LEGACY @1 / DEFAULT RF / 256";dirty=true;
 }
 
@@ -333,24 +369,62 @@ static void capture_discontinuity(bool lost_input){
 }
 
 static void capture(void){
- uint32_t now=app->millis();if(last_burst_at&&(uint32_t)(now-last_burst_at)<FRAME_MS)return;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ if(!capture_requested||!running||!owned||uncertain||waterfall_uncertain)return;
+#endif
+ uint32_t now=app->millis();
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ if(capture_retry_delay&&(uint32_t)(now-capture_retry_at)<capture_retry_delay)return;
+#endif
+ if(last_burst_at&&(uint32_t)(now-last_burst_at)<FRAME_MS)return;
  if(!waterfall_policy()){unsigned reason=waterfall_status;stop();message=reason==WATERFALL_AIRPLANE?"AIRPLANE MODE":"RADIO POLICY UNAVAILABLE";capture_error=true;return;}
  unsigned count=prefs.fft_size;waterfall_capture_pairs=count;int result;const risc_radio_iq_extended_api_v1 *extended=(const void*)waterfall_radio;
  risc_radio_iq_settings_v1 settings={sizeof(settings),prefs.identity.lo_hz,prefs.identity.sample_rate_hz,prefs.identity.width_hz,prefs.identity.raw_gain,prefs.identity.rf_gain,prefs.identity.bb_gain,prefs.identity.filter,{prefs.identity.dc[0],prefs.identity.dc[1],prefs.identity.dc[2],prefs.identity.dc[3]},prefs.identity.iq_correction};
  risc_radio_iq_format_v1 format={.struct_size=sizeof(format)};
  if(!trace_capture_seen)waterfall_log("SDR capture begin");
  burst_at=app->millis();burst_gap=true; /* Every independent burst leaves unobserved RF time. */
- if(receiver_extended){if(!trace_capture_seen&&extended->capture_configured_traced)result=extended->capture_configured_traced(waterfall_radio->context,burst_pairs,count,&settings,&format,waterfall_trace_stage,NULL);else result=extended->capture_configured(waterfall_radio->context,burst_pairs,count,&settings,&format);}
+ if(rf_timed){
+  if(!rf_timed_running){rf_timed_format=(risc_radio_iq_format_v1){.struct_size=sizeof(rf_timed_format)};result=rf_timed->start_envelope(waterfall_radio->context,&settings,1000,&rf_timed_format);if(!result){rf_timed_running=true;rf_fft_stamp=0;}}else result=RISC_RADIO_IQ_OK;
+  if(!result){
+   format=rf_timed_format;format.pair_count=count;
+   if(prefs.identity.lo_hz!=format.center_hz){prefs.identity.lo_hz=format.center_hz;cfa_begin();}
+   for(unsigned batch=0;batch<16;batch++){uint32_t n=0,dropped=0;result=rf_timed->read_envelope(waterfall_radio->context,rf_envelope,256,&n,&dropped);if(result)break;for(unsigned j=0;j<n;j++)cfa_envelope(&rf_envelope[j]);if(n<256)break;}
+   uint64_t stamp=0;if(!result)result=rf_timed->latest_iq(waterfall_radio->context,burst_pairs,count,&stamp);
+   if(result==RISC_RADIO_IQ_BUSY||(!result&&stamp==rf_fft_stamp))return;
+   if(!result){rf_fft_stamp=stamp;burst_at=(uint32_t)(stamp/1000u);burst_gap=false;}
+  }
+ }
+ else if(receiver_extended){if(!trace_capture_seen&&extended->capture_configured_traced)result=extended->capture_configured_traced(waterfall_radio->context,burst_pairs,count,&settings,&format,waterfall_trace_stage,NULL);else result=extended->capture_configured(waterfall_radio->context,burst_pairs,count,&settings,&format);}
  else{const risc_radio_iq_diagnostics_api_v1 *legacy=(const void*)waterfall_radio;if(!trace_capture_seen&&waterfall_radio->struct_size>=sizeof(*legacy)&&legacy->capture_burst_traced)result=legacy->capture_burst_traced(waterfall_radio->context,burst_pairs,count,waterfall_trace_stage,NULL);else result=waterfall_radio->capture_burst(waterfall_radio->context,burst_pairs,count);}
  last_burst_at=burst_at;
  if(result==RISC_RADIO_IQ_CLEANUP_RETAINED){waterfall_uncertain=uncertain=true;running=waterfall_enabled=false;waterfall_log("SDR cleanup ok=0 retained=1");waterfall_drain();uncertain=owned=false;capture_error=true;message="CLEANUP RECOVERED / START";dirty=true;return;}
  waterfall_trace_capture(result);waterfall_status=(unsigned)result;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ if(result!=RISC_RADIO_IQ_OK){
+  if(capture_fault_count<UINT32_MAX)++capture_fault_count;
+  if(rf_timed_running){pause_capture();if(uncertain)return;capture_requested=running=owned=true;}
+  capture_error=true;capture_discontinuity(true);
+  if(capture_retryable(result)&&capture_retries<RF_CAPTURE_RETRY_LIMIT){
+   capture_retry_delay=RF_CAPTURE_RETRY_BASE_MS<<capture_retries;++capture_retries;capture_retry_at=app->millis();
+   input_waiting=true;message=result==RISC_RADIO_IQ_BUSY?"RADIO BUSY / RETRYING":"RF INPUT / RETRYING";
+   capture_recovery_log("retry",result);return;
+  }
+  capture_recovery_log("stopped",result);stop();waterfall_status=(unsigned)result;
+  message=result==RISC_RADIO_IQ_BUSY?"RADIO BUSY / START RETRY":"CAPTURE FAILED / START RETRY";dirty=true;return;
+ }
+#else
  if(result!=RISC_RADIO_IQ_OK){running=waterfall_enabled=capture_requested=false;capture_error=true;capture_discontinuity(true);message=result==RISC_RADIO_IQ_BUSY?"RADIO BUSY / START RETRY":"CAPTURE FAILED / START RETRY";dirty=true;return;}
+#endif
+
  if(receiver_extended&&(format.struct_size<sizeof(format)||format.component_bits!=10u||format.component_full_scale!=512u||format.pair_count!=count||format.sample_rate_hz!=prefs.identity.sample_rate_hz||format.bandwidth_hz!=prefs.identity.width_hz||format.sample_format!=RISC_RADIO_IQ_FORMAT_S10_I0_Q10||!(format.flags&RISC_RADIO_IQ_FLAG_COHERENT_BURST))){stop();capture_error=true;message="INCOMPATIBLE CAPTURE FORMAT";dirty=true;return;}
  rf_capture_identity identity=prefs.identity;if(receiver_extended)identity.lo_hz=format.center_hz;
  if(!rf_identity_equal(&identity,&prefs.identity)){/* Quantized nominal LO defines compatibility; live calibration values do not. */prefs.identity=identity;prefs.low_hz=rf_identity_low_hz(&identity);prefs.high_hz=rf_identity_high_hz(&identity);bool empty=true;for(unsigned i=0;i<8;i++)if(event_library.labels[i].present)empty=false;if(empty&&!event_files.exists)event_library.identity=identity;configure_dsp();temporal_start();rf_room_reset(&room_tracker);pending_save|=1;}
  if(!rf_signature_burst(&signature_audio,&identity,burst_pairs,count)||!rf_dsp_burst(&spectrum,burst_pairs,count)){stop();capture_error=true;message="INVALID COHERENT BURST";dirty=true;return;}
- cfa_iq(burst_pairs,count,identity.sample_rate_hz,burst_at);
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ if(capture_ok_count<UINT32_MAX)++capture_ok_count;
+ if(capture_retries){capture_recovery_log("recovered",result);capture_retry_reset();message=receiver_extended?"NOMINAL RF / UNCALIBRATED":"LEGACY @1 / DEFAULT RF / 256";}
+#endif
+ if(!rf_timed_running)cfa_iq(burst_pairs,count,identity.sample_rate_hz,burst_at);else cfa_observe();
  input_waiting=input_gap=capture_error=false;signature_observe();cfa_apply();refresh_analysis();
 }
 
@@ -408,7 +482,7 @@ static void draw_plot(void){
  }
  pill_w=pill_h=0;
  if(event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),"%.16s %u%%",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}
- if(event_match.complete&&event_match.selected>=0){char event_name[48];int shift=event_match.shift[event_match.selected];snprintf(event_name,sizeof(event_name),"%.16s %u%% %+d bands",event_library.labels[event_match.selected].name,event_match.score/10,shift);fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,18,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,event_name,0x3dff9au);}
+ if(event_match.complete&&event_match.selected>=0){char event_name[48];int shift=event_match.shift[event_match.selected];snprintf(event_name,sizeof(event_name),"%.16s %u%% %+d bands",cfa_name(2,event_library.labels[event_match.selected].name),event_match.score/10,shift);fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,18,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,event_name,0x3dff9au);}
  if(signature_filter()>=0)text(1,PLOT_X+112,PLOT_Y+1,113,"BG FILTER",0xffd24au);
  if(cursor_visible){int p=(int)rf_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);int db=view==1?fall_db[p]:spec_db[p];char f[20],caption[40];freq_text(cursor_hz,f);snprintf(caption,sizeof(caption),"%s %d dBFS",f,db/100);
   if(view==1)fill(PLOT_X,PLOT_Y+p,PLOT_W,1,NOVA_WHITE);else fill(PLOT_X+p,PLOT_Y,1,PLOT_H-18,NOVA_WHITE);
@@ -431,7 +505,8 @@ static int16_t monitor_scene_db(void){return rf_background_db(rf_signature_total
 static unsigned monitor_room_count(void){unsigned n=0;for(unsigned i=0;i<RF_SIGNATURE_SLOTS;i++)if(signatures[i].kind==RF_SIGNATURE_ROOM)n++;return n;}
 static unsigned monitor_items(monitor_item items[17]){
  unsigned n=0,temporal=0;
- if(event_match.complete)for(unsigned i=0;i<RT_LABELS;i++)if(event_library.labels[i].present&&event_match.positive[i]>=RT_MATCH_MIN&&((event_match.reason==RT_RESULT_MATCH&&event_match.selected==(int)i)||event_match.negative[i]+60u<event_match.positive[i])&&(event_match.selected<0||event_match.selected==(int)i)){
+ if(cfa_event.slot>=0){items[n++]=(monitor_item){cfa_bank.profiles[cfa_event.slot].name,0x3dff9au,(unsigned)(cfa_event.confidence*100.f),0,MONITOR_EVENT};temporal=1;}
+ if(!temporal&&event_match.complete)for(unsigned i=0;i<RT_LABELS;i++)if(event_library.labels[i].present&&event_match.positive[i]>=RT_MATCH_MIN&&((event_match.reason==RT_RESULT_MATCH&&event_match.selected==(int)i)||event_match.negative[i]+60u<event_match.positive[i])&&(event_match.selected<0||event_match.selected==(int)i)){
   bool confirmed=event_match.reason==RT_RESULT_MATCH&&event_match.selected==(int)i;
   items[n++]=(monitor_item){event_library.labels[i].name,confirmed?0x3dff9au:0xffd24au,event_match.positive[i]/10u,event_match.query.peak_db,confirmed?MONITOR_EVENT:MONITOR_CANDIDATE};temporal++;
  }
@@ -457,7 +532,7 @@ static void draw_monitor(void){
  if(!running)snprintf(header,sizeof(header),"%s / LAST CONTEXT",frozen?"FROZEN":"STOPPED");else if(!ambient.ready)snprintf(header,sizeof(header),"LEARNING ROOM / %u%%",ambient.frames*100u/RF_BG_WARMUP);else if(event_match.complete&&event_match.reason==RT_RESULT_AMBIGUOUS)snprintf(header,sizeof(header),"EVENT / AMBIGUOUS");else if(event_match.complete&&event_match.reason==RT_RESULT_NEGATIVE)snprintf(header,sizeof(header),"EVENT / NONMATCH");else snprintf(header,sizeof(header),"%u ACTIVE ITEM%s%s",n,n==1?"":"S",event_neural_used&&event_match.complete?" / NEURAL":"");
  text(1,20,64,145,header,NOVA_CAP);pill(166,48,54,28,"EDIT",false);fill(20,84,200,1,NOVA_DIM);
  text(1,20,89,38,"ROOM",NOVA_CAP);bool verifying=room_tracker.candidate>=0&&room_tracker.candidate!=room_tracker.selected;bool holding=room_tracker.selected>=0&&(room_tracker.misses||room_tracker.ambiguous);int room=verifying?room_tracker.candidate:room_tracker.selected;
- const char *room_name=!rooms?"NO ROOM SAMPLES":!ambient.ready?"LEARNING...":room>=0&&room<(int)RF_SIGNATURE_SLOTS&&signatures[room].kind==RF_SIGNATURE_ROOM?signatures[room].name:room_tracker.ambiguous?"AMBIGUOUS":"UNKNOWN";
+ const char *room_name=cfa_name(1,!rooms?"NO ROOM SAMPLES":!ambient.ready?"LEARNING...":room>=0&&room<(int)RF_SIGNATURE_SLOTS&&signatures[room].kind==RF_SIGNATURE_ROOM?cfa_name(1,signatures[room].name):room_tracker.ambiguous?"AMBIGUOUS":"UNKNOWN");
  text(0,62,88,158,room_name,room>=0?NOVA_WHITE:NOVA_TEXT);
  if(!rooms)snprintf(room_detail,sizeof(room_detail),"CAPTURE ROOM IN CONTROLS > SAMPLES");
  else if(!ambient.ready)snprintf(room_detail,sizeof(room_detail),"RAW ROOM PROFILE / WAIT FOR BASELINE");

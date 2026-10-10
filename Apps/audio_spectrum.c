@@ -138,6 +138,7 @@ static void cfa_begin(void);
 static void cfa_save(void);
 static bool cfa_unsaved(void);
 static bool cfa_has_events(void);
+static const char*cfa_name(unsigned,const char*);
 static void cfa_retry(void);
 static void cfa_discard(void);
 static void cfa_forget(unsigned);
@@ -335,7 +336,7 @@ static void draw_plot(void){
  }
  pill_w=pill_h=0;
  if(event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),"%.16s %u%%",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}
- if(event_match.complete&&event_match.selected>=0){char event_name[48];int shift=event_match.shift[event_match.selected]*15;snprintf(event_name,sizeof(event_name),"%.16s %u%% %+d.%d st",event_library.labels[event_match.selected].name,event_match.score/10,shift/10,abs_int(shift%10));fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,18,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,event_name,0x3dff9au);}
+ if(event_match.complete&&event_match.selected>=0){char event_name[48];int shift=event_match.shift[event_match.selected]*15;snprintf(event_name,sizeof(event_name),"%.16s %u%% %+d.%d st",cfa_name(2,event_library.labels[event_match.selected].name),event_match.score/10,shift/10,abs_int(shift%10));fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,18,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,event_name,0x3dff9au);}
  if(signature_filter()>=0)text(1,PLOT_X+112,PLOT_Y+1,113,"BG FILTER",0xffd24au);
  if(cursor_visible){int p=(int)spectrum_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);int db=view==1?fall_db[p]:spec_db[p];char f[20],caption[40];freq_text(cursor_hz,f);snprintf(caption,sizeof(caption),"%s  %d dB",f,db/100);
   if(view==1)fill(PLOT_X,PLOT_Y+p,PLOT_W,1,NOVA_WHITE);else fill(PLOT_X+p,PLOT_Y,1,PLOT_H-18,NOVA_WHITE);
@@ -358,7 +359,8 @@ static int16_t monitor_scene_db(void){return spectrum_background_db(spectrum_sig
 static unsigned monitor_room_count(void){unsigned n=0;for(unsigned i=0;i<SPECTRUM_SIGNATURE_SLOTS;i++)if(signatures[i].kind==SPECTRUM_SIGNATURE_ROOM)n++;return n;}
 static unsigned monitor_items(monitor_item items[17]){
  unsigned n=0,temporal=0;
- if(event_match.complete)for(unsigned i=0;i<ST_LABELS;i++)if(event_library.labels[i].present&&event_match.positive[i]>=ST_MATCH_MIN&&((event_match.reason==ST_RESULT_MATCH&&event_match.selected==(int)i)||event_match.negative[i]+60u<event_match.positive[i])&&(event_match.selected<0||event_match.selected==(int)i)){
+ if(cfa_event.slot>=0){items[n++]=(monitor_item){cfa_bank.profiles[cfa_event.slot].name,0x3dff9au,(unsigned)(cfa_event.confidence*100.f),0,MONITOR_EVENT};temporal=1;}
+ if(!temporal&&event_match.complete)for(unsigned i=0;i<ST_LABELS;i++)if(event_library.labels[i].present&&event_match.positive[i]>=ST_MATCH_MIN&&((event_match.reason==ST_RESULT_MATCH&&event_match.selected==(int)i)||event_match.negative[i]+60u<event_match.positive[i])&&(event_match.selected<0||event_match.selected==(int)i)){
   bool confirmed=event_match.reason==ST_RESULT_MATCH&&event_match.selected==(int)i;
   items[n++]=(monitor_item){event_library.labels[i].name,confirmed?0x3dff9au:0xffd24au,event_match.positive[i]/10u,event_match.query.peak_db,confirmed?MONITOR_EVENT:MONITOR_CANDIDATE};temporal++;
  }
@@ -384,7 +386,7 @@ static void draw_monitor(void){
  if(!running)snprintf(header,sizeof(header),"%s / LAST CONTEXT",frozen?"FROZEN":"STOPPED");else if(!ambient.ready)snprintf(header,sizeof(header),"LEARNING ROOM / %u%%",ambient.frames*100u/SPECTRUM_BG_WARMUP);else if(event_match.complete&&event_match.reason==ST_RESULT_AMBIGUOUS)snprintf(header,sizeof(header),"EVENT / AMBIGUOUS");else if(event_match.complete&&event_match.reason==ST_RESULT_NEGATIVE)snprintf(header,sizeof(header),"EVENT / NONMATCH");else snprintf(header,sizeof(header),"%u SOUND%s%s",n,n==1?"":"S",event_neural_used&&event_match.complete?" / NEURAL":"");
  text(1,20,64,145,header,NOVA_CAP);pill(166,48,54,28,"EDIT",false);fill(20,84,200,1,NOVA_DIM);
  text(1,20,89,38,"ROOM",NOVA_CAP);bool verifying=room_tracker.candidate>=0&&room_tracker.candidate!=room_tracker.selected;bool holding=room_tracker.selected>=0&&(room_tracker.misses||room_tracker.ambiguous);int room=verifying?room_tracker.candidate:room_tracker.selected;
- const char *room_name=!rooms?"NO ROOM SAMPLES":!ambient.ready?"LEARNING...":room>=0&&room<(int)SPECTRUM_SIGNATURE_SLOTS&&signatures[room].kind==SPECTRUM_SIGNATURE_ROOM?signatures[room].name:room_tracker.ambiguous?"AMBIGUOUS":"UNKNOWN";
+ const char *room_name=cfa_name(1,!rooms?"NO ROOM SAMPLES":!ambient.ready?"LEARNING...":room>=0&&room<(int)SPECTRUM_SIGNATURE_SLOTS&&signatures[room].kind==SPECTRUM_SIGNATURE_ROOM?cfa_name(1,signatures[room].name):room_tracker.ambiguous?"AMBIGUOUS":"UNKNOWN");
  text(0,62,88,158,room_name,room>=0?NOVA_WHITE:NOVA_TEXT);
  if(!rooms)snprintf(room_detail,sizeof(room_detail),"CAPTURE ROOM IN CONTROLS > SAMPLES");
  else if(!ambient.ready)snprintf(room_detail,sizeof(room_detail),"RAW ROOM PROFILE / WAIT FOR BASELINE");

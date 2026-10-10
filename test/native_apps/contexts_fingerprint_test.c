@@ -9,15 +9,16 @@ static void timing_window(unsigned period,bool event){
     int16_t pcm[16];uint32_t power[128]={0};power[8]=1u<<22;
     cf_pipeline*p=event?fp_event_pipeline(CF_AUDIO):fp_pipeline(CF_AUDIO);
     uint64_t began=test_now;
-    if(event)fp_event_boundary(CF_AUDIO,true,false,test_now);
+    if(event)cf_window_reset(p,test_now*1000u);
     for(unsigned ms=0;ms<1500;ms++){
         test_now=began+ms;
         for(unsigned i=0;i<16;i++)pcm[i]=ms%period<8?16000:1000;
         assert(cf_pcm(p,pcm,16,16000,test_now*1000u,true));
         if(!(ms%16))assert(cf_spectrum(p,power,128,1.f/(1u<<30),0,8000));
+        if(event)fp_temporal_event(CF_AUDIO,test_now);
     }
     test_now=began+1500;
-    if(event)fp_event_boundary(CF_AUDIO,false,true,test_now);
+    if(event){for(unsigned ms=0;ms<600;ms++){for(unsigned i=0;i<16;i++)pcm[i]=1000;assert(cf_pcm(p,pcm,16,16000,test_now*1000u,true));fp_temporal_event(CF_AUDIO,test_now++);}}
     else{assert(cf_take(p,test_now*1000u,&fp_window));cf_publish(&fp_fusion,CF_AUDIO,&fp_window,test_now*1000u);fp_evaluate(test_now);}
 }
 int main(void){
@@ -54,6 +55,18 @@ int main(void){
     cfg.sources=CONTEXTS_AUDIO;assert(api->fingerprint(NULL,CONTEXTS_FP_CONFIG,&cfg));
     cf_enable(&fp_fusion,0,true);cf_enable(&fp_event_fusion,0,true);
     timing_window(200,true);assert(api->fingerprint(NULL,CONTEXTS_FP_STATUS,&state)&&state.event_slot<0);
+    contexts_learning_v1 learn={.struct_size=sizeof(learn),.operation=CONTEXTS_LEARN_BEGIN,.kind=CF_EVENT,.name="Doorbell"};
+    assert(api->fingerprint(NULL,CONTEXTS_FP_LEARN,&learn));
+    for(unsigned take=0;take<3;take++){
+        timing_window(100,true);learn.operation=CONTEXTS_LEARN_POLL;
+        assert(api->fingerprint(NULL,CONTEXTS_FP_LEARN,&learn));
+        assert(learn.samples==take+1);
+        if(take<2)assert(learn.state!=CONTEXTS_LEARN_READY);
+    }
+    assert(learn.state==CONTEXTS_LEARN_READY);learn.operation=CONTEXTS_LEARN_SAVE;
+    assert(api->fingerprint(NULL,CONTEXTS_FP_LEARN,&learn));
+    bool learned=false;for(unsigned i=8;i<16;i++)if(!strcmp(fp_bank.profiles[i].name,"Doorbell"))learned=fp_bank.profiles[i].kind==CF_EVENT;
+    assert(learned);
     assert(d->quiesce());d->stop();
     puts("Fingerprint service: segmented PCM event training/match/unknown, source disable, dirty checkpoint acknowledgment, restart/import and corruption preservation PASS");
     return 0;

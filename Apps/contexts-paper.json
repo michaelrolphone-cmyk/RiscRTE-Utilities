@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "profile": "x4-native-paper-contexts",
-  "version": "0.2.0",
-  "watch_version": "0.2.0",
-  "service_version": "0.2.0",
+  "version": "0.3.0",
+  "watch_version": "0.3.0",
+  "service_version": "0.3.0",
   "home": "default.elf",
   "local_back": "springboard.elf",
   "logical_size": [

@@ -321,6 +321,10 @@ static void ctx_value(char *out,size_t size) {
     }
 }
 #ifdef PORTABLE_CONTEXTS_PAPER
+static bool cu_unsaved(void);
+#ifdef PORTABLE_CONTEXTS_PAPER
+static bool cu_before_launch(const char*);
+#endif
 #include "contexts_paper.inc"
 #endif
 static void ctx_draw(void) {
@@ -388,6 +392,7 @@ static void ctx_retain(void) {
     ctx_runtime->diagnostic("CONTEXTS cleanup-unconfirmed; invocation retained");
     for(;;)ctx_runtime->yield_ms(50);
 }
+#include "contexts_ui.inc"
 void app_main(void) {
     ctx_app=t5_app_get_api(1);ctx_runtime=risc_runtime_get_api(1);
     if(!ctx_app||!ctx_app->poll||!ctx_app->present||!ctx_app->millis||!ctx_runtime||!ctx_runtime->acquire||!ctx_runtime->release||!ctx_runtime->yield_ms||!ctx_runtime->diagnostic)return;
@@ -399,6 +404,7 @@ void app_main(void) {
     ctx_service=portable_contexts_service();ctx_page=CT_HOME;ctx_selected=ctx_list=ctx_room_scroll=ctx_room_count=ctx_field=0;
     ctx_enabled=ctx_enabled_valid=ctx_retained=ctx_exit=ctx_status_valid=ctx_draft_dirty=ctx_save_uncertain=false;
     ctx_status=(contexts_status_v1){0};ctx_message="";ctx_refresh_at=0;ctx_dirty=true;ctx_load();
+    if(contexts_fingerprint_api(ctx_service)){cu_run();return;}
     while(!ctx_exit) {
 #ifdef PORTABLE_CONTEXTS_PAPER
         if(ctx_paper&&(ctx_retained||portable_adapter_retained())){portable_adapter_retain();return;}
