@@ -93,7 +93,7 @@ audio. Do not add an audio dependency to X4.
 
 Tested source combinations:
 
-- Watch client: System Apps `47a783557fed4c0c09c523ade6d6a087183d0ee1`.
+- Watch client: System Apps `1027b44b309521aea5835d6fb63014c56a16023d`.
 - X4 foreground RF adapter: System Apps
   `12fefac58600ed805722ff873ecf8855b06d4db7`.
 - X4's existing full Contexts release recipe names System Apps
