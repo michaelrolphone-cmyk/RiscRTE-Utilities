@@ -64,7 +64,15 @@ admissions=[]
 for sanitize in ['0','1']:
  os.environ['SANITIZE']=sanitize;os.environ['ASAN_OPTIONS']='detect_leaks=0'
  r=admission.admit_cohort(runtime,native_elf,files,files,app_policy_rows=24);r['sanitized']=sanitize=='1';admissions.append(r)
-assert len(strict)==spec['app_count']+27 and all(r['cohort_validated'] and r['elf_count']==len(strict) and r['hardware_calls']==r['storage_calls']==0 for r in admissions)
+# Multiple provider instances can share one module (the Watch has two I2C
+# buses). Require the exact manifest-selected module set, not one ELF per
+# instance, while still rejecting missing or orphan executable files.
+selected=set()
+for row in boot['app_capabilities']+boot['drivers']:
+ manifest=Path(row['manifest']);metadata=json.loads(files[str(manifest)])
+ selected.add(str(manifest.parent/metadata['file_name']))
+assert {r['path'] for r in strict}==selected
+assert all(r['cohort_validated'] and r['elf_count']==len(selected) and r['hardware_calls']==r['storage_calls']==0 for r in admissions)
 fs,geometry=pack(files);assert pack(files)[0]==fs and read_image(fs,0x510000)==files
 assert admission.unpack_image(fs,Path(spec['mkspiffs']),0x510000,expected_tool_sha256=spec['mkspiffs_sha256'])==files
 state=initial_bank_state(firmware,fs,True);pair=parse_record(state[:96],True)
