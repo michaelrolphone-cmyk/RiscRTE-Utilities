@@ -20,26 +20,8 @@ static void bp_header(const char*s){
  bp_text(112,37,bp_w()-144,s,true,true);app->fill_rect(32,106,bp_w()-64,3,true);
 }
 static void bp_line(unsigned row,const char*s){if(row>=detail_scroll&&row<detail_scroll+11)bp_text(40,120+(int)(row-detail_scroll)*46,bp_w()-80,s,false,true);}
-/* The shared keyboard characters/actions use spacious paper hit cells. */
-static portable_watch_key_rect bp_key_bounds(unsigned key){
- int width=bp_w()-64;
- if(key<PWK_CHARACTERS)return (portable_watch_key_rect){32+(int)(key%8)*(width/8),210+(int)(key/8)*88,width/8-4,80};
- return (portable_watch_key_rect){32+(int)(key-PWK_PAGE)*(width/3),570,width/3-4,72};
-}
 static void paper_draw(void){
- paper->begin();bp_header(naming?"SENSOR NAME":detail?"SENSOR DETAILS":"BLE SCANNER");
- if(naming){
-  bp_text(32,126,bp_w()-64,editing[0]?editing:"Type a name",false,true);
-  for(unsigned key=0;key<PWK_COUNT;key++){
-   portable_watch_key_rect r=bp_key_bounds(key);
-   app->fill_rect(r.x,r.y,r.w,r.h,true);app->fill_rect(r.x+2,r.y+2,r.w-4,r.h-4,key_choice==key);
-   unsigned ch=portable_watch_key_character(key_page,key);char label[2]={(char)(ch?ch:' '),0};
-   const char*caption=key==PWK_PAGE?"ABC/#":key==PWK_DELETE?"DELETE":key==PWK_DONE?"SAVE":ch==32?"_":label;
-   bp_text(r.x+4,r.y+22,r.w-8,caption,false,key_choice!=key);
-  }
-  bp_text(32,bp_h()-146,bp_w()-64,name_save_failed?message:"Empty name clears; Back cancels",false,true);
-  app->present(false);dirty=false;return;
- }
+ paper->begin();bp_header(detail?"SENSOR DETAILS":"BLE SCANNER");
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);char text[96];
  if(detail&&detail_index<scan.count){
   unsigned row=detail_lines(bp_line);
@@ -98,17 +80,9 @@ static bool paper_input(const t5_app_input_t*i){
  if(c.valid&&c.began&&c.released&&c.tap_eligible&&!c.cancelled&&!bp_release_seen){bp_down=true;bp_x=c.x;bp_y=bp_last_y=c.y;bp_list=false;}
  if(c.released)bp_release_seen=true;
 #endif
- if(c.down){if(!bp_down){bp_down=true;bp_x=c.x;bp_y=c.y;bp_list=!naming&&c.y>=112&&c.y<bp_h()-176;}bp_last_y=c.y;}
+ if(c.down){if(!bp_down){bp_down=true;bp_x=c.x;bp_y=c.y;bp_list=c.y>=112&&c.y<bp_h()-176;}bp_last_y=c.y;}
  else if(bp_down){int dy=bp_last_y-bp_y;bp_down=false;if(bp_list&&(dy>=44||dy<=-44)){gesture=true;if(detail){if(dy<0)bp_more();else{detail_scroll=detail_scroll>=11?detail_scroll-11:0;dirty=true;}}else move(dy<0?(int)bp_rows():-(int)bp_rows());}else if(dy<44&&dy>-44){tap=true;x=bp_x;y=bp_y;}}
  if((i->buttons&T5_APP_BUTTON_BACK)||(tap&&portable_nova_hit(x,y,32,16,64,88)))return navigate_back();
- if(naming){
-  if(i->buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))key_choice=key_choice?key_choice-1:PWK_COUNT-1;
-  if(i->buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))key_choice=(key_choice+1)%PWK_COUNT;
-  if(i->buttons&T5_APP_BUTTON_CONFIRM)name_key(key_choice);
-  if(tap)for(unsigned key=0;key<PWK_COUNT;key++){portable_watch_key_rect r=bp_key_bounds(key);if(portable_nova_hit(x,y,r.x,r.y,r.w,r.h)){key_choice=key;name_key(key);break;}}
-  if(i->buttons)dirty=true;
-  return true;
- }
  if(i->buttons&T5_APP_BUTTON_UP)move(-1);
  if(i->buttons&T5_APP_BUTTON_DOWN)move(1);
  bool action=(i->buttons&T5_APP_BUTTON_CONFIRM)!=0;
@@ -120,6 +94,6 @@ static bool paper_input(const t5_app_input_t*i){
  }
  if(action){if(detail)begin_name();else if(paper_enable_needed)paper_enable();else start_scan();}
  unsigned lines=detail_count();if(detail&&lines&&detail_scroll>=lines)detail_scroll=lines>11?lines-11:0;
- if(dirty&&(tap||gesture||i->buttons)&&scan.phase!=BLE_STARTING)draw();
+ if(!naming&&!name_client.retained&&dirty&&(tap||gesture||i->buttons)&&scan.phase!=BLE_STARTING)draw();
  return true;
 }

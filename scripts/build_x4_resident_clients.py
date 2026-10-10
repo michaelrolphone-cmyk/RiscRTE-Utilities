@@ -23,6 +23,10 @@ def main():
         src=[ROOT/'Apps'/(name+'.c')]
         if name=='waterfall':src+=[c['system']/'lib/NativeApps/src/SingleFloatDivisionCompat.c']
         grants=profile['common_grants']+profile['app_grants'][name]+[dict(capability='telemetry.broadcast',api=1,instance_id=0)]
+        if name=='ble_scanner':
+            scanner=json.loads((ROOT/'Apps/x4-ble-resident-profile.json').read_text())
+            selected=scanner['build_defines']
+            grants=scanner['required_grants']
         records[name]=resident.build(c,ROOT,name,versions[name],selected,src,grants,dict(native_time=True,telemetry_default='off',idle_policy='resident-host',capture_inhibits_policy=name in ('waterfall','ble_touchpad','ble_buttons'),app_source='Apps/'+name+'.c'))
     resident.write(c['out']/'cohort-receipt.json',dict(schema=1,role='foreground',quick_render_total=0,built=records,hardware_verified=False,installable=False))
 if __name__=='__main__':main()

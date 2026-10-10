@@ -1,0 +1,146 @@
+{
+  "app": "ble_scanner",
+  "build_defines": [
+    "-DPORTABLE_NOVA_UI",
+    "-DPORTABLE_ALARM_CLIENT",
+    "-DPORTABLE_DISPLAY_ROTATION=90",
+    "-DPORTABLE_INPUT_NAVIGATION",
+    "-DPORTABLE_HOME_APP=\"default.elf\"",
+    "-DPORTABLE_APP_OWNS_TOUCH_CHROME",
+    "-DPORTABLE_RADIO_SESSION",
+    "-DPORTABLE_RETURN_APP=\"springboard.elf\"",
+    "-DPORTABLE_STAGE_LOGS",
+    "-DALARM_SERVICE_TAGGED_V2",
+    "-DPORTABLE_NATIVE_CUSTODY_FENCE",
+    "-DPORTABLE_NATIVE_TIME_TOOLBAR",
+    "-DPORTABLE_BLE_BROADCAST",
+    "-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF",
+    "-DPORTABLE_PAPER_PREFERENCES",
+    "-DPORTABLE_UNPADDED_HOURS",
+    "-DPORTABLE_BLE_FOREGROUND",
+    "-DPORTABLE_RESIDENT_SHELL_CLIENT",
+    "-DPORTABLE_ALARM_TERMINAL_RETENTION",
+    "-DPORTABLE_RESIDENT_POLICY",
+    "-DPORTABLE_TEXT_INPUT_CLIENT",
+    "-DPORTABLE_APP_LAUNCH_GUARD"
+  ],
+  "requires": [
+    {
+      "capability": "display.output",
+      "api": 1
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1
+    },
+    {
+      "capability": "board.battery",
+      "api": 1
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2
+    },
+    {
+      "capability": "bluetooth.sensors",
+      "api": 1
+    },
+    {
+      "capability": "bluetooth.hci",
+      "api": 1
+    },
+    {
+      "capability": "telemetry.broadcast",
+      "api": 1
+    },
+    {
+      "capability": "ui.text-input",
+      "api": 1
+    }
+  ],
+  "required_grants": [
+    {
+      "capability": "display.output",
+      "api": 1,
+      "instance_id": 3
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1,
+      "instance_id": 4
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1,
+      "instance_id": 6
+    },
+    {
+      "capability": "board.battery",
+      "api": 1,
+      "instance_id": 7
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2,
+      "instance_id": 0
+    },
+    {
+      "capability": "bluetooth.sensors",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "bluetooth.hci",
+      "api": 1,
+      "instance_id": 16
+    },
+    {
+      "capability": "telemetry.broadcast",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "ui.text-input",
+      "api": 1,
+      "instance_id": 0
+    }
+  ],
+  "features": {
+    "native_time": true,
+    "telemetry_default": "off",
+    "idle_policy": "resident-host",
+    "capture_inhibits_policy": false,
+    "app_source": "Apps/ble_scanner.c",
+    "shared_text_input": true
+  },
+  "schema": 1,
+  "version": "0.2.19",
+  "baseline_version": "0.2.18",
+  "baseline_source": "bda1c2ec01d2c18e39f822fbcf6cc8ac3b12aa9e",
+  "baseline_receipt_sha256": "7ca8df7c18f776aebb47e721aea1c9c25f6c4523d436b5522156359133f0aa6e",
+  "baseline_helper_sha256": "1f7209b1f74d8f706b7b5f73be9aaf52061ce5679bbb99dea79f8aa7bd0779de",
+  "system_revision": "c336b776c869029ecd9f096aa5e6497759581440",
+  "runtime_revision": "615fb236b591bc6974a35ae23c7b2b785c0a5016"
+}

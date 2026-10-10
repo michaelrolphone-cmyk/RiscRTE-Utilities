@@ -2,7 +2,7 @@
 #include "utility_frame.h"
 #include "RiscRuntimeV1.h"
 #include "RiscBluetoothSensorsV1.h"
-#include "PortableWatchKeyboard.h"
+#include "PortableTextInputClient.h"
 #include "ble_sensor_names.h"
 #include "PortableRadioSession.h"
 #include "PortableRadioPolicy.h"
@@ -32,7 +32,11 @@ static unsigned selected,scroll,detail_scroll;
 static bool contact_down,contact_list,contact_moved;
 static int contact_y;
 static const char *message;
-static unsigned detail_index,key_page,key_choice;
+static unsigned detail_index;
+static portable_text_client name_client;
+static risc_text_entry_state_v1 name_state;
+static bool name_closing;
+static unsigned name_draft_index;
 static uint32_t copied_at;
 static bool naming,name_save_failed;
 static char aliases[BLE_MAX_DEVICES][BLE_ALIAS_MAX+1],editing[BLE_ALIAS_MAX+1];
@@ -48,11 +52,31 @@ static void load_alias(unsigned i){
 }
 static bool active(void){return scan.phase==BLE_STARTING||scan.phase==BLE_SCANNING;}
 static void retain(void){runtime->diagnostic("BLE cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
+static void name_step(void);
+static void name_retain(void){uncertain=true;name_client.retained=true;}
+/* Radio custody is independent of the modal host. Alarm attention may check
+ * it while naming; app launch/handoff is fenced separately below. */
 bool portable_radio_services_safe(void){return !uncertain;}
+bool portable_app_before_launch(const char *destination){
+ (void)destination;
+ return !uncertain&&!naming&&!name_client.active&&!name_client.acquired&&!name_client.suspended&&!name_client.retained;
+}
 bool portable_radio_suspend(void){
- if(uncertain)return false;
- if(token){if(!host->close(host->context,token)){uncertain=true;return false;}token=0;risc_ble_sensor_status_v1 state={.struct_size=sizeof(state)};if(host->status(host->context,&state)&&state.restore_failed){restore_failed=true;message="Bluetooth restore failed";}}
- if(acquired){if(!runtime->release(&grant)){uncertain=true;return false;}acquired=false;grant=(risc_runtime_capability_v1){0};host=NULL;}
+ if(uncertain||name_client.retained)return false;
+ /* A refused close keeps the same token and grant. Retry that cleanup only:
+  * returning to the adapter would make a transient refusal terminal, while
+  * ordinary input, background capture or rendering cannot run with uncertain
+  * controller custody. A permanent refusal retains this invocation's stack. */
+ if(token){
+  while(!host->close(host->context,token)){uncertain=true;runtime->yield_ms(50);}
+  token=0;uncertain=false;
+  risc_ble_sensor_status_v1 state={.struct_size=sizeof(state)};
+  if(host->status(host->context,&state)&&state.restore_failed){restore_failed=true;message="Bluetooth restore failed";}
+ }
+ if(acquired){
+  while(!runtime->release(&grant)){uncertain=true;runtime->yield_ms(50);}
+  uncertain=false;acquired=false;grant=(risc_runtime_capability_v1){0};host=NULL;
+ }
  if(active()){scan.phase=BLE_COMPLETE;if(!restore_failed)message="Paused - tap Scan";}
  dirty=true;return true;
 }
@@ -77,11 +101,11 @@ static void start_scan(void){
  acquired=true;host=grant.api;
  if(!host||host->api_version!=1||host->struct_size<sizeof(*host)||!host->open||!host->close||!host->poll||!host->status||!host->device){message="Scanner driver update needed";stop();return;}
  if(!host->open(host->context,&token)||!token){message="Bluetooth busy - retry";stop();return;}
- scan=(ble_scan){.phase=BLE_STARTING};memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));selected=scroll=detail_scroll=0;detail=naming=false;message="Starting scan";dirty=true;
+ scan=(ble_scan){.phase=BLE_STARTING};memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));selected=scroll=detail_scroll=0;detail=naming=name_save_failed=false;message="Starting scan";dirty=true;
 }
 static bool navigate_back(void){
- if(naming){naming=false;dirty=true;return true;}
- if(detail){detail=false;dirty=true;return true;}
+ if(naming){name_state.state=RISC_TEXT_ENTRY_CANCELLED;name_closing=true;name_step();return true;}
+ if(detail){detail=name_save_failed=false;dirty=true;return true;}
  stop();
  if(!runtime->request_launch||!runtime->request_launch(PORTABLE_RETURN_APP)){message="Return failed - retry";dirty=true;return true;}
  return false;
@@ -116,31 +140,85 @@ static unsigned indexes(unsigned out[BLE_MAX_DEVICES]){
  unsigned n=0;for(unsigned named=1;;named--){for(unsigned i=0;i<scan.count;i++)if(visible(i)&&((aliases[i][0]!=0)==(named!=0)))out[n++]=i;if(!named)break;}return n;
 }
 static void begin_name(void){
- if(detail_index>=scan.count)return;
- stop();name_save_failed=false;memcpy(editing,aliases[detail_index],sizeof(editing));key_page=PWK_INITIAL_PAGE;key_choice=0;naming=true;dirty=true;
+ if(detail_index>=scan.count||naming)return;
+ stop();
+ if(!name_save_failed||name_draft_index!=detail_index)memcpy(editing,aliases[detail_index],sizeof(editing));
+ name_draft_index=detail_index;name_closing=false;
+ name_state=(risc_text_entry_state_v1){.struct_size=sizeof(name_state)};
+ int32_t rc=portable_text_client_begin(&name_client,runtime,"Sensor name",editing,sizeof(editing));
+ if(rc==RISC_TEXT_ENTRY_RETAINED||name_client.retained){name_retain();return;}
+ if(rc!=RISC_TEXT_ENTRY_OK){message="Text input unavailable";detail_scroll=0;dirty=true;return;}
+ naming=true;
+}
+static bool name_storage_live(void){
+ if(portable_text_client_live(&name_client))return true;
+ name_retain();return false;
+}
+static int32_t name_storage_get(void *context,const char *key,void *data,uint32_t capacity,uint32_t *size){
+ if(!name_storage_live())return RISC_KEY_VALUE_CONTEXT;
+ const risc_key_value_v1 *source=context;
+ int32_t rc=source->get(source->context,key,data,capacity,size);
+ return name_storage_live()?rc:RISC_KEY_VALUE_CONTEXT;
+}
+static int32_t name_storage_put(void *context,const char *key,const void *data,uint32_t size){
+ if(!name_storage_live())return RISC_KEY_VALUE_CONTEXT;
+ const risc_key_value_v1 *source=context;
+ int32_t rc=source->put(source->context,key,data,size);
+ return name_storage_live()?rc:RISC_KEY_VALUE_CONTEXT;
+}
+static void name_storage_retain(void){
+ (void)portable_text_client_retain(&name_client);name_retain();
 }
 static void save_name(void){
+ /* The service token and grant have closed and the app presenter is restored
+  * before any domain storage access. Guard every KV boundary independently:
+  * an apparently successful write must not trigger readback after revocation. */
+ if(!name_storage_live())return;
  unsigned start=0,end=(unsigned)strlen(editing);while(start<end&&editing[start]==' ')start++;while(end>start&&editing[end-1]==' ')end--;
  for(unsigned i=0;i<end-start;i++)editing[i]=editing[start+i];
  editing[end-start]=0;
  risc_runtime_capability_v1 g={.struct_size=sizeof(g)};bool ok=false;
- if(runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g)){
-  ble_device*d=&scan.devices[detail_index];ok=ble_alias_save(g.api,d->address_type,d->address,editing);
-  if(!runtime->release(&g)){uncertain=true;retain();}
- }
- if(!ok){message="Name save unconfirmed";name_save_failed=true;dirty=true;return;}
- memcpy(aliases[detail_index],editing,sizeof(editing));alias_state[detail_index]=1;naming=false;message=editing[0]?"Sensor name saved":"Sensor name cleared";
+ bool got=runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);
+ if(!name_storage_live())return;
+ if(got){
+  if(g.struct_size!=sizeof(g)||!g.api||!g.slot||!g.generation){name_storage_retain();return;}
+  const risc_key_value_v1 *source=g.api;
+  if(source->api_version==1&&source->struct_size>=sizeof(*source)&&source->get&&source->put){
+   risc_key_value_v1 checked={1,sizeof(checked),(void *)source,name_storage_get,name_storage_put};
+   ble_device*d=&scan.devices[detail_index];ok=ble_alias_save(&checked,d->address_type,d->address,editing);
+   if(!name_storage_live())return;
+  }
+  risc_runtime_capability_v1 released=g;
+  bool closed=runtime->release(&released);
+  if(!name_storage_live())return;
+  if(!closed||released.struct_size!=sizeof(released)||released.api||released.slot||released.generation){name_storage_retain();return;}
+ }else if(g.api||g.slot||g.generation){name_storage_retain();return;}
+ if(!ok){message="Name save unconfirmed";name_save_failed=true;detail_scroll=0;dirty=true;return;}
+ memcpy(aliases[detail_index],editing,sizeof(editing));alias_state[detail_index]=1;name_save_failed=false;message=editing[0]?"Sensor name saved":"Sensor name cleared";
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);for(unsigned i=0;i<n;i++)if(list[i]==detail_index){selected=i;break;}
  scroll=selected>=visible_rows()?selected-visible_rows()+1:0;dirty=true;
 }
-static void name_key(unsigned key){
- if(key>=PWK_COUNT)return;
- size_t n=strlen(editing);
- if(key<PWK_CHARACTERS){unsigned ch=portable_watch_key_character(key_page,key);if(ch&&n<BLE_ALIAS_MAX){editing[n]=(char)ch;editing[n+1]=0;}}
- else if(key==PWK_PAGE)key_page=(key_page+1)%PWK_PAGES;
- else if(key==PWK_DELETE){if(n)editing[n-1]=0;}
- else if(key==PWK_DONE)save_name();
- dirty=true;
+static void name_step(void){
+ int32_t rc;
+ if(!name_closing){
+  rc=portable_text_client_poll(&name_client,&name_state);
+  if(rc==RISC_TEXT_ENTRY_AGAIN)return;
+  if(rc==RISC_TEXT_ENTRY_RETAINED||name_client.retained){name_retain();return;}
+  if(rc!=RISC_TEXT_ENTRY_OK){name_state.state=RISC_TEXT_ENTRY_CANCELLED;message="Text input unavailable";}
+  else if(name_state.state==RISC_TEXT_ENTRY_EDITING)return;
+  name_closing=true;
+ }
+ rc=portable_text_client_close(&name_client);
+ if(rc==RISC_TEXT_ENTRY_AGAIN)return;
+ if(rc!=RISC_TEXT_ENTRY_OK||name_client.retained){name_retain();return;}
+ naming=name_closing=false;dirty=true;
+ if(name_state.state==RISC_TEXT_ENTRY_ACCEPTED){
+  unsigned n=0;while(n<sizeof(name_state.text)&&name_state.text[n]){
+   unsigned char c=(unsigned char)name_state.text[n];if(c<32||c>126)break;n++;
+  }
+  if(n>=sizeof(editing)||name_state.text[n]){message="Invalid sensor name";return;}
+  memset(editing,0,sizeof(editing));memcpy(editing,name_state.text,n);save_name();
+ }else{name_save_failed=false;message="Name cancelled";}
 }
 static void address(const ble_device*d,char out[32]){snprintf(out,32,"%02X:%02X:%02X:%02X:%02X:%02X",d->address[5],d->address[4],d->address[3],d->address[2],d->address[1],d->address[0]);}
 static unsigned detail_count(void);
@@ -149,8 +227,7 @@ static void move(int delta){
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);if(!n)return;
  int next=(int)selected+delta;selected=(unsigned)(next<0?0:next>=(int)n?(int)n-1:next);
  if(selected<scroll)scroll=selected;
- unsigned rows=visible_rows();
- if(selected>=scroll+rows)scroll=selected-rows+1;
+ if(selected>=scroll+visible_rows())scroll=selected-visible_rows()+1;
  dirty=true;
 }
 static bool drag(void){
@@ -175,6 +252,7 @@ static void scrollbar(unsigned first,unsigned visible_rows,unsigned total,int y,
 static unsigned detail_lines(void (*emit)(unsigned,const char*)){
  char text[96];
   ble_device*d=&scan.devices[detail_index];unsigned row=0;
+  if(name_save_failed||(message&&!strcmp(message,"Text input unavailable")))emit(row++,message);
   emit(row++,aliases[detail_index][0]?aliases[detail_index]:d->name[0]?d->name:"Unnamed device");
   if(alias_state[detail_index]<0)emit(row++,"Saved name unavailable");
   address(d,text);emit(row++,text);
@@ -208,26 +286,15 @@ static unsigned detail_count(void){return detail&&detail_index<scan.count?detail
 static void paper_draw(void);
 static void draw(void){
  if(!utility_frame_begin(app))return;
+ if(naming||name_client.retained)return;
  if(paper){paper_draw();return;}
- portable_nova_begin();portable_nova_header(naming?"SENSOR NAME":detail?"SENSOR DETAILS":"BLE SCANNER");
- if(naming){
-  portable_nova_text(1,12,49,216,editing[0]?editing:"Type a name",NOVA_CYAN);
-  for(unsigned key=0;key<PWK_COUNT;key++){
-   portable_watch_key_rect r;(void)portable_watch_key_bounds(key,&r);
-   portable_nova_fill(r.x,r.y,r.w,r.h,key_choice==key?NOVA_DIM:NOVA_LINE);
-   unsigned ch=portable_watch_key_character(key_page,key);char label[2]={(char)(ch?ch:' '),0};
-   const char*caption=key==PWK_PAGE?"ABC/#":key==PWK_DELETE?"DELETE":key==PWK_DONE?"SAVE":ch==32?"_":label;
-   portable_nova_text(2,r.x+2,r.y+3,r.w-4,caption,NOVA_CYAN);
-  }
-  portable_nova_text(2,12,214,216,name_save_failed?message:"Empty name clears it; Back cancels",NOVA_CAP);
-  dirty=false;app->present(false);return;
- }
+ portable_nova_begin();portable_nova_header(detail?"SENSOR DETAILS":"BLE SCANNER");
  char text[80];unsigned list[BLE_MAX_DEVICES],n=indexes(list);
  if(detail&&detail_index<scan.count){
   unsigned row=detail_lines(line);
   dirty=false;
   scrollbar(detail_scroll,6,row,61,126);
-  portable_nova_button(8,196,108,44,"Results",false);portable_nova_button(124,196,108,44,"Name",false);
+  portable_nova_button(8,196,108,44,"Results",false);portable_nova_button(124,196,108,44,name_save_failed?"Retry name":"Name",false);
  }else{
   portable_nova_text(2,8,48,224,message?message:"Tap Scan to discover",NOVA_CAP);
   for(unsigned row=0;row<3&&row+scroll<n;row++){
@@ -256,33 +323,32 @@ void app_main(void){
  bp_release_seen=false;
 #endif
  scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=restore_failed=naming=false;selected=scroll=detail_scroll=detail_index=0;memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));dirty=true;message="Tap Scan to discover";
+ name_client=(portable_text_client){0};name_state=(risc_text_entry_state_v1){0};name_closing=name_save_failed=false;name_draft_index=0;
  contact_down=contact_list=contact_moved=false;contact_y=0;
  app->set_back_exits_app(false);uint32_t rendered=0;
  for(;;){
+  if(name_client.retained)return;
+  if(naming){name_step();if(name_client.retained)return;if(naming)runtime->yield_ms(20);continue;}
   if(paper?(dirty&&scan.phase!=BLE_STARTING&&(!active()||(uint32_t)(app->millis()-rendered)>=3000)):
      ((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250))){draw();if(!utility_frame_pending)rendered=app->millis();}
   t5_app_input_t input={0};if(!app->poll(&input,20)){if(portable_app_sleep_retained())return;break;}
   if(input.exit_requested)break;
-  if(paper){if(!paper_input(&input))break;pump();continue;}
+  if(paper){if(!paper_input(&input))break;if(name_client.retained)return;if(!naming)pump();continue;}
   if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44))){if(!navigate_back())break;continue;}
-  if(naming){
-   if(input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))key_choice=key_choice?key_choice-1:PWK_COUNT-1;
-   if(input.buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))key_choice=(key_choice+1)%PWK_COUNT;
-   if(input.buttons&T5_APP_BUTTON_CONFIRM)name_key(key_choice);
-   if(input.tapped){int key=portable_watch_key_hit(input.touch_x,input.touch_y);if(key>=0){key_choice=(unsigned)key;name_key(key_choice);}}
-   if(input.buttons)dirty=true;
-   continue;
-  }
   bool swiped=drag();
   if(input.buttons&T5_APP_BUTTON_UP)move(-1);
   if(input.buttons&T5_APP_BUTTON_DOWN)move(1);
   bool action=false;
   if(input.buttons&T5_APP_BUTTON_CONFIRM){if(detail)begin_name();else{unsigned list[BLE_MAX_DEVICES];if(indexes(list)){detail_index=list[selected];detail=true;detail_scroll=0;dirty=true;}else action=true;}}
+  if(name_client.retained)return;
+  if(naming)continue;
   if(input.tapped&&!swiped){int x=input.touch_x,y=input.touch_y;
-   if(portable_nova_hit(x,y,8,196,108,44)){if(detail){detail=false;dirty=true;}else action=true;}
+   if(portable_nova_hit(x,y,8,196,108,44)){if(detail){detail=name_save_failed=false;dirty=true;}else action=true;}
    else if(portable_nova_hit(x,y,124,196,108,44)){if(detail)begin_name();else{sensors=!sensors;scroll=selected=0;dirty=true;}}
    else if(!detail&&portable_nova_hit(x,y,8,64,224,132)){unsigned list[BLE_MAX_DEVICES],n=indexes(list),i=scroll+(unsigned)(y-64)/44;if(i<n){selected=i;detail_index=list[i];detail=true;detail_scroll=0;dirty=true;}}
   }
+  if(name_client.retained)return;
+  if(naming)continue;
   if(action)start_scan();
   pump();
  }

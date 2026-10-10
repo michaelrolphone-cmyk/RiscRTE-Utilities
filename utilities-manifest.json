@@ -223,7 +223,7 @@
     {
       "id": "ble_scanner",
       "display_name": "BLE Scanner",
-      "version": "0.2.4",
+      "version": "0.2.19",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_scanner.c",
@@ -233,8 +233,7 @@
         "Apps/ble_scan_model.h",
         "Apps/ble_sensor_names.h",
         "lib/Bluetooth/include/RiscBluetoothSensorsV1.h",
-        "lib/Bluetooth/include/RiscTelemetryV1.h",
-        "Apps/ble_scanner_paper.inc"
+        "lib/Bluetooth/include/RiscTelemetryV1.h"
       ],
       "min_firmware_version": "0.1.27"
     }

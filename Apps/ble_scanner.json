@@ -1,6 +1,6 @@
 {
   "min_firmware_version": "0.1.27",
-  "version": "0.2.4",
+  "version": "0.2.19",
   "display_name": "BLE Scanner",
   "file_name": "ble_scanner.elf",
   "icon": "solid:f7c0",
@@ -41,6 +41,10 @@
     },
     {
       "capability": "net.wifi",
+      "api": ">=1"
+    },
+    {
+      "capability": "ui.text-input",
       "api": ">=1"
     }
   ]

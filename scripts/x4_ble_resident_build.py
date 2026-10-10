@@ -9,8 +9,8 @@ import shutil
 import subprocess
 import sys
 
-SYSTEM='9f9393eaa9a11b32be0758ef4d503fa8583820a5'
-RUNTIME='83cc1f8f661fb39c5028ce669887629de9423bf7'
+SYSTEM='c336b776c869029ecd9f096aa5e6497759581440'
+RUNTIME='615fb236b591bc6974a35ae23c7b2b785c0a5016'
 EXPORTS={'app_main','app_module_init','app_module_fini','risc_resident_app_descriptor_v1'}
 IMPORTS={'risc_runtime_get_api','memcpy','memset','memcmp','memmove','memchr','strcmp','strncmp','strlen','snprintf','malloc','calloc','free','strcpy'}
 TIME=['PortableNativeTimeSource.c','PortableRealtimeClient.c','PortableTimeZone.c','PortableTimeZoneCatalog.c','PortableTimeZonePreference.c']
@@ -29,7 +29,6 @@ def options(parser):
     parser.add_argument('--system-revision',default=SYSTEM)
     parser.add_argument('--development-system',action='store_true',help='Review-only dirty System build; never final custody')
     parser.add_argument('--runtime',type=Path,required=True)
-    parser.add_argument('--runtime-revision',default=RUNTIME,help='Explicit clean SDK source pin; legacy default remains unchanged')
     parser.add_argument('--display-sdk',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
 
@@ -38,11 +37,14 @@ def prepare(a,p,utilities):
     if a.development_system:
         if git(system,'rev-parse','HEAD')!=a.system_revision:raise ValueError('Development System base differs')
     else:exact(system,a.system_revision)
-    exact(runtime,a.runtime_revision)
+    exact(runtime,RUNTIME)
     output.mkdir(parents=True,exist_ok=True);inc=output/'sdk/include';inc.mkdir(parents=True,exist_ok=True)
     # Real copied staging avoids mutating frozen source headers via a symlink.
     for folder in (a.display_sdk,system/'lib/PortableApps/include',runtime/'sdk/app',utilities/'lib/Alarm/include'):
         for source in folder.glob('*.h'):shutil.copyfile(source,inc/source.name)
+    # Stage the sensor contract beside its byte-identical telemetry dependency.
+    # The production app and combined host fixture then use one physical SDK.
+    shutil.copyfile(utilities/'lib/Bluetooth/include/RiscBluetoothSensorsV1.h',inc/'RiscBluetoothSensorsV1.h')
     for name in ('RiscDisplayOutputV1.h','RiscDisplayOutputPowerV1.h','RiscDisplayOutputMetricsV1.h','RiscDisplayOutputSnapshotV1.h'):
         shutil.copyfile(a.display_sdk/name,inc/name)
     for name in ('PaperPresentation.h','PaperFrame.h'):
@@ -61,7 +63,7 @@ def prepare(a,p,utilities):
     if not cc:raise ValueError('Set NATIVE_APP_CC to existing pinned GCC8.4')
     compiler=subprocess.check_output([cc,'--version'],text=True).splitlines()[0]
     if '8.4.0' not in compiler or '2021r2-patch5' not in compiler:raise ValueError('Pinned GCC8.4 required')
-    return dict(system=system,runtime=runtime,runtime_revision=a.runtime_revision,out=output,inc=inc,flags=flags,receipt=selected.resident_shell_receipt,cc=cc,compiler=compiler,utilities=utilities)
+    return dict(system=system,runtime=runtime,out=output,inc=inc,flags=flags,receipt=selected.resident_shell_receipt,cc=cc,compiler=compiler,utilities=utilities)
 
 def build(c,root,name,version,defines,sources,grants,features):
     system=c['system'];out=c['out']/name;out.mkdir(exist_ok=True);elf=out/(name+'.elf')
@@ -100,7 +102,7 @@ def build(c,root,name,version,defines,sources,grants,features):
             path=Path(token).resolve()
             for label,base in roots:
                 if path.is_relative_to(base):deps[label+'/'+str(path.relative_to(base))]=sha(path);break
-    record=dict(schema=1,app=name,version=version,source_revision=git(root,'rev-parse','HEAD'),source_dirty=bool(git(root,'status','--porcelain')),system_source_revision=git(system,'rev-parse','HEAD'),system_dirty=bool(git(system,'status','--porcelain','--untracked-files=no')),runtime_source_revision=c['runtime_revision'],compiler=c['compiler'],resident_shell=c['receipt'],build_defines=defines,compile_command=list(map(str,command)),imports=sorted(imports),exports=sorted(exports),elf_sha256=sha(elf),elf_bytes=elf.stat().st_size,quick_render_definitions=0,requires=needs,required_grants=grants,features=features,compiled_dependencies_sha256=deps,build_helper_sha256=sha(Path(__file__)),sdk_sha256={p.name:sha(p) for p in c['inc'].glob('*.h')},utilities_source_revision=git(c['utilities'],'rev-parse','HEAD'),target_validation='passed',hardware_verified=False,installable=False)
+    record=dict(schema=1,app=name,version=version,source_revision=git(root,'rev-parse','HEAD'),source_dirty=bool(git(root,'status','--porcelain')),system_source_revision=git(system,'rev-parse','HEAD'),system_dirty=bool(git(system,'status','--porcelain','--untracked-files=no')),runtime_source_revision=RUNTIME,compiler=c['compiler'],resident_shell=c['receipt'],build_defines=defines,compile_command=list(map(str,command)),imports=sorted(imports),exports=sorted(exports),elf_sha256=sha(elf),elf_bytes=elf.stat().st_size,quick_render_definitions=0,requires=needs,required_grants=grants,features=features,compiled_dependencies_sha256=deps,build_helper_sha256=sha(Path(__file__)),sdk_sha256={p.name:sha(p) for p in c['inc'].glob('*.h')},utilities_source_revision=git(c['utilities'],'rev-parse','HEAD'),target_validation='passed',hardware_verified=False,installable=False)
     write(out/'x4-native-app.json',record)
     dest=out/'licenses';dest.mkdir(exist_ok=True)
     for label,repo in [('App',root),('System',system),('Runtime',c['runtime']),('Utilities',c['utilities'])]:shutil.copyfile(repo/'LICENSE',dest/(label+'-MIT.txt'))
