@@ -21,18 +21,18 @@ static void gap_preserved(void){
 static void room_from_stopped(void){
  assert(!running&&!signature_audio.available);signature_open(-1,SPECTRUM_SIGNATURE_ROOM);
  strcpy(editing.name,"Office");signature_capture_begin();
- assert(running&&owned&&opens==1&&signature_goal==64&&!signature_capture.frames);
+ assert(running&&owned&&opens==1&&signature_goal==100&&!signature_capture.frames);
  /* Repeated Add must not restart the active collection. */
- signature_capture_begin();assert(signature_goal==64&&opens==1);
+ signature_capture_begin();assert(signature_goal==100&&opens==1);
 }
-static void room_pause(void){partial_room=signature_capture.frames;assert(partial_room&&partial_room<64);assert(portable_audio_suspend());assert(!running&&signature_goal==64&&signature_capture.frames==partial_room);}
+static void room_pause(void){partial_room=signature_capture.frames;assert(partial_room&&partial_room<100);assert(portable_audio_suspend());assert(!running&&signature_goal==100&&signature_capture.frames==partial_room);}
 static void room_resume(void){bool t=false;signature_tap(60,125,&t);assert(t);toggle();assert(running&&opens==2&&signature_capture.frames==partial_room);}
-static void room_committed(void){assert(signatures[0].frames==64&&!signature_goal&&puts_count==1);signature_capture_begin();assert(signature_goal==64);}
-static void room_cancel(void){bool t=false;signature_tap(170,125,&t);assert(!signature_goal&&signatures[0].frames==64&&puts_count==1);set_page(PAGE_MAIN);}
+static void room_committed(void){assert(signatures[0].frames==100&&!signature_goal&&puts_count==1);signature_capture_begin();assert(signature_goal==100);}
+static void room_cancel(void){bool t=false;signature_tap(170,125,&t);assert(!signature_goal&&signatures[0].frames==100&&puts_count==1);set_page(PAGE_MAIN);}
 static void room_open_failure(void){
  fail_open=true;signature_open(-1,SPECTRUM_SIGNATURE_ROOM);strcpy(editing.name,"Office");signature_capture_begin();
  assert(!running&&!signature_goal&&!signature_pending&&page==PAGE_SIGNATURE_EDIT);fail_open=false;
- signature_capture_begin();assert(running&&opens==2&&signature_goal==64);
+ signature_capture_begin();assert(running&&opens==2&&signature_goal==100);
 }
 static void room_failed_cancel(void){bool t=false;signature_tap(170,125,&t);assert(!signature_goal&&!signatures[0].kind&&!puts_count);set_page(PAGE_MAIN);}
 static void auto_record(void){
@@ -47,7 +47,8 @@ static void rejected_shift(void){
 }
 int main(void){
  fresh();mic.read=gap_read;check(create_label);start();advance(164);check(arm_positive);advance(20);check(sound_on);advance(20);check(begin_gap);advance(80);check(end_gap);advance(20);check(sound_off);advance(24);check(gap_preserved);back();run();assert(!files_live&&!store_live&&!live&&opens==1&&closes==1);
- fresh();check(room_from_stopped);advance(20);check(room_pause);advance(10);check(room_resume);advance(140);check(room_committed);advance(20);check(room_cancel);back();run();assert(!files_live&&!store_live&&!live&&opens==2&&closes==2&&puts_count==1);
+ /* Pause/resume plus separate KV and fingerprint checkpoint transactions. */
+ fresh();check(room_from_stopped);advance(20);check(room_pause);advance(10);check(room_resume);advance(220);check(room_committed);advance(20);check(room_cancel);back();run();assert(!files_live&&!store_live&&!live&&opens==4&&closes==4&&puts_count==1);
  fresh();check(room_open_failure);advance(20);check(room_failed_cancel);back();run();assert(!files_live&&!store_live&&!live&&opens==2&&closes==2&&!puts_count);
  fresh();check(auto_record);advance(200);check(cancelled_record);back();run();assert(!files_live&&!live&&file_writes==1&&opens==1&&closes==1);
  fresh();check(create_label);check(rejected_shift);back();run();assert(!files_live&&!live&&file_writes==1&&!opens);

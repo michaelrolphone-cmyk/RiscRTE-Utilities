@@ -142,10 +142,10 @@ static void cfa_rename_event(unsigned slot,const char*name){
         memcpy(cfa_bank.profiles[offset+slot].name,name,17);++cfa_bank.generation;cfa_changed=true;
     }
 }
-static void cfa_discard(void){cfa_loaded=cfa_failed=cfa_changed=false;memset(&cfa_bank,0,sizeof(cfa_bank));cfa_load();cfa_room.slot=cfa_event.slot=-1;}
+static void cfa_discard(void){pause_capture();if(temporal_retained())return;cfa_loaded=cfa_failed=cfa_changed=false;memset(&cfa_bank,0,sizeof(cfa_bank));cfa_load();cfa_room.slot=cfa_event.slot=-1;if(!temporal_retained())CFA_RESUME();}
 static bool cfa_has_events(void){for(unsigned i=0;i<CF_PROFILES;i++)if(cfa_bank.profiles[i].kind==CF_EVENT)return true;return false;}
 static bool cfa_unsaved(void){return cfa_changed;}
-static void cfa_retry(void){if(cfa_failed){cfa_failed=false;cfa_load();}cfa_save();}
+static void cfa_retry(void){pause_capture();if(temporal_retained())return;if(cfa_failed){cfa_failed=false;cfa_load();}if(temporal_retained())return;cfa_save();if(!temporal_retained())CFA_RESUME();}
 static void cfa_apply(void){
     if((uint32_t)(app->millis()-cfa_event_at)>4000u)cfa_event.slot=-1;
     /* A newly trained fingerprint replaces its old spectral-only answer. */

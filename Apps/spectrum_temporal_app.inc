@@ -118,8 +118,14 @@ static void event_retry(void){
  dirty=true;
 }
 static void event_discard(void){
- if(event_files.pending<0)return;
- pause_capture();unsigned bank=(unsigned)event_files.pending;int32_t result=st_files_load(&event_files,&event_library,bank,true);event_message=event_error(result);if(!temporal_retained())event_neural_refresh();if(!temporal_retained())portable_audio_capture_resume();if(!temporal_retained())notify(result?event_message:"UNSAVED EDIT DISCARDED");event_delete_slot=event_delete_example=-1;if(!temporal_retained())cfa_discard();dirty=true;
+ if(event_files.pending<0&&!cfa_unsaved())return;
+ pause_capture();if(temporal_retained())return;
+ int32_t result=0;
+ if(event_files.pending>=0){unsigned bank=(unsigned)event_files.pending;result=st_files_load(&event_files,&event_library,bank,true);event_message=event_error(result);if(!temporal_retained())event_neural_refresh();}
+ if(!temporal_retained()&&!result)cfa_discard();
+ if(!temporal_retained())portable_audio_capture_resume();
+ if(!temporal_retained())notify(result?event_message:"UNSAVED EDIT DISCARDED");
+ event_delete_slot=event_delete_example=-1;dirty=true;
 }
 static bool event_begin_edit(unsigned slot){
  if(slot>=8||event_files.pending>=0||event_armed||event_training.ready||signature_goal){notify("SAVE OR DISCARD CURRENT EDIT");return false;}
@@ -158,6 +164,7 @@ static void event_arm(unsigned kind){
 static void event_cancel_capture(void){event_armed=false;st_segment_reset(&event_training);event_message="CAPTURE CANCELLED";set_page(PAGE_EVENT_LABEL);}
 static void event_save_capture(void){
  if(!event_training.ready||event_edit_slot<0)return;
+ cfa_event_boundary(true,event_training.collecting,event_training.ready);
  if(!cfa_save_event((unsigned)event_edit_slot,event_library.labels[event_edit_slot].name,event_capture_kind==ST_POSITIVE)){notify("TEMPORAL SAMPLE NOT READY / RECORD AGAIN");return;}
  st_label*l=&event_library.labels[event_edit_slot];unsigned index=0;for(;index<6&&l->examples[index].id;index++);if(index==6||l->next_id==UINT32_MAX){notify("6 EXAMPLES FULL / KEEP WINDOW");return;}
  pause_capture();int32_t result=st_files_begin(&event_files,&event_library,(unsigned)event_edit_slot/4);if(result){if(!temporal_retained())portable_audio_capture_resume();notify(event_error(result));return;}
@@ -208,7 +215,7 @@ static void temporal_tick(void){
 }
 static bool temporal_exit_ready(void){
  cfa_save();if(!temporal_exit_blocked()&&!cfa_unsaved())return true;
- event_message=event_files.pending>=0?"RETRY SAVE OR DISCARD":"SAVE OR CANCEL THE WINDOW";notify(event_message);set_page(event_training.ready||event_armed?PAGE_EVENT_CAPTURE:PAGE_EVENTS);return false;
+ event_message=(event_files.pending>=0||cfa_unsaved())?"RETRY SAVE OR DISCARD":"SAVE OR CANCEL THE WINDOW";notify(event_message);set_page(event_training.ready||event_armed?PAGE_EVENT_CAPTURE:PAGE_EVENTS);return false;
 }
 static void draw_events(void){
  text(0,12,7,216,"LEARN SOUNDS",NOVA_CYAN);char caption[64];

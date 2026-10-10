@@ -80,7 +80,7 @@ static void signature_observe(void){
  * synthetic frames, silent commit of a shortened room sample, or auto-resume. */
 static void signature_suspend(void){signature_audio.used=0;}
 static bool signature_exit_ready(void){
- signature_save();if(signature_pending||signature_goal||cfa_unsaved()){notify(signature_goal?"FINISH OR CANCEL SAMPLE":"RETRY SAVE OR DISCARD");set_page(PAGE_SIGNATURES);return false;}return true;
+ signature_save();if(signature_pending||signature_goal){notify(signature_goal?"FINISH OR CANCEL SAMPLE":"RETRY SAVE OR DISCARD");set_page(PAGE_SIGNATURES);return false;}return true;
 }
 static void signature_open(int slot,unsigned kind){
  if(signature_goal){notify("FINISH OR CANCEL SAMPLE");return;}
