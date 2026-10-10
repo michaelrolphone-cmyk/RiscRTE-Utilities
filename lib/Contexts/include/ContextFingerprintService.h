@@ -30,7 +30,7 @@ typedef struct {
 } contexts_fingerprint_confirm_v1;
 enum { CONTEXTS_PROFILE_READ,CONTEXTS_PROFILE_RENAME,CONTEXTS_PROFILE_DELETE };
 enum { CONTEXTS_LEARN_BEGIN=1,CONTEXTS_LEARN_POLL,CONTEXTS_LEARN_SAVE,CONTEXTS_LEARN_CANCEL };
-enum { CONTEXTS_LEARN_IDLE,CONTEXTS_LEARN_WAITING,CONTEXTS_LEARN_RECORDING,CONTEXTS_LEARN_READY };
+enum { CONTEXTS_LEARN_IDLE,CONTEXTS_LEARN_WAITING,CONTEXTS_LEARN_RECORDING,CONTEXTS_LEARN_READY,CONTEXTS_LEARN_FAILED };
 typedef struct {uint32_t struct_size,operation,index,kind,sources,samples[2],flags[2];uint64_t updated[2];char name[17],new_name[17];} contexts_profile_v1;
 typedef struct {uint32_t struct_size,operation,kind,state,progress,samples,sources;char name[17];} contexts_learning_v1;
 typedef struct {uint32_t struct_size;bool set,available;cr_store store;} contexts_rules_v1;
