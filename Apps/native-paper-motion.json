@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "profile": "x4-native-paper-quick-motion",
+  "system_sha": "cd2a579370ed7700f4d1e043986f8304c04c6071",
+  "versions": {
+    "calculator": "0.1.13",
+    "stopwatch": "0.1.13",
+    "battery": "1.1.6",
+    "ble_scanner": "0.2.8",
+    "ble_touchpad": "0.1.8",
+    "ble_buttons": "0.1.8",
+    "waterfall": "0.2.4",
+    "alarms": "0.2.8",
+    "countdown": "0.1.12"
+  },
+  "sources": [
+    "lib/PortableApps/src/adapter.c",
+    "lib/PortableApps/src/quick_actions.c",
+    "lib/PortableApps/src/quick_adapter.inc",
+    "lib/PortableApps/src/quick_paper.inc",
+    "lib/PortableApps/src/quick_render.c",
+    "lib/PortableApps/src/quick_session.c",
+    "lib/PortableApps/include/PortableQuickActions.h",
+    "lib/PortableApps/include/PortableQuickPreferences.h",
+    "lib/PortableApps/include/PortableQuickSession.h"
+  ],
+  "hardware_verified": false,
+  "publication": "Local development only; no System ancestry publication"
+}

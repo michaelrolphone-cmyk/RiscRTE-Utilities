@@ -58,7 +58,13 @@ static inline bool sw_clock_consistent(const sw_clock*c,bool ok,uint32_t seconds
 }
 static inline void sw_format(uint32_t ms,char out[12]) {
  unsigned h=ms/3600000u,m=(ms/60000u)%60u,s=(ms/1000u)%60u,cs=(ms/10u)%100u;
+#ifdef PORTABLE_UNPADDED_HOURS
+ unsigned n=0;if(h>=10)out[n++]='0'+h/10u;out[n++]='0'+h%10u;out[n++]=':';
+ out[n++]='0'+m/10u;out[n++]='0'+m%10u;out[n++]=':';
+ out[n++]='0'+s/10u;out[n++]='0'+s%10u;out[n++]='.';out[n++]='0'+cs/10u;out[n++]='0'+cs%10u;out[n]=0;
+#else
  out[0]='0'+h/10u;out[1]='0'+h%10u;out[2]=':';out[3]='0'+m/10u;out[4]='0'+m%10u;out[5]=':';
  out[6]='0'+s/10u;out[7]='0'+s%10u;out[8]='.';out[9]='0'+cs/10u;out[10]='0'+cs%10u;out[11]=0;
+#endif
 }
 #endif

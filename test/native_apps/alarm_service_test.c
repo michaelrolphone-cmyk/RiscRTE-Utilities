@@ -5,12 +5,12 @@
 #include <string.h>
 #include "../../Services/alarm_service/service.c"
 static uint8_t blobs[6][64];static uint32_t sizes[6];
-static uint64_t ms;static uint32_t rtc_base;static int gets,put_count,reads,opens,writes,effects,stops,silences,closes;
+static uint64_t ms;static uint32_t rtc_base;static int get_count,put_count,reads,opens,writes,effects,stops,silences,closes;
 static bool get_fail,put_fail,put_persists,rtc_fail,open_fail,write_fail,effect_fail,stop_fail,close_fail;
 static unsigned gains,last_gain,last_peak;static bool gain_fail,volume_read_fail;
 static bool revoked,reentrant;static const alarm_service_v1 *client;
 static int index_key(const char *key) {const char *keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,ALARM_TIMER_OCCURRENCE_KEY,"alarm_volume"};for(int i=0;i<6;i++)if(!strcmp(keys[i],key))return i;assert(0);return 0;}
-static int32_t get_blob(void*c,const char*k,void*b,uint32_t cap,uint32_t*n){(void)c;assert(!revoked);gets++;*n=0;if(volume_read_fail&&!strcmp(k,"alarm_volume"))return RISC_BOUND_KEY_VALUE_IO;if(get_fail)return -5;int i=index_key(k);if(!sizes[i])return -1;if(cap<sizes[i])return -2;memcpy(b,blobs[i],sizes[i]);*n=sizes[i];if(reentrant){alarm_status_v1 s={.struct_size=sizeof(s)};assert(client->status(NULL,&s)==ALARM_BUSY);assert(client->step(NULL)==ALARM_BUSY);}return 0;}
+static int32_t get_blob(void*c,const char*k,void*b,uint32_t cap,uint32_t*n){(void)c;assert(!revoked);get_count++;*n=0;if(volume_read_fail&&!strcmp(k,"alarm_volume"))return RISC_BOUND_KEY_VALUE_IO;if(get_fail)return -5;int i=index_key(k);if(!sizes[i])return -1;if(cap<sizes[i])return -2;memcpy(b,blobs[i],sizes[i]);*n=sizes[i];if(reentrant){alarm_status_v1 s={.struct_size=sizeof(s)};assert(client->status(NULL,&s)==ALARM_BUSY);assert(client->step(NULL)==ALARM_BUSY);}return 0;}
 static int32_t put_blob(void*c,const char*k,const void*b,uint32_t n){(void)c;assert(!revoked);put_count++;int i=index_key(k);assert(i==3||i==4);if(!put_fail||put_persists){memcpy(blobs[i],b,n);sizes[i]=n;}return put_fail?-5:0;}
 static uint64_t mono(void*c){(void)c;return ms;}
 static bool read_rtc(void*c,twatch_rtc_time_v1*out){(void)c;reads++;if(rtc_fail)return false;uint32_t t=rtc_base+(uint32_t)(ms/1000);*out=(twatch_rtc_time_v1){2000,1,(uint8_t)(1+t/86400),6,(uint8_t)(t/3600%24),(uint8_t)(t/60%60),(uint8_t)(t%60)};return true;}
@@ -30,10 +30,10 @@ static const risc_provider_dependency_v1 deps[]={
  {"storage.key-value.bound",1,&bound},{"platform.clock",1,&clk},{"rtc.clock",2,&rtc_api},{"haptic.effect",1,&hapi},{"audio.output",1,&aapi}};
 static const risc_driver_v2 *driver_api;
 static alarm_status_v1 snapshot(void){alarm_status_v1 s={.struct_size=sizeof(s)};assert(client->status(NULL,&s)==0);return s;}
-static void pump(unsigned count){while(count--){int before=gets+put_count+reads+opens+writes+effects+stops+silences+closes+(int)gains;(void)client->step(NULL);int after=gets+put_count+reads+opens+writes+effects+stops+silences+closes+(int)gains;assert(after-before<=2);ms+=1;}}
+static void pump(unsigned count){while(count--){int before=get_count+put_count+reads+opens+writes+effects+stops+silences+closes+(int)gains;(void)client->step(NULL);int after=get_count+put_count+reads+opens+writes+effects+stops+silences+closes+(int)gains;assert(after-before<=2);ms+=1;}}
 static void until_at(unsigned state,int line){for(int i=0;i<100;i++){if(snapshot().state==state)return;pump(1);}fprintf(stderr,"line=%d state=%u actual=%u error=%d phase=%d ms=%llu\n",line,state,snapshot().state,snapshot().error,phase,(unsigned long long)ms);assert(!"state not reached");}
 #define until(state) until_at(state,__LINE__)
-static void boot(bool clear){if(driver_api){stop_fail=close_fail=false;assert(driver_api->quiesce());}if(clear){memset(blobs,0,sizeof(blobs));memset(sizes,0,sizeof(sizes));ms=0;rtc_base=100;}get_fail=put_fail=put_persists=rtc_fail=open_fail=write_fail=effect_fail=stop_fail=close_fail=revoked=reentrant=false;gets=put_count=reads=opens=writes=effects=stops=silences=closes=0;gains=last_gain=last_peak=0;gain_fail=volume_read_fail=false;driver_api=t5_driver_get(2);assert(driver_api&&driver_api->struct_size==sizeof(*driver_api));client=driver_api->capability;assert(driver_api->start(deps,5));}
+static void boot(bool clear){if(driver_api){stop_fail=close_fail=false;assert(driver_api->quiesce());}if(clear){memset(blobs,0,sizeof(blobs));memset(sizes,0,sizeof(sizes));ms=0;rtc_base=100;}get_fail=put_fail=put_persists=rtc_fail=open_fail=write_fail=effect_fail=stop_fail=close_fail=revoked=reentrant=false;get_count=put_count=reads=opens=writes=effects=stops=silences=closes=0;gains=last_gain=last_peak=0;gain_fail=volume_read_fail=false;driver_api=t5_driver_get(2);assert(driver_api&&driver_api->struct_size==sizeof(*driver_api));client=driver_api->capability;assert(driver_api->start(deps,5));}
 static void schedule(unsigned kind,unsigned revision,unsigned deadline){alarm_config c={revision,deadline,100,kind==2?deadline-100:0,(uint8_t)kind,1};assert(alarm_config_valid(&c));alarm_config_encode(&c,blobs[kind-1]);sizes[kind-1]=32;}
 static void mode(unsigned v){blobs[2][0]=(uint8_t)v;sizes[2]=1;}
 static alarm_token_v1 ring(unsigned v){boot(true);schedule(1,1,101);mode(v);rtc_base=101;until(ALARM_STATE_ALERT);pump(4);return snapshot().occurrence;}

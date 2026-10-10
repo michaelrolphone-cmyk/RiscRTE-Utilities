@@ -1,0 +1,46 @@
+name: Alarm tagged ABI reconciliation
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  alarm-abi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 30dcec5ce6ce33223f2b203a2399283e1f758567
+          path: .dependencies/runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 1d589d90bf27c7ffb76420de46564088ddb3714f
+          path: .dependencies/system
+          persist-credentials: false
+      - name: Production ABI and lifecycle normal ASan UBSan
+        run: |
+          for suite in alarm_abi alarm_sleep_resume native_utc_alarm points_apps alarm_apps alarm_volume dnd_service; do
+            python3 scripts/test_${suite}.py --runtime .dependencies/runtime --system-apps .dependencies/system
+          done
+          bash scripts/test_native_utc_alarm_runtime.sh .dependencies/runtime .dependencies/system
+          SANITIZE=1 bash scripts/test_native_utc_alarm_runtime.sh .dependencies/runtime .dependencies/system
+          python3 -m unittest discover -s tests -p 'test_*inventory.py'
+      - name: Pinned GCC 8.4 target compiler
+        run: |
+          python3 -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Target ABI loader and unchanged Watch gate
+        env:
+          NATIVE_APP_CC: /home/runner/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc
+        run: python3 scripts/build_native_utc_alarm.py --runtime .dependencies/runtime --system-apps .dependencies/system
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alarm-abi-evidence
+          path: dist/native-utc-visual-service/build-evidence.json

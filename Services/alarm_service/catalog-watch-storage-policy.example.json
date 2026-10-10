@@ -1,0 +1,56 @@
+{
+  "storage": {
+    "alarm_cfg": {
+      "namespace": 3,
+      "access": "read"
+    },
+    "timer_cfg": {
+      "namespace": 3,
+      "access": "read"
+    },
+    "alarm_occ": {
+      "namespace": 4,
+      "access": "read-write"
+    },
+    "timer_occ": {
+      "namespace": 4,
+      "access": "read-write"
+    },
+    "alert_mode": {
+      "namespace": 1,
+      "access": "read"
+    },
+    "points_cfg": {
+      "namespace": 5,
+      "access": "read"
+    },
+    "points_occ": {
+      "namespace": 4,
+      "access": "read"
+    },
+    "alarm_volume": {
+      "namespace": 1,
+      "access": "read"
+    },
+    "alert_dnd": {
+      "namespace": 1,
+      "access": "read"
+    },
+    "points_meta": {
+      "namespace": 5,
+      "access": "read"
+    }
+  },
+  "app_data": [
+    {
+      "name": "points.catalog",
+      "namespace": 5,
+      "access": "read"
+    },
+    {
+      "name": "points.ledger",
+      "namespace": 5,
+      "access": "read-write"
+    }
+  ]
+}

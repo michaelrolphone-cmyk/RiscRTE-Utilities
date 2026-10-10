@@ -36,7 +36,7 @@
     {
       "id": "battery",
       "display_name": "Battery Status",
-      "version": "1.1.5",
+      "version": "1.1.0",
       "min_firmware_version": "1.1.18",
       "file_name": "battery.elf",
       "classification": "utility",
@@ -223,7 +223,7 @@
     {
       "id": "ble_scanner",
       "display_name": "BLE Scanner",
-      "version": "0.2.0",
+      "version": "0.2.4",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_scanner.c",
@@ -233,7 +233,8 @@
         "Apps/ble_scan_model.h",
         "Apps/ble_sensor_names.h",
         "lib/Bluetooth/include/RiscBluetoothSensorsV1.h",
-        "lib/Bluetooth/include/RiscTelemetryV1.h"
+        "lib/Bluetooth/include/RiscTelemetryV1.h",
+        "Apps/ble_scanner_paper.inc"
       ],
       "min_firmware_version": "0.1.27"
     }
@@ -276,7 +277,7 @@
     {
       "id": "ble_touchpad",
       "display_name": "BLE Touchpad",
-      "version": "0.1.2",
+      "version": "0.1.14",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_touchpad.c",
@@ -285,14 +286,16 @@
       "additional_sources": [
         "Apps/ble_hid_app.inc",
         "Apps/ble_hid_model.h",
-        "lib/Bluetooth/include/RiscBluetoothHidV1.h"
+        "Apps/ble_hid_paper.inc",
+        "lib/Bluetooth/include/RiscBluetoothHidV1.h",
+        "Apps/ble_touchpad_gesture.h"
       ],
       "min_firmware_version": "0.1.34"
     },
     {
       "id": "ble_buttons",
       "display_name": "BLE Buttons",
-      "version": "0.1.2",
+      "version": "0.1.14",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_buttons.c",
@@ -301,7 +304,9 @@
       "additional_sources": [
         "Apps/ble_hid_app.inc",
         "Apps/ble_hid_model.h",
-        "lib/Bluetooth/include/RiscBluetoothHidV1.h"
+        "Apps/ble_hid_paper.inc",
+        "lib/Bluetooth/include/RiscBluetoothHidV1.h",
+        "Apps/ble_touchpad_gesture.h"
       ],
       "min_firmware_version": "0.1.34"
     }

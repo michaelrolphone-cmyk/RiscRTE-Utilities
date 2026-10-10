@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "profile": "nova7-paper-hid",
+  "system_apps_sha": "a7f08a9db7342a69ef5b9bc03e3b1ea60dafbb7c",
+  "home": "default.elf",
+  "local_back": "springboard.elf",
+  "logical_size": [480, 800],
+  "native_framebuffer": [800, 480],
+  "display_rotation": 90,
+  "common_grants": [
+    {"capability": "display.output", "api": 1, "instance_id": 3},
+    {"capability": "input.touch.raw", "api": 1, "instance_id": 4},
+    {"capability": "input.navigation", "api": 1, "instance_id": 6},
+    {"capability": "board.battery", "api": 1, "instance_id": 7},
+    {"capability": "rtc.clock", "api": 2, "instance_id": 8},
+    {"capability": "bluetooth.hid", "api": 1, "instance_id": 0},
+    {"capability": "storage.key-value", "api": 1, "instance_id": 1},
+    {"capability": "alarm.service", "api": 1, "binding": "visual alarm service"}
+  ],
+  "app_grants": {
+    "ble_touchpad": [],
+    "ble_buttons": [{"capability": "storage.key-value", "api": 1, "instance_id": 11}]
+  },
+  "binding_note": "Paper raw touch uses instance 0 to select the granted provider at physical instance 4. Watch retains its existing explicit raw-touch instance 6. HID is the existing generic Global0 provider; bond namespace 10 stays driver-private.",
+  "quick_actions": "Capability-gated shared controls, no app HCI or Wi-Fi grant. Missing radio/frontlight/sound capabilities remain unavailable. Opening drains HID, preserves unsaved assignments, and never automatically reconnects.",
+  "qualification": "Host fixtures and target ELF evidence only; no radio or hardware qualification. No provider, Runtime, product, merge or release changes."
+}

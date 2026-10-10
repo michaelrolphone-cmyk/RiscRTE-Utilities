@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 """Build the exact-pinned, read-only NOVA Battery power screens."""
-import argparse,hashlib,json,os,subprocess
+import argparse,hashlib,json,os,subprocess,sys
+import native_idle_build as idle
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 SYSTEM_PIN='4cf36b1c46641b00d88535eb9a0e9b0797928aff'
-p=argparse.ArgumentParser();p.add_argument('--system-apps',required=True,type=Path);a=p.parse_args();system=a.system_apps.resolve();name='battery'
+p=argparse.ArgumentParser();p.add_argument('--system-apps',required=True,type=Path);p.add_argument('--runtime',type=Path);p.add_argument('--output',type=Path);idle.options(p);a=p.parse_args();system=a.system_apps.resolve();name='battery'
+if idle.selected(a) or a.x4_idle_sdk or a.x4_idle_runtime_sdk:
+ if not a.runtime:p.error('Native Battery idle requires --runtime')
+ command=[sys.executable,str(ROOT/'scripts/build_native_broadcast.py'),'--app','battery','--system-apps',str(system),'--runtime',str(a.runtime)]
+ for key in ('output','x4_idle_source','x4_idle_sdk','x4_idle_runtime_sdk'):
+  value=getattr(a,key)
+  if value is not None:command+=['--'+key.replace('_','-'),str(value)]
+ subprocess.run(command,check=True);raise SystemExit(0)
 if subprocess.check_output(['git','-C',str(system),'rev-parse','HEAD'],text=True).strip()!=SYSTEM_PIN or subprocess.check_output(['git','-C',str(system),'status','--porcelain','--untracked-files=no'],text=True).strip():raise ValueError('Clean exact Nova System Apps source required')
 cc=os.environ.get('NATIVE_APP_CC') or str(Path.home()/'.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc')
 out=ROOT/'dist/battery-power'/name;out.mkdir(parents=True,exist_ok=True)

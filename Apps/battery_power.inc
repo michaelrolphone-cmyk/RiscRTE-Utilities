@@ -1,14 +1,17 @@
-/* NOVA power screens. The PMIC owns charging; this app never changes charger
- * policy or clears IRQs. Its opt-in BLE page controls only broadcast preference. */
+/* Read-only NOVA power screens. The PMIC owns charging; this app never changes
+ * policy, clears IRQs, writes preferences or keeps the display awake. */
 #include "T5AppApi.h"
 #include "PortableNovaUi.h"
 #include "PortablePowerStatus.h"
 #include "RiscRuntimeV1.h"
+#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+#include "PortableNativeCustody.h"
+#endif
 #include <stdio.h>
 #include <string.h>
 #ifdef PORTABLE_BLE_BROADCAST
 #include "PortableBroadcastClient.h"
-static bool power_broadcast, power_broadcast_error, power_broadcast_requested;
+static bool power_broadcast,power_broadcast_error,power_broadcast_requested;
 static telemetry_broadcast_status_v1 power_broadcast_state;
 #endif
 #ifdef PORTABLE_RETURN_APP
@@ -54,7 +57,12 @@ static const char *power_caption(void) {
     if (power_extended() && !power_flag(PORTABLE_POWER_BATTERY_PRESENT)) return "Presence not detected";
     if (power_flag(PORTABLE_POWER_THERMAL_LIMIT)) return "PMIC limiting charge";
     if (power_flag(PORTABLE_POWER_CHARGE_DONE)) return "Charger reports done";
-    if (power_sample.flags & RISC_BATTERY_CHARGING) return "PMIC reports charging";
+    if (power_sample.flags & RISC_BATTERY_CHARGING) {
+#if defined(PORTABLE_BLE_BROADCAST) && defined(PORTABLE_PAPER_UTILITIES)
+        if(!power_extended())return "Gauge reports charging";
+#endif
+        return "PMIC reports charging";
+    }
     if (power_flag(PORTABLE_POWER_INPUT_READY)) return "Not reporting charge";
     if (power_percent_known() && power_sample.percent <= 20) return "Connect USB to charge";
     return power_extended() ? "USB not available" : "Basic telemetry only";
@@ -191,11 +199,7 @@ static void power_overview(void) {
     portable_nova_center(2,24,139,192,power_title(),color);
     portable_nova_center(2,16,173,208,power_caption(),NOVA_CAP);
     portable_nova_button(12,192,104,44,"Details",false);
-#ifdef PORTABLE_BLE_BROADCAST
-    portable_nova_button(124,192,104,44,"BLE",false);
-#else
     portable_nova_button(124,192,104,44,power_read_ok?"Refresh":"Retry",false);
-#endif
     power_app->present(false);
 }
 static const char *power_yes_no(unsigned flag) {
@@ -250,12 +254,20 @@ static void power_broadcast_view(void) {
     power_app->present(false);
 }
 #endif
-static void power_render(void) {
-#ifdef PORTABLE_BLE_BROADCAST
-    if(power_broadcast){power_broadcast_view();return;}
+#ifdef PORTABLE_PAPER_UTILITIES
+#include "battery_paper.inc"
 #endif
-    if(power_details)power_detail_view();else power_overview();
-}
+static void power_render(void) {
+#if defined(PORTABLE_NATIVE_TIME_TOOLBAR) && defined(PORTABLE_BLE_BROADCAST)
+ if(portable_adapter_retained())return;
+#endif
+#ifdef PORTABLE_PAPER_UTILITIES
+ if(utility_paper){battery_paper_draw();return;}
+#endif
+#ifdef PORTABLE_BLE_BROADCAST
+ if(power_broadcast){power_broadcast_view();return;}
+#endif
+ if(power_details)power_detail_view();else power_overview(); }
 static bool power_refresh(void) {
     risc_battery_sample_v1 next={0,255,RISC_BATTERY_PROFILE_MISSING};
     bool ok=portable_power_read(&next);
@@ -286,17 +298,27 @@ void app_main(void) {
     power_app=t5_app_get_api(1);
     if(!power_app || !power_app->poll || !power_app->present || !power_app->millis ||
        !power_app->screen_width || !power_app->screen_height ||
-       power_app->screen_width()!=240 || power_app->screen_height()!=240)return;
+       power_app->screen_width()<160 || power_app->screen_height()<240)return;
+#ifdef PORTABLE_PAPER_UTILITIES
+    up_open(power_app);
+    if(!utility_paper && (power_app->screen_width()!=240 || power_app->screen_height()!=240))return;
+#else
+    if(power_app->screen_width()!=240 || power_app->screen_height()!=240)return;
+#endif
     power_sample=(risc_battery_sample_v1){0,255,RISC_BATTERY_PROFILE_MISSING};
     power_read_ok=power_details=power_navigation_failed=false;power_detail_page=0;
-#ifdef PORTABLE_BLE_BROADCAST
-    power_broadcast=power_broadcast_error=false;memset(&power_broadcast_state,0,sizeof(power_broadcast_state));
+    #ifdef PORTABLE_BLE_BROADCAST
+    power_broadcast=power_broadcast_error=power_broadcast_requested=false;
+    memset(&power_broadcast_state,0,sizeof(power_broadcast_state));
 #endif
     (void)power_refresh();power_render();
     for (;;) {
         t5_app_input_t input={0};if(!power_app->poll(&input,50))return;
         /* A queued quick-action launch is terminal, not an in-app Back. */
         if(input.exit_requested && !(input.buttons&T5_APP_BUTTON_BACK))return;
+        #ifdef PORTABLE_PAPER_UTILITIES
+        if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,200,88))input.buttons|=T5_APP_BUTTON_BACK;}
+#endif
         if(input.buttons&T5_APP_BUTTON_BACK) {if(power_back())return;continue;}
         bool render=false;
         if((uint32_t)(power_app->millis()-power_sample_at)>=1000)render=power_refresh();
@@ -304,18 +326,28 @@ void app_main(void) {
         if(power_details && (input.buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))) {power_detail_page=(power_detail_page+1)%4;render=true;}
         bool refresh=(input.buttons&T5_APP_BUTTON_CONFIRM)!=0;
 #ifdef PORTABLE_BLE_BROADCAST
-        if(power_broadcast && (refresh || (input.tapped && portable_nova_hit(input.touch_x,input.touch_y,36,192,168,44)))) {
+        if(power_broadcast && (refresh || (input.tapped &&
+#ifdef PORTABLE_PAPER_UTILITIES
+          (utility_paper ? up_hit(input.touch_x,input.touch_y,32,584,416,88) :
+#endif
+          portable_nova_hit(input.touch_x,input.touch_y,36,192,168,44)
+#ifdef PORTABLE_PAPER_UTILITIES
+          )
+#endif
+          ))) {
             if(!power_broadcast_error)power_broadcast_requested=!power_broadcast_state.enabled;
             power_broadcast_error=!portable_broadcast_enable(power_broadcast_requested);
+#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+            if(portable_adapter_retained())return;
+#endif
             (void)power_refresh();power_render();continue;
         }
 #endif
         if(input.tapped) {
-            if(portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44)) {if(power_back())return;continue;}
-#ifdef PORTABLE_BLE_BROADCAST
-            if(power_broadcast)continue;
-            if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,124,192,104,44)) {power_broadcast=true;power_render();continue;}
+#ifdef PORTABLE_PAPER_UTILITIES
+            if(utility_paper){battery_paper_tap(input.touch_x,input.touch_y,&refresh);render=true;}else
 #endif
+            if(portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44)) {if(power_back())return;continue;}
             if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,12,192,104,44)) {power_details=true;power_detail_page=0;render=true;}
             else if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,124,192,104,44)) refresh=true;
             else if(power_details && portable_nova_hit(input.touch_x,input.touch_y,12,192,52,44)) {power_detail_page=(power_detail_page+3)%4;render=true;}

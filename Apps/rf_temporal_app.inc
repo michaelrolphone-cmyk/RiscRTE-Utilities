@@ -1,12 +1,12 @@
+#ifdef PORTABLE_BLE_BROADCAST
+#include "PortableBroadcastAppData.h"
+static portable_broadcast_app_data event_broadcast_data;
+#endif
 /* Temporal examples are an independent app-data collection. Legacy KV room
  * and single-frame profiles remain intact; missing/new files never replace them. */
 static uint32_t event_neural_crc[2];
 static bool event_neural_checkpoint,event_neural_cache_blocked,event_neural_used;
 static risc_runtime_capability_v1 event_data_grant;
-#ifdef PORTABLE_BLE_BROADCAST
-#include "PortableBroadcastAppData.h"
-static portable_broadcast_app_data event_broadcast_data;
-#endif
 static bool event_data_acquired,event_initialized,event_armed,event_wait_quiet,event_known_hold,event_previous_active;
 static uint64_t event_pair_power[128];
 static uint32_t event_previous_power[128];
@@ -75,11 +75,10 @@ static bool event_acquire(void){
  event_data_acquired=true;
  const risc_app_data_v1 *api=event_data_grant.api;if(!api||api->api_version!=1||api->struct_size<sizeof(*api)||!api->stat||!api->read||!api->replace)return false;
 #ifdef PORTABLE_BLE_BROADCAST
- event_files.api=portable_broadcast_data_bind(&event_broadcast_data,api,runtime);
+ event_files.api=portable_broadcast_data_bind(&event_broadcast_data,api,runtime);return event_files.api!=NULL;
 #else
- event_files.api=api;
+ event_files.api=api;return true;
 #endif
- return event_files.api!=NULL;
 }
 static void event_load(void){
  if(event_files.retained)return;

@@ -189,22 +189,23 @@ static void receiver_tap(int,int);
 #include "rf_temporal_app.inc"
 
 static bool rf_services_safe(void){return !rf_bulk||(!uncertain&&!temporal_retained());}
-static void rf_radio_suspended(void){if(!rf_bulk)return;running=owned=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;}
+static void rf_radio_suspended(void){
+ if(!rf_bulk)return;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ /* A typed idle/low-battery suspension consumes foreground capture intent.
+  * Background radio restoration must never restart capture on wake. */
+ capture_requested=false;
+#endif
+ running=owned=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;
+}
 bool portable_rf_services_safe(void){return rf_services_safe();}
 bool portable_rf_capture_active(void){return capture_requested&&running&&owned&&!uncertain;}
-#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
-bool portable_radio_capture_active(void){return portable_rf_capture_active();}
-#endif
 bool portable_rf_suspend(void){
  bool was_running=running;running=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;contact_down=contact_plot=false;
  if(!portable_radio_suspend()){uncertain=true;return false;}uncertain=owned=false;if(was_running)message="STOPPED / RF OFF";return true;
 }
 
-static void retain(void){
-#ifdef PORTABLE_BLE_BROADCAST
- while(!portable_broadcast_stop())runtime->yield_ms(50);
-#endif
-waterfall_log("SDR cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
+static void retain(void){waterfall_log("SDR cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
 
 static void pause_capture(void){if(!portable_rf_suspend()){waterfall_drain();uncertain=false;owned=false;}}
 

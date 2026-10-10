@@ -1,0 +1,37 @@
+name: Nova7 paper utilities
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: a7f08a9db7342a69ef5b9bc03e3b1ea60dafbb7c
+          path: .dependencies/paper-system
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Production Watch and paper scenarios with sanitizers
+        run: python3 scripts/test_paper_utilities.py --system-apps .dependencies/paper-system
+      - name: Install pinned target compiler
+        run: |
+          pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Target structural validation and licenses
+        run: |
+          for app in calculator stopwatch countdown battery alarms; do
+            python3 scripts/build_paper_utilities.py --system-apps .dependencies/paper-system --app "$app"
+          done
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: a768245998ba334ef54da92f6573ae01b2320a4e
+          path: .dependencies/runtime
+      - name: Canonical manifest admission through production Runtime
+        run: python3 scripts/test_paper_manifests.py --runtime .dependencies/runtime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper-utilities-${{ github.sha }}
+          path: dist/paper-utilities

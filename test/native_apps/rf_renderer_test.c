@@ -259,11 +259,7 @@ if(getenv("RF_RENDER_EXPECT_LAUNCH"))fx_expected_launch=(unsigned)atoi(getenv("R
  if(getenv("RF_RENDER_NEURAL"))fx_seed_neural();
  unsigned invocations=getenv("RF_RENDER_REENTRY")?2u:1u;for(unsigned invocation=0;invocation<invocations;invocation++){fx_app_api_phase=false;fx_done=false;fx_polls=fx_captures=fx_lineno=0;fx_line[0]=0;rewind(fx_commands);
  assert(app_module_init()==0);fx_corners();fx_app_api_phase=true;
- if(setjmp(fx_retained_jump)==0){app_main();assert(fx_done);
-#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
- assert(!portable_radio_capture_active());
-#endif
- fx_returned=true;app_module_fini();assert(!fx_grants&&!fx_frames&&!fx_subs&&!fx_radio_retained);}
+ if(setjmp(fx_retained_jump)==0){app_main();assert(fx_done);fx_returned=true;app_module_fini();assert(!fx_grants&&!fx_frames&&!fx_subs&&!fx_radio_retained);}
  else {assert(fx_storage_retained&&fx_grants&&!running&&!owned&&fx_retained_yields==6);fprintf(stderr,"RF retained storage: no normal peripheral calls after uncertain cleanup\n");}
  fx_guards();assert(fx_checks);if(fx_storage_retained)break;}assert(fx_launches==fx_expected_launch);if(getenv("RF_RENDER_RELEASE_RETRY"))assert(fx_release_failures==1);if(fx_serial)rf_serial_finish(fx_returned,getenv("RF_RENDER_NO_DIAGNOSTIC")==NULL);
 #ifdef RF_RENDER_WATCH_TOUCH

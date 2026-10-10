@@ -1,0 +1,13 @@
+Points default schedule, PTM1/PTM2 metadata, cue flags, bounded projection, weekdays, midnight, revisions and DST fixtures passed
+Points default schedule, PTM1/PTM2 metadata, cue flags, bounded projection, weekdays, midnight, revisions and DST fixtures passed
+Points default schedule, PTM1/PTM2 metadata, cue flags, bounded projection, weekdays, midnight, revisions and DST fixtures passed
+Points default schedule, PTM1/PTM2 metadata, cue flags, bounded projection, weekdays, midnight, revisions and DST fixtures passed
+Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+Visual-only real service: descriptor, delivery, persistence, replay, foreground failure, DND and sleep passed
+Visual-only real service: descriptor, delivery, persistence, replay, foreground failure, DND and sleep passed
+Visual-only real service: descriptor, delivery, persistence, replay, foreground failure, DND and sleep passed
+Visual-only real service: descriptor, delivery, persistence, replay, foreground failure, DND and sleep passed
+Points normal/ASan/UBSan fixtures passed for raw and UTC+08/Denver policies

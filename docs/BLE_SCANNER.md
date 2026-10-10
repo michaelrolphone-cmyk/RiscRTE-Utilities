@@ -1,6 +1,6 @@
-# BLE Scanner 0.2.0
+# BLE Scanner 0.2.1
 
-The existing scanner now consumes the generic `bluetooth.sensors@1` provider.
+The scanner consumes the generic `bluetooth.sensors@1` provider.
 Its explicit Scan/Stop, scrolling results/details and existing Nova/quick-control
 surface remain. Scanning starts only after Bluetooth is enabled in the current
 radio preferences; Airplane mode and unreadable settings fail closed.
@@ -77,3 +77,6 @@ Keep standard Nova/alarm/navigation/sleep/quick-control flags plus
 Physical discovery, timing, current, actual sensor compatibility, alert/sleep
 interruption and real storage survival remain unqualified. This is a software
 increment, not a hardware pass, firmware release, merge or installation.
+
+For the capability-selected X4 paper presentation, build profile, provider/grant
+composition and reconciliation evidence, see [BLE_EPAPER.md](BLE_EPAPER.md).

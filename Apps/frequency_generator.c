@@ -34,10 +34,6 @@ bool portable_audio_suspend(void) {
     owned=false;message="Stopped - tap Start";return true;
 }
 static void retain(void) {
-#ifdef PORTABLE_BLE_BROADCAST
- while(!portable_broadcast_stop())runtime->yield_ms(50);
-#endif
-
     runtime->diagnostic("AUDIO cleanup-unconfirmed; invocation retained");
     for(;;)runtime->yield_ms(50);
 }

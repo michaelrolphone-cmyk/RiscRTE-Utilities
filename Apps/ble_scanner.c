@@ -8,6 +8,11 @@
 #include "PortableNovaUi.h"
 #include "PortableAppSleep.h"
 #include "ble_scan_model.h"
+#include "PaperPresentation.h"
+#include "PortableBluetoothControl.h"
+__attribute__((weak)) const paper_presentation *paper_presentation_get(void){return NULL;}
+static const paper_presentation *paper;
+static bool paper_enable_needed;
 #include <stdio.h>
 #ifndef PORTABLE_APP_OWNS_TOUCH_CHROME
 #error "BLE Scanner requires application-owned touch chrome"
@@ -32,6 +37,7 @@ static bool naming,name_save_failed;
 static char aliases[BLE_MAX_DEVICES][BLE_ALIAS_MAX+1],editing[BLE_ALIAS_MAX+1];
 static int8_t alias_state[BLE_MAX_DEVICES]; /* 0 unloaded, 1 valid, -1 failed */
 static unsigned indexes(unsigned out[BLE_MAX_DEVICES]);
+static unsigned visible_rows(void){return paper?(unsigned)(app->screen_height()-256)/88u:3u;}
 static void load_alias(unsigned i){
  risc_runtime_capability_v1 g={.struct_size=sizeof(g)};
  if(!runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g)){alias_state[i]=-1;return;}
@@ -57,7 +63,8 @@ static bool policy_allowed(void){
  if(!runtime->release(&g)){uncertain=true;retain();}
  if(!ok){message="Radio settings unreadable";return false;}
  if(flags&PORTABLE_RADIO_AIRPLANE){message="Turn off Airplane mode";return false;}
- if(!(flags&PORTABLE_RADIO_BLUETOOTH)){message="Enable Bluetooth in controls";return false;}
+ if(!(flags&PORTABLE_RADIO_BLUETOOTH)){paper_enable_needed=paper!=NULL;message=paper?"Tap Enable Bluetooth":"Enable Bluetooth in controls";return false;}
+ paper_enable_needed=false;
  return true;
 }
 static void start_scan(void){
@@ -96,7 +103,7 @@ static void pump(void){
  }
  unsigned after[BLE_MAX_DEVICES],count=indexes(after);for(unsigned i=0;i<count;i++)if(after[i]==old_index){selected=i;break;}
  if(selected<scroll)scroll=selected;
- if(selected>=scroll+3)scroll=selected-2;
+ if(selected>=scroll+visible_rows())scroll=selected-visible_rows()+1;
  if(scan.phase==BLE_ERROR||scan.phase==BLE_COMPLETE){
   const char*result=scan.phase==BLE_ERROR?scan.error:scan.dropped?"32 saved - result list full":"Scan complete";
   stop();if(!restore_failed)message=result;
@@ -123,7 +130,7 @@ static void save_name(void){
  if(!ok){message="Name save unconfirmed";name_save_failed=true;dirty=true;return;}
  memcpy(aliases[detail_index],editing,sizeof(editing));alias_state[detail_index]=1;naming=false;message=editing[0]?"Sensor name saved":"Sensor name cleared";
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);for(unsigned i=0;i<n;i++)if(list[i]==detail_index){selected=i;break;}
- scroll=selected>2?selected-2:0;dirty=true;
+ scroll=selected>=visible_rows()?selected-visible_rows()+1:0;dirty=true;
 }
 static void name_key(unsigned key){
  if(key>=PWK_COUNT)return;
@@ -140,7 +147,8 @@ static void move(int delta){
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);if(!n)return;
  int next=(int)selected+delta;selected=(unsigned)(next<0?0:next>=(int)n?(int)n-1:next);
  if(selected<scroll)scroll=selected;
- if(selected>=scroll+3)scroll=selected-2;
+ unsigned rows=visible_rows();
+ if(selected>=scroll+rows)scroll=selected-rows+1;
  dirty=true;
 }
 static bool drag(void){
@@ -162,7 +170,40 @@ static void scrollbar(unsigned first,unsigned visible_rows,unsigned total,int y,
  int top=(height-size)*(int)first/(int)(total-visible_rows);
  portable_nova_fill(236,y,2,height,NOVA_LINE);portable_nova_fill(236,y+top,2,size,NOVA_CYAN);
 }
+static unsigned detail_lines(void (*emit)(unsigned,const char*)){
+ char text[96];
+  ble_device*d=&scan.devices[detail_index];unsigned row=0;
+  emit(row++,aliases[detail_index][0]?aliases[detail_index]:d->name[0]?d->name:"Unnamed device");
+  if(alias_state[detail_index]<0)emit(row++,"Saved name unavailable");
+  address(d,text);emit(row++,text);
+  snprintf(text,sizeof(text),"%s address",(d->address_type&1)?"Random":"Public");emit(row++,text);
+  if(d->rssi==127)snprintf(text,sizeof(text),"Signal unavailable");else snprintf(text,sizeof(text),"Signal %d dBm",d->rssi);emit(row++,text);
+  snprintf(text,sizeof(text),"Seen %lu s ago / %lu reports",(unsigned long)(age_seconds(d->seen_age_ms)),(unsigned long)d->reports);emit(row++,text);
+  for(unsigned i=0;i<d->service_count;i++){snprintf(text,sizeof(text),"Service 0x%04X",d->services[i]);emit(row++,text);}
+  if(d->has_company){snprintf(text,sizeof(text),"Manufacturer 0x%04X",d->company);emit(row++,text);}
+  if(d->bthome){snprintf(text,sizeof(text),"Sensor sample %lu s ago",(unsigned long)(age_seconds(d->measurement_age_ms)));emit(row++,text);}
+  if(d->bthome)emit(row++,d->bthome_version!=2?"BTHome version unsupported":d->encrypted?"BTHome: encrypted":d->measurement_invalid?"Invalid sensor sample":"BTHome v2 open readings");
+  if(d->measurement_partial)emit(row++,"Some readings unsupported");
+  for(unsigned i=0;i<d->reading_count;i++){
+   risc_ble_reading_v1*r=&d->readings[i];
+   if(r->metric==RISC_TELEMETRY_BATTERY_PERCENT)snprintf(text,sizeof(text),"Battery %ld %%",(long)r->value);
+   else if(r->metric==RISC_TELEMETRY_TEMPERATURE_CENTIC){int v=r->value;snprintf(text,sizeof(text),"Temperature %s%d.%02d C",v<0?"-":"",v<0?-v/100:v/100,v<0?-v%100:v%100);}
+   else if(r->metric==RISC_TELEMETRY_HUMIDITY_CENTIPERCENT)snprintf(text,sizeof(text),"Humidity %ld.%02ld %%",(long)(r->value/100),(long)(r->value%100));
+   else if(r->metric==RISC_TELEMETRY_PRESSURE_CENTIHPA)snprintf(text,sizeof(text),"Pressure %ld.%02ld hPa",(long)(r->value/100),(long)(r->value%100));
+   else if(r->metric==RISC_TELEMETRY_ILLUMINANCE_CENTILUX)snprintf(text,sizeof(text),"Light %ld.%02ld lx",(long)(r->value/100),(long)(r->value%100));
+   else if(r->metric==RISC_TELEMETRY_VOLTAGE_MV)snprintf(text,sizeof(text),"Voltage %ld mV",(long)r->value);
+   else if(r->metric==RISC_TELEMETRY_CHARGING)snprintf(text,sizeof(text),"Charging: %s",r->value?"Yes":"No");else continue;
+   emit(row++,text);
+  }
+  emit(row++,"Readings are unverified broadcasts");
+  if(d->address_type&1)emit(row++,"Name follows this address only");
+  emit(row++,"Raw advertising bytes:");
+  for(unsigned i=0;i<d->payload_size;i+=8){unsigned at=0;for(unsigned j=i;j<d->payload_size&&j<i+8;j++)at+=(unsigned)snprintf(text+at,sizeof(text)-at,"%02X ",d->payload[j]);emit(row++,text);}
+ return row;
+}
+static void paper_draw(void);
 static void draw(void){
+ if(paper){paper_draw();return;}
  portable_nova_begin();portable_nova_header(naming?"SENSOR NAME":detail?"SENSOR DETAILS":"BLE SCANNER");
  if(naming){
   portable_nova_text(1,12,49,216,editing[0]?editing:"Type a name",NOVA_CYAN);
@@ -178,33 +219,7 @@ static void draw(void){
  }
  char text[80];unsigned list[BLE_MAX_DEVICES],n=indexes(list);
  if(detail&&detail_index<scan.count){
-  ble_device*d=&scan.devices[detail_index];unsigned row=0;
-  line(row++,aliases[detail_index][0]?aliases[detail_index]:d->name[0]?d->name:"Unnamed device");
-  if(alias_state[detail_index]<0)line(row++,"Saved name unavailable");
-  address(d,text);line(row++,text);
-  snprintf(text,sizeof(text),"%s address",(d->address_type&1)?"Random":"Public");line(row++,text);
-  if(d->rssi==127)snprintf(text,sizeof(text),"Signal unavailable");else snprintf(text,sizeof(text),"Signal %d dBm",d->rssi);line(row++,text);
-  snprintf(text,sizeof(text),"Seen %lu s ago / %lu reports",(unsigned long)(age_seconds(d->seen_age_ms)),(unsigned long)d->reports);line(row++,text);
-  for(unsigned i=0;i<d->service_count;i++){snprintf(text,sizeof(text),"Service 0x%04X",d->services[i]);line(row++,text);}
-  if(d->has_company){snprintf(text,sizeof(text),"Manufacturer 0x%04X",d->company);line(row++,text);}
-  if(d->bthome){snprintf(text,sizeof(text),"Sensor sample %lu s ago",(unsigned long)(age_seconds(d->measurement_age_ms)));line(row++,text);}
-  if(d->bthome)line(row++,d->bthome_version!=2?"BTHome version unsupported":d->encrypted?"BTHome: encrypted":d->measurement_invalid?"Invalid sensor sample":"BTHome v2 open readings");
-  if(d->measurement_partial)line(row++,"Some readings unsupported");
-  for(unsigned i=0;i<d->reading_count;i++){
-   risc_ble_reading_v1*r=&d->readings[i];
-   if(r->metric==RISC_TELEMETRY_BATTERY_PERCENT)snprintf(text,sizeof(text),"Battery %ld %%",(long)r->value);
-   else if(r->metric==RISC_TELEMETRY_TEMPERATURE_CENTIC){int v=r->value;snprintf(text,sizeof(text),"Temperature %s%d.%02d C",v<0?"-":"",v<0?-v/100:v/100,v<0?-v%100:v%100);}
-   else if(r->metric==RISC_TELEMETRY_HUMIDITY_CENTIPERCENT)snprintf(text,sizeof(text),"Humidity %ld.%02ld %%",(long)(r->value/100),(long)(r->value%100));
-   else if(r->metric==RISC_TELEMETRY_PRESSURE_CENTIHPA)snprintf(text,sizeof(text),"Pressure %ld.%02ld hPa",(long)(r->value/100),(long)(r->value%100));
-   else if(r->metric==RISC_TELEMETRY_ILLUMINANCE_CENTILUX)snprintf(text,sizeof(text),"Light %ld.%02ld lx",(long)(r->value/100),(long)(r->value%100));
-   else if(r->metric==RISC_TELEMETRY_VOLTAGE_MV)snprintf(text,sizeof(text),"Voltage %ld mV",(long)r->value);
-   else if(r->metric==RISC_TELEMETRY_CHARGING)snprintf(text,sizeof(text),"Charging: %s",r->value?"Yes":"No");else continue;
-   line(row++,text);
-  }
-  line(row++,"Readings are unverified broadcasts");
-  if(d->address_type&1)line(row++,"Name follows this address only");
-  line(row++,"Raw advertising bytes:");
-  for(unsigned i=0;i<d->payload_size;i+=8){unsigned at=0;for(unsigned j=i;j<d->payload_size&&j<i+8;j++)at+=(unsigned)snprintf(text+at,sizeof(text)-at,"%02X ",d->payload[j]);line(row++,text);}
+  unsigned row=detail_lines(line);
   if(detail_scroll && detail_scroll+6>row){detail_scroll=row>6?row-6:0;dirty=true;}else dirty=false;
   scrollbar(detail_scroll,6,row,61,126);
   portable_nova_button(8,196,108,44,"Results",false);portable_nova_button(124,196,108,44,"Name",false);
@@ -224,16 +239,25 @@ static void draw(void){
  }
  app->present(false);
 }
+#include "ble_scanner_paper.inc"
 void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
- if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!app->touch_contact||app->screen_width()!=240||app->screen_height()!=240||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
+ if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!app->touch_contact||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
+ paper=paper_presentation_get();
+ if((!paper&&(app->screen_width()!=240||app->screen_height()!=240))||(paper&&(!app->fill_rect||!app->draw_icon)))return;
+ paper_enable_needed=false;bp_down=false;
+#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+ bp_release_seen=false;
+#endif
  scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=restore_failed=naming=false;selected=scroll=detail_scroll=detail_index=0;memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));dirty=true;message="Tap Scan to discover";
  contact_down=contact_list=contact_moved=false;contact_y=0;
  app->set_back_exits_app(false);uint32_t rendered=0;
  for(;;){
-  if((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250)){draw();rendered=app->millis();}
+  if(paper?(dirty&&scan.phase!=BLE_STARTING&&(!active()||(uint32_t)(app->millis()-rendered)>=3000)):
+     ((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250))){draw();rendered=app->millis();}
   t5_app_input_t input={0};if(!app->poll(&input,20)){if(portable_app_sleep_retained())return;break;}
   if(input.exit_requested)break;
+  if(paper){if(!paper_input(&input))break;pump();continue;}
   if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44))){if(!navigate_back())break;continue;}
   if(naming){
    if(input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))key_choice=key_choice?key_choice-1:PWK_COUNT-1;

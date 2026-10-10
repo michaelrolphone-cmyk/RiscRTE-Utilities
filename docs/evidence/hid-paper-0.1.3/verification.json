@@ -1,0 +1,12 @@
+{
+  "source_commit": "59f5f6862fdf088ddd27cf7df816d8417dd8b3d3",
+  "normal_ubsan_adapter_scenarios": {
+    "paper": 94,
+    "watch": 92
+  },
+  "python_tests": 69,
+  "runtime_prepare": "accepts both actual manifests in both profiles; rejects unknown field and missing grant",
+  "asan": "macOS pairing probe timed out before fixture diagnostics; not claimed passed",
+  "hardware_radio_merge_release_actions": false,
+  "reference_pixels_sha256": "f1f7e6783a61053c39db416bc11da4560413b65ac8a29b53f8d220ac7f3affbf"
+}

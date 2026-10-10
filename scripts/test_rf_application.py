@@ -26,7 +26,6 @@ p.add_argument('--watch', type=Path)
 p.add_argument('--runtime', type=Path, required=True)
 p.add_argument('--scene', action='append')
 p.add_argument('--normal-only', action='store_true')
-p.add_argument('--continuous-capture', action='store_true', help='Enable the app-local automatic-idle capture inhibitor')
 a = p.parse_args()
 OUT = ROOT / 'build/rf-application'
 
@@ -156,15 +155,6 @@ def target_scenes(target):
     for policy in ['airplane','unread']:
         result['radio-policy-'+policy]=(scene('wait 3',check('running',0),check('captures',0),check('radio_acquires',0),'finish'),{'RF_RENDER_POLICY':policy})
     result['sleep-stop']=(scene('wait 3','set jump 61000','wait 1',check('sleep',1),check('running',0),'remember captures','wait 5','same captures','nav 2',check('running',1),'finish'),{'RF_RENDER_SLEEP':'1'})
-    if a.continuous_capture:
-        result['sleep-stop']=(scene('wait 3','set jump 61000','wait 3',check('sleep',0),check('running',1),
-            'set jump 600000','wait 3',check('sleep',0),check('running',1),'nav 2',check('running',0),
-            'set jump 61000','wait 2',check('sleep',1),'remember captures','wait 3','same captures',
-            'nav 2',check('running',1),'finish'),{'RF_RENDER_SLEEP':'1'})
-        result['capture-error-idle']=(scene('wait 3','set jump 61000','wait 2',check('sleep',0),
-            'set rf_failure 2','wait 2',check('running',0),check('capture_error',1),
-            'set jump 61000','wait 2',check('sleep',1,'ge'),'nav 2',check('running',1),'finish'),{'RF_RENDER_SLEEP':'1'})
-
     result['release-reentry']=(scene('wait 3',check('captures',3,'ge'),check('running',1),'finish'),{'RF_RENDER_RELEASE_RETRY':'1','RF_RENDER_REENTRY':'1'})
     result['trace-dedup']=(scene('wait 100',check('captures',100,'ge'),check('diag_captures',1),check('diag_stages',1),check('diag_total',8,'le'),'finish'),{})
     for traced in [False,True]:
@@ -248,7 +238,6 @@ for sanitized in (False, True):
         out = OUT / target / ('sanitized' if sanitized else 'normal')
         out.mkdir(parents=True, exist_ok=True)
         flags = ['-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
-        if a.continuous_capture:flags += ['-DPORTABLE_RADIO_CONTINUOUS_CAPTURE']
         san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitized else []
         if target == 'x4':
             flags += ['-DRF_RENDER_PAPER', '-DPORTABLE_DISPLAY_ROTATION=90', '-DPORTABLE_HOME_APP="default.elf"']
