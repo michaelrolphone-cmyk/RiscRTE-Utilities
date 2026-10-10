@@ -33,6 +33,12 @@ validator=out/'validate-elf';subprocess.run(['cc','-std=c11','-I'+str(U/'test/na
 base=['PORTABLE_NOVA_UI','PORTABLE_ALARM_CLIENT','ALARM_SERVICE_TAGGED_V2','PORTABLE_NATIVE_CUSTODY_FENCE','PORTABLE_NATIVE_TIME_TOOLBAR','PORTABLE_INPUT_NAVIGATION','PORTABLE_APP_OWNS_TOUCH_CHROME','PORTABLE_APP_LAUNCH_GUARD','PORTABLE_PAPER_PREFERENCES','PORTABLE_CONTEXTS_CLIENT','PORTABLE_UNPADDED_HOURS','PORTABLE_BLE_BROADCAST','PORTABLE_BLE_BROADCAST_DEFAULT_OFF']
 records={};(out/'debug').mkdir(exist_ok=True)
 for name in ('contexts','waterfall'):
+ if name=='contexts':
+  from build_contexts_scene import run as build_scene
+  selected=out/'scene-catalog.json';selected.write_text(json.dumps({'apps':rows}))
+  package=out/'contexts-scene';build_scene(a.runtime.resolve(),S,package,selected,'x4')
+  for suffix in ('.elf','.json'):shutil.copyfile(package/'contexts'/('contexts'+suffix),out/('contexts'+suffix))
+  records[name]=json.loads((package/'contexts/build.json').read_text());(out/'build.json').write_text(json.dumps(records,indent=2)+'\n');continue
  flags=['-D'+s for s in base]+common+['-DPORTABLE_CONTEXTS_SOURCE_MASK=CONTEXTS_RADIO']+['-DPORTABLE_DISPLAY_ROTATION=90','-DPORTABLE_HOME_APP="default.elf"']
  if name=='contexts':flags+=['-DPORTABLE_CONTEXTS_PAPER','-DPORTABLE_CONTEXTS_EDITOR','-DPORTABLE_APP_TOUCH_SCROLL','-DPORTABLE_TOUCH_SCROLL']
  else:flags+=['-DPORTABLE_RADIO_SESSION','-DPORTABLE_RADIO_CONTINUOUS_CAPTURE','-DPORTABLE_BLE_FOREGROUND','-DPORTABLE_FORCE_FULL_FRAMES','-DRF_STORAGE_INSTANCE=8','-DRF_APP_DATA_INSTANCE=3','-DRF_RETURN_APP="springboard.elf"']

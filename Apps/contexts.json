@@ -1,6 +1,6 @@
 {
-  "min_firmware_version": "0.1.55",
-  "version": "0.3.2",
+  "min_firmware_version": "0.1.83",
+  "version": "0.4.0",
   "display_name": "Contexts",
   "file_name": "contexts.elf",
   "icon": "solid:f015",
@@ -10,11 +10,11 @@
   "runtime_profile": "portable-riscrte-v1",
   "requires": [
     {
-      "capability": "display.output",
+      "capability": "ui.scene",
       "api": ">=1"
     },
     {
-      "capability": "input.touch.raw",
+      "capability": "contexts.service",
       "api": ">=1"
     },
     {
@@ -22,11 +22,15 @@
       "api": ">=1"
     },
     {
-      "capability": "alarm.service",
+      "capability": "storage.shared-data",
       "api": ">=1"
     },
     {
-      "capability": "contexts.service",
+      "capability": "time.civil",
+      "api": ">=1"
+    },
+    {
+      "capability": "alarm.service",
       "api": ">=1"
     }
   ]

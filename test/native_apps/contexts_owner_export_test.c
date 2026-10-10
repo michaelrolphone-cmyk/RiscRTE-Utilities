@@ -99,6 +99,9 @@ int main(void) {
     pending=CONTEXTS_RADIO;assert(begin(NULL,CONTEXTS_RADIO));assert(contexts_owner_export(&runtime,CONTEXTS_RADIO,13)==CONTEXTS_OWNER_EXPORTED);assert(!active&&!pending&&records==9);
     static struct {risc_runtime_api_v1 base;bool (*confirm)(void);bool (*retain)(void);} extended;
     extended.base=runtime;extended.base.struct_size=sizeof(extended);extended.retain=fence;data_mode=true;
+#ifdef RISC_RUNTIME_RETAIN_INVOCATION_V1_SIZE
+    extended.base.retain_invocation=fence;
+#endif
     static st_library audio_library;static rt_library radio_library;
     radio_library.identity=rf_identity_default();
     for(unsigned which=0;which<2;which++){

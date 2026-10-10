@@ -320,16 +320,18 @@
     {
       "id": "contexts",
       "display_name": "Contexts",
-      "version": "0.3.2",
+      "version": "0.4.0",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/contexts.c",
       "manifest_path": "Apps/contexts.json",
       "file_name": "contexts.elf",
       "additional_sources": [
+        "Apps/contexts_controller.inc",
+        "Apps/contexts_scene_view.inc",
         "lib/Contexts/include/ContextsServiceV1.h"
       ],
-      "min_firmware_version": "0.1.55"
+      "min_firmware_version": "0.1.83"
     }
   ]
 }

@@ -5,7 +5,7 @@ Rebuild the full Watch app cohort with the shared temporal adapter. Preserve the
 accepted HID foreground pair (which deliberately suspends Contexts while using
 Bluetooth). Hardware drivers other than IQ are retained during packaging.
 """
-import argparse,hashlib,json,os,subprocess,sys
+import argparse,hashlib,json,os,shutil,subprocess,sys
 from pathlib import Path
 from normalize_xtensa_relocations import normalize
 U=Path(__file__).resolve().parents[1]
@@ -49,6 +49,12 @@ def build(name,sources,flags,includes,exports):
  (out/'build.json').write_text(json.dumps(records,indent=2)+'\n');print(name+': target, ABI and loader PASS',flush=True)
 for name in APPS:
  if name in (*CLOCK_APPS,'ble_touchpad','ble_buttons'):continue
+ if name=='contexts':
+  from build_contexts_scene import run as build_scene
+  selected=out/'scene-catalog.json';selected.write_text(json.dumps({'apps':rows}))
+  package=out/'contexts-scene';build_scene(a.runtime.resolve(),S,package,selected,'watch',W/'apps/clock/faces/ContextsFaces.h')
+  for suffix in ('.elf','.json'):shutil.copyfile(package/'contexts'/('contexts'+suffix),out/('contexts'+suffix))
+  records[name]=json.loads((package/'contexts/build.json').read_text());(out/'build.json').write_text(json.dumps(records,indent=2)+'\n');continue
  old=json.loads((a.baseline/(name+'.json')).read_text());v=list(map(int,old['version'].split('.')));v[-1]+=1;version='.'.join(map(str,v))
  if name=='contexts':version='0.3.1'
  if name=='waterfall':version='0.3.1'

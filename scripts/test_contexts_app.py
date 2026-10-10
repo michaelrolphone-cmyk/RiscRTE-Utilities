@@ -1,29 +1,11 @@
 #!/usr/bin/env python3
-"""Actual Contexts controller and shared NOVA raster, with bounded fake inputs."""
+"""Run Contexts through its shipping app_main and the shared renderer on both profiles."""
 import argparse
-import os
 from pathlib import Path
-import subprocess
-from check_contexts_contract import editor_sdk
-ROOT = Path(__file__).resolve().parents[1]
-p = argparse.ArgumentParser()
-p.add_argument('--system-apps', required=True, type=Path)
-a = p.parse_args()
-system = a.system_apps.resolve()
-out = ROOT / 'build/contexts-app'
-out.mkdir(parents=True, exist_ok=True)
-with editor_sdk(system) as selected_sdk:
- for sanitize in (False, True):
-    target = out / ('contexts-san' if sanitize else 'contexts')
-    flags = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitize else []
-    includes = [ROOT / 'Apps', ROOT / 'lib/Contexts/include', selected_sdk, system / 'lib/NativeApps/include']
-    subprocess.run([os.environ.get('CC', 'cc'), '-std=c11', '-O1', '-g', '-Wall', '-Wextra', '-Werror', *flags,
-                    *['-I' + str(i) for i in includes], '-DCONTEXTS_NOVA_UI="' + str(system / 'lib/PortableApps/src/nova_ui.inc') + '"',
-                    str(ROOT / 'test/native_apps/contexts_app_test.c'), '-o', str(target)], check=True)
-    subprocess.run([str(target), str(out)], check=True, env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'}, timeout=90)
-try:
-    from PIL import Image
-    for path in out.glob('*.ppm'):
-        Image.open(path).save(path.with_suffix('.png'))
-except ImportError:
-    pass
+from test_contexts_scene import run
+ROOT=Path(__file__).resolve().parents[1]
+if __name__=='__main__':
+ p=argparse.ArgumentParser(description=__doc__)
+ p.add_argument('--system-apps',type=Path,required=True);p.add_argument('--runtime',type=Path,required=True)
+ p.add_argument('--frames',type=Path,default=ROOT/'build/contexts-scene')
+ a=p.parse_args();run(a.runtime.resolve(),a.system_apps.resolve(),a.frames.resolve())

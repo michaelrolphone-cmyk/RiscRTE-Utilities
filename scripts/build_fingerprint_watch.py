@@ -12,6 +12,9 @@ from normalize_xtensa_relocations import normalize
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--system-apps', required=True, type=Path)
+parser.add_argument('--runtime', required=True, type=Path)
+parser.add_argument('--catalog',type=Path)
+parser.add_argument('--face-header',type=Path)
 args = parser.parse_args()
 system = args.system_apps.resolve()
 cc = os.environ['NATIVE_APP_CC']
@@ -30,7 +33,7 @@ validator = out/'validate-elf'
 subprocess.run(['cc', '-std=c11', '-I'+str(root/'test/native_apps/stubs'),
                 '-I'+str(root/'lib/elf_loader/include'), root/'lib/elf_loader/src/esp_elf_validate.c',
                 root/'test/native_apps/validate_test.c', '-o', validator], check=True)
-for name in ('audio_spectrum', 'contexts'):
+for name in ('audio_spectrum',):
     defines = ['PORTABLE_NOVA_UI', 'PORTABLE_ALARM_CLIENT', 'PORTABLE_CONTEXTS_CLIENT',
                'PORTABLE_FORCE_FULL_FRAMES', 'PORTABLE_APP_OWNS_TOUCH_CHROME', 'PORTABLE_QUICK_ACTIONS']
     defines += ['PORTABLE_AUDIO_SESSION', 'PORTABLE_AUDIO_CONTINUOUS_CAPTURE'] if name == 'audio_spectrum' else ['PORTABLE_CONTEXTS_EDITOR']
@@ -58,3 +61,7 @@ for name in ('audio_spectrum', 'contexts'):
                        'dirty':bool(subprocess.check_output(['git','-C',repo,'status','--porcelain'],text=True).strip())}
     (out/(name+'-build.json')).write_text(json.dumps(record, indent=2)+'\n')
     print(name+': ESP32-S3 compilation, exports and runtime loader validation PASS')
+
+from build_contexts_scene import run as build_scene
+build_scene(args.runtime.resolve(),system,out/"contexts-scene",args.catalog,"watch",args.face_header)
+for suffix in (".elf",".json"):shutil.copyfile(out/"contexts-scene/contexts"/("contexts"+suffix),out/("contexts"+suffix))
