@@ -37,5 +37,15 @@
   "type": "application",
   "architecture": "xtensa-esp32s3",
   "entry": "app_main",
-  "id": "contexts"
+  "id": "contexts",
+  "optional": [
+    {
+      "capability": "board.battery",
+      "api": 1
+    },
+    {
+      "capability": "rtc.clock",
+      "api": 2
+    }
+  ]
 }

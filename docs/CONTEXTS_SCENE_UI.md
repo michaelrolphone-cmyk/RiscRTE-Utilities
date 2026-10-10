@@ -31,7 +31,7 @@ Build with `scripts/build_contexts_scene.py --runtime ... --system-apps ...
 structural validation. The selected System tree must contain scene-host 0.3.0.
 
 `compose_contexts_scene.py` upgrades an existing shared-scene store. It preserves
-all apps, providers and shared data bindings; adds Contexts grants for `ui.scene`
+all other apps, providers and shared data bindings; removes the obsolete direct-display/input grants and adds Contexts grants for `ui.scene`
 and `time.civil`; and replaces Contexts plus the presenter. The shared namespaces
 remain Audio 2, RF 3, rules 4. It never writes model or rule files. Its output is a
 component stage, not a flash image. The product packager must validate the whole

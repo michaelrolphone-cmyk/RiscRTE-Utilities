@@ -34,6 +34,8 @@ def compose(store,app,scene,output):
   if c in ('ui.scene','time.civil'):
    if not any(g['capability']==c for g in row['grants']):row['grants'].append(dict(capability=c,api=v,instance_id=0))
   if not any(g['capability']==c and g['api']==v for g in row['grants']):raise ValueError('Missing admitted grant: '+c)
+ declared={(r['capability'],r['api']) for r in m['requires']+m.get('optional',[])}
+ row['grants']=[g for g in row['grants'] if (g['capability'],g['api']) in declared]
  files['contexts.json']=encode(m);files['contexts.elf']=b
  m,r,b=package(scene,'manifest.json');scene_receipt=r
  if m['id']!='scene-host' or m['version']!='0.3.0':raise ValueError('Expected scene-host 0.3.0')

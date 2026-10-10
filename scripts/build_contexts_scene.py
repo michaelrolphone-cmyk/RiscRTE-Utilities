@@ -31,6 +31,7 @@ def run(runtime,system,output,catalog=None,target="watch",face_header=None):
   if target=='x4':
    flags=['-DCONTEXTS_ALARM_API=2','-DCONTEXTS_SETTING_MASK=0x274u','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_CONTEXTS_SOURCE_MASK=CONTEXTS_RADIO']
    next(r for r in manifest['requires'] if r['capability']=='alarm.service')['api']=2
+   manifest['optional']=[dict(capability='board.battery',api=1),dict(capability='runtime.realtime',api=1)]
   if face_header:flags+=['-include',str(face_header.resolve())]
   receipt=builder.build(builder.compiler_path(),include,output/'contexts',manifest,[ROOT/'Apps/contexts.c',cat],defines=flags,exports={'app_main','risc_resident_app_descriptor_v1'})
   validator=tmp/'validate'

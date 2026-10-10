@@ -33,5 +33,15 @@
       "capability": "alarm.service",
       "api": ">=1"
     }
+  ],
+  "optional": [
+    {
+      "capability": "board.battery",
+      "api": ">=1"
+    },
+    {
+      "capability": "rtc.clock",
+      "api": ">=2"
+    }
   ]
 }
