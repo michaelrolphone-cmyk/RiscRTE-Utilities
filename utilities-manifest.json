@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -245,7 +245,7 @@
     {
       "id": "waterfall",
       "display_name": "Waterfall",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/waterfall.c",
@@ -316,7 +316,7 @@
     {
       "id": "contexts",
       "display_name": "Contexts",
-      "version": "0.1.2",
+      "version": "0.3.1",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/contexts.c",

@@ -1,8 +1,8 @@
 #ifndef CONTEXT_FINGERPRINT_STORE_H
 #define CONTEXT_FINGERPRINT_STORE_H
 #include "ContextFingerprint.h"
-#define CF_STORE_MAX 60000u
-#define CF_STORE_SCHEMA 1u
+#define CF_STORE_MAX 72000u
+#define CF_STORE_SCHEMA 2u
 /* Explicit little-endian wire format, per source, independent of C padding. */
 typedef struct { uint8_t *data; uint32_t at,size; bool ok; } cf_writer;
 typedef struct { const uint8_t *data; uint32_t at,size; bool ok; } cf_reader;
@@ -12,9 +12,10 @@ static inline void cf_wf(cf_writer*w,float v){uint32_t bits;memcpy(&bits,&v,4);c
 static inline float cf_rf(cf_reader*r){uint32_t bits=cf_r32(r);float v;memcpy(&v,&bits,4);if(!cf_finite(v)||v<0)r->ok=false;return v;}
 static inline uint32_t cf_crc(const uint8_t*p,uint32_t n){uint32_t c=~0u;while(n--){c^=*p++;for(unsigned k=0;k<8;k++)c=(c>>1)^(0xedb88320u&-(c&1u));}return ~c;}
 static inline bool cf_feature_valid(const cf_feature *v){
-    if(v->flags&~31u||v->bins>CF_HIST_CAPACITY||v->peak_count>CF_PEAKS||v->coverage<0||v->coverage>1||v->duty_cycle<0||v->duty_cycle>1)return false;
+    if(v->flags&~63u||v->bins>CF_HIST_CAPACITY||v->peak_count>CF_PEAKS||v->coverage<0||v->coverage>1||v->duty_cycle<0||v->duty_cycle>1)return false;
     if((v->flags&CF_TEMPORAL)&&(!v->bins||(v->flags&CF_OVERFLOW)))return false;
     if(!(v->flags&CF_TEMPORAL)&&v->bins)return false;
+    for(unsigned i=0;i<CF_BANDS;i++)if(!cf_finite(v->background[i])||v->background[i]<0||v->background[i]>2.f)return false;
     float sum=0;
     for(unsigned i=0;i<v->bins;i++){if(v->repetition[i].ms>10000||(i&&v->repetition[i].ms<=v->repetition[i-1].ms)||!cf_finite(v->repetition[i].mass)||v->repetition[i].mass<=0)return false;sum+=v->repetition[i].mass;}
     if(v->bins&&cf_abs(sum-1.f)>.002f)return false;
@@ -26,15 +27,18 @@ static inline void cf_write_feature(cf_writer*w,const cf_feature*v){
     const float scalars[]={v->envelope_mean,v->envelope_variance,v->duty_cycle,v->burst_rate,v->power_mean,v->power_variance,v->frequency_origin,v->frequency_span,v->coverage,v->resolution_ms};
     for(unsigned i=0;i<10;i++)cf_wf(w,scalars[i]);
     for(unsigned i=0;i<CF_PEAKS;i++){cf_wf(w,v->peak_hz[i]);cf_wf(w,v->peak_amplitude[i]);}
+    for(unsigned i=0;i<CF_BANDS;i++)cf_wf(w,v->background[i]);
     for(unsigned i=0;i<v->bins;i++){cf_w32(w,v->repetition[i].ms);cf_wf(w,v->repetition[i].mass);}
 }
-static inline void cf_read_feature(cf_reader*r,cf_feature*v){
+static inline void cf_read_feature(cf_reader*r,cf_feature*v,unsigned schema){
     memset(v,0,sizeof(*v));v->flags=cf_r32(r);v->identity=cf_r32(r);v->windows=cf_r32(r);
     uint32_t bins=cf_r32(r),peaks=cf_r32(r);if(bins>CF_HIST_CAPACITY||peaks>CF_PEAKS){r->ok=false;return;}
     v->bins=(uint16_t)bins;v->peak_count=(uint16_t)peaks;
     float *scalars[]={&v->envelope_mean,&v->envelope_variance,&v->duty_cycle,&v->burst_rate,&v->power_mean,&v->power_variance,&v->frequency_origin,&v->frequency_span,&v->coverage,&v->resolution_ms};
     for(unsigned i=0;i<10;i++)*scalars[i]=cf_rf(r);
     for(unsigned i=0;i<CF_PEAKS;i++){v->peak_hz[i]=cf_rf(r);v->peak_amplitude[i]=cf_rf(r);}
+    if(schema>=2)for(unsigned i=0;i<CF_BANDS;i++)v->background[i]=cf_rf(r);
+    else if(v->flags&CF_BACKGROUND)r->ok=false;
     for(unsigned i=0;i<bins;i++){uint32_t ms=cf_r32(r);if(ms>10000)r->ok=false;v->repetition[i].ms=(uint16_t)ms;v->repetition[i].mass=cf_rf(r);}
     if(!cf_feature_valid(v))r->ok=false;
 }
@@ -57,7 +61,8 @@ static inline bool cf_decode_source(cf_bank*out,unsigned source,const uint8_t*da
     if(!out||source>=CF_SOURCES||!data||size<116||size>CF_STORE_MAX)return false;
     cf_reader tail={data,size-4,size,true};if(cf_r32(&tail)!=cf_crc(data,size-4))return false;
     cf_reader r={data,0,size-4,true};
-    if(cf_r32(&r)!=0x31504643u||cf_r32(&r)!=CF_STORE_SCHEMA||cf_r32(&r)!=source)return false;
+    if(cf_r32(&r)!=0x31504643u)return false;
+    unsigned schema=cf_r32(&r);if((schema!=1&&schema!=CF_STORE_SCHEMA)||cf_r32(&r)!=source)return false;
     memset(out,0,sizeof(*out));out->generation=cf_r32(&r);
     for(unsigned i=0;i<CF_PROFILES&&r.ok;i++){
         cf_profile*p=&out->profiles[i];uint32_t kind=cf_r32(&r);if(!kind)continue;
@@ -66,7 +71,7 @@ static inline bool cf_decode_source(cf_bank*out,unsigned source,const uint8_t*da
         if(!p->name[0]||p->name[CF_NAME_SIZE-1])r.ok=false;
         p->weight[source]=cf_rf(&r);if(p->weight[source]<=0||p->weight[source]>1)r.ok=false;
         uint64_t low=cf_r32(&r),high=cf_r32(&r);p->updated_seconds[source]=low|(high<<32);
-        cf_read_feature(&r,&p->feature[source]);p->present[source]=1;
+        cf_read_feature(&r,&p->feature[source],schema);p->present[source]=1;
     }
     return r.ok&&r.at==r.size;
 }

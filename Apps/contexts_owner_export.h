@@ -2,7 +2,7 @@
 #ifdef PORTABLE_CONTEXTS_CLIENT
 #include "ContextsServiceV1.h"
 #include "ContextFingerprintService.h"
-static uint8_t contexts_owner_fingerprint_bytes[60000];
+static uint8_t contexts_owner_fingerprint_bytes[72000];
 #include "PortableBackgroundServices.h"
 #include "spectrum_store.h"
 #include "spectrum_signature_store.h"
@@ -17,6 +17,7 @@ static uint8_t contexts_owner_fingerprint_bytes[60000];
 /* Borrow the common adapter's grant: a duplicate acquisition can exceed the
  * existing 16-grant bound while this owner reads its private KV namespace. */
 const contexts_service_v1 *portable_contexts_service(void);
+bool portable_contexts_models_save(void);
 enum { CONTEXTS_OWNER_FENCED=-2,CONTEXTS_OWNER_RETAINED=-1,CONTEXTS_OWNER_NORMAL=0,CONTEXTS_OWNER_EXPORTED=1 };
 static int contexts_owner_fence(const risc_runtime_api_v1 *runtime){
     if(app_retained_fence(runtime))return CONTEXTS_OWNER_FENCED;

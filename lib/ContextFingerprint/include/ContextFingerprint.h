@@ -20,7 +20,7 @@
 #define CF_BURSTS 64u
 enum { CF_AUDIO, CF_RF };
 enum { CF_ROOM=1, CF_EVENT=2, CF_NEGATIVE=3 };
-enum { CF_ENVELOPE=1, CF_SPECTRAL=2, CF_TEMPORAL=4, CF_OVERFLOW=8, CF_SPARSE=16 };
+enum { CF_ENVELOPE=1, CF_SPECTRAL=2, CF_TEMPORAL=4, CF_OVERFLOW=8, CF_SPARSE=16, CF_BACKGROUND=32 };
 typedef struct { uint16_t ms; float mass; } cf_bin;
 typedef struct {
     uint32_t flags,identity,windows;
@@ -29,6 +29,8 @@ typedef struct {
     float envelope_mean,envelope_variance,duty_cycle,burst_rate;
     float power_mean,power_variance,peak_hz[CF_PEAKS],peak_amplitude[CF_PEAKS];
     float frequency_origin,frequency_span,coverage,resolution_ms;
+    /* Unfiltered canonical band powers, normalized to full-scale squared. */
+    float background[CF_BANDS];
 } cf_feature;
 typedef struct { uint64_t start_us; uint32_t duration_us; float peak; } cf_burst;
 typedef struct {
@@ -229,6 +231,7 @@ static inline bool cf_take(cf_pipeline *p,uint64_t end_us,cf_feature *out){
         for(unsigned i=0;i<CF_BANDS;i++){p->power[i]/=p->spectral_frames;mean+=p->power[i]/CF_BANDS;}
         for(unsigned i=0;i<CF_BANDS;i++){float d=p->power[i]-mean;variance+=d*d/CF_BANDS;}
         out->power_mean=mean;out->power_variance=variance;
+        memcpy(out->background,p->power,sizeof(out->background));out->flags|=CF_BACKGROUND;
         if(mean>1e-12f){
             out->flags|=CF_SPECTRAL;
             for(unsigned i=0;i<CF_BANDS;i++){
@@ -358,8 +361,26 @@ static inline bool cf_blend(cf_feature *dst,const cf_feature *src,float alpha){
 #define CF_BLEND(field) dst->field=dst->field*(1.f-alpha)+src->field*alpha
     if(src->flags&CF_ENVELOPE){CF_BLEND(envelope_mean);CF_BLEND(envelope_variance);CF_BLEND(duty_cycle);CF_BLEND(burst_rate);dst->flags|=CF_ENVELOPE;}
     if(src->flags&CF_SPECTRAL){CF_BLEND(power_mean);CF_BLEND(power_variance);for(unsigned i=0;i<CF_PEAKS;i++){CF_BLEND(peak_hz[i]);CF_BLEND(peak_amplitude[i]);}dst->peak_count=src->peak_count;dst->frequency_origin=src->frequency_origin;dst->frequency_span=src->frequency_span;dst->flags|=CF_SPECTRAL;}
+    if(src->flags&CF_BACKGROUND){for(unsigned i=0;i<CF_BANDS;i++){if(dst->flags&CF_BACKGROUND){CF_BLEND(background[i]);}else dst->background[i]=src->background[i];}dst->flags|=CF_BACKGROUND;}
 #undef CF_BLEND
     if(dst->windows<UINT32_MAX)++dst->windows;
+    return true;
+}
+static inline int cf_profile_find(const cf_bank*b,unsigned kind,const char*name){
+    if(!b||!name||!name[0])return -1;
+    for(unsigned i=0;i<CF_PROFILES;i++)if(b->profiles[i].kind==kind&&!strcmp(b->profiles[i].name,name))return (int)i;
+    return -1;
+}
+static inline int cf_profile_slot(const cf_bank*b,unsigned kind,const char*name){
+    int slot=cf_profile_find(b,kind,name);if(slot>=0)return slot;
+    if(kind<CF_ROOM||kind>CF_NEGATIVE)return -1;
+    for(unsigned i=(kind-1)*8;i<kind*8;i++)if(!b->profiles[i].kind)return (int)i;
+    return -1;
+}
+static inline bool cf_background_power(const cf_profile*p,unsigned source,uint32_t identity,uint32_t out[CF_BANDS]){
+    if(!p||source>=CF_SOURCES||p->kind!=CF_ROOM||!p->present[source])return false;
+    const cf_feature*f=&p->feature[source];if(f->identity!=identity||!(f->flags&CF_BACKGROUND))return false;
+    for(unsigned i=0;i<CF_BANDS;i++)out[i]=(uint32_t)cf_min(f->background[i]*1073741824.f,2147483648.f);
     return true;
 }
 static inline bool cf_train(cf_bank *bank,cf_fusion *f,unsigned slot,const char *name,unsigned kind,uint64_t now_us,uint64_t utc,const cf_config *c,bool confirmed){

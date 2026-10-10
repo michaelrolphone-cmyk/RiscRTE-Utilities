@@ -54,7 +54,8 @@ static void signature_commit_capture(void){
 static void signature_display_reset(void){memset(signature_display_sums,0,sizeof(signature_display_sums));signature_display_frames=0;}
 static void signature_prepare_filter(int selected){
  for(unsigned i=0;i<RF_SIGNATURE_BANDS;i++)signature_display_mean[i]=signature_display_frames?(uint32_t)rf_dsp_div_u64_u32(signature_display_sums[i]+signature_display_frames/2,signature_display_frames):signature_audio.power[i];
- rf_signature_gains(signature_display_mean,signature_means[selected],signature_display_gains);
+ (void)selected;const uint32_t*background=cfa_background();
+ if(background)rf_signature_gains(signature_display_mean,background,signature_display_gains);
 }
 static void signature_observe(void){
  if(signature_seen==signature_audio.transforms)return;
@@ -153,9 +154,9 @@ static void draw_signature_edit(void){
 }
 static void signature_tap(int x,int y,bool *toggle_requested){
  if(page==PAGE_SIGNATURE_EDIT){if(hit(x,y,15,72,210,36)){signature_keyboard=true;keyboard_begin();}else if(hit(x,y,14,149,100,36)){if(!signatures[signature_slot].kind&&(signature_pending&(1u<<signature_slot))){signature_save();if(!(signature_pending&(1u<<signature_slot)))set_page(PAGE_SIGNATURES);}else signature_capture_begin();}else if(hit(x,y,126,149,100,36))set_page(PAGE_SIGNATURES);else if(hit(x,y,14,195,100,30)&&(signatures[signature_slot].kind||(signature_pending&(1u<<signature_slot))))signature_delete();else if(hit(x,y,126,195,100,30))signature_save();return;}
- if(hit(x,y,10,49,220,30)){if(load_errors&1u){notify("RETRY PREFERENCE STORAGE");return;}signature_mode=x<82?0:x<158?1:2;prefs.background_mode=(uint8_t)signature_mode;pending_save|=1;persist();clear_analysis();refresh_analysis();dirty=true;return;}
+ if(hit(x,y,10,49,220,30)){(void)cfa_filter_select(x<82?0:x<158?1:2,NULL);return;}
  if(y>=225){if(x<78)set_page(PAGE_CONTROLS);else if(x<177)*toggle_requested=true;else{signature_load();signature_save();notify(signature_pending?"SAMPLES UNSAVED / RETRY":signature_errors?"SAMPLES UNREAD / RETRY":"SAVED SAMPLES LOADED");}return;}
  if(signature_goal){if(hit(x,y,12,111,102,32))*toggle_requested=true;else if(hit(x,y,126,111,102,32)){signature_goal=0;signature_capture_slot=-1;memset(&signature_capture,0,sizeof(signature_capture));notify("CAPTURE CANCELLED");}return;}
- if(y>=107&&y<191){unsigned slot=signature_scroll+(unsigned)(y-107)/42;if(slot<8&&(signatures[slot].kind||(signature_pending&(1u<<slot)))){if(x>=171&&signatures[slot].kind==1){if(load_errors&1u){notify("RETRY PREFERENCE STORAGE");return;}if(!rf_identity_equal(&signatures[slot].identity,&prefs.identity)){notify("SAMPLE RECEIVER MISMATCH");return;}manual_room=(int)slot;signature_mode=2;prefs.background_mode=2;prefs.manual_room=(int8_t)slot;pending_save|=1;persist();clear_analysis();refresh_analysis();dirty=true;}else signature_open((int)slot,0);}return;}
+ if(y>=107&&y<191){unsigned slot=signature_scroll+(unsigned)(y-107)/42;if(slot<8&&(signatures[slot].kind||(signature_pending&(1u<<slot)))){if(x>=171&&signatures[slot].kind==1){if(load_errors&1u){notify("RETRY PREFERENCE STORAGE");return;}if(!rf_identity_equal(&signatures[slot].identity,&prefs.identity)){notify("SAMPLE RECEIVER MISMATCH");return;}if(cfa_filter_select(2,signatures[slot].name))manual_room=(int)slot;}else signature_open((int)slot,0);}return;}
  if(y>=195&&y<224){if(x<40&&signature_scroll)signature_scroll--;else if(x>=201&&signature_scroll+2<8)signature_scroll++;else if(x>=43&&x<111)signature_open(-1,1);else if(x>=116&&x<195)signature_open(-1,2);dirty=true;}
 }

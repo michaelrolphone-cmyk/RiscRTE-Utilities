@@ -3,7 +3,8 @@
 #define CONTEXTS_TEST_ENTRY existing_contexts_temporal_tests
 #include "contexts_temporal_test.c"
 #undef CONTEXTS_TEST_ENTRY
-static cf_bank saved_bank;
+static cf_bank saved_bank,radio_shared_bank;
+static uint8_t radio_shared_bytes[CF_STORE_MAX];
 static uint8_t saved_bytes[CF_STORE_MAX];
 static void timing_window(unsigned period,bool event){
     int16_t pcm[16];uint32_t power[128]={0};power[8]=1u<<22;
@@ -46,6 +47,18 @@ int main(void){
     uint32_t generation=record.generation;record.generation--;
     assert(!api->fingerprint(NULL,CONTEXTS_FP_SAVED,&record));record.generation=generation;
     assert(api->fingerprint(NULL,CONTEXTS_FP_SAVED,&record));
+    /* RF owner slot6 and Audio slot0 are the same named place. Preserve
+     * each source's background spectrum through merge/export/import. */
+    radio_shared_bank.profiles[6]=saved_bank.profiles[0];
+    cf_profile *rp=&radio_shared_bank.profiles[6];rp->feature[1]=rp->feature[0];rp->feature[1].identity=99;
+    rp->present[0]=0;rp->present[1]=1;rp->weight[1]=1;
+    uint32_t radio_size=cf_encode_source(&radio_shared_bank,CF_RF,radio_shared_bytes,sizeof(radio_shared_bytes));assert(radio_size);
+    contexts_fingerprint_record_v1 rr={.struct_size=sizeof(rr),.source=CONTEXTS_RADIO,.size=radio_size,.capacity=sizeof(radio_shared_bytes),.bytes=radio_shared_bytes};
+    assert(api->fingerprint(NULL,CONTEXTS_FP_IMPORT,&rr));
+    int shared=cf_profile_find(&fp_bank,CF_ROOM,"Office");assert(shared>=0&&fp_bank.profiles[shared].present[0]&&fp_bank.profiles[shared].present[1]);
+    uint32_t bg[128];assert(cf_background_power(&fp_bank.profiles[shared],CF_RF,99,bg)&&bg[8]==1u<<22);
+    assert(api->fingerprint(NULL,CONTEXTS_FP_EXPORT,&rr)&&cf_decode_source(&radio_shared_bank,CF_RF,radio_shared_bytes,rr.size));
+    assert(radio_shared_bank.profiles[6].present[1]&&!strcmp(radio_shared_bank.profiles[6].name,"Office"));
     cfg.sources=0;assert(api->fingerprint(NULL,CONTEXTS_FP_CONFIG,&cfg));
     assert(api->fingerprint(NULL,CONTEXTS_FP_STATUS,&state)&&state.room_slot<0&&state.event_slot<0);
     assert(provider->pause(NULL));assert(d->quiesce());d->stop();

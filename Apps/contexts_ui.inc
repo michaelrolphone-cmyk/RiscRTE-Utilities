@@ -70,7 +70,7 @@ static void cu_build(void){
  cu_count=0;char b[64];cr_rule*r=&cu_store.rules[cu_rule];cr_item*t=&cu_store.items[cu_item];
  switch(cu_page){
  case CU_HOME:
-  cu_add("AUTO SWITCH",ctx_enabled?"ON / TAP TO PAUSE":"OFF / TAP TO ENABLE",CU_ROW_AUTO,ctx_enabled);
+  cu_add("CONTEXT DETECTION",ctx_enabled?"ON / TAP TO PAUSE":"OFF / TAP TO ENABLE",CU_ROW_AUTO,ctx_enabled);
   snprintf(b,sizeof(b),"%s",ctx_fp_valid&&ctx_fp.room_slot>=0?ctx_fp.room_name:"UNKNOWN / LEARN A PLACE");cu_add("CURRENT PLACE",b,0,false);
   cu_add("CONTEXTS","SETTINGS AND ACTIONS",CU_ROW_RULES,false);cu_add("LIBRARY","PLACES / EVENTS / TRIGGERS",CU_ROW_LIBRARY,false);cu_add("ACTIVITY","RECENT ACTIVATIONS AND RESULTS",CU_ROW_ACTIVITY,false);cu_add("SOURCES","RF / AUDIO / MATCH FEATURES",CU_ROW_SOURCES,false);break;
  case CU_LIBRARY:
@@ -158,9 +158,9 @@ static bool cu_item_slot(void){for(unsigned i=0;i<CR_ITEMS;i++)if(!cu_store.item
 static bool cu_rule_slot(void){for(unsigned i=0;i<CR_RULES;i++)if(!cu_store.rules[i].name[0]){cu_rule=i;cr_rule_init(&cu_store.rules[i]);cu_edit=true;return true;}cu_note("CONTEXTS FULL / DELETE ONE");return false;}
 static void cu_name_open(unsigned reason,const char*name){cu_name_reason=reason;snprintf(cu_name,sizeof(cu_name),"%s",name?name:"");cu_key_page=PWK_INITIAL_PAGE;cu_return=cu_page;cu_page_set(CU_NAME);}
 static void cu_learn_begin(void){
- if(!ctx_enabled){if(!portable_contexts_enable(true)){cu_note("ENABLE MONITORING FAILED");return;}ctx_enabled=true;}
+ if(!portable_contexts_training(true)){cu_note("START TRAINING FAILED");return;}
  cu_learning=(contexts_learning_v1){.struct_size=sizeof(cu_learning),.operation=CONTEXTS_LEARN_BEGIN,.kind=cu_kind==CR_EVENT?2:1};memcpy(cu_learning.name,cu_name,17);
- if(!cu_call(CONTEXTS_FP_LEARN,&cu_learning)){cu_note("INPUT UNAVAILABLE / CHECK SOURCES");return;}
+ if(!cu_call(CONTEXTS_FP_LEARN,&cu_learning)){(void)portable_contexts_training(false);cu_note("INPUT UNAVAILABLE / CHECK SOURCES");return;}
  cu_learning_saved=false;cu_page_set(CU_LEARN);cu_note(cu_kind==CR_EVENT?"PERFORM 3 TAKES WITH QUIET BETWEEN":"CAPTURE RUNS FOR 30 SECONDS");
 }
 static void cu_back(void){
@@ -211,7 +211,7 @@ static void cu_action(unsigned action){
   else{cu_item=i;cu_page_set(CU_ITEM);}return;
  }
  switch(action){
- case CU_ROW_AUTO:if(portable_contexts_enable(!ctx_enabled)){ctx_enabled=!ctx_enabled;cu_note(ctx_enabled?"AUTO SWITCH ON":"AUTO SWITCH OFF");}else cu_note("SAVE FAILED / RETRY");break;
+ case CU_ROW_AUTO:if(portable_contexts_enable(!ctx_enabled)){ctx_enabled=!ctx_enabled;cu_note(ctx_enabled?"CONTEXT DETECTION ON":"CONTEXT DETECTION OFF");}else cu_note("SAVE FAILED / RETRY");break;
  case CU_ROW_LIBRARY:cu_page_set(CU_LIBRARY);break;case CU_ROW_RULES:cu_page_set(CU_RULES);break;case CU_ROW_ACTIVITY:cu_page_set(CU_ACTIVITY);break;case CU_ROW_SOURCES:cu_page_set(CU_SOURCES);break;
  case CU_ROW_PLACE:case CU_ROW_EVENT:case CU_ROW_TRIGGER:cu_kind=action==CU_ROW_PLACE?CR_PLACE:action==CU_ROW_EVENT?CR_EVENT:CR_BATTERY;cu_page_set(CU_ITEMS);break;
  case CU_ROW_NEW:
@@ -236,13 +236,13 @@ static void cu_action(unsigned action){
  case CU_ROW_SAVE:
   if(cu_page==CU_LEARN){
    if(!cu_learning_saved){cu_learning.operation=CONTEXTS_LEARN_SAVE;if(!cu_call(CONTEXTS_FP_LEARN,&cu_learning)){cu_note("MORE EVIDENCE NEEDED");break;}cu_learning_saved=true;}
-   if(!portable_contexts_models_save()){cu_note("MODEL SAVE FAILED / RETRY");break;}
+   if(!portable_contexts_models_save()||!portable_contexts_training(false)){cu_note("MODEL SAVE FAILED / RETRY");break;}
    t->kind=(uint8_t)cu_kind;memcpy(t->name,cu_name,17);cu_edit=true;if(cu_save()){cu_sync_profiles();cu_page_set(CU_ITEM);cu_note("LEARNED / SET UP ACTIONS WHEN READY");}
   }else if(cu_save())cu_page_set(cu_page==CU_RULE?CU_RULES:CU_ITEM);break;
  case CU_ROW_DELETE:cu_return=cu_page;cu_page_set(CU_DELETE);break;
  case CU_ROW_CANCEL:if(cu_page==CU_LEARN){cu_return=CU_LEARN;cu_page_set(CU_CANCEL);}else cu_page_set(cu_return);break;
  case CU_ROW_CONFIRM:
-  if(cu_page==CU_CANCEL){if(cu_return==CU_LEARN&&!cu_learning_saved){cu_learning.operation=CONTEXTS_LEARN_CANCEL;(void)cu_call(CONTEXTS_FP_LEARN,&cu_learning);}cu_store=cu_saved;cu_edit=cu_pending=false;cu_page_set(CU_HOME);
+  if(cu_page==CU_CANCEL){if(cu_return==CU_LEARN&&!cu_learning_saved){cu_learning.operation=CONTEXTS_LEARN_CANCEL;(void)cu_call(CONTEXTS_FP_LEARN,&cu_learning);}if(cu_return==CU_LEARN&&!portable_contexts_training(false)){cu_note("STOP TRAINING FAILED / RETRY");break;}cu_store=cu_saved;cu_edit=cu_pending=false;cu_page_set(CU_HOME);
 #ifdef PORTABLE_CONTEXTS_PAPER
    if(ctx_paper)ctx_paper_discarded();
 #endif

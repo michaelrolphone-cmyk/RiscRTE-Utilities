@@ -50,9 +50,9 @@ def build(name,sources,flags,includes,exports):
 for name in APPS:
  if name in (*CLOCK_APPS,'ble_touchpad','ble_buttons'):continue
  old=json.loads((a.baseline/(name+'.json')).read_text());v=list(map(int,old['version'].split('.')));v[-1]+=1;version='.'.join(map(str,v))
- if name=='contexts':version='0.3.0'
- if name=='waterfall':version='0.3.0'
- if name=='audio_spectrum':version='0.5.0'
+ if name=='contexts':version='0.3.1'
+ if name=='waterfall':version='0.3.1'
+ if name=='audio_spectrum':version='0.5.1'
  owner='system-apps' if name in SYSTEM_APPS else 'utilities' if name in (*UTILITY_APPS,'contexts') else 'productivity'
  source=repos[owner]/'Apps'/('timecard_portable.c' if name=='timecard' else name+'.c')
  sources,includes,_=application_inputs(name,source,repos,W,out,'runtime-features')
@@ -68,10 +68,10 @@ for name in CLOCK_APPS:
   build(name,[W/'apps/clock/return_to_default.c'],[],[],{'app_main'})
   records[name]['role']='default-forwarder'
   (out/'build.json').write_text(json.dumps(records,indent=2)+'\n')
-  old=json.loads((a.baseline/(name+'.json')).read_text());old.update(version='0.11.0',requires=[])
+  old=json.loads((a.baseline/(name+'.json')).read_text());old.update(version='0.11.1',requires=[])
   (out/(name+'.json')).write_text(json.dumps(old,indent=2)+'\n')
   continue
  sources=[W/'apps/clock/crown.c',W/'apps/clock/nova/nova.c',*[S/'lib/PortableApps/src'/n for n in ('quick_actions.c','quick_render.c','quick_session.c','quick_radios.c')],W/'apps/clock/points_projection.c',W/'apps/clock/effects/divdi3.c',effect]
  includes=[S/'lib/PortableApps/include',U/'lib/Alarm/include',U/'lib/Contexts/include',W/'sdk/app',W/'sdk/driver',W/'include']
- build(name,sources,definitions(name,'0.11.0',W),includes,{'app_main'})
- old=json.loads((a.baseline/(name+'.json')).read_text());old['version']='0.11.0';(out/(name+'.json')).write_text(json.dumps(old,indent=2)+'\n')
+ build(name,sources,definitions(name,'0.11.1',W),includes,{'app_main'})
+ old=json.loads((a.baseline/(name+'.json')).read_text());old['version']='0.11.1';(out/(name+'.json')).write_text(json.dumps(old,indent=2)+'\n')

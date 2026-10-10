@@ -14,6 +14,10 @@ for name in ('system','runtime','display-sdk','alarm-sdk','baseline','output','w
 a=p.parse_args();S=a.system.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);inc=out/'sdk/include';inc.mkdir(parents=True,exist_ok=True)
 for d in (S/'lib/PortableApps/include',a.runtime/'sdk/app',a.display_sdk,a.alarm_sdk,U/'lib/Contexts/include'):
  for f in d.glob('*.h'):shutil.copyfile(f,inc/f.name)
+# App policy helpers come from the selected System source, never a stale
+# peripheral SDK snapshot that happens to contain older Portable headers.
+for f in (S/'lib/PortableApps/include').glob('Portable*.h'):shutil.copyfile(f,inc/f.name)
+shutil.copyfile(a.runtime/'sdk/app/RiscAppDataV1.h',inc/'RiscAppDataV1.h')
 for name in ('PaperPresentation.h','PaperFrame.h'):
  f=inc/name
  if f.exists():f.unlink()
@@ -48,4 +52,4 @@ for name in ('contexts','waterfall'):
    f=Path(tok).resolve()
    if f.is_file():deps[str(f)]=hashlib.sha256(f.read_bytes()).hexdigest()
  records[name]={'compiler':compiler,'command':cmd,'dependencies':deps,'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'bytes':target.stat().st_size,'imports':sorted(imports),'exports':sorted(actual),'compaction':proof,'hardware_verified':False}
- old=json.loads((a.baseline/(name+'.json')).read_text());old['version']='0.3.0';(out/(name+'.json')).write_text(json.dumps(old,indent=2)+'\n');(out/'build.json').write_text(json.dumps(records,indent=2)+'\n');print(name+': resident target, descriptor, zero shared UI, ABI and loader PASS',flush=True)
+ old=json.loads((a.baseline/(name+'.json')).read_text());old['version']='0.3.1';(out/(name+'.json')).write_text(json.dumps(old,indent=2)+'\n');(out/'build.json').write_text(json.dumps(records,indent=2)+'\n');print(name+': resident target, descriptor, zero shared UI, ABI and loader PASS',flush=True)

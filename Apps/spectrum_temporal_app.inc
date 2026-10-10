@@ -146,7 +146,7 @@ static void event_save_name(void){
  unsigned start=0,end=(unsigned)strlen(editing.name);while(start<end&&editing.name[start]==' ')start++;while(end>start&&editing.name[end-1]==' ')end--;for(unsigned i=0;i<end-start;i++)editing.name[i]=editing.name[start+i];editing.name[end-start]=0;
  if(!spectrum_signature_name_valid(editing.name)){notify("ENTER AN EVENT NAME");return;}
  if(!event_begin_edit((unsigned)event_edit_slot))return;
- st_label*l=&event_library.labels[event_edit_slot];l->present=true;l->shift_limit=(uint8_t)event_edit_shift;if(!l->next_id)l->next_id=1;memcpy(l->name,editing.name,17);cfa_rename_event((unsigned)event_edit_slot,editing.name);event_finish_edit();if(!temporal_retained()&&event_files.pending<0)cfa_save();
+ st_label*l=&event_library.labels[event_edit_slot];l->present=true;l->shift_limit=(uint8_t)event_edit_shift;if(!l->next_id)l->next_id=1;cfa_rename_event((unsigned)event_edit_slot,editing.name);memcpy(l->name,editing.name,17);event_finish_edit();if(!temporal_retained()&&event_files.pending<0)cfa_save();
 }
 static void event_arm(unsigned kind){
  if(event_edit_slot<0||kind<ST_POSITIVE||kind>ST_NEGATIVE)return;

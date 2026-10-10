@@ -78,7 +78,7 @@ static bool fake_mic_read(void*c,int16_t*pcm,size_t n,size_t*got){(void)c;assert
 static bool fake_mic_level(void*c,uint16_t*v){(void)c;*v=5000;return mic_opened;}
 static bool fake_mic_close(void*c){(void)c;assert(mic_opened);mic_opened=false;mic_closes++;return true;}
 static const twatch_audio_in_api_v1 mic_api={1,sizeof(mic_api),NULL,fake_mic_open,fake_mic_read,fake_mic_level,fake_mic_close};
-static uint8_t temporal_disk[4][60000];static uint32_t temporal_sizes[4];static uint64_t temporal_revision=1;static unsigned temporal_writes;static bool temporal_retained;
+static uint8_t temporal_disk[4][72000];static uint32_t temporal_sizes[4];static uint64_t temporal_revision=1;static unsigned temporal_writes;static bool temporal_retained;
 static unsigned temporal_bank(const char*n){if(!strcmp(n,"context-fingerprints.cfp"))return 3;if(!strcmp(n,"spectrum-neural.snn"))return 2;assert(!strcmp(n,"spectrum-events-a.sqt")||!strcmp(n,"spectrum-events-b.sqt"));return !strcmp(n,"spectrum-events-b.sqt");}
 static int32_t temporal_stat(void*c,const char*n,uint32_t*s,uint64_t*r){(void)c;assert(!temporal_retained);unsigned b=temporal_bank(n);*s=temporal_sizes[b];*r=*s?temporal_revision:0;return *s?0:RISC_APP_DATA_NOT_FOUND;}
 static int32_t temporal_read(void*c,const char*n,uint64_t expected,void*out,uint32_t cap,uint32_t*s,uint64_t*r){(void)c;assert(!temporal_retained);*s=0;*r=0;if(expected!=temporal_revision)return RISC_APP_DATA_STALE;unsigned b=temporal_bank(n);assert(cap>=temporal_sizes[b]);memcpy(out,temporal_disk[b],temporal_sizes[b]);*s=temporal_sizes[b];*r=temporal_revision;return 0;}

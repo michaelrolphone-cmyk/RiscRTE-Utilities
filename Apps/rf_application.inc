@@ -139,7 +139,7 @@ static uint32_t palette[256];
 static const uint32_t label_colors[8]={0xffd24au,0xff7a1au,0xff3d71u,0xb24dffu,0x6d7bffu,0x3d9bffu,0x3dff9au,0x9be15du};
 static const char *palette_names[5]={"NOVA","INFERNO","VIRIDIS","GRAY","JET"};
 static const char *window_names[5]={"RECT","HANN","HAMMING","BLACKMAN","FLAT TOP"};
-enum {PAGE_MAIN,PAGE_CONTROLS,PAGE_LABEL,PAGE_KEYBOARD,PAGE_SIGNATURES,PAGE_SIGNATURE_EDIT,PAGE_EVENTS,PAGE_EVENT_LABEL,PAGE_EVENT_CAPTURE,PAGE_EVENT_EXAMPLES,PAGE_RECEIVER};
+enum {PAGE_MAIN,PAGE_CONTROLS,PAGE_LABEL,PAGE_KEYBOARD,PAGE_SIGNATURES,PAGE_SIGNATURE_EDIT,PAGE_EVENTS,PAGE_EVENT_LABEL,PAGE_EVENT_CAPTURE,PAGE_EVENT_EXAMPLES,PAGE_RECEIVER,PAGE_SHARED,PAGE_SHARED_EDIT,PAGE_SHARED_CAPTURE};
 static int clamp_int(int n,int low,int high){return n<low?low:n>high?high:n;}
 static int abs_int(int n){return n<0?-n:n;}
 static bool hit(int x,int y,int l,int t,int w,int h){return x>=l && y>=t && x<l+w && y<t+h;}
@@ -216,6 +216,15 @@ static void draw_receiver(void);
 static void receiver_tap(int,int);
 
 static void cfa_restore(void);
+static const uint32_t*cfa_background(void);
+static bool cfa_filter_select(unsigned,const char*);
+static void draw_shared(void);
+static void shared_tap(int,int);
+static void shared_open(unsigned);
+static bool shared_back(void);
+static void shared_buttons(uint32_t);
+static void shared_keyboard_done(void);
+static bool shared_keyboard;
 static void cfa_arm(void);
 static void cfa_begin(void);
 static void cfa_save(void);
@@ -355,8 +364,8 @@ static void detect_frequency_labels(void){
 static void refresh_analysis(void){
  if(!spectrum.has_transform)return;
  uint32_t now=app->millis();
- int selected=signature_filter();const uint32_t *display_amplitude=spectrum.amplitude_q24;
- if(selected>=0){signature_prepare_filter(selected);for(unsigned k=0;k<spectrum.config.fft_size;k++)filtered_amplitude[k]=rf_signature_filtered_amplitude(spectrum.amplitude_q24[k],k,spectrum.config.fft_size,signature_display_gains);display_amplitude=filtered_amplitude;}
+ int selected=signature_filter();const uint32_t*shared_background=cfa_background();const uint32_t *display_amplitude=spectrum.amplitude_q24;
+ if(shared_background){signature_prepare_filter(selected);for(unsigned k=0;k<spectrum.config.fft_size;k++)filtered_amplitude[k]=rf_signature_filtered_amplitude(spectrum.amplitude_q24[k],k,spectrum.config.fft_size,signature_display_gains);display_amplitude=filtered_amplitude;}
  rf_dsp_resample_values(&spectrum,display_amplitude,spec_levels,spec_db,PLOT_W);rf_dsp_resample_values(&spectrum,display_amplitude,fall_levels,fall_db,PLOT_H);
  for(unsigned i=0;i<PLOT_W;i++){unsigned decay=peak_levels[i]>196?peak_levels[i]-196:0;peak_levels[i]=spec_levels[i]>decay?spec_levels[i]:(uint16_t)decay;}
  for(unsigned y=0;y<(unsigned)PLOT_H;y++)history[history_next][y]=(uint8_t)((uint32_t)fall_levels[y]*255/32767);
@@ -482,8 +491,12 @@ static void draw_plot(void){
  }
  pill_w=pill_h=0;
  if(event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),"%.16s %u%%",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}
- if(event_match.complete&&event_match.selected>=0){char event_name[48];int shift=event_match.shift[event_match.selected];snprintf(event_name,sizeof(event_name),"%.16s %u%% %+d bands",cfa_name(2,event_library.labels[event_match.selected].name),event_match.score/10,shift);fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,18,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,event_name,0x3dff9au);}
- if(signature_filter()>=0)text(1,PLOT_X+112,PLOT_Y+1,113,"BG FILTER",0xffd24au);
+ char detected[48];
+ if(cfa_room.slot>=0)snprintf(detected,sizeof(detected),"ROOM %.16s %u%%",cfa_name(CF_ROOM,"UNKNOWN"),(unsigned)(cfa_room.confidence*100.f));else snprintf(detected,sizeof(detected),"ROOM UNKNOWN");
+ fill(PLOT_X+5,PLOT_Y+PLOT_H-55,218,17,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-55,214,detected,NOVA_WHITE);
+ if(cfa_event.slot>=0)snprintf(detected,sizeof(detected),"EVENT %.16s %u%%",cfa_name(CF_EVENT,"UNKNOWN"),(unsigned)(cfa_event.confidence*100.f));else snprintf(detected,sizeof(detected),"EVENT UNKNOWN");
+ fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,17,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,detected,cfa_event.slot>=0?0x3dff9au:NOVA_CAP);
+ if(cfa_background())text(1,PLOT_X+112,PLOT_Y+1,113,"BG FILTER",0xffd24au);
  if(cursor_visible){int p=(int)rf_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);int db=view==1?fall_db[p]:spec_db[p];char f[20],caption[40];freq_text(cursor_hz,f);snprintf(caption,sizeof(caption),"%s %d dBFS",f,db/100);
   if(view==1)fill(PLOT_X,PLOT_Y+p,PLOT_W,1,NOVA_WHITE);else fill(PLOT_X+p,PLOT_Y,1,PLOT_H-18,NOVA_WHITE);
   int px=view==1?PLOT_X+PLOT_W-9:PLOT_X+p,py=view==1?PLOT_Y+p:PLOT_Y+PLOT_H-1-(int)((uint32_t)spec_levels[p]*(PLOT_H-1)/32767);round_rect(px-4,py-4,9,9,4,NOVA_CYAN);round_rect(px-2,py-2,5,5,2,NOVA_WHITE);
@@ -502,7 +515,7 @@ static unsigned monitor_label_confidence(unsigned slot){
  int snr=label_snr[slot];if(snr<=0)return 0;unsigned confidence=(unsigned)snr/12u;return confidence>100u?100u:confidence;
 }
 static int16_t monitor_scene_db(void){return rf_background_db(rf_signature_total(ambient.raw));}
-static unsigned monitor_room_count(void){unsigned n=0;for(unsigned i=0;i<RF_SIGNATURE_SLOTS;i++)if(signatures[i].kind==RF_SIGNATURE_ROOM)n++;return n;}
+static unsigned monitor_room_count(void){unsigned n=0;for(unsigned i=0;i<CF_PROFILES;i++)n+=cfa_bank.profiles[i].kind==CF_ROOM;return n;}
 static unsigned monitor_items(monitor_item items[17]){
  unsigned n=0,temporal=0;
  if(cfa_event.slot>=0){items[n++]=(monitor_item){cfa_bank.profiles[cfa_event.slot].name,0x3dff9au,(unsigned)(cfa_event.confidence*100.f),0,MONITOR_EVENT};temporal=1;}
@@ -534,7 +547,8 @@ static void draw_monitor(void){
  text(1,20,89,38,"ROOM",NOVA_CAP);bool verifying=room_tracker.candidate>=0&&room_tracker.candidate!=room_tracker.selected;bool holding=room_tracker.selected>=0&&(room_tracker.misses||room_tracker.ambiguous);int room=verifying?room_tracker.candidate:room_tracker.selected;
  const char *room_name=cfa_name(1,!rooms?"NO ROOM SAMPLES":!ambient.ready?"LEARNING...":room>=0&&room<(int)RF_SIGNATURE_SLOTS&&signatures[room].kind==RF_SIGNATURE_ROOM?cfa_name(1,signatures[room].name):room_tracker.ambiguous?"AMBIGUOUS":"UNKNOWN");
  text(0,62,88,158,room_name,room>=0?NOVA_WHITE:NOVA_TEXT);
- if(!rooms)snprintf(room_detail,sizeof(room_detail),"CAPTURE ROOM IN CONTROLS > SAMPLES");
+ if(cfa_room.slot>=0)snprintf(room_detail,sizeof(room_detail),"MATCH %u%% / SHARED ROOM",(unsigned)(cfa_room.confidence*100.f));
+ else if(!rooms)snprintf(room_detail,sizeof(room_detail),"CAPTURE ROOM IN CONTROLS > SAMPLES");
  else if(!ambient.ready)snprintf(room_detail,sizeof(room_detail),"RAW ROOM PROFILE / WAIT FOR BASELINE");
  else if(room>=0&&holding)snprintf(room_detail,sizeof(room_detail),"HOLD / %s",room_tracker.ambiguous?"SIMILAR ROOM PROFILES":"CHECKING ROOM");
  else if(room>=0)snprintf(room_detail,sizeof(room_detail),"%s %u%%  AMP %d dB",verifying?"VERIFY":"MATCH",room_tracker.confidence,monitor_scene_db()/100);
@@ -584,7 +598,7 @@ if(paper&&paper->begin)paper->begin();else {
  app->clear();
 #endif
  }
- if(page==PAGE_RECEIVER)draw_receiver();else if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();else if(page==PAGE_KEYBOARD)draw_keyboard();else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error||input_waiting){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
+ if(page==PAGE_RECEIVER)draw_receiver();else if(page>=PAGE_SHARED)draw_shared();else if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();else if(page==PAGE_KEYBOARD)draw_keyboard();else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error||input_waiting){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
  if(toast_message&&page!=PAGE_KEYBOARD){int y=toast_top();round_rect(14,y,212,28,14,NOVA_DIM);round_rect(15,y+1,210,26,13,0);text(1,23,y+5,undo_slot>=0?145:194,toast_message,NOVA_TEXT);if(undo_slot>=0)text(1,174,y+5,45,"UNDO",NOVA_CYAN);}
  app->present(false);painted=app->millis();dirty=false;
 }
@@ -594,14 +608,14 @@ static void set_page(unsigned next){if(next==PAGE_CONTROLS&&page!=PAGE_CONTROLS)
 static void keyboard_begin(void){
  memcpy(keyboard_before,editing.name,sizeof(keyboard_before));key_page=PWK_INITIAL_PAGE;key_choice=0;toast_message=NULL;set_page(PAGE_KEYBOARD);
 }
-static void keyboard_cancel(void){memcpy(editing.name,keyboard_before,sizeof(editing.name));key_choice=0;set_page(event_keyboard?PAGE_EVENT_LABEL:signature_keyboard?PAGE_SIGNATURE_EDIT:PAGE_LABEL);}
+static void keyboard_cancel(void){if(shared_keyboard){shared_keyboard=false;set_page(PAGE_SHARED_EDIT);return;}memcpy(editing.name,keyboard_before,sizeof(editing.name));key_choice=0;set_page(event_keyboard?PAGE_EVENT_LABEL:signature_keyboard?PAGE_SIGNATURE_EDIT:PAGE_LABEL);}
 static void keyboard_activate(unsigned key){
  if(page!=PAGE_KEYBOARD || key>=PWK_COUNT)return;
  size_t n=strlen(editing.name);
  if(key<PWK_CHARACTERS){unsigned ch=portable_watch_key_character(key_page,key);if(ch && n<RF_LABEL_NAME_MAX){editing.name[n]=(char)ch;editing.name[n+1]=0;}}
  else if(key==PWK_PAGE)key_page=(key_page+1)%PWK_PAGES;
  else if(key==PWK_DELETE){if(n)editing.name[n-1]=0;}
- else if(key==PWK_DONE){key_choice=0;set_page(event_keyboard?PAGE_EVENT_LABEL:signature_keyboard?PAGE_SIGNATURE_EDIT:PAGE_LABEL);}
+ else if(key==PWK_DONE){if(shared_keyboard){shared_keyboard_done();return;}key_choice=0;set_page(event_keyboard?PAGE_EVENT_LABEL:signature_keyboard?PAGE_SIGNATURE_EDIT:PAGE_LABEL);}
  dirty=true;
 }
 static void save_label(void){
@@ -630,8 +644,8 @@ static void open_label(int slot,uint32_t frequency){
 }
 static void settings_change(unsigned setting,int direction,int segment){
  storage_discard_confirm=false;
- if(setting==13){event_load();if(!temporal_retained())set_page(PAGE_EVENTS);return;}
- if(setting==12){signature_load();set_page(PAGE_SIGNATURES);return;}
+ if(setting==13){shared_open(2);return;}
+ if(setting==12){shared_open(1);return;}
  if(setting==0)return; /* Reserved legacy source setting is no longer exposed. */
  if(setting!=11 && (load_errors&1u)){notify("RETRY STORAGE FIRST");return;}
 
@@ -683,6 +697,7 @@ static bool process_contact(void){
 /* Shared Home/QuickActions calls this before queuing a different app. A normal
  * edit veto is not a failed radio cleanup and must keep this UI interactive. */
 bool portable_app_before_launch(const char *destination){
+ if(cfa_learning_kind){notify("SAVE OR CANCEL LEARNING");set_page(PAGE_SHARED_CAPTURE);return false;}
  (void)destination;
  if(!rf_bulk||!portable_radio_services_safe())return false;
  stop();if(!signature_exit_ready()||!temporal_exit_ready())return false;
@@ -701,7 +716,7 @@ bool portable_app_before_launch(const char *destination){
  if(draft){notify("SAVE OR CANCEL EDIT FIRST");return false;}
  return true;
 }
-static bool request_root_exit(void){
+static bool request_root_exit(void){if(cfa_learning_kind){notify("SAVE OR CANCEL LEARNING");set_page(PAGE_SHARED_CAPTURE);return false;}
  if(!portable_app_before_launch(NULL))return false;
 #ifdef RF_RETURN_APP
  if(!runtime->request_launch||!runtime->request_launch(RF_RETURN_APP)){message="EXIT FAILED / RETRY";notify(message);return false;}
@@ -712,6 +727,7 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(x<0||y<0||x>=240||y>=(ui_stretched()?240:ui_height))return false;
  if(page==PAGE_RECEIVER){receiver_tap(x,y);return false;}
  if(page!=PAGE_KEYBOARD&&toast_message&&hit(x,y,14,toast_top(),212,28)){if(undo_slot>=0&&x>=167)undo_delete();else{toast_message=NULL;dirty=true;}return false;}
+ if(page>=PAGE_SHARED){shared_tap(x,y);return false;}
  if(page==PAGE_EVENTS||page==PAGE_EVENT_LABEL||page==PAGE_EVENT_CAPTURE||page==PAGE_EVENT_EXAMPLES){event_tap(x,y,toggle_requested);return false;}
  if(page==PAGE_SIGNATURES||page==PAGE_SIGNATURE_EDIT){signature_tap(x,y,toggle_requested);return false;}
  if(page==PAGE_KEYBOARD){if(hit(x,y,8,4,48,36)){keyboard_cancel();return false;}int key=portable_watch_key_hit(x,y);if(key>=0){key_choice=(unsigned)key;keyboard_activate((unsigned)key);}return false;}
@@ -719,7 +735,7 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(page==PAGE_CONTROLS){if(y>=21&&y<45){receiver_scroll=0;set_page(PAGE_RECEIVER);return false;}if(hit(x,y,79,ui_height-39,82,32)){set_page(PAGE_MAIN);return false;}if(y<CONTROLS_TOP||y>=CONTROLS_BOTTOM)return false;unsigned position=(unsigned)(y-CONTROLS_TOP+controls_scroll),setting=position/CONTROLS_ROW_HEIGHT+1;int row_y=(int)(position%CONTROLS_ROW_HEIGHT);if(setting>CONTROLS_COUNT||row_y<4||row_y>=44)return false;if(controls_segment(setting)){if(x>=110&&x<165)settings_change(setting,0,0);else if(x>=171&&x<232)settings_change(setting,0,1);}else if(setting==11||setting==12||setting==13){if(setting==11&&pending_save&&x>=171&&x<232)discard_pending_storage();else if(x>=110&&x<232)settings_change(setting,0,0);}else if(x>=90&&x<122)settings_change(setting,-1,0);else if(x>=200&&x<232)settings_change(setting,1,0);return false;}
  if(!started){if(hit(x,y,68,102,104,48))*toggle_requested=true;else if(hit(x,y,72,196,98,38)){list_scroll=0;set_page(PAGE_CONTROLS);}else if(hit(x,y,6,4,50,34))return request_root_exit();return false;}
  if(y>=8&&y<42){if(x>=4&&x<55){view=0;list_scroll=0;lab_edit=false;}else if(x>=58&&x<108){view=1;list_scroll=0;lab_edit=false;}else if(x>=111&&x<185){view=2;list_scroll=0;lab_edit=false;}else if(x>=188&&x<210&&view!=2){if(load_errors&1u)notify("RETRY STORAGE FIRST");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=213&&x<240){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
- if(view==2){if(hit(x,y,161,44,64,37)){lab_edit=!lab_edit;list_scroll=0;set_page(PAGE_MAIN);return false;}if(lab_edit){unsigned order[8],n=ordered_labels(order);if(y>=88&&y<198){unsigned row=(unsigned)(y-88)/55+list_scroll;if(row<n){if(x>=182&&x<220)delete_label((int)order[row]);else if(x>=20&&x<181)open_label((int)order[row],0);}}if(y>=200&&y<235){if(x>=16&&x<68&&list_scroll)list_scroll--;else if(x>=173&&x<224&&list_scroll+2<n)list_scroll++;}}else if(y>=210){monitor_item items[17];unsigned n=monitor_items(items);if(x<39&&list_scroll)list_scroll--;else if(x>=45&&x<111)*toggle_requested=true;else if(x>=117&&x<196){event_list_scroll=0;toast_message=NULL;set_page(PAGE_EVENTS);}else if(x>=202&&list_scroll+3<n)list_scroll++;}else if(hit(x,y,20,85,200,41)){toast_message=NULL;set_page(PAGE_SIGNATURES);}dirty=true;return false;}
+ if(view==2){if(hit(x,y,161,44,64,37)){lab_edit=!lab_edit;list_scroll=0;set_page(PAGE_MAIN);return false;}if(lab_edit){unsigned order[8],n=ordered_labels(order);if(y>=88&&y<198){unsigned row=(unsigned)(y-88)/55+list_scroll;if(row<n){if(x>=182&&x<220)delete_label((int)order[row]);else if(x>=20&&x<181)open_label((int)order[row],0);}}if(y>=200&&y<235){if(x>=16&&x<68&&list_scroll)list_scroll--;else if(x>=173&&x<224&&list_scroll+2<n)list_scroll++;}}else if(y>=210){monitor_item items[17];unsigned n=monitor_items(items);if(x<39&&list_scroll)list_scroll--;else if(x>=45&&x<111)*toggle_requested=true;else if(x>=117&&x<196){shared_open(2);}else if(x>=202&&list_scroll+3<n)list_scroll++;}else if(hit(x,y,20,85,200,41)){shared_open(1);}dirty=true;return false;}
  if(cursor_visible&&hit(x,y,pill_x,pill_y,pill_w,pill_h)){open_label(-1,cursor_hz);return false;}
  if(hit(x,y,PLOT_X,PLOT_Y,PLOT_W,PLOT_H)){int coordinate=view==1?y-PLOT_Y:x-PLOT_X;int current=(int)rf_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);if(cursor_visible&&abs_int(current-coordinate)>14)cursor_visible=false;else{cursor_visible=true;cursor_hz=rf_dsp_frequency_at(&dsp_config,(unsigned)coordinate,view==1?PLOT_H:PLOT_W);}dirty=true;return false;}
  if(y>=ui_height-24&&y<ui_height){if(x>=6&&x<150)*toggle_requested=true;else if(x>=154&&x<240){if(running)*freeze_requested=true;else return request_root_exit();}}return false;
@@ -728,6 +744,8 @@ static bool rf_bulk_create(void){
  rf_bulk_allocated=app->struct_size>=offsetof(t5_app_api_v1,psram_free)+sizeof(app->psram_free)&&app->psram_alloc&&app->psram_free;
  rf_bulk=rf_bulk_allocated?app->psram_alloc(sizeof(*rf_bulk)):&rf_resident_bulk;if(!rf_bulk)return false;memset(rf_bulk,0,sizeof(*rf_bulk));return true;
 }
+#include "context_signal_library.inc"
+
 void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);waterfall_api=app;waterfall_runtime=runtime;
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms)return;
@@ -760,12 +778,13 @@ void app_main(void){
   if(waterfall_uncertain)continue;
   if(temporal_retained()){retain_app_data();return;}
   normalize_input(&input);
-  if(input.exit_requested){stop();if(signature_exit_ready()&&temporal_exit_ready())break;continue;}
-  if(input.buttons&T5_APP_BUTTON_BACK){if(page==PAGE_KEYBOARD)keyboard_cancel();else if(page==PAGE_EVENT_CAPTURE){if(event_armed||event_training.ready)notify("SAVE OR CANCEL THE WINDOW");else set_page(PAGE_EVENT_LABEL);}else if(page==PAGE_EVENT_EXAMPLES)set_page(PAGE_EVENT_LABEL);else if(page==PAGE_EVENT_LABEL)set_page(PAGE_EVENTS);else if(page==PAGE_EVENTS||page==PAGE_SIGNATURES||page==PAGE_RECEIVER)set_page(PAGE_CONTROLS);else if(page==PAGE_SIGNATURE_EDIT)set_page(PAGE_SIGNATURES);else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else if(request_root_exit())break;continue;}
+  if(input.exit_requested){if(cfa_learning_kind){notify("SAVE OR CANCEL LEARNING");set_page(PAGE_SHARED_CAPTURE);continue;}stop();if(signature_exit_ready()&&temporal_exit_ready())break;continue;}
+  if(input.buttons&T5_APP_BUTTON_BACK){if(shared_back())continue;if(page==PAGE_KEYBOARD)keyboard_cancel();else if(page==PAGE_EVENT_CAPTURE){if(event_armed||event_training.ready)notify("SAVE OR CANCEL THE WINDOW");else set_page(PAGE_EVENT_LABEL);}else if(page==PAGE_EVENT_EXAMPLES)set_page(PAGE_EVENT_LABEL);else if(page==PAGE_EVENT_LABEL)set_page(PAGE_EVENTS);else if(page==PAGE_EVENTS||page==PAGE_SIGNATURES||page==PAGE_RECEIVER)set_page(PAGE_CONTROLS);else if(page==PAGE_SIGNATURE_EDIT)set_page(PAGE_SIGNATURES);else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else if(request_root_exit())break;continue;}
   now=app->millis();if(event_slot>=0&&(uint32_t)(now-last_event_at)>2000u){event_slot=-1;dirty=true;}if(toast_message&&(int32_t)(now-toast_until)>=0){toast_message=NULL;undo_slot=-1;dirty=true;}
   bool consumed=process_contact(),toggle_requested=false,freeze_requested=false;
   uint32_t buttons=input.buttons;if(buttons||input.tapped||consumed)urgent_draw=true;
   if(page==PAGE_MAIN){if(buttons&T5_APP_BUTTON_CONFIRM)toggle_requested=true;else if(buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_RIGHT)){view=(view+(buttons&T5_APP_BUTTON_LEFT?2u:1u))%3;list_scroll=0;lab_edit=false;set_page(PAGE_MAIN);}else if(buttons&T5_APP_BUTTON_DOWN)freeze_requested=true;}
+  else if(page>=PAGE_SHARED)shared_buttons(buttons);
   else if(page==PAGE_CONTROLS){if(buttons&(T5_APP_BUTTON_UP|T5_APP_BUTTON_LEFT))controls_move(controls_scroll-CONTROLS_ROW_HEIGHT);else if(buttons&(T5_APP_BUTTON_DOWN|T5_APP_BUTTON_RIGHT))controls_move(controls_scroll+CONTROLS_ROW_HEIGHT);}
   else if(page==PAGE_RECEIVER){if(buttons&(T5_APP_BUTTON_UP|T5_APP_BUTTON_LEFT)){if(receiver_scroll)receiver_scroll--;dirty=true;}else if(buttons&(T5_APP_BUTTON_DOWN|T5_APP_BUTTON_RIGHT)){if(receiver_scroll+3<RF_RECEIVER_ROWS)receiver_scroll++;dirty=true;}}
   else if(page==PAGE_LABEL&&(buttons&T5_APP_BUTTON_CONFIRM))save_label();

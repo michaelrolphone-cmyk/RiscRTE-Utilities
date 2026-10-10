@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "profile": "x4-native-paper-contexts",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "watch_version": "0.3.0",
   "service_version": "0.3.0",
   "home": "default.elf",

@@ -91,6 +91,29 @@ int main(void){
         if(period==1000){assert(second.flags&CF_TEMPORAL);assert(second.bins==1&&second.repetition[0].ms==1000);}
         else assert(!(second.flags&CF_TEMPORAL));
     }
+    /* Schema2 preserves subtraction power. Schema1 still loads without
+     * fabricating a background, and maximum populated banks fit storage. */
+    pcm_train(100,&first);memset(&bank,0,sizeof(bank));
+    for(unsigned i=0;i<CF_PROFILES;i++){
+        cf_profile*p=&bank.profiles[i];p->kind=1+i/8;p->present[0]=1;p->weight[0]=1;
+        snprintf(p->name,sizeof(p->name),"Profile %u",i);p->feature[0]=first;
+        p->feature[0].bins=CF_HIST_CAPACITY;for(unsigned j=0;j<CF_HIST_CAPACITY;j++)p->feature[0].repetition[j]=(cf_bin){(uint16_t)j,1.f/CF_HIST_CAPACITY};
+    }
+    uint32_t full=cf_encode_source(&bank,0,encoded,sizeof(encoded));assert(full>60000&&full<=CF_STORE_MAX&&cf_decode_source(&decoded,0,encoded,full));
+    uint32_t background[128];assert(cf_background_power(&decoded.profiles[0],0,1,background)&&background[8]==1u<<22);
+    assert(!cf_background_power(&decoded.profiles[0],1,1,background)&&!cf_background_power(&decoded.profiles[0],0,2,background));
+    memset(&bank,0,sizeof(bank));bank.profiles[0]=decoded.profiles[0];
+    full=cf_encode_source(&bank,0,encoded,sizeof(encoded));
+    memmove(encoded+200,encoded+712,full-712);full-=512;
+    encoded[4]=1;encoded[100]&=(uint8_t)~CF_BACKGROUND;
+    cf_writer crc_writer={encoded,full-4,full,true};cf_w32(&crc_writer,cf_crc(encoded,full-4));
+    assert(cf_decode_source(&decoded,0,encoded,full)&&!(decoded.profiles[0].feature[0].flags&CF_BACKGROUND));
+    assert(decoded.profiles[0].feature[0].bins==CF_HIST_CAPACITY);
+    /* Empty CFP1 file: old schema is accepted and later saves use schema2. */
+    cf_writer old={encoded,0,sizeof(encoded),true};cf_w32(&old,0x31504643u);cf_w32(&old,1);cf_w32(&old,0);cf_w32(&old,7);
+    for(unsigned i=0;i<CF_PROFILES;i++)cf_w32(&old,0);
+    cf_w32(&old,cf_crc(encoded,old.at));
+    assert(cf_decode_source(&decoded,0,encoded,old.at)&&decoded.generation==7);
     /* Interval edge, overflow and exact transport distance. */
     memset(&first,0,sizeof(first));memset(&second,0,sizeof(second));first.flags=second.flags=CF_TEMPORAL;first.bins=second.bins=1;first.repetition[0]=(cf_bin){0,1};second.repetition[0]=(cf_bin){10000,1};assert(cf_emd(&first,&second)==10000);
     uint16_t bins=0;for(unsigned i=0;i<CF_HIST_CAPACITY;i++)assert(cf_hist_add(first.repetition,&bins,i,1));assert(!cf_hist_add(first.repetition,&bins,9999,1));

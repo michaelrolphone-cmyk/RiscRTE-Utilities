@@ -31,6 +31,46 @@ supports RF and audio; X4 uses RF because its supplied hardware has no microphon
 Timing-only matching is selectable. Names and learned profiles are shared with
 the RF/audio applications and Watch clock labels.
 
+## One library in three applications
+
+Contexts, SDR and Audio Spectrogram use the same named room/event profiles.
+Open **Controls > Samples / Events** (or tap the Monitor room or
+**Learn** button) in a signal app to open its shared library. **+ New** accepts a
+custom name; selecting an existing profile offers another training sample.
+Room training requires 30 seconds and at least three windows; event training
+requires three separated takes. **Save** verifies persistent storage and imports
+the source record into the service immediately. **Tools** preserves access to
+the earlier spectrum captures, event examples and frequency-label workflows.
+
+Each room/event keeps independent RF and audio observations. Profiles join by
+kind and exact name, never by coincident slot numbers. A room trained only in
+Audio appears in SDR with **Add RF sample**; it is not treated as an RF match.
+The Watch supports both sources. X4's supplied profile exposes RF only.
+Foreground plots and Monitor show the current shared room/event label and
+confidence; missing or insufficient evidence remains **Unknown**.
+
+Room profiles also retain all 128 unfiltered canonical spectral band powers.
+**Raw** shows the original spectrum. **Auto** subtracts the confidently matched
+room. **Manual** uses the room chosen with **Use room background**. Selection
+persists across reopening. Subtraction affects displayed captures only;
+classification and training always receive raw observations. Unknown temporal
+rooms do not fall back to a guessed spectral room. RF receiver identity must
+match, and an audio background is never applied to RF. Earlier raw room spectra
+remain usable by exact name; schema-1 temporal profiles remain readable and gain
+a full background spectrum after fresh training. New writes use schema 2.
+
+## Background detection switch
+
+Watch and X4 Quick Actions expose **Context detection On / Off**, using the same
+persisted preference as Contexts. Its absent/default state is Off. A toggle
+pauses background capture, verifies the write, and invalidates the cached
+policy. A failed save reports an unconfirmed state rather than a false success.
+
+SDR and Spectrogram still analyze the explicit foreground capture while they
+are running. Explicit Contexts training temporarily enables its capture client
+without writing the background preference; Save/Cancel ends that temporary
+session. X4 preserves an in-progress session through Light suspend/resume.
+
 ## Rules, actions and storage
 
 The editor supports prioritized rules with hold times, room/event conditions,
@@ -80,3 +120,29 @@ Hardware qualification remains: collect labeled rooms and events on separate
 days, include unknown rooms and background negatives, record confusion/unknown
 rates and event false alarms, and adjust confidence thresholds from held-out
 captures. Synthetic tests establish behavior, not field accuracy.
+
+## Shared-library and Quick Actions verification
+
+The follow-up uses Audio Spectrogram 0.5.1, SDR/Contexts/service 0.3.1, Watch
+clock 0.11.1 and X4 Home 0.4.1. Both target builds and the service profiles pass
+GCC 8.4.0 compilation, import/export checks and the native ELF validator.
+
+Targeted host checks (normal and ASan/UBSan) cover:
+
+- `test_shared_signal_library.py`: actual PCM controller training, names across
+  independent slots, save/reopen and uncertain commits, persisted background
+  selection, unknown handling and subtraction without mutation of raw data.
+- `test_context_fingerprints.py`: full-capacity schema-2 storage, schema-1 reads,
+  source/identity guards, and service import merging independent RF/audio data.
+- `test_contexts_app.py`: the Contexts Save/Cancel/retry paths leave the master
+  detection preference unchanged during explicit learning.
+- System `test_context_quick_toggle.py`: gestures, confirmed persistence, missing
+  and corrupt settings, failed writes, and background versus foreground policy.
+- X4 `test_shared_quick_tiles.py` and `test_context_clock_rendezvous.py`: button
+  layout, current Home ownership boundaries and temporary learning on resume.
+- Existing actual-app temporal raster journeys and RF lifecycle checks preserve
+  event examples, pending-save/retained cleanup and display bounds.
+
+These are source/app/service updates. The earlier Watch 1.0.22 and X4 0.1.56 full
+images predate this follow-up and do not contain these changes. No replacement
+full image is assembled here. Device accuracy still requires labeled captures.

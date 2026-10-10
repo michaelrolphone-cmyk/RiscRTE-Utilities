@@ -3,6 +3,7 @@
 #include "RiscRuntimeV1.h"
 #include "RiscDisplayOutputV1.h"
 #include "PortableContextsClient.h"
+#include "PortableApps.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,15 +33,35 @@ static bool get_status(void *c,contexts_status_v1 *out){(void)c;*out=live;return
 static int32_t label(void *c,uint32_t source,uint32_t slot,contexts_label_v1 *out){(void)c;if(slot>=8)return 0;*out=(contexts_label_v1){.source=source,.slot=slot};if(!slot){out->kind=1;strcpy(out->name,source==CONTEXTS_AUDIO?"Study":"Studio");}return 1;}
 static bool request(void *c,uint32_t sources){(void)c;assert(sources==CONTEXTS_ALL);requests++;live.export_pending=sources;return true;}
 static const contexts_service_v1 service={.api_version=1,.struct_size=sizeof(service),.status=get_status,.label=label,.request_export=request};
-const contexts_service_v1 *portable_contexts_service(void){return &service;}
+static const contexts_service_v1 *selected_service=&service;
+const contexts_service_v1 *portable_contexts_service(void){return selected_service;}
+const t5_app_manifest_t portable_catalog[1]={{.compatible=false}};
+const unsigned portable_catalog_count=0;
+static bool training_active,training_fail,learn_fail,models_fail;
+static unsigned learn_begins,learn_saves,learn_cancels,model_saves;
+static cr_store saved_rules;
+bool portable_contexts_rules_read(cr_store*out){*out=saved_rules;return true;}
+bool portable_contexts_rules_save(const cr_store*in){saved_rules=*in;return true;}
+bool portable_contexts_models_save(void){model_saves++;return !models_fail;}
+static bool learn_call(void*c,uint32_t operation,void*request){
+ (void)c;
+ if(operation==CONTEXTS_FP_PROFILE){((contexts_profile_v1*)request)->kind=0;return true;}
+ if(operation!=CONTEXTS_FP_LEARN)return false;
+ contexts_learning_v1*q=request;
+ if(q->operation==CONTEXTS_LEARN_BEGIN){learn_begins++;q->state=CONTEXTS_LEARN_RECORDING;return !learn_fail;}
+ if(q->operation==CONTEXTS_LEARN_SAVE){learn_saves++;return true;}
+ if(q->operation==CONTEXTS_LEARN_CANCEL){learn_cancels++;return true;}
+ return true;
+}
 bool portable_contexts_stop(void){stops++;return !stop_fail;}
+bool portable_contexts_training(bool enabled){if(training_fail)return false;training_active=enabled;return true;}
 bool portable_contexts_enable(bool enabled){return portable_context_enabled_save(&kv,enabled);}
 unsigned portable_contexts_face_count(void){return 3;}
 const char *portable_contexts_face_name(unsigned id){static const char *names[]={"NOVA","ANALOG","CONTEXTS"};return id<3?names[id]:NULL;}
 static const risc_runtime_api_v1 runtime={.api_version=1,.struct_size=sizeof(runtime),.acquire=acquire,.release=release};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t version){return version==1?&runtime:NULL;}
 static void present(bool partial){(void)partial;assert(pixels[0]==0xa55a&&pixels[240*240+1]==0xa55a);}
-static const t5_app_api_v1 app={.abi_version=1,.struct_size=sizeof(app),.present=present};
+static const t5_app_api_v1 app={.abi_version=1,.struct_size=sizeof(app),.present=present,.screen_width=width,.screen_height=height};
 const t5_app_api_v1 *t5_app_get_api(uint32_t version){return version==1?&app:NULL;}
 #include "../../Apps/contexts.c"
 static void screenshot(const char *directory,const char *name) {
@@ -85,6 +106,24 @@ int main(int argc,char **argv) {
     live.audio.current=live.audio.room_valid=live.audio.event_valid=true;ctx_read_status();screenshot(argv[1],"contexts-models-ready");ctx_back();screenshot(argv[1],"contexts-neural-event");
     unsigned char *old=malloc(CONTEXTS_SERVICE_V1_SIZE);assert(old);memcpy(old,&service,CONTEXTS_SERVICE_V1_SIZE);uint32_t prefix_size=CONTEXTS_SERVICE_V1_SIZE;memcpy(old+offsetof(contexts_service_v1,struct_size),&prefix_size,sizeof(prefix_size));ctx_service=(const void*)old;
     before=model_reads;ctx_read_status();assert(model_reads==before&&!ctx_model_valid[0]&&!ctx_model_valid[1]);ctx_tap(90,149);assert(ctx_page==CT_MODELS&&ctx_model_source==1);screenshot(argv[1],"contexts-models-old-provider");free(old);ctx_service=&service;
+    /* The current shared-library UI trains explicitly without changing the
+     * persisted background switch, and retries a model save only once. */
+    contexts_fingerprint_service_v1 modern={.base=service,.fingerprint_abi=0x31504643u,.fingerprint=learn_call};
+    modern.base.struct_size=sizeof(modern);selected_service=&modern.base;
+    cr_init(&cu_store);cr_init(&cu_saved);cr_init(&saved_rules);
+    cu_kind=CR_PLACE;cu_item=0;strcpy(cu_name,"Office");cu_page_set(CU_NEW);
+    before=writes;uint8_t master[64];memcpy(master,cells[8],sizeof(master));
+    training_fail=true;cu_learn_begin();assert(cu_page==CU_NEW&&!training_active&&!learn_begins);
+    training_fail=false;learn_fail=true;cu_learn_begin();assert(!training_active&&cu_page==CU_NEW);
+    learn_fail=false;cu_learn_begin();assert(training_active&&cu_page==CU_LEARN);
+    cu_back();cu_action(CU_ROW_CONFIRM);assert(!training_active&&cu_page==CU_HOME&&learn_cancels==1);
+    cu_learn_begin();cu_learning.state=CONTEXTS_LEARN_READY;models_fail=true;
+    cu_action(CU_ROW_SAVE);assert(cu_learning_saved&&training_active&&cu_page==CU_LEARN&&learn_saves==1);
+    models_fail=false;cu_action(CU_ROW_SAVE);
+    assert(!training_active&&cu_page==CU_ITEM&&learn_saves==1&&model_saves==2);
+    assert(writes==before&&!memcmp(master,cells[8],sizeof(master)));
+    assert(saved_rules.items[0].kind==CR_PLACE&&!strcmp(saved_rules.items[0].name,"Office"));
+    selected_service=&service;
     stop_fail=true;before=acquires;ctx_load();assert(ctx_retained&&acquires==before&&acquires==releases);
-    printf("Contexts Nova7 production UI: no default writes, identity selection, action masks, verified Save, draft discard, uncertain retry, unread protection, model retry and retained storage fence PASS\n");
+    printf("Contexts Nova7 production UI: no default writes, identity selection, action masks, verified Save, draft discard, uncertain retry, unread protection, model retry, temporary learning without a background preference write, and retained storage fence PASS\n");
 }
