@@ -76,7 +76,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: 0f17a435f99d02d60ca50df1d1a51fcef123db89
+          ref: b25b1d467a557e8d693211cff2eff959eb9c79de
           path: .dependencies/current-runtime
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -108,7 +108,7 @@ jobs:
         run: >-
           python scripts/test_x4_ble_shared_text.py --source-only
           --system-apps .dependencies/current-system --system-revision 8a75862929e4e83c8f66b3d58cc1c36d44830c84
-          --runtime .dependencies/current-runtime --runtime-revision 0f17a435f99d02d60ca50df1d1a51fcef123db89
+          --runtime .dependencies/current-runtime --runtime-revision b25b1d467a557e8d693211cff2eff959eb9c79de
           --drivers .dependencies/current-drivers --drivers-revision 4088b6892c2e2654b0342f04a7d191068e4a8e2e
           --reader .dependencies/display-reader --reader-revision 45cf61ac013fb618e8d7fed63217a35350484d52
           --x4 .dependencies/display-x4 --x4-revision cbf4bfd34372bf87ccf60429e062a6e96d043aca
@@ -123,7 +123,7 @@ jobs:
         run: >-
           python scripts/build_x4_resident_clients.py --resident-shell-client --app ble_scanner
           --system-apps .dependencies/current-system --system-revision 8a75862929e4e83c8f66b3d58cc1c36d44830c84
-          --runtime .dependencies/current-runtime --runtime-revision 0f17a435f99d02d60ca50df1d1a51fcef123db89
+          --runtime .dependencies/current-runtime --runtime-revision b25b1d467a557e8d693211cff2eff959eb9c79de
           --display-sdk build/scanner-current-host/sdk/include
           --output "${{ github.workspace }}/dist/scanner-current"
       - name: Check current target and host profile agreement

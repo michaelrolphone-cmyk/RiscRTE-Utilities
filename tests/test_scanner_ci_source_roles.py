@@ -73,6 +73,8 @@ class ScannerSourceRoles(unittest.TestCase):
         self.assertIn('check_scanner_ci_profile.py', workflow)
         self.assertIn('build_x4_resident_clients.py --resident-shell-client --app ble_scanner', workflow)
         self.assertNotIn('--development-system', workflow)
+        self.assertIn('--runtime-revision b25b1d467a557e8d693211cff2eff959eb9c79de', workflow)
+        self.assertNotIn('0f17a435f99d02d60ca50df1d1a51fcef123db89', workflow)
         for role in ('system', 'runtime', 'drivers', 'reader', 'x4'):
             self.assertRegex(workflow, '--' + role + '-revision [0-9a-f]{40}')
 
