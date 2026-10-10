@@ -43,7 +43,7 @@ static void signature_restore(void){
 static int signature_filter(void){int selected=signature_mode==2?manual_room:signature_mode==1?room_tracker.selected:-1;return selected>=0&&selected<(int)SPECTRUM_SIGNATURE_SLOTS&&signatures[selected].kind==SPECTRUM_SIGNATURE_ROOM?selected:-1;}
 static void signature_commit_capture(void){
  int slot=signature_capture_slot;if(slot<0||!signature_capture.frames)return;
- if(!cfa_confirm((unsigned)slot,signature_capture.name,signature_capture.kind))return;
+ if(!cfa_confirm((unsigned)slot,signature_capture.name,signature_capture.kind)){signature_goal=0;signature_capture_slot=-1;notify("NO RELIABLE FEATURES / RETRY");return;}
  int previous_filter=signature_filter();
  bool ok=true;
  if(signatures[slot].kind)ok=spectrum_signature_combine(&signatures[slot],&signature_capture);else signatures[slot]=signature_capture;

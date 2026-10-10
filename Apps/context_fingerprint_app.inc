@@ -1,7 +1,16 @@
 /* Shared by the watch and paper RF app and by the audio Spectrogram. The
  * fourth app-data file keeps temporal profiles independent of legacy records. */
 #include "../lib/ContextFingerprint/include/ContextFingerprintStore.h"
-#include "PortableFingerprintClock.h"
+#if defined(__has_include)
+# if __has_include("PortableFingerprintClock.h")
+#  include "PortableFingerprintClock.h"
+#  define CFA_CLOCK_SDK 1
+# endif
+#endif
+#ifndef CFA_CLOCK_SDK
+/* Older adapters remain buildable; only date-based profile aging is absent. */
+static bool portable_fingerprint_clock(const risc_runtime_api_v1*rt,uint64_t*out){(void)rt;*out=0;return true;}
+#endif
 static cf_pipeline cfa_pipeline,cfa_event_pipeline;
 static cf_bank cfa_bank,cfa_read_bank;
 static cf_fusion cfa_fusion,cfa_event_fusion;
@@ -20,7 +29,7 @@ static void cfa_capture_clock(uint32_t stamp){
         uint32_t gap=stamp-cfa_last_capture_ms;cfa_time_us+=(uint64_t)gap*1000u;
         if(gap>(CFA_SOURCE?500u:64u)){
             cf_gap(&cfa_pipeline);cf_gap(&cfa_event_pipeline);
-            cf_window_reset(&cfa_pipeline,cfa_time_us);cf_window_reset(&cfa_event_pipeline,cfa_time_us);
+            if(!CFA_SOURCE){cf_window_reset(&cfa_pipeline,cfa_time_us);cf_window_reset(&cfa_event_pipeline,cfa_time_us);}
             cfa_fusion.have[CFA_SOURCE]=false;cfa_event_fusion.have[CFA_SOURCE]=false;
             cfa_room.slot=cfa_event.slot=-1;
         }

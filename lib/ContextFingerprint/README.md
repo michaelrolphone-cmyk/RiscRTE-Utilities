@@ -86,7 +86,8 @@ claim success; reduce old examples or provision a larger future storage ABI.
 
 Background clients need explicit app-data grants for the enabled source
 namespaces, in addition to existing Contexts grants. `rtc.clock@2` is optional
-for age decay. `context_sources` in shared KV@1 stores Audio=1/RF=2;
+for age decay; older adapters without the clock helper still build with aging
+disabled. `context_sources` in shared KV@1 stores Audio=1/RF=2;
 `context_timing` stores full=0/timing-only=1. The RF-only service never requests
 audio. Do not add an audio dependency to X4.
 
