@@ -8,8 +8,9 @@ from pathlib import Path
 import shutil
 import subprocess
 from app_manifest import validate_manifest
+from normalize_xtensa_relocations import normalize
 ROOT=Path(__file__).resolve().parents[1]
-IMPORTS={'risc_runtime_get_api','memcpy','memset','memcmp','strcmp','strlen','snprintf','malloc','free','strcpy'}
+IMPORTS={'risc_runtime_get_api','memcpy','memset','memcmp','strcmp','strlen','snprintf','malloc','free','strcpy','memchr'}
 EXPORTS={'app_main','app_module_init','app_module_fini'}
 def inventory():
     apps=json.loads((ROOT/'utilities-manifest.json').read_text())['audio_apps']
@@ -35,7 +36,8 @@ def build(system):
     rows=[]
     for app in inventory():
         name=app['id'];elf=out/(name+'.elf')
-        subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror','-DPORTABLE_FORCE_FULL_FRAMES','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_AUDIO_SESSION','-DPORTABLE_NOVA_UI',*(['-DPORTABLE_APP_OWNS_TOUCH_CHROME','-DPORTABLE_AUDIO_CONTINUOUS_CAPTURE'] if name=='audio_spectrum' else []),*['-I'+str(p) for p in (ROOT/'Apps',ROOT/'lib/Alarm/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include')],str(ROOT/app['source_path']),str(system/'lib/PortableApps/src/adapter.c'),str(catalog),'-lgcc','-o',str(elf)],check=True)
+        subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror','-DPORTABLE_FORCE_FULL_FRAMES','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_AUDIO_SESSION','-DPORTABLE_NOVA_UI',*(['-DPORTABLE_APP_OWNS_TOUCH_CHROME','-DPORTABLE_AUDIO_CONTINUOUS_CAPTURE'] if name=='audio_spectrum' else []),*['-I'+str(p) for p in (ROOT/'Apps',ROOT/'lib/Alarm/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include')],str(ROOT/app['source_path']),str(system/'lib/PortableApps/src/adapter.c'),str(catalog),*([str(system/'lib/NativeApps/src/SingleFloatDivisionCompat.c')] if name=='audio_spectrum' else []),'-lgcc','-o',str(elf)],check=True)
+        if name=='audio_spectrum':normalize(elf)
         symbols=subprocess.check_output([cc.removesuffix('gcc')+'nm','-D',str(elf)],text=True)
         imports={s.split()[-1] for s in symbols.splitlines() if ' U ' in ' '+s}
         exports={s.split()[-1] for s in symbols.splitlines() if len(s.split())>=3 and s.split()[-2] in ('T','D','B','R')}

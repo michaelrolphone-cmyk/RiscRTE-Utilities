@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.4.13",
+      "version": "0.5.0",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -197,7 +197,10 @@
         "lib/VoiceActivity/src/vad/vad_gmm.c",
         "lib/VoiceActivity/src/vad/vad_gmm.h",
         "lib/VoiceActivity/src/vad/vad_sp.c",
-        "lib/VoiceActivity/src/vad/vad_sp.h"
+        "lib/VoiceActivity/src/vad/vad_sp.h",
+        "Apps/context_fingerprint_app.inc",
+        "lib/ContextFingerprint/include/ContextFingerprint.h",
+        "lib/ContextFingerprint/include/ContextFingerprintStore.h"
       ],
       "min_firmware_version": "0.1.32"
     }
@@ -242,7 +245,7 @@
     {
       "id": "waterfall",
       "display_name": "Waterfall",
-      "version": "0.2.11",
+      "version": "0.3.0",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/waterfall.c",
@@ -267,7 +270,10 @@
         "Apps/rf_temporal_store.h",
         "Apps/rf_temporal_files.h",
         "Apps/rf_neural.h",
-        "Apps/rf_neural_store.h"
+        "Apps/rf_neural_store.h",
+        "Apps/context_fingerprint_app.inc",
+        "lib/ContextFingerprint/include/ContextFingerprint.h",
+        "lib/ContextFingerprint/include/ContextFingerprintStore.h"
       ],
       "min_firmware_version": "0.1.41"
     }
