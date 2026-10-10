@@ -168,7 +168,7 @@ static bool send_assignment(const hid_assignment*a,bool pressed){
  return hid->mouse(hid->context,token,pressed?a->buttons:0,pressed?a->dx:0,pressed?a->dy:0,pressed?a->wheel:0);
 }
 static int button_at(int x,int y){if(paper){if(x<32||x>=448||y<224||y>=624||(x>=232&&x<248)||(y>=416&&y<432))return -1;return (y>=432?2:0)+(x>=248?1:0);}if(x<8||x>=232||y<80||y>=190|| (x>=116&&x<124)||(y>=131&&y<139))return -1;return (y>=139?2:0)+(x>=124?1:0);}
-#if defined(PORTABLE_PAPER_HID) && defined(PORTABLE_RESIDENT_SHELL_CLIENT) && !HID_TOUCHPAD
+#if !HID_TOUCHPAD
 /* The adapter and this app independently sample the same raw provider. A
  * complete short contact can therefore be queued while the final snapshot is
  * already neutral. Recognize only one uninterrupted, single-tile contact; the
@@ -282,7 +282,7 @@ static void pump(void){
   else if(status.state==RISC_HID_CONNECTED)message="Connection ended - retry Pair";
   status=next;if(next.state==RISC_HID_READY)had_ready=true;
  }
-#if defined(PORTABLE_PAPER_HID) && defined(PORTABLE_RESIDENT_SHELL_CLIENT) && !HID_TOUCHPAD
+#if !HID_TOUCHPAD
  hid_button_tap queued_tap={.target=-1,.valid=true};
 #endif
  bool polled=raw->poll(raw->context,1),gap=false,saw_up=false;int32_t rc=0;risc_touch_event_v1 e;
@@ -290,8 +290,8 @@ static void pump(void){
   rc=raw->next(raw->context,subscription,&e);if(rc<=0)break;
   if(e.sequence!=sequence+1)gap=true;
   sequence=e.sequence;
-#if defined(PORTABLE_PAPER_HID) && defined(PORTABLE_RESIDENT_SHELL_CLIENT) && !HID_TOUCHPAD
-  if(paper)button_tap_event(&queued_tap,&e);
+#if !HID_TOUCHPAD
+  button_tap_event(&queued_tap,&e);
 #endif
   if(e.kind==RISC_TOUCH_EVENT_UP)saw_up=true;
   if(e.kind==RISC_TOUCH_EVENT_DOWN&&saw_up)gap=true;
@@ -310,8 +310,8 @@ static void pump(void){
  uint32_t need=RISC_HID_ENCRYPTED|RISC_HID_AUTHENTICATED|(HID_TOUCHPAD?RISC_HID_MOUSE_READY:0);
  if(status.state==RISC_HID_READY&&(status.flags&need)==need&&view==HID_VIEW_MAIN){
   bool ok;
-#if defined(PORTABLE_PAPER_HID) && defined(PORTABLE_RESIDENT_SHELL_CLIENT) && !HID_TOUCHPAD
-  if(paper&&!gap&&!button_gate&&held_button<0&&!sample.contact_count&&
+#if !HID_TOUCHPAD
+  if(!gap&&!button_gate&&held_button<0&&!sample.contact_count&&
      queued_tap.valid&&queued_tap.complete&&(uint32_t)(app->millis()-refreshed)<=100u&&
      assignment_ready(assignments+queued_tap.target)){
    /* No earlier sampled press exists for this contact. Queue the same FIFO

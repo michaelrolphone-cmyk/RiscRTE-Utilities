@@ -294,7 +294,7 @@
     {
       "id": "ble_buttons",
       "display_name": "BLE Buttons",
-      "version": "0.1.14",
+      "version": "0.1.22",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/ble_buttons.c",

@@ -6,6 +6,6 @@
   "countdown": "0.1.21",
   "ble_scanner": "0.2.21",
   "ble_touchpad": "0.1.20",
-  "ble_buttons": "0.1.21",
+  "ble_buttons": "0.1.22",
   "waterfall": "0.2.20"
 }
