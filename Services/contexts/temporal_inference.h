@@ -16,6 +16,7 @@ static void ct_audio_observe(bool ready,bool active,const uint32_t power[128],ui
  if(ct_a.segment.ready&&ct_a.match.running&&(frame.flags&ST_ACTIVE)&&!m->previous_active&&m->details.missed_events<UINT32_MAX)++m->details.missed_events;
  m->previous_active=!!(frame.flags&ST_ACTIVE);
  if(!ct_a.segment.ready){st_segment_observe(&ct_a.segment,&frame);if(ct_a.segment.ready)m->segment_at=now;}
+ fp_event_boundary(0,ct_a.segment.collecting,ct_a.segment.ready,now);
  if(ct_a.segment.ready&&!ct_a.match.running){
   st_match_begin(&ct_a.match,&ct_a.segment.event);m->query_at=m->segment_at;st_segment_rearm(&ct_a.segment);
   m->details.match_pending=ct_a.match.running;
@@ -34,6 +35,7 @@ static void ct_radio_observe(bool ready,bool active,const uint32_t power[128],co
  if(ct_r.segment.ready&&ct_r.match.running&&(frame.flags&RT_ACTIVE)&&!m->previous_active&&m->details.missed_events<UINT32_MAX)++m->details.missed_events;
  m->previous_active=!!(frame.flags&RT_ACTIVE);
  if(!ct_r.segment.ready){rt_segment_observe(&ct_r.segment,&frame);if(ct_r.segment.ready)m->segment_at=now;}
+ fp_event_boundary(1,ct_r.segment.collecting,ct_r.segment.ready,now);
  if(ct_r.segment.ready&&!ct_r.match.running){
   rt_match_begin(&ct_r.match,&ct_r.segment.event);m->query_at=m->segment_at;rt_segment_rearm(&ct_r.segment);
   m->details.match_pending=ct_r.match.running;

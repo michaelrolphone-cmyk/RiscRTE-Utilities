@@ -1,6 +1,8 @@
 #pragma once
 #ifdef PORTABLE_CONTEXTS_CLIENT
 #include "ContextsServiceV1.h"
+#include "ContextFingerprintService.h"
+static uint8_t contexts_owner_fingerprint_bytes[72000];
 #include "PortableBackgroundServices.h"
 #include "spectrum_store.h"
 #include "spectrum_signature_store.h"
@@ -15,6 +17,7 @@
 /* Borrow the common adapter's grant: a duplicate acquisition can exceed the
  * existing 16-grant bound while this owner reads its private KV namespace. */
 const contexts_service_v1 *portable_contexts_service(void);
+bool portable_contexts_models_save(void);
 enum { CONTEXTS_OWNER_FENCED=-2,CONTEXTS_OWNER_RETAINED=-1,CONTEXTS_OWNER_NORMAL=0,CONTEXTS_OWNER_EXPORTED=1 };
 static int contexts_owner_fence(const risc_runtime_api_v1 *runtime){
     if(app_retained_fence(runtime))return CONTEXTS_OWNER_FENCED;
@@ -62,6 +65,20 @@ static int contexts_owner_models(const risc_runtime_api_v1 *runtime,const contex
          * do not replace that result with a generic owner-side error. */
         if(!rc)(void)service->export_record(service->context,source,kind,index,buffer,size);
         if(rc&&!contexts_owner_model_error(service,source,kind,index,rc))return contexts_owner_fence(runtime);
+    }
+    const contexts_fingerprint_service_v1*fp=contexts_fingerprint_api(service);
+    if(api&&fp){
+        uint32_t size=0,actual=0;uint64_t revision=0,current=0;
+        int32_t rc=api->stat(api->context,"context-fingerprints.cfp",&size,&revision);
+        if(rc==RISC_APP_DATA_RETAINED)return contexts_owner_fence(runtime);
+        if(!rc&&size<=sizeof(contexts_owner_fingerprint_bytes)&&revision){
+            rc=api->read(api->context,"context-fingerprints.cfp",revision,contexts_owner_fingerprint_bytes,sizeof(contexts_owner_fingerprint_bytes),&actual,&current);
+            if(rc==RISC_APP_DATA_RETAINED)return contexts_owner_fence(runtime);
+            if(!rc&&actual==size&&current==revision){
+                contexts_fingerprint_record_v1 record={.struct_size=sizeof(record),.source=source,.size=size,.capacity=sizeof(contexts_owner_fingerprint_bytes),.bytes=contexts_owner_fingerprint_bytes};
+                (void)fp->fingerprint(fp->base.context,CONTEXTS_FP_IMPORT,&record);
+            }
+        }
     }
     if(acquired&&!runtime->release(&grant))return contexts_owner_fence(runtime);
     return CONTEXTS_OWNER_EXPORTED;
