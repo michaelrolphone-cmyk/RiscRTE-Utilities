@@ -66,7 +66,14 @@ def run(runtime: Path, system: Path, output: Path, sanitize: bool) -> None:
         for mode in ('demand','retained-providers','headless'):
             fixture=output/f'{profile}-{mode}'
             shutil.copytree(staging,fixture)
-            subprocess.run([str(executable),str(fixture),profile,mode],env=env,check=True)
+            try:
+                subprocess.run([str(executable),str(fixture),profile,mode],env=env,check=True)
+            except subprocess.CalledProcessError:
+                # Generated fixtures contain no user data. Preserve the exact
+                # admission inputs in CI evidence rather than hiding bootstrap failures.
+                for manifest in sorted(fixture.glob('*.json')):
+                    print(f'FAILED FIXTURE {manifest.name}: {manifest.read_bytes()!r}', flush=True)
+                raise
     print('6 production Runtime/provider/app executions passed; real host ELF unload/reload, not hardware execution.')
 
 if __name__=='__main__':
