@@ -1,0 +1,39 @@
+name: Temporal integration source snapshot
+on:
+  push:
+    branches: [feat/temporal-context-fusion]
+    paths: [.github/workflows/temporal-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Capture exact current source inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p snapshot
+          git archive HEAD | gzip > snapshot/utilities.tar.gz
+          git rev-parse HEAD > snapshot/utilities.sha
+          capture() {
+            local name="$1" repo="$2" ref="$3"
+            git clone --depth 1 --branch "$ref" "https://github.com/michaelrolphone-cmyk/$repo.git" "$RUNNER_TEMP/$name"
+            git -C "$RUNNER_TEMP/$name" rev-parse HEAD > "snapshot/$name.sha"
+            git -C "$RUNNER_TEMP/$name" archive HEAD | gzip > "snapshot/$name.tar.gz"
+          }
+          capture utilities-x4 RiscRTE-Utilities source/x4-rf-contexts-resident
+          capture runtime RiscRTE feat/declarative-alarms
+          capture system RiscRTE-System-Apps feat/declarative-alarms
+          capture watch RiscRTE-T-Watch-S3 feat/declarative-alarms
+          capture x4 RiskRTE-XTEINK-X4-PRO feat/declarative-alarms
+          sha256sum snapshot/*.tar.gz > snapshot/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: temporal-integration-sources
+          path: snapshot/
+          retention-days: 7
+          if-no-files-found: error
