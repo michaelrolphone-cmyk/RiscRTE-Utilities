@@ -1,0 +1,24 @@
+{
+  "type": "application",
+  "id": "hollow_trail",
+  "version": "1.2.0",
+  "architecture": "xtensa-esp32s3",
+  "file_name": "hollow_trail.elf",
+  "entry": "app_main",
+  "display_name": "Hollow Trail",
+  "icon": "solid:f11b",
+  "requires": [
+    {
+      "capability": "display.output",
+      "api": 1
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1
+    }
+  ]
+}
