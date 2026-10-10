@@ -115,8 +115,16 @@ static void configure(bool utc){
     const char* clock=utc?"platform.realtime":"rtc.clock";unsigned cv=utc?1:2;
     JsonObject service=utc?driver("alarm-service","alarm.service",2,{{"storage.key-value.bound",1},{"platform.clock",1},{clock,cv}}):driver("alarm-service","alarm.service",1,{{"storage.key-value.bound",1},{"platform.clock",1},{clock,cv},{"haptic.effect",1},{"audio.output",1}});
     auto binding=[&](JsonObject d,const char* key,unsigned ns,const char* access){auto a=d["key_value"].is<JsonArray>()?d["key_value"].as<JsonArray>():d["key_value"].to<JsonArray>();auto b=a.add<JsonObject>();b["key"]=key;b["namespace"]=ns;b["access"]=access;};
-    for(const char* k:utc?std::initializer_list<const char*>{"alarm_utc_cfg","timer_utc_cfg"}:std::initializer_list<const char*>{"alarm_cfg","timer_cfg"})binding(service,k,3,"read");
-    for(const char* k:utc?std::initializer_list<const char*>{"alarm_utc_occ","timer_utc_occ","points_utc_occ"}:std::initializer_list<const char*>{"alarm_occ","timer_occ","points_occ"})binding(service,k,4,"read-write");
+    // C++17 does not extend the backing-array lifetime of initializer_lists
+    // selected by a conditional range expression. Keep named arrays alive
+    // through iteration; GCC 11 otherwise emitted corrupt fixture keys.
+    const char* const config_keys[] = {utc ? "alarm_utc_cfg" : "alarm_cfg",
+                                       utc ? "timer_utc_cfg" : "timer_cfg"};
+    const char* const occurrence_keys[] = {utc ? "alarm_utc_occ" : "alarm_occ",
+                                           utc ? "timer_utc_occ" : "timer_occ",
+                                           utc ? "points_utc_occ" : "points_occ"};
+    for(const char* k:config_keys)binding(service,k,3,"read");
+    for(const char* k:occurrence_keys)binding(service,k,4,"read-write");
     binding(service,"alert_mode",1,"read");binding(service,"alert_dnd",1,"read");binding(service,utc?"points_utc_cfg":"points_cfg",5,"read");binding(service,utc?"time_zone":"alarm_volume",1,"read");
     auto control=driver("alarm-control","alarm.control",1,{{"storage.key-value.bound",1},{"alarm.service",utc?2u:1u},{clock,cv}});
     binding(control,utc?"alarm_utc_cfg":"alarm_cfg",3,"read-write");binding(control,utc?"time_zone":"alarm_volume",1,utc?"read":"read-write");
