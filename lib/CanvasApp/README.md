@@ -1,6 +1,6 @@
 # Capability canvas apps
 
-Model Viewer 1.3.0 and Hollow Trail 1.2.0 migrate the actual T5S3-Reader
+Model Viewer 1.3.0 and Hollow Trail 1.2.1 migrate the actual T5S3-Reader
 1.2.8/1.1.49 sources. `migration-source.json` records original hashes and the
 Reader commit. All ten chapters, the journal and ending remain in Hollow Trail.
 The small `CanvasApp` client provides display, input, storage and lifetime
@@ -25,7 +25,8 @@ wireless file uploader. Missing/bad files keep the current model and show an
 error. File associations are used only in products that grant a volume.
 
 Hollow Trail is selected only for X4. Its original 960x540 scene is fitted to
-landscape output, with touch Left/Right/Up/Down, Jump, Use, Pause and Notes.
+landscape output with black letterbox bands, and touch Left/Right/Up/Down,
+Jump, Use, Pause and Notes.
 Use also confirms menus; Notes opens the original journal. The X4 Home button
 exits. Original story pacing and physics are preserved, including the opening
 sequence. Optional Reader typography/SIMD/USB-controller providers are not

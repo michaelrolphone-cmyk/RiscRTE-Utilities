@@ -133,7 +133,10 @@ static void pump(void){
  if(!display->acquire(display->context,format,&borrowed))return;
  unsigned min_stride=(info.width*(format==RISC_DISPLAY_FORMAT_RGB565?16:1)+7)/8;
  if(!borrowed.frame||!borrowed.pixels||borrowed.pixel_format!=format||borrowed.width!=info.width||borrowed.height!=info.height||borrowed.stride_bytes<min_stride||borrowed.stride_bytes>borrowed.size_bytes/info.height){canvas_retain("Canvas: invalid borrowed surface");return;}
- memset(borrowed.pixels,format==RISC_DISPLAY_FORMAT_RGB565?255:0,(size_t)borrowed.stride_bytes*borrowed.height);
+ /* Hollow Trail keeps its 16:9 image; unused panel space is black. */
+ bool black_background=kind==CANVAS_GAME;
+ unsigned background=(format==RISC_DISPLAY_FORMAT_RGB565)?(black_background?0:255):(black_background?255:0);
+ memset(borrowed.pixels,background,(size_t)borrowed.stride_bytes*borrowed.height);
  for(unsigned y=0;y<out_h;y++){
   unsigned sy=y*height/out_h;
   for(unsigned x=0;x<out_w;x++){unsigned sx=x*width/out_w;bool black=(snapshot[(size_t)sy*stride+sx/8]&(0x80u>>(sx&7)))!=0;put_output(x+out_x,y+out_y,black);}
