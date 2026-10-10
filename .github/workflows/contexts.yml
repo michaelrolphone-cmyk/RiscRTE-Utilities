@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: eae8924528f5c91254718afbc39c7d09eda7b78a
+          ref: 47a783557fed4c0c09c523ade6d6a087183d0ee1
           path: .dependencies/system
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -43,6 +43,7 @@ jobs:
           python3 -m unittest discover -s tests -p test_contexts_contract.py -v
       - name: Test production service, owner export and real Nova7 editor
         run: |
+          python3 scripts/test_context_fingerprints.py --drivers .dependencies/drivers --runtime .dependencies/runtime
           python3 scripts/test_contexts_service.py --drivers .dependencies/drivers --runtime .dependencies/runtime --system-apps .dependencies/system
           python3 scripts/test_contexts_app.py --system-apps .dependencies/system
           python3 scripts/test_contexts_rf_retained.py --system-apps .dependencies/system

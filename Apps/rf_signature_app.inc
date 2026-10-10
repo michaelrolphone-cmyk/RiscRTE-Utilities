@@ -15,13 +15,14 @@ static bool signature_keyboard,signature_delete_confirm;
 static char signature_status[40];
 static void signature_key(unsigned slot,char out[16]){snprintf(out,16,"rf_s%u",slot);}
 static void signature_save(void){
- if(!signature_pending)return;
+ if(!signature_pending){cfa_save();return;}
  if(!acquire_storage()){notify("SAMPLES UNSAVED / RETRY");return;}
  uint8_t bytes[RF_SIGNATURE_RECORD_SIZE];
  for(unsigned i=0;i<RF_SIGNATURE_SLOTS;i++)if(signature_pending&(1u<<i)){
   char key[16];signature_key(i,key);
   if(!(signature_errors&(1u<<i))&&rf_signature_encode(&signatures[i],bytes)&&storage->put(storage->context,key,bytes,sizeof(bytes))==RISC_KEY_VALUE_OK)signature_pending&=(uint8_t)~(1u<<i);
  }
+ cfa_save();
  snprintf(signature_status,sizeof(signature_status),"%s",signature_pending?"UNSAVED / RETRY OR DISCARD":"SAMPLES SAVED");dirty=true;
 }
 static void signature_load(void){
@@ -40,13 +41,15 @@ static void signature_restore(void){
 }
 static int signature_filter(void){int selected=signature_mode==2?manual_room:signature_mode==1?room_tracker.selected:-1;return selected>=0&&selected<(int)RF_SIGNATURE_SLOTS&&signatures[selected].kind==RF_SIGNATURE_ROOM&&rf_identity_equal(&signatures[selected].identity,&prefs.identity)?selected:-1;}
 static void signature_commit_capture(void){
- int slot=signature_capture_slot;if(slot<0||!signature_capture.frames)return;int previous_filter=signature_filter();
+ int slot=signature_capture_slot;if(slot<0||!signature_capture.frames)return;
+ if(!cfa_confirm((unsigned)slot,signature_capture.name,signature_capture.kind))return;
+ int previous_filter=signature_filter();
  bool ok=true;
  if(signatures[slot].kind)ok=rf_signature_combine(&signatures[slot],&signature_capture);else signatures[slot]=signature_capture;
  if(!ok){notify("SAMPLE LIMIT / USE NEW LABEL");return;}
  memcpy(signatures[slot].name,signature_capture.name,17);
  rf_signature_mean(&signatures[slot],signature_means[slot]);signature_pending|=(uint8_t)(1u<<slot);last_capture[slot]=signature_audio.transforms;
- signature_goal=0;signature_capture_slot=-1;memset(&signature_capture,0,sizeof(signature_capture));rf_room_reset(&room_tracker);if(previous_filter!=signature_filter()||previous_filter==slot){clear_analysis();refresh_analysis();}signature_save();notify(signature_pending?"SAMPLES UNSAVED / RETRY":"SAMPLE SAVED");
+ signature_goal=0;signature_capture_slot=-1;memset(&signature_capture,0,sizeof(signature_capture));rf_room_reset(&room_tracker);if(previous_filter!=signature_filter()||previous_filter==slot){clear_analysis();refresh_analysis();}signature_save();notify(signature_pending||cfa_unsaved()?"SAMPLES UNSAVED / RETRY":"SAMPLE SAVED");
 }
 static void signature_display_reset(void){memset(signature_display_sums,0,sizeof(signature_display_sums));signature_display_frames=0;}
 static void signature_prepare_filter(int selected){
@@ -77,7 +80,7 @@ static void signature_observe(void){
  * synthetic frames, silent commit of a shortened room sample, or auto-resume. */
 static void signature_suspend(void){}
 static bool signature_exit_ready(void){
- signature_save();if(signature_pending||signature_goal){notify(signature_goal?"FINISH OR CANCEL SAMPLE":"RETRY SAVE OR DISCARD");set_page(PAGE_SIGNATURES);return false;}return true;
+ signature_save();if(signature_pending||signature_goal||cfa_unsaved()){notify(signature_goal?"FINISH OR CANCEL SAMPLE":"RETRY SAVE OR DISCARD");set_page(PAGE_SIGNATURES);return false;}return true;
 }
 static void signature_open(int slot,unsigned kind){
  if(signature_goal){notify("FINISH OR CANCEL SAMPLE");return;}
@@ -95,14 +98,14 @@ static void signature_capture_begin(void){
  if(signature_pending&(1u<<slot)){signature_save();if(signature_pending&(1u<<slot)){notify("RETRY SAVE FIRST");return;}}
  unsigned start=0,end=(unsigned)strlen(editing.name);while(start<end&&editing.name[start]==' ')++start;while(end>start&&editing.name[end-1]==' ')--end;for(unsigned i=0;i<end-start;i++)editing.name[i]=editing.name[i+start];editing.name[end-start]=0;
  if(!rf_signature_name_valid(editing.name)){notify("ENTER A SAMPLE NAME");return;}
- unsigned needed=editing.color==RF_SIGNATURE_ROOM?RF_SIGNATURE_ROOM_FRAMES:1u;
+ unsigned needed=64;
  if(signatures[slot].frames>RF_SIGNATURE_MAX_FRAMES-needed){notify("SAMPLE LIMIT / USE NEW LABEL");return;}
  if(editing.color==RF_SIGNATURE_ROOM){if(!running)toggle();if(!running){notify("RF FAILED / TAP ADD TO RETRY");return;}}
  else if(!signature_audio.available){notify("START RF / WAIT FOR RF INPUT");return;}
  if(needed==1&&last_capture[slot]==signature_audio.transforms){notify("WAIT FOR A NEW FRAME");return;}
  if(signatures[slot].kind&&!rf_identity_equal(&signatures[slot].identity,&prefs.identity)){notify("RECEIVER MISMATCH / NEW SAMPLE");return;}
  signature_capture=(rf_signature){.kind=editing.color,.identity=prefs.identity};memcpy(signature_capture.name,editing.name,17);signature_capture_slot=(int)slot;
- signature_goal=editing.color==RF_SIGNATURE_ROOM?RF_SIGNATURE_ROOM_FRAMES:1;
+ cfa_begin();signature_goal=64;
 
  if(signature_goal==1){(void)rf_signature_add(&signature_capture,signature_audio.power);signature_commit_capture();}
  set_page(PAGE_SIGNATURES);
@@ -114,8 +117,8 @@ static void signature_delete(void){
  if(signature_pending&(1u<<slot)){
   /* User explicitly discards only unconfirmed local edits; next read decides
    * which version actually reached the backend after an uncertain put. */
-  signature_pending&=(uint8_t)~(1u<<slot);signature_errors|=(uint8_t)(1u<<slot);memset(&signatures[slot],0,sizeof(signatures[slot]));memset(signature_means[slot],0,sizeof(signature_means[slot]));signature_load();
- }else{signatures[slot]=(rf_signature){.identity=rf_identity_default()};memset(signature_means[slot],0,sizeof(signature_means[slot]));signature_pending|=(uint8_t)(1u<<slot);signature_save();}
+  signature_pending&=(uint8_t)~(1u<<slot);signature_errors|=(uint8_t)(1u<<slot);memset(&signatures[slot],0,sizeof(signatures[slot]));memset(signature_means[slot],0,sizeof(signature_means[slot]));signature_load();cfa_discard();
+ }else{cfa_forget(slot);signatures[slot]=(rf_signature){.identity=rf_identity_default()};memset(signature_means[slot],0,sizeof(signature_means[slot]));signature_pending|=(uint8_t)(1u<<slot);signature_save();}
  if(manual_room==(int)slot){manual_room=-1;prefs.manual_room=-1;pending_save|=1;persist();}
  rf_room_reset(&room_tracker);if(previous_filter!=signature_filter()||previous_filter==(int)slot){clear_analysis();refresh_analysis();}event_slot=-1;set_page(PAGE_SIGNATURES);
 }
@@ -141,7 +144,7 @@ static void draw_signatures(void){
 }
 static void draw_signature_edit(void){
  center(0,12,14,216,!editing.color?"DELETE PENDING":editing.color==1?"ROOM SAMPLE":"EVENT SAMPLE",NOVA_CYAN);
- center(1,12,45,216,editing.color==1?"AVERAGE 64 OBSERVATIONS":"CAPTURE CURRENT COHERENT BURST",NOVA_CAP);
+ center(1,12,45,216,editing.color==1?"CAPTURE A COMPLETE TEMPORAL WINDOW":"CAPTURE A COMPLETE EVENT WINDOW",NOVA_CAP);
  round_rect(15,72,210,36,10,NOVA_DIM);text(1,24,81,193,editing.name[0]?editing.name:"TAP TO NAME",NOVA_WHITE);
  char detail[40];rf_signature *s=&signatures[signature_slot];snprintf(detail,sizeof(detail),"%u SAVED FRAMES",s->frames);center(1,12,120,216,detail,NOVA_CAP);
  pill(14,149,100,36,!s->kind&&(signature_pending&(1u<<signature_slot))?"RETRY SAVE":s->kind?"ADD SAMPLE":"CAPTURE",true);pill(126,149,100,36,"CANCEL",false);

@@ -176,7 +176,7 @@ def target_scenes(target):
     result['root-exit']=(scene('wait 3','nav 1'),{'RF_RENDER_EXPECT_LAUNCH':'1'})
     discard=event_base+[tap(60,120),'wait 70','set signal 2','wait 12','set signal 0','wait 8',check('event_ready',1),'set storage_failure 1',tap(60,190),check('event_pending',0),check('examples',1),tap(175,200),check('event_pending',0),tap(175,200),check('event_pending',-1),check('examples',0),check('app_writes',2),'finish']
     result['event-discard']=(scene(*discard),{})
-    profile=['wait 3']+samples()+[tap(150,207),check('page',5),tap(110,89),*type_name('Pulse'),tap(60,165),check('room_kind',2),check('room_frames',1),check('signature_pending',0),'finish']
+    profile=['wait 3']+samples()+[tap(150,207),check('page',5),tap(110,89),*type_name('Pulse'),tap(60,165),'wait 70',check('room_kind',2),check('room_frames',64),check('signature_pending',0),'finish']
     result['burst-profile']=(scene(*profile),{})
     scale=2 if target=='x4' else 1
     drag=['wait 3',*(f'point {x*scale} {120*scale}' for x in [100,140,180]),'wait 1',check('cursor',1),check('cursor_hz',2461000000,'ge'),check('cursor_hz',2462000000,'le'),tap(225,26),f'point {150*scale} {175*scale}',f'point {150*scale} {75*scale}','wait 1',check('scroll',100),check('gain',0),'snapshot controls-scroll','nav 1','finish']

@@ -1,5 +1,5 @@
-/* Signature inference in an ordinary ELF. No thread, poll suffix, file/KV
- * authority, automatic training, persistent model copy or settings mutation. */
+/* Cooperative room/event inference. Fingerprints are copied, adapt in memory,
+ * and are checkpointed by the app owner after capture has stopped. */
 #include "ContextsServiceV1.h"
 #include "source_profile.h"
 #include "AudioInputV1.h"
@@ -13,7 +13,8 @@
 #include "rf_store.h"
 #include <string.h>
 #include "temporal_models.h"
-#include "temporal_inference.h"
+#include "ContextFingerprintService.h"
+static void fp_event_boundary(unsigned,bool,bool,uint64_t);
 #define FRESH_MS 500u
 #define EVENT_HOLD_MS 2000u
 #define RETRY_MS 5000u
@@ -61,10 +62,14 @@ static contexts_source_status_v1 *source_status(uint32_t source) {
 }
 static bool enter(void) {if(!started||busy)return false;busy=true;return true;}
 static void leave(void) {busy=false;}
+static void update_room(contexts_source_status_v1*,int,unsigned,bool,bool,const char*);
+#include "fingerprint.h"
+#include "temporal_inference.h"
 static void invalidate(contexts_source_status_v1 *s) {
     s->current=s->room_valid=s->event_valid=false;
 }
 static void reset_audio(void) {
+    fp_reset(CF_AUDIO);
     if(CONTEXTS_HAS_AUDIO){
         spectrum_signature_init(&a.analyzer);spectrum_background_reset(&a.background);
         spectrum_room_reset(&a.room);
@@ -73,6 +78,7 @@ static void reset_audio(void) {
     ct_reset(0);
 }
 static void reset_radio(void) {
+    fp_reset(CF_RF);
     rf_signature_init(&r.analyzer);rf_background_reset(&r.background);
     rf_room_reset(&r.room);radio_active=false;have_observation[1]=false;invalidate(&view.radio);
     ct_reset(1);
@@ -127,11 +133,12 @@ static void update_event(contexts_source_status_v1 *s,unsigned index,int slot,
     }
 }
 static void audio_observe(uint64_t now) {
+    fp_observe(CF_AUDIO,a.analyzer.power,now,NULL);
     a.background.freeze_upward=ct_freeze(0);
     spectrum_background_observe(&a.background,a.analyzer.power);
     if(a.background.ready)spectrum_room_observe(&a.room,a.analyzer.power,a.signatures,a.means);
     int room=a.room.selected;
-    update_room(&view.audio,room,a.room.confidence,a.room.ambiguous,
+    if(!fp_configured)update_room(&view.audio,room,a.room.confidence,a.room.ambiguous,
         a.background.ready&&!a.room.misses&&a.room.candidate==room&&a.room.stable>=64,
         room>=0?a.signatures[room].name:NULL);
     uint64_t excess=spectrum_background_salient(&a.background,foreground);
@@ -147,11 +154,12 @@ static void audio_observe(uint64_t now) {
     observed[0]=now;have_observation[0]=true;view.audio.current=true;view.audio.capture_error=0;
 }
 static void radio_observe(uint64_t now,const rf_capture_identity *identity) {
+    fp_observe(CF_RF,r.analyzer.power,now,identity);
     r.background.freeze_upward=ct_freeze(1);
     rf_background_observe(&r.background,r.analyzer.power);
     if(r.background.ready)rf_room_observe(&r.room,r.analyzer.power,r.signatures,r.means,identity);
     int room=r.room.selected;
-    update_room(&view.radio,room,r.room.confidence,r.room.ambiguous,
+    if(!fp_configured)update_room(&view.radio,room,r.room.confidence,r.room.ambiguous,
         r.background.ready&&!r.room.misses&&r.room.candidate==room&&r.room.stable>=64,
         room>=0?r.signatures[room].name:NULL);
     uint64_t excess=rf_background_salient(&r.background,foreground);
@@ -198,6 +206,10 @@ static bool audio_drain(uint64_t now) {
         if(!spectrum_signature_feed(&a.analyzer,pcm,got)) {
             view.audio.capture_error=3;retry_at[0]=stamp+RETRY_MS;return close_audio();
         }
+        cf_pipeline*fp=fp_pipeline(CF_AUDIO);
+        uint64_t start=fp->contiguous?fp->expected_us:(stamp*1000u>got*1000000u/16000u?stamp*1000u-got*1000000u/16000u:0);
+        cf_pcm(fp,pcm,got,16000,start,true);
+        cf_pcm(fp_event_pipeline(CF_AUDIO),pcm,got,16000,start,true);
         if(a.analyzer.transforms!=before)audio_observe(stamp);
         if(got<wanted)audio_debt=0;
         uint64_t after=clock_api->monotonic_ms(clock_api->context);
@@ -262,6 +274,12 @@ static bool radio_step(uint64_t now) {
     if(!rf_identity_valid(&actual)||!rf_signature_burst(&r.analyzer,&actual,pairs,256)) {
         view.radio.capture_error=RISC_RADIO_IQ_BAD_ARGUMENT;retry_at[1]=now+RETRY_MS;reset_radio();return true;
     }
+    cf_pipeline*fp=fp_pipeline(CF_RF);
+    if(fp->identity!=fp_identity(&actual)){cf_config c=cf_defaults(CF_RF);cf_init(fp,&c,fp_identity(&actual));}
+    cf_iq_snapshot(fp,pairs,256,actual.sample_rate_hz,now*1000u);
+    cf_pipeline*ep=fp_event_pipeline(CF_RF);
+    if(ep->identity!=fp->identity){cf_config c=cf_defaults(CF_RF);c.window_ms=100;cf_init(ep,&c,fp->identity);}
+    cf_iq_snapshot(ep,pairs,256,actual.sample_rate_hz,now*1000u);
     radio_observe(now,&actual);retry_at[1]=0;return true;
 }
 static bool step(void *context,const contexts_policy_v1 *p) {
@@ -278,8 +296,10 @@ static bool step(void *context,const contexts_policy_v1 *p) {
         bool ok=pause_internal();if(ok)view.state=pending?CONTEXTS_LOADING:CONTEXTS_UNAVAILABLE;
         leave();return ok;
     }
-    bool audio=p->audio_allowed&&audio_ready;
-    bool radio=p->radio_allowed&&radio_ready;
+    bool audio=p->audio_allowed&&audio_ready&&(fp_sources&CONTEXTS_AUDIO);
+    bool radio=p->radio_allowed&&radio_ready&&(fp_sources&CONTEXTS_RADIO);
+    cf_enable(&fp_fusion,CF_AUDIO,audio);cf_enable(&fp_fusion,CF_RF,radio);
+    cf_enable(&fp_event_fusion,CF_AUDIO,audio);cf_enable(&fp_event_fusion,CF_RF,radio);
     audio_permitted=audio;
     if(!audio&&!close_audio()){leave();return false;}
     if(!radio&&!close_radio()){leave();return false;}
@@ -304,6 +324,7 @@ static bool step(void *context,const contexts_policy_v1 *p) {
             if(now-began>=4u||(!ct_m[0].details.match_pending&&!ct_m[1].details.match_pending))break;
         }
     }
+    fp_publish(&view.audio,0,now);fp_publish(&view.radio,1,now);
     view.state=audio||radio?CONTEXTS_LIVE:CONTEXTS_PAUSED;
     leave();return true;
 }
@@ -320,6 +341,7 @@ static bool status(void *context,contexts_status_v1 *out) {
         if(now==UINT64_MAX||s->age_ms>FRESH_MS)invalidate(s);
         if(now<event_at[i]||now-event_at[i]>EVENT_HOLD_MS)s->event_valid=false;
         ct_publish(i,s,now,event_at[i],EVENT_HOLD_MS);
+        fp_publish(s,i,now);
     }
     leave();return true;
 }
@@ -474,7 +496,7 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
         view.audio.model_state=CONTEXTS_MODEL_UNAVAILABLE;
         view.audio.model_error=CONTEXTS_EXPORT_UNSUPPORTED;
     }
-    ct_init();temporal_turn=0;reset_audio();reset_radio();started=true;return true;
+    fp_init();ct_init();temporal_turn=0;reset_audio();reset_radio();started=true;return true;
 }
 static bool quiesce(void) {
     if(!started)return true;
@@ -485,8 +507,8 @@ static void stop(void) {
     if(busy||audio_owned||radio_retained)return;
     started=false;microphone=NULL;receiver=NULL;clock_api=NULL;
 }
-static const contexts_service_v1 api={1,sizeof(api),NULL,step,pause_service,status,
+static const contexts_fingerprint_service_v1 api={{1,sizeof(api),NULL,step,pause_service,status,
     request_export,begin_export,export_record,finish_export,label,claim_preset,preset_result,capture_audio,
-    export_model_error,model_details};
+    export_model_error,model_details},0x31504643u,fingerprint};
 static const risc_driver_v2 driver={2,sizeof(driver),"contexts-service",CONTEXTS_SERVICE_CAPABILITY,1,&api,start,stop,quiesce};
 __attribute__((visibility("default"))) const risc_driver_v2 *t5_driver_get(uint32_t abi){return abi==2?&driver:NULL;}

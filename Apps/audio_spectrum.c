@@ -131,8 +131,28 @@ static void temporal_suspend(void);
 static bool temporal_retained(void);
 static bool temporal_exit_blocked(void);
 static bool temporal_exit_ready(void);
+
+static void cfa_restore(void);
+static void cfa_arm(void);
+static void cfa_begin(void);
+static void cfa_save(void);
+static bool cfa_unsaved(void);
+static bool cfa_has_events(void);
+static void cfa_retry(void);
+static void cfa_discard(void);
+static void cfa_forget(unsigned);
+static void cfa_rename_event(unsigned,const char*);
+static bool cfa_confirm(unsigned,const char*,unsigned);
+static bool cfa_save_event(unsigned,const char*,bool);
+static void cfa_event_boundary(bool,bool,bool);
+static void cfa_apply(void);
 #include "spectrum_signature_app.inc"
 #include "spectrum_temporal_app.inc"
+#define CFA_SOURCE 0
+#define CFA_RESUME portable_audio_capture_resume
+#define CFA_MATCH_REASON ST_RESULT_MATCH
+#define CFA_UNKNOWN_REASON ST_RESULT_UNKNOWN
+#include "context_fingerprint_app.inc"
 
 bool portable_audio_services_safe(void){return !uncertain&&!temporal_retained();}
 bool portable_audio_capture_active(void){return capture_requested&&running&&owned&&!uncertain;}
@@ -252,10 +272,11 @@ static void capture(void){
  /* A successful short/empty read is a bounded RX wait, not end-of-stream. */
  if(!got){if(!input_waiting&&(uint32_t)(app->millis()-last_pcm_at)>=2000u){input_waiting=true;message="WAITING FOR AUDIO";dirty=true;}return;}
  if(!spectrum_dsp_feed(&spectrum,pcm,got)||!spectrum_signature_feed(&signature_audio,pcm,got)){stop();message="MIC READ FAILED";capture_error=true;notify(message);return;}
+ cfa_pcm(pcm,got,sample_rate,!input_gap);
  if(speech.available&&!spectrum_speech_feed(&speech,pcm,got))dirty=true;
  input_gap=false;
  last_pcm_at=app->millis();if(input_waiting){input_waiting=false;message="MIC / 16 kHz";dirty=true;}
- signature_observe();
+ signature_observe();cfa_apply();
  uint32_t now=app->millis();if(spectrum.transforms==recorded_transform||(uint32_t)(now-rendered)<FRAME_MS)return;
  refresh_analysis();
 }
@@ -518,7 +539,7 @@ void app_main(void){
  capture_requested=input_gap=input_waiting=capture_error=acquired=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=true;
  pending_save=load_errors=0;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / MIC OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;
  controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
- restore();signature_restore();event_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
+ restore();signature_restore();event_restore();cfa_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
  for(;;){
   if(temporal_retained())return;
   /* Paint between complete analysis windows, not between their RX chunks.
@@ -546,7 +567,7 @@ void app_main(void){
   if(input.tapped&&!consumed&&tap_action(input.touch_x-(app->screen_width()-240)/2,input.touch_y-(app->screen_height()-240)/2,&toggle_requested,&freeze_requested))break;
   if(temporal_retained())return;
   /* Coalesced touch/navigation events represent one action. Stop/freeze wins. */
-  if(freeze_requested)freeze();else if(toggle_requested)toggle();if(running)capture();if(running)temporal_tick();
+  if(freeze_requested)freeze();else if(toggle_requested)toggle();if(running)capture();if(running){temporal_tick();cfa_apply();}
   if(!input.buttons&&!input.tapped&&!contact_down&&!consumed)event_neural_tick();
  }
  if(temporal_retained())return;

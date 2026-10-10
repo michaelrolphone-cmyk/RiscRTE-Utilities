@@ -164,7 +164,10 @@ static void rf_only_models_test(void){
  assert(!input_opens&&!input_reads&&!input_closes);
  puts("RF-only temporal/neural: real canonical imports, identity/stale/incomplete/missing gates, bounded matching and no Audio capture PASS");
 }
-int main(void){
+#ifndef CONTEXTS_TEST_ENTRY
+#define CONTEXTS_TEST_ENTRY main
+#endif
+int CONTEXTS_TEST_ENTRY(void){
  prepare_models();const risc_driver_v2 *driver=t5_driver_get(2);assert(driver);
  const risc_provider_dependency_v1 dependencies[]={{"platform.clock",1,&clock_table},{"audio.input",1,&input_table},{"radio.iq",1,&receiver_table}};
  const risc_provider_dependency_v1 rf_dependencies[]={dependencies[0],dependencies[2]};
@@ -172,4 +175,5 @@ int main(void){
  if(CONTEXTS_RF_ONLY)rf_only_models_test();
  else{import_tests();full_bank_tests();finite_matching_test(false);finite_matching_test(true);}assert(driver->quiesce());driver->stop();
  if(!CONTEXTS_RF_ONLY)printf("Contexts temporal/neural: copied canonical libraries, active checkpoint identity, ambiguity/negative fallback, retained room generation, incomplete/stale import, bounded matching with finite512-frame RX PASS (%zu model bytes)\n",sizeof(ct_a)+sizeof(ct_r)+sizeof(ct_m));
+ return 0;
 }

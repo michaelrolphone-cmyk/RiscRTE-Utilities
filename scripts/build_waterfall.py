@@ -10,6 +10,7 @@ import shutil
 import subprocess
 
 from app_manifest import validate_manifest
+from normalize_xtensa_relocations import normalize
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = {
@@ -82,10 +83,11 @@ run([cc, '-std=c11', '-Os', '-fPIC', '-mtext-section-literals', '-mlongcalls',
      *['-I' + str(i) for i in [ROOT / 'Apps', system / 'lib/PortableApps/include', system / 'lib/NativeApps/include']],
      ROOT / 'Apps/waterfall.c', system / 'lib/PortableApps/src/adapter.c', out / 'catalog.c',
      system / 'lib/NativeApps/src/SingleFloatDivisionCompat.c', *quick_sources, '-lgcc', '-o', elf])
+normalize(elf)
 syms = subprocess.check_output([cc.removesuffix('gcc') + 'nm', '-D', str(elf)], text=True)
 imports = {s.split()[-1] for s in syms.splitlines() if ' U ' in ' ' + s}
 exports = {s.split()[-1] for s in syms.splitlines() if len(s.split()) >= 3 and s.split()[-2] in ('T', 'D', 'B', 'R')}
-allowed = {'risc_runtime_get_api', 'memcpy', 'memset', 'memcmp', 'strcmp', 'strlen', 'snprintf', 'malloc', 'calloc', 'free', 'strcpy'}
+allowed = {'risc_runtime_get_api', 'memcpy', 'memset', 'memcmp', 'strcmp', 'strlen', 'snprintf', 'malloc', 'calloc', 'free', 'strcpy', 'memchr'}
 if imports - allowed or exports != {'app_main', 'app_module_init', 'app_module_fini'}:
     raise ValueError('Waterfall ABI differs: ' + repr((imports, exports)))
 validator = out / 'validate-elf'
@@ -113,7 +115,7 @@ record = dict(schema=1, source_revision=git(ROOT, 'rev-parse', 'HEAD'),
               sha256=hashlib.sha256(elf.read_bytes()).hexdigest(),
               bytes=elf.stat().st_size, imports=sorted(imports), exports=sorted(exports), target_validation='passed',
               storage=dict(key_value_api=2, key_value_instance=a.storage_instance, app_data_instance=a.app_data_instance,
-                           required_bytes=129004, quota_bytes=131072),
+                           legacy_max_bytes=129004, fingerprint_max_bytes=60000, quota_bytes=131072, combined_full_capacity=False),
               memory='Bulk state uses module BSS placed in PSRAM by the supported Runtime ELF loader; optional bulk allocator only, never internal-heap fallback.')
 (out / 'build-record.json').write_text(json.dumps(record, indent=2) + '\n')
 for name in ['LICENSE-FontAwesome.txt', 'LICENSE-Orbitron.txt', 'LICENSE-Rajdhani.txt', 'SOURCES.json']:

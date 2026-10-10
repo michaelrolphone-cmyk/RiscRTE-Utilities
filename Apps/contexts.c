@@ -15,6 +15,8 @@ static const contexts_service_v1 *ctx_service;
 static portable_context_preset ctx_presets[8],ctx_draft;
 static int32_t ctx_results[8];
 static contexts_status_v1 ctx_status;
+static contexts_fingerprint_status_v1 ctx_fp;
+static bool ctx_fp_valid;
 static contexts_model_details_v1 ctx_models[2];
 static bool ctx_model_valid[2];
 static unsigned ctx_model_source;
@@ -76,6 +78,8 @@ static bool ctx_read_status(void) {
         ctx_service=portable_contexts_service();
     }
 #endif
+    const contexts_fingerprint_service_v1*fp=contexts_fingerprint_api(ctx_service);
+    ctx_fp.struct_size=sizeof(ctx_fp);ctx_fp_valid=fp&&fp->fingerprint(fp->base.context,CONTEXTS_FP_STATUS,&ctx_fp);
     contexts_status_v1 next={.struct_size=sizeof(next)};
     bool valid=ctx_service&&ctx_service->status(ctx_service->context,&next);
     bool changed=valid!=ctx_status_valid||(valid&&memcmp(&next,&ctx_status,sizeof(next)));
@@ -196,6 +200,29 @@ static void ctx_load_models(void) {
 #endif
     ctx_exit=true; /* Clock owns the bounded owner-app rendezvous. */
 }
+/* Source preferences use the same shared KV namespace as monitoring. */
+static void ctx_fingerprint_setting(bool timing){
+    if(!ctx_fp_valid)return;
+    const contexts_source_status_v1*s=ctx_model_source?&ctx_status.radio:&ctx_status.audio;
+    if(!timing&&s->model_state==CONTEXTS_MODEL_UNAVAILABLE){ctx_note("SOURCE UNAVAILABLE");return;}
+    uint8_t value=timing?!ctx_fp.temporal_only:(uint8_t)(ctx_fp.sources^(1u<<ctx_model_source));
+    risc_runtime_capability_v1 grant;
+    if(!ctx_storage_open(&grant))return;
+    const risc_key_value_v1*kv=grant.api;const char*key=timing?"context_timing":"context_sources";
+    uint8_t verify=255;uint32_t size=0;
+    bool ok=kv&&kv->put&&kv->get&&!kv->put(kv->context,key,&value,1)&&!kv->get(kv->context,key,&verify,1,&size)&&size==1&&verify==value;
+    if(!ctx_storage_close(&grant))return;
+    if(ok){
+        contexts_fingerprint_config_v1 cfg={.struct_size=sizeof(cfg),.sources=timing?ctx_fp.sources:value,.temporal_only=timing?value:ctx_fp.temporal_only};
+        const contexts_fingerprint_service_v1*fp=contexts_fingerprint_api(ctx_service);
+        ok=fp&&fp->fingerprint(fp->base.context,CONTEXTS_FP_CONFIG,&cfg);
+    }
+    ctx_note(ok?"SAVED / FRESH SAMPLES REQUIRED":"SAVE UNCONFIRMED / RETRY");
+}
+static const char*ctx_fingerprint_caption(void){
+    unsigned flags=ctx_fp.feature_flags[ctx_model_source];
+    return flags&4u?(flags&16u?"SLOW RF TIMING READY":"BURST TIMING READY"):flags&2u?"SPECTRAL / MORE TIMING NEEDED":"WAITING FOR SAMPLES";
+}
 static bool ctx_hit(int x,int y,int l,int t,int w,int h){return x>=l&&x<l+w&&y>=t&&y<t+h;}
 static void ctx_tap(int x,int y) {
     if(x<0||y<0||x>=240||y>=240)return;
@@ -212,6 +239,8 @@ static void ctx_tap(int x,int y) {
         else if(ctx_hit(x,y,12,188,104,44))ctx_load_models();
         else if(ctx_hit(x,y,124,188,104,44)){ctx_page=CT_PRESETS;ctx_list=0;ctx_note("");}
     } else if(ctx_page==CT_MODELS){
+        if(ctx_fp_valid&&y>=43&&y<83){ctx_fingerprint_setting(false);return;}
+        if(ctx_fp_valid&&y>=131&&y<171){ctx_fingerprint_setting(true);return;}
         if(ctx_hit(x,y,12,188,104,44))ctx_load_models();
         else if(ctx_hit(x,y,124,188,104,44))ctx_back();
     } else if(ctx_page==CT_PRESETS) {
@@ -267,7 +296,7 @@ static void ctx_draw_source(const char *title,const contexts_source_status_v1 *s
     portable_nova_text(2,70,y+1,156,ctx_source_caption(s),NOVA_CAP);
     snprintf(line,sizeof(line),"ROOM: %.16s",s->room_name[0]?s->room_name:"--");portable_nova_text(2,14,y+17,212,line,s->room_valid&&s->current?NOVA_WHITE:NOVA_CAP);
     unsigned i=s->source==CONTEXTS_RADIO?1u:0u;
-    const char *engine=ctx_model_valid[i]&&s->event_valid&&s->current?
+    const char *engine=ctx_fp_valid?"TEMPORAL":ctx_model_valid[i]&&s->event_valid&&s->current?
         ctx_models[i].event_engine==CONTEXTS_EVENT_NEURAL?"NEURAL":ctx_models[i].event_engine==CONTEXTS_EVENT_TEMPORAL?"TEMPORAL":"EVENT":"EVENT";
     snprintf(line,sizeof(line),"%s: %.16s",engine,s->event_valid&&s->current?s->event_name:"--");portable_nova_text(2,14,y+31,212,line,NOVA_TEXT);
 }
@@ -310,9 +339,15 @@ static void ctx_draw(void) {
         const contexts_source_status_v1 *s=ctx_model_source?&ctx_status.radio:&ctx_status.audio;
         const contexts_model_details_v1 *d=&ctx_models[ctx_model_source];
         int32_t bank_error=d->bank_error[0]?d->bank_error[0]:d->bank_error[1];
+        if(ctx_fp_valid){
+            portable_nova_row(12,43,216,40,"SOURCE",s->model_state==CONTEXTS_MODEL_UNAVAILABLE?"UNAVAILABLE":ctx_fp.sources&(1u<<ctx_model_source)?"ON / TAP TO DISABLE":"OFF / TAP TO ENABLE",false);
+            portable_nova_row(12,87,216,40,"FINGERPRINT",ctx_fingerprint_caption(),false);
+            portable_nova_row(12,131,216,40,"MATCH FEATURES",ctx_fp.temporal_only?"TIMING ONLY / TAP":"TIMING + SPECTRUM / TAP",false);
+        }else{
         portable_nova_row(12,43,216,40,"SAVED SIGNATURES",s->signatures_ready?"READY":ctx_source_caption(s),false);
         portable_nova_row(12,87,216,40,"TEMPORAL EVENTS",ctx_model_valid[ctx_model_source]?ctx_import_caption(d->temporal_state,bank_error,false):"SIGNATURES ONLY",false);
         portable_nova_row(12,131,216,40,"NEURAL REFINEMENT",ctx_model_valid[ctx_model_source]?ctx_import_caption(d->neural_state,d->neural_error,true):"SIGNATURES ONLY",false);
+        }
         portable_nova_button(12,188,104,44,"LOAD MODELS",false);portable_nova_button(124,188,104,44,"BACK",false);
     } else if(ctx_page==CT_PRESETS||ctx_page==CT_ROOMS) {
         unsigned start=ctx_page==CT_PRESETS?ctx_list:ctx_room_scroll,total=ctx_page==CT_PRESETS?8:ctx_room_count;

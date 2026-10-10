@@ -88,7 +88,7 @@ static void ctxp_draw_source(int y,const char *title,unsigned source) {
     char text[64];bool current=ctx_status_valid&&ctx_enabled_valid&&ctx_enabled&&s->current;
     snprintf(text,sizeof(text),"ROOM: %.16s",current&&s->room_valid?s->room_name:s->room_name[0]?s->room_name:"--");
     ctxp_text(40,y+59,ctx_app->screen_width()-80,text,false,true);
-    const char *engine=ctx_model_valid[source]&&ctx_models[source].event_engine==CONTEXTS_EVENT_NEURAL?"NEURAL":ctx_model_valid[source]&&ctx_models[source].event_engine==CONTEXTS_EVENT_TEMPORAL?"TEMPORAL":"EVENT";
+    const char *engine=ctx_fp_valid?"TEMPORAL":ctx_model_valid[source]&&ctx_models[source].event_engine==CONTEXTS_EVENT_NEURAL?"NEURAL":ctx_model_valid[source]&&ctx_models[source].event_engine==CONTEXTS_EVENT_TEMPORAL?"TEMPORAL":"EVENT";
     snprintf(text,sizeof(text),"%s: %.16s",engine,current&&s->event_valid?s->event_name:"--");
     ctxp_text(40,y+85,ctx_app->screen_width()-80,text,false,true);ctxp_rule(y+118);
 }
@@ -107,9 +107,15 @@ static void ctx_paper_draw(void) {
         const contexts_source_status_v1 *s=ctx_model_source?&ctx_status.radio:&ctx_status.audio;
         const contexts_model_details_v1 *d=&ctx_models[ctx_model_source];
         bool available=ctx_status_valid&&s->model_state!=CONTEXTS_MODEL_UNAVAILABLE;
+        if(ctx_fp_valid){
+            ctxp_row(164,"SOURCE",!available?"UNAVAILABLE":ctx_fp.sources&(1u<<ctx_model_source)?"ON / TAP TO DISABLE":"OFF / TAP TO ENABLE",NULL,false);
+            ctxp_row(264,"FINGERPRINT",ctx_fingerprint_caption(),NULL,false);
+            ctxp_row(364,"MATCH FEATURES",ctx_fp.temporal_only?"TIMING ONLY / TAP TO CHANGE":"TIMING + SPECTRUM / TAP TO CHANGE",NULL,false);
+        }else{
         ctxp_row(164,"SAVED SIGNATURES",!available?"SOURCE UNAVAILABLE":s->signatures_ready?"READY":ctx_source_caption(s),NULL,false);
         ctxp_row(264,"TEMPORAL EVENTS",!available?"SOURCE UNAVAILABLE":ctx_model_valid[ctx_model_source]?ctx_import_caption(d->temporal_state,d->bank_error[0]?d->bank_error[0]:d->bank_error[1],false):"SIGNATURES ONLY",NULL,false);
         ctxp_row(364,"NEURAL REFINEMENT",!available?"SOURCE UNAVAILABLE":ctx_model_valid[ctx_model_source]?ctx_import_caption(d->neural_state,d->neural_error,true):"SIGNATURES ONLY",NULL,false);
+        }
         ctxp_wrap(476,!available?"This source is not supplied by the monitoring service.":"Reload reads the saved models from their original app. Training remains in that app.",4);
     }else if(ctx_page==CT_PRESETS||ctx_page==CT_ROOMS||ctx_page==CT_EDIT){
         portable_paper_scroll_clip(&ctxp_scroll.view);
@@ -182,6 +188,9 @@ static void ctx_paper_tap(int x,int y) {
         else if(ctx_hit(x,y,32,240,w-64,130)){ctx_model_source=1;ctx_page=CT_MODELS;ctx_note("");}
         else if(ctx_hit(x,y,32,376,w-64,130)){ctx_model_source=0;ctx_page=CT_MODELS;ctx_note("");}
         else if(ctx_hit(x,y,24,522,w-48,84)){ctx_page=CT_PRESETS;ctx_note("");}
+    }else if(ctx_page==CT_MODELS&&ctx_fp_valid){
+        if(ctx_hit(x,y,24,164,w-48,84))ctx_fingerprint_setting(false);
+        else if(ctx_hit(x,y,24,364,w-48,84))ctx_fingerprint_setting(true);
     }else if(ctx_page==CT_FIELD){
         if(ctx_hit(x,y,32,240,w-64,76)){
             if(ctx_save_uncertain)ctx_note("RETRY SAVE OR DISCARD");

@@ -193,8 +193,28 @@ static void persist(void);
 static bool receiver_change(unsigned,int);
 static void draw_receiver(void);
 static void receiver_tap(int,int);
+
+static void cfa_restore(void);
+static void cfa_arm(void);
+static void cfa_begin(void);
+static void cfa_save(void);
+static bool cfa_unsaved(void);
+static bool cfa_has_events(void);
+static void cfa_retry(void);
+static void cfa_discard(void);
+static void cfa_forget(unsigned);
+static void cfa_rename_event(unsigned,const char*);
+static bool cfa_confirm(unsigned,const char*,unsigned);
+static bool cfa_save_event(unsigned,const char*,bool);
+static void cfa_event_boundary(bool,bool,bool);
+static void cfa_apply(void);
 #include "rf_signature_app.inc"
 #include "rf_temporal_app.inc"
+#define CFA_SOURCE 1
+#define CFA_RESUME portable_rf_capture_resume
+#define CFA_MATCH_REASON RT_RESULT_MATCH
+#define CFA_UNKNOWN_REASON RT_RESULT_UNKNOWN
+#include "context_fingerprint_app.inc"
 
 static bool rf_services_safe(void){return !rf_bulk||(!uncertain&&!temporal_retained());}
 static void rf_radio_suspended(void){if(!rf_bulk)return;running=owned=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;}
@@ -330,7 +350,8 @@ static void capture(void){
  rf_capture_identity identity=prefs.identity;if(receiver_extended)identity.lo_hz=format.center_hz;
  if(!rf_identity_equal(&identity,&prefs.identity)){/* Quantized nominal LO defines compatibility; live calibration values do not. */prefs.identity=identity;prefs.low_hz=rf_identity_low_hz(&identity);prefs.high_hz=rf_identity_high_hz(&identity);bool empty=true;for(unsigned i=0;i<8;i++)if(event_library.labels[i].present)empty=false;if(empty&&!event_files.exists)event_library.identity=identity;configure_dsp();temporal_start();rf_room_reset(&room_tracker);pending_save|=1;}
  if(!rf_signature_burst(&signature_audio,&identity,burst_pairs,count)||!rf_dsp_burst(&spectrum,burst_pairs,count)){stop();capture_error=true;message="INVALID COHERENT BURST";dirty=true;return;}
- input_waiting=input_gap=capture_error=false;signature_observe();refresh_analysis();
+ cfa_iq(burst_pairs,count,identity.sample_rate_hz,burst_at);
+ input_waiting=input_gap=capture_error=false;signature_observe();cfa_apply();refresh_analysis();
 }
 
 
@@ -648,7 +669,7 @@ void app_main(void){
  waterfall_preferences=(risc_runtime_capability_v1){.struct_size=sizeof(waterfall_preferences)};if(runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&waterfall_preferences)){preferences_acquired=true;preferences=waterfall_preferences.api;}
  capture_requested=input_gap=input_waiting=capture_error=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=urgent_draw=true;receiver_extended=false;
  pending_save=load_errors=0;storage_discard_confirm=false;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / RF OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
- waterfall_log("SDR app enter");restore();signature_restore();signature_mode=prefs.background_mode;manual_room=prefs.manual_room;event_restore();if(temporal_retained()){retain_app_data();return;}configure_dsp();build_palette();set_page(PAGE_MAIN);toggle();if(store_message)notify(store_message);
+ waterfall_log("SDR app enter");restore();signature_restore();signature_mode=prefs.background_mode;manual_room=prefs.manual_room;event_restore();cfa_restore();if(temporal_retained()){retain_app_data();return;}configure_dsp();build_palette();set_page(PAGE_MAIN);toggle();if(store_message)notify(store_message);
  for(;;){
   if(waterfall_uncertain){waterfall_drain();uncertain=owned=running=false;}
   if(temporal_retained()){retain_app_data();return;}
@@ -676,7 +697,7 @@ void app_main(void){
   else if(page==PAGE_KEYBOARD){if(buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))key_choice=key_choice?key_choice-1:PWK_COUNT-1;else if(buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))key_choice=(key_choice+1)%PWK_COUNT;else if(buttons&T5_APP_BUTTON_CONFIRM)keyboard_activate(key_choice);if(buttons)dirty=true;}
   if(input.tapped&&!consumed&&tap_action(ui_unx(input.touch_x),ui_uny(input.touch_y),&toggle_requested,&freeze_requested))break;
   if(temporal_retained()){retain_app_data();return;}
-  if(freeze_requested)freeze();else if(toggle_requested)toggle();if(running)capture();if(running)temporal_tick();
+  if(freeze_requested)freeze();else if(toggle_requested)toggle();if(running)capture();if(running){temporal_tick();cfa_apply();}
   if(!input.buttons&&!input.tapped&&!contact_down&&!consumed)event_neural_tick();
  }
  stop();persist();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;waterfall_release(&waterfall_grant,&radio_acquired);waterfall_radio=NULL;if(store_acquired&&!runtime->release(&store_grant))retain();store_acquired=false;storage=NULL;waterfall_release(&waterfall_preferences,&preferences_acquired);preferences=NULL;if(rf_bulk_allocated)app->psram_free(rf_bulk);rf_bulk=NULL;waterfall_log("SDR app exit");
