@@ -1,4 +1,5 @@
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "RiscRuntimeV1.h"
 #include "AlarmOutputV1.h"
 #include "tone_core.h"
@@ -61,6 +62,7 @@ static void toggle(void) {
     playing=true;started=app->millis();message="Sine - stops after 60 s";dirty=true;
 }
 static void draw(void) {
+ if(!utility_frame_begin(app))return;
     char text[40];
 #ifdef PORTABLE_NOVA_UI
     portable_nova_begin();portable_nova_header("FREQUENCY");
@@ -113,6 +115,7 @@ static void adjust_frequency(int delta) {
     (void)tone_configure(&tone,frequency,volume);dirty=true;
 }
 void app_main(void) {
+ utility_frame_reset();
     app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
     if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||
        !app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||

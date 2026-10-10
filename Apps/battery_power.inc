@@ -1,6 +1,7 @@
 /* Read-only NOVA power screens. The PMIC owns charging; this app never changes
  * policy, clears IRQs, writes preferences or keeps the display awake. */
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "PortableNovaUi.h"
 #include "PortablePowerStatus.h"
 #include "RiscRuntimeV1.h"
@@ -258,6 +259,7 @@ static void power_broadcast_view(void) {
 #include "battery_paper.inc"
 #endif
 static void power_render(void) {
+ if(!utility_frame_begin(power_app))return;
 #if defined(PORTABLE_NATIVE_TIME_TOOLBAR) && defined(PORTABLE_BLE_BROADCAST)
  if(portable_adapter_retained())return;
 #endif
@@ -295,6 +297,7 @@ static bool power_back(void) {
     return true;
 }
 void app_main(void) {
+ utility_frame_reset();
     power_app=t5_app_get_api(1);
     if(!power_app || !power_app->poll || !power_app->present || !power_app->millis ||
        !power_app->screen_width || !power_app->screen_height ||
@@ -355,6 +358,6 @@ void app_main(void) {
             else if(power_details && portable_nova_hit(input.touch_x,input.touch_y,72,192,96,44)) refresh=true;
         }
         if(refresh) {(void)power_refresh();render=true;}
-        if(render)power_render();
+        if(render || utility_frame_pending)power_render();
     }
 }

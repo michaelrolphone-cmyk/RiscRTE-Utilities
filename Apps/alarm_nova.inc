@@ -1,3 +1,4 @@
+#include "utility_frame.h"
 #ifdef PORTABLE_RETURN_APP
 #error Nested Nova app requires ALARM_RETURN_APP, never generic eager return
 #endif
@@ -107,6 +108,7 @@ static void alarm_retry(void) {
 #endif
 #endif
 static void draw(void) {
+ if(!utility_frame_begin(app))return;
 #ifdef ALARM_NATIVE_UTC
     if(native_retained)return;
 #endif

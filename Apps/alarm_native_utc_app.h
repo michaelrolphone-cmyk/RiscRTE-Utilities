@@ -1,6 +1,7 @@
 #ifndef UTILITIES_ALARM_NATIVE_UTC_APP_H
 #define UTILITIES_ALARM_NATIVE_UTC_APP_H
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "AlarmServiceV2.h"
 #ifndef ALARM_SERVICE_TAGGED_V2
 #error Native UTC apps require alarm.service API 2
@@ -130,6 +131,7 @@ static void save_action(bool cancel) {
 #include "alarm_nova.inc"
 #else
 static void draw(void) {
+ if(!utility_frame_begin(app))return;
     if(native_retained)return;
     int w=app->screen_width(),h=app->screen_height();app->clear();app->draw_text(8,16,"BACK");
     app->draw_label(52,16,w-104,DAILY_ALARM_KIND==1?"ALARM":"COUNTDOWN");
@@ -182,6 +184,7 @@ static void draw(void) {
 }
 #endif
 void app_main(void) {
+ utility_frame_reset();
 #ifdef DAILY_NOVA_APP
     alarm_page=alarm_field=0;
 #if DAILY_ALARM_KIND == 1
@@ -195,7 +198,7 @@ void app_main(void) {
 #if defined(PORTABLE_PAPER_UTILITIES)
     up_open(app);
 #endif
-    if(!open_dependencies()){if(native_retained)return;notice="ALARM SERVICE UNAVAILABLE";draw();for(;;){t5_app_input_t i={0};if(!app->poll(&i,50)) {
+    if(!open_dependencies()){if(native_retained)return;notice="ALARM SERVICE UNAVAILABLE";draw();for(;;){if(utility_frame_pending)draw();t5_app_input_t i={0};if(!app->poll(&i,50)) {
 #if defined(PORTABLE_PAPER_UTILITIES) && defined(PORTABLE_ALARM_CLIENT)
         if(portable_app_sleep_retained())return;
 #endif
@@ -300,13 +303,13 @@ void app_main(void) {
         #endif
         }
         if(native_retained)return;
-        if(dirty||(uint32_t)(app->millis()-last_draw)>=
+        if(dirty||utility_frame_pending||(uint32_t)(app->millis()-last_draw)>=
 #if defined(PORTABLE_PAPER_UTILITIES)
             (utility_paper?1000u:250u)
 #else
             250u
 #endif
-            ){draw();last_draw=app->millis();}
+            ){draw();if(!utility_frame_pending)last_draw=app->millis();}
     }
     if(!native_retained)close_dependencies();
 }

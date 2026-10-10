@@ -1,4 +1,5 @@
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "RiscRuntimeV1.h"
 #include "RiscKeyValueV1.h"
 #include "rf_dsp.h"
@@ -56,6 +57,26 @@ static bool receiver_extended;
 static unsigned receiver_scroll;
 static uint32_t burst_at,last_burst_at;
 static bool burst_gap;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+/* Only the continuous foreground profile retries clean, transient failures.
+ * Three further attempts, separated by 250/500/1000 ms, then explicit Start.
+ * Provider custody is never inferred from an error: CLEANUP_RETAINED follows
+ * the existing suspend-only drain before any ordinary app work can resume. */
+#define RF_CAPTURE_RETRY_LIMIT 3u
+#define RF_CAPTURE_RETRY_BASE_MS 250u
+static unsigned capture_retries;
+static uint32_t capture_retry_at,capture_retry_delay,capture_ok_count,capture_fault_count;
+static void capture_retry_reset(void){capture_retries=0;capture_retry_at=capture_retry_delay=0;}
+static bool capture_retryable(int result){
+ return result==RISC_RADIO_IQ_PLL_FAILED||result==RISC_RADIO_IQ_PBUS_FAILED||
+        result==RISC_RADIO_IQ_DUMP_TIMEOUT||result==RISC_RADIO_IQ_BUSY;
+}
+static void capture_recovery_log(const char *state,int result){
+ char line[128];snprintf(line,sizeof(line),"SDR %s rc=%d retry=%u/%u wait_ms=%lu ok=%lu faults=%lu",
+  state,result,capture_retries,RF_CAPTURE_RETRY_LIMIT,(unsigned long)capture_retry_delay,
+  (unsigned long)capture_ok_count,(unsigned long)capture_fault_count);waterfall_log(line);
+}
+#endif
 typedef struct {
  rf_dsp_state spectrum;
  uint8_t history[PLOT_W][RF_PLOT_MAX_H];
@@ -195,6 +216,7 @@ static void rf_radio_suspended(void){
  /* A typed idle/low-battery suspension consumes foreground capture intent.
   * Background radio restoration must never restart capture on wake. */
  capture_requested=false;
+ capture_retry_reset();
 #endif
  running=owned=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;
 }
@@ -274,6 +296,9 @@ static void toggle(void){
  if(!acquire_receiver()){capture_requested=false;message=waterfall_status==WATERFALL_AIRPLANE?"AIRPLANE MODE":waterfall_status==WATERFALL_NO_POLICY?"RADIO POLICY UNAVAILABLE":"RF UNAVAILABLE / START RETRY";capture_error=true;notify(message);return;}
  if(!receiver_extended){rf_capture_identity defaults=rf_identity_default();if(prefs.fft_size!=256||!rf_identity_equal(&prefs.identity,&defaults)){capture_requested=false;message="LEGACY: 256 / DEFAULT RF ONLY";capture_error=true;notify(message);return;}}
  configure_dsp();(void)rf_dsp_init(&spectrum,&dsp_config);temporal_start();rf_room_reset(&room_tracker);signature_audio.available=false;event_slot=-1;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ capture_retry_reset();capture_ok_count=capture_fault_count=0;
+#endif
  owned=waterfall_enabled=running=started=true;capture_error=input_waiting=input_gap=frozen=false;last_pcm_at=rendered=app->millis();last_burst_at=0;message=receiver_extended?"NOMINAL RF / UNCALIBRATED":"LEGACY @1 / DEFAULT RF / 256";dirty=true;
 }
 
@@ -301,7 +326,16 @@ static void capture_discontinuity(bool lost_input){
 }
 
 static void capture(void){
- uint32_t now=app->millis();if(last_burst_at&&(uint32_t)(now-last_burst_at)<FRAME_MS)return;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ if(!capture_requested||!running||!owned||uncertain||waterfall_uncertain)return;
+#endif
+ uint32_t now=app->millis();
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ /* Leave input polling live; recheck policy before each actual retry. Unsigned
+  * elapsed time handles millis wrap, including a zero-valued timestamp. */
+ if(capture_retry_delay&&(uint32_t)(now-capture_retry_at)<capture_retry_delay)return;
+#endif
+ if(last_burst_at&&(uint32_t)(now-last_burst_at)<FRAME_MS)return;
  if(!waterfall_policy()){unsigned reason=waterfall_status;stop();message=reason==WATERFALL_AIRPLANE?"AIRPLANE MODE":"RADIO POLICY UNAVAILABLE";capture_error=true;return;}
  unsigned count=prefs.fft_size;waterfall_capture_pairs=count;int result;const risc_radio_iq_extended_api_v1 *extended=(const void*)waterfall_radio;
  risc_radio_iq_settings_v1 settings={sizeof(settings),prefs.identity.lo_hz,prefs.identity.sample_rate_hz,prefs.identity.width_hz,prefs.identity.raw_gain,prefs.identity.rf_gain,prefs.identity.bb_gain,prefs.identity.filter,{prefs.identity.dc[0],prefs.identity.dc[1],prefs.identity.dc[2],prefs.identity.dc[3]},prefs.identity.iq_correction};
@@ -311,13 +345,33 @@ static void capture(void){
  if(receiver_extended){if(!trace_capture_seen&&extended->capture_configured_traced)result=extended->capture_configured_traced(waterfall_radio->context,burst_pairs,count,&settings,&format,waterfall_trace_stage,NULL);else result=extended->capture_configured(waterfall_radio->context,burst_pairs,count,&settings,&format);}
  else{const risc_radio_iq_diagnostics_api_v1 *legacy=(const void*)waterfall_radio;if(!trace_capture_seen&&waterfall_radio->struct_size>=sizeof(*legacy)&&legacy->capture_burst_traced)result=legacy->capture_burst_traced(waterfall_radio->context,burst_pairs,count,waterfall_trace_stage,NULL);else result=waterfall_radio->capture_burst(waterfall_radio->context,burst_pairs,count);}
  last_burst_at=burst_at;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ if(result!=RISC_RADIO_IQ_OK){if(capture_fault_count<UINT32_MAX)++capture_fault_count;}
+#endif
  if(result==RISC_RADIO_IQ_CLEANUP_RETAINED){waterfall_uncertain=uncertain=true;running=waterfall_enabled=false;waterfall_log("SDR cleanup ok=0 retained=1");waterfall_drain();uncertain=owned=false;capture_error=true;message="CLEANUP RECOVERED / START";dirty=true;return;}
  waterfall_trace_capture(result);waterfall_status=(unsigned)result;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ if(result!=RISC_RADIO_IQ_OK){
+  capture_error=true;capture_discontinuity(true);
+  if(capture_retryable(result)&&capture_retries<RF_CAPTURE_RETRY_LIMIT){
+   capture_retry_delay=RF_CAPTURE_RETRY_BASE_MS<<capture_retries;++capture_retries;capture_retry_at=app->millis();
+   input_waiting=true;message=result==RISC_RADIO_IQ_BUSY?"RADIO BUSY / RETRYING":"RF INPUT / RETRYING";
+   capture_recovery_log("retry",result);return;
+  }
+  capture_recovery_log("stopped",result);stop();waterfall_status=(unsigned)result;
+  message=result==RISC_RADIO_IQ_BUSY?"RADIO BUSY / START RETRY":"CAPTURE FAILED / START RETRY";dirty=true;return;
+ }
+#else
  if(result!=RISC_RADIO_IQ_OK){running=waterfall_enabled=capture_requested=false;capture_error=true;capture_discontinuity(true);message=result==RISC_RADIO_IQ_BUSY?"RADIO BUSY / START RETRY":"CAPTURE FAILED / START RETRY";dirty=true;return;}
+#endif
  if(receiver_extended&&(format.struct_size<sizeof(format)||format.component_bits!=10u||format.component_full_scale!=512u||format.pair_count!=count||format.sample_rate_hz!=prefs.identity.sample_rate_hz||format.bandwidth_hz!=prefs.identity.width_hz||format.sample_format!=RISC_RADIO_IQ_FORMAT_S10_I0_Q10||!(format.flags&RISC_RADIO_IQ_FLAG_COHERENT_BURST))){stop();capture_error=true;message="INCOMPATIBLE CAPTURE FORMAT";dirty=true;return;}
  rf_capture_identity identity=prefs.identity;if(receiver_extended)identity.lo_hz=format.center_hz;
  if(!rf_identity_equal(&identity,&prefs.identity)){/* Quantized nominal LO defines compatibility; live calibration values do not. */prefs.identity=identity;prefs.low_hz=rf_identity_low_hz(&identity);prefs.high_hz=rf_identity_high_hz(&identity);bool empty=true;for(unsigned i=0;i<8;i++)if(event_library.labels[i].present)empty=false;if(empty&&!event_files.exists)event_library.identity=identity;configure_dsp();temporal_start();rf_room_reset(&room_tracker);pending_save|=1;}
  if(!rf_signature_burst(&signature_audio,&identity,burst_pairs,count)||!rf_dsp_burst(&spectrum,burst_pairs,count)){stop();capture_error=true;message="INVALID COHERENT BURST";dirty=true;return;}
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ if(capture_ok_count<UINT32_MAX)++capture_ok_count;
+ if(capture_retries){capture_recovery_log("recovered",result);capture_retry_reset();message=receiver_extended?"NOMINAL RF / UNCALIBRATED":"LEGACY @1 / DEFAULT RF / 256";}
+#endif
  input_waiting=input_gap=capture_error=false;signature_observe();refresh_analysis();
 }
 
@@ -356,6 +410,18 @@ static void draw_axes(bool waterfall,bool foreground){
  }
  if(!waterfall){for(unsigned i=0;i<5;i++){int y;char name[12];if(prefs.log_amplitude){int db=-(int)i*20;y=PLOT_Y+PLOT_H-(db+90)*PLOT_H/90;snprintf(name,sizeof(name),"%d",db);}else{if(i==4)continue;unsigned pct=100-i*25;y=PLOT_Y+PLOT_H-(int)pct*PLOT_H/100;snprintf(name,sizeof(name),"%u%%",pct);}y=clamp_int(y,PLOT_Y,PLOT_Y+PLOT_H-1);if(!foreground)fill(PLOT_X,y,PLOT_W,1,NOVA_LINE);else text(1,PLOT_X+2,clamp_int(y-16,PLOT_Y,PLOT_Y+PLOT_H-33),39,name,0x73949b);}}
 }
+/* Hit geometry derives from the current cursor/model, even when the last
+ * submitted image is still busy. No pixels or frame completion are consulted. */
+static void cursor_layout(char caption[40]){
+ pill_w=pill_h=0;caption[0]=0;
+ if(!cursor_visible||page!=PAGE_MAIN||!started||view>=2)return;
+ int p=(int)rf_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);
+ int db=view==1?fall_db[p]:spec_db[p];char f[20];freq_text(cursor_hz,f);
+ snprintf(caption,40,"%s %d dBFS",f,db/100);
+ pill_w=clamp_int(text_width(1,caption)+16,112,PLOT_W-4);pill_h=28;
+ pill_x=view==1?PLOT_X+PLOT_W-pill_w-6:PLOT_X+clamp_int(p-pill_w/2,2,PLOT_W-pill_w-2);
+ pill_y=view==1?PLOT_Y+clamp_int(p<38?p+8:p-36,2,PLOT_H-30):PLOT_Y+4;
+}
 static void draw_plot(void){
  if(view==1){for(unsigned x=0;x<history_count;x++){unsigned source=(history_next+PLOT_W-history_count+x)%PLOT_W;unsigned at=PLOT_W-history_count+x;unsigned alpha=at<12?at*255/12:at>PLOT_W-13?(PLOT_W-1-at)*255/12:255;for(unsigned y=0;y<(unsigned)PLOT_H;y++)fill(PLOT_X+(int)at,PLOT_Y+(int)y,1,1,fade(palette[history[source][y]],alpha));}draw_axes(true,true);char span[48];unsigned first=(history_next+PLOT_W-history_count)%PLOT_W,last=(history_next+PLOT_W-1u)%PLOT_W;uint32_t elapsed=history_count>1?history_times[last]-history_times[first]:0;snprintf(span,sizeof(span),"%u BURSTS / %u.%u s",history_count,elapsed/1000u,elapsed%1000u/100u);char high_name[20];short_freq(dsp_config.high_hz,high_name);int span_left=text_width(1,high_name)+10;fill(PLOT_X+span_left,PLOT_Y+PLOT_H-18,PLOT_W-span_left,18,0);text(1,PLOT_X+span_left+2,PLOT_Y+PLOT_H-18,PLOT_W-span_left-4,span,NOVA_CAP);}
  else{
@@ -377,10 +443,9 @@ static void draw_plot(void){
  if(event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),"%.16s %u%%",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}
  if(event_match.complete&&event_match.selected>=0){char event_name[48];int shift=event_match.shift[event_match.selected];snprintf(event_name,sizeof(event_name),"%.16s %u%% %+d bands",event_library.labels[event_match.selected].name,event_match.score/10,shift);fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,18,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,event_name,0x3dff9au);}
  if(signature_filter()>=0)text(1,PLOT_X+112,PLOT_Y+1,113,"BG FILTER",0xffd24au);
- if(cursor_visible){int p=(int)rf_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);int db=view==1?fall_db[p]:spec_db[p];char f[20],caption[40];freq_text(cursor_hz,f);snprintf(caption,sizeof(caption),"%s %d dBFS",f,db/100);
+ if(cursor_visible){int p=(int)rf_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);char caption[40];cursor_layout(caption);
   if(view==1)fill(PLOT_X,PLOT_Y+p,PLOT_W,1,NOVA_WHITE);else fill(PLOT_X+p,PLOT_Y,1,PLOT_H-18,NOVA_WHITE);
   int px=view==1?PLOT_X+PLOT_W-9:PLOT_X+p,py=view==1?PLOT_Y+p:PLOT_Y+PLOT_H-1-(int)((uint32_t)spec_levels[p]*(PLOT_H-1)/32767);round_rect(px-4,py-4,9,9,4,NOVA_CYAN);round_rect(px-2,py-2,5,5,2,NOVA_WHITE);
-  pill_w=clamp_int(text_width(1,caption)+16,112,PLOT_W-4);pill_h=28;pill_x=view==1?PLOT_X+PLOT_W-pill_w-6:PLOT_X+clamp_int(p-pill_w/2,2,PLOT_W-pill_w-2);pill_y=view==1?PLOT_Y+clamp_int(p<38?p+8:p-36,2,PLOT_H-30):PLOT_Y+4;
   round_rect(pill_x,pill_y,pill_w,pill_h,13,NOVA_CYAN);round_rect(pill_x+1,pill_y+1,pill_w-2,pill_h-2,12,0);center(1,pill_x+5,pill_y+5,pill_w-10,caption,NOVA_CYAN);
  }
 }
@@ -469,6 +534,7 @@ static void draw_keyboard(void){
 }
 static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return ui_height-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}
 static void draw(void){
+ if(!utility_frame_begin(app))return;
 if(paper&&paper->begin)paper->begin();else {
 #ifdef PORTABLE_NOVA_UI
  portable_nova_begin();
@@ -555,6 +621,7 @@ static void normalize_input(t5_app_input_t *input){
  }
 }
 static bool process_contact(void){
+ char caption[40];cursor_layout(caption);
  t5_app_contact_t contact={0};
  if(paper&&paper->contact){
   if(paper_contact.cancelled){contact_down=contact_plot=contact_controls=contact_drag=contact_moved=false;return true;}
@@ -601,6 +668,7 @@ static bool request_root_exit(void){
  return true;
 }
 static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested){
+ char caption[40];cursor_layout(caption);
  if(x<0||y<0||x>=240||y>=(ui_stretched()?240:ui_height))return false;
  if(page==PAGE_RECEIVER){receiver_tap(x,y);return false;}
  if(page!=PAGE_KEYBOARD&&toast_message&&hit(x,y,14,toast_top(),212,28)){if(undo_slot>=0&&x>=167)undo_delete();else{toast_message=NULL;dirty=true;}return false;}
@@ -621,6 +689,7 @@ static bool rf_bulk_create(void){
  rf_bulk=rf_bulk_allocated?app->psram_alloc(sizeof(*rf_bulk)):&rf_resident_bulk;if(!rf_bulk)return false;memset(rf_bulk,0,sizeof(*rf_bulk));return true;
 }
 void app_main(void){
+ utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);waterfall_api=app;waterfall_runtime=runtime;
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms)return;
  if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
@@ -629,12 +698,15 @@ void app_main(void){
  waterfall_radio=NULL;preferences=NULL;storage=NULL;waterfall_grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};radio_acquired=preferences_acquired=waterfall_uncertain=false;waterfall_enabled=false;trace_capture_seen=trace_cleanup_seen=false;waterfall_status=WATERFALL_STOPPED;
  waterfall_preferences=(risc_runtime_capability_v1){.struct_size=sizeof(waterfall_preferences)};if(runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&waterfall_preferences)){preferences_acquired=true;preferences=waterfall_preferences.api;}
  capture_requested=input_gap=input_waiting=capture_error=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=urgent_draw=true;receiver_extended=false;
+#ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
+ capture_retry_reset();capture_ok_count=capture_fault_count=0;
+#endif
  pending_save=load_errors=0;storage_discard_confirm=false;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / RF OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
  waterfall_log("SDR app enter");restore();signature_restore();signature_mode=prefs.background_mode;manual_room=prefs.manual_room;event_restore();if(temporal_retained())retain();configure_dsp();build_palette();set_page(PAGE_MAIN);toggle();if(store_message)notify(store_message);
  for(;;){
   if(waterfall_uncertain){waterfall_drain();uncertain=owned=running=false;}
   if(temporal_retained())retain();
-  uint32_t now=app->millis();if(dirty&&(!running||urgent_draw||(uint32_t)(now-painted)>=(paper?900u:100u))){draw();urgent_draw=false;}
+  uint32_t now=app->millis();if(dirty&&(!running||urgent_draw||(uint32_t)(now-painted)>=(paper?900u:100u))){draw();if(!utility_frame_pending)urgent_draw=false;}
   t5_app_input_t input={0};
   if(!app->poll(&input,running?1:30)){
 #ifdef PORTABLE_ALARM_CLIENT

@@ -3,6 +3,7 @@
 #include "calculator_nova.inc"
 #else
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "calculator_core.h"
 #include "daily_draw.h"
 #include <stddef.h>
@@ -53,6 +54,7 @@ static void calculator_border(calculator_rect rect, bool black) {
 }
 
 static void calculator_render(void) {
+ if(!utility_frame_begin(calculator_api))return;
     calculator_api->clear();
     daily_draw_text(calculator_api, 8, 15, "BACK", 1);
     daily_draw_text(calculator_api, 65, 11, "CALCULATOR", 2);
@@ -94,6 +96,7 @@ static bool calculator_has_contact(void) {
 }
 
 void app_main(void) {
+ utility_frame_reset();
     calculator_api = t5_app_get_api(T5_APP_ABI_VERSION);
     if (!calculator_api || calculator_api->abi_version != T5_APP_ABI_VERSION ||
         calculator_api->struct_size < offsetof(t5_app_api_v1, poll) + sizeof(calculator_api->poll) ||
@@ -146,7 +149,7 @@ void app_main(void) {
             calc_key(&calculator_state, calculator_keys[activate]);
             redraw = true;
         }
-        if (redraw) calculator_render();
+        if (redraw || utility_frame_pending) calculator_render();
     }
 }
 

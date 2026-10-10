@@ -3,6 +3,7 @@
 #endif
 /* 16 large arithmetic keys. Clear, sign and delete have their own roomy panel. */
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "PortableNovaUi.h"
 #include "calculator_core.h"
 static const t5_app_api_v1 *calculator_api;
@@ -18,6 +19,7 @@ static const char *calculator_display(void) {
 #include "calculator_paper.inc"
 #endif
 static void calculator_render(void) {
+ if(!utility_frame_begin(calculator_api))return;
 #ifdef PORTABLE_PAPER_UTILITIES
     if(utility_paper){calculator_paper_render();return;}
 #endif
@@ -47,6 +49,7 @@ static int calculator_hit(int x,int y) {
     return -1;
 }
 void app_main(void) {
+ utility_frame_reset();
     calculator_api=t5_app_get_api(1);
     if(!calculator_api || !calculator_api->poll || !calculator_api->present || !calculator_api->screen_width || !calculator_api->screen_height)return;
 #ifdef PORTABLE_PAPER_UTILITIES
@@ -87,6 +90,6 @@ void app_main(void) {
             if(calculator_menu){static const char menu_keys[]={'C','S','B'};calc_key(&calculator_state,menu_keys[key]);calculator_menu=false;calculator_selected=0;}
             else calc_key(&calculator_state,calculator_keys[key]);
         }
-        if(input.tapped || input.buttons)calculator_render();
+        if(input.tapped || input.buttons || utility_frame_pending)calculator_render();
     }
 }

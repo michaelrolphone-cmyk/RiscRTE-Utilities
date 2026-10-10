@@ -1,5 +1,6 @@
 /* Separate native UTC controller. Legacy Watch/raw controller is untouched. */
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "RiscRuntimeV1.h"
 #include "RiscKeyValueV1.h"
 #include "PortableRealtimeClient.h"
@@ -128,6 +129,7 @@ static void reset(void) {
 #include "stopwatch_paper.inc"
 #endif
 static void draw(void) {
+ if(!utility_frame_begin(app))return;
  if(halted())return;
 #ifdef PORTABLE_PAPER_UTILITIES
  if(utility_paper){stopwatch_paper_draw();return;}
@@ -183,6 +185,7 @@ static void close_state(void) {
  storage=NULL;runtime=NULL;
 }
 void app_main(void) {
+ utility_frame_reset();
  app=t5_app_get_api(1);status="";loaded=reset_armed=pending_pause=save_uncertain=false;clock_state=(sw_clock){0};
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->draw_text||!app->draw_label||!app->fill_rect||!app->present)return;
  if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
@@ -190,7 +193,7 @@ void app_main(void) {
  up_open(app);
 #endif
  if(!open_state()){if(halted())return;status="UTC OR STORAGE UNAVAILABLE";draw();
-  for(;;){t5_app_input_t input={0};if(!app->poll(&input,50)) {
+  for(;;){if(utility_frame_pending)draw();t5_app_input_t input={0};if(!app->poll(&input,50)) {
 #ifdef PORTABLE_ALARM_CLIENT
    if(portable_app_sleep_retained())return;
 #endif
@@ -263,13 +266,13 @@ void app_main(void) {
    }
   }
   if(halted())return;
-  if(dirty||(clock_state.running&&(uint32_t)(now-rendered)>=
+  if(dirty||utility_frame_pending||(clock_state.running&&(uint32_t)(now-rendered)>=
 #ifdef PORTABLE_PAPER_UTILITIES
     (utility_paper?1000u:50u)
 #else
     50u
 #endif
-    )){draw();rendered=app->millis();}
+    )){draw();if(!utility_frame_pending)rendered=app->millis();}
  }
  close_state();
 }

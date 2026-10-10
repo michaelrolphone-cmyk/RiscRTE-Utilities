@@ -1,4 +1,5 @@
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "RiscRuntimeV1.h"
 #include "RiscBluetoothSensorsV1.h"
 #include "PortableWatchKeyboard.h"
@@ -142,8 +143,9 @@ static void name_key(unsigned key){
  dirty=true;
 }
 static void address(const ble_device*d,char out[32]){snprintf(out,32,"%02X:%02X:%02X:%02X:%02X:%02X",d->address[5],d->address[4],d->address[3],d->address[2],d->address[1],d->address[0]);}
+static unsigned detail_count(void);
 static void move(int delta){
- if(detail){int n=(int)detail_scroll+delta;detail_scroll=(unsigned)(n<0?0:n>32?32:n);dirty=true;return;}
+ if(detail){int n=(int)detail_scroll+delta;unsigned count=detail_count(),rows=paper?11u:6u;int max=count>rows?(int)(count-rows):0;detail_scroll=(unsigned)(n<0?0:n>max?max:n);dirty=true;return;}
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);if(!n)return;
  int next=(int)selected+delta;selected=(unsigned)(next<0?0:next>=(int)n?(int)n-1:next);
  if(selected<scroll)scroll=selected;
@@ -201,8 +203,11 @@ static unsigned detail_lines(void (*emit)(unsigned,const char*)){
   for(unsigned i=0;i<d->payload_size;i+=8){unsigned at=0;for(unsigned j=i;j<d->payload_size&&j<i+8;j++)at+=(unsigned)snprintf(text+at,sizeof(text)-at,"%02X ",d->payload[j]);emit(row++,text);}
  return row;
 }
+static void count_line(unsigned n,const char*s){(void)n;(void)s;}
+static unsigned detail_count(void){return detail&&detail_index<scan.count?detail_lines(count_line):0;}
 static void paper_draw(void);
 static void draw(void){
+ if(!utility_frame_begin(app))return;
  if(paper){paper_draw();return;}
  portable_nova_begin();portable_nova_header(naming?"SENSOR NAME":detail?"SENSOR DETAILS":"BLE SCANNER");
  if(naming){
@@ -220,7 +225,7 @@ static void draw(void){
  char text[80];unsigned list[BLE_MAX_DEVICES],n=indexes(list);
  if(detail&&detail_index<scan.count){
   unsigned row=detail_lines(line);
-  if(detail_scroll && detail_scroll+6>row){detail_scroll=row>6?row-6:0;dirty=true;}else dirty=false;
+  dirty=false;
   scrollbar(detail_scroll,6,row,61,126);
   portable_nova_button(8,196,108,44,"Results",false);portable_nova_button(124,196,108,44,"Name",false);
  }else{
@@ -241,6 +246,7 @@ static void draw(void){
 }
 #include "ble_scanner_paper.inc"
 void app_main(void){
+ utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!app->touch_contact||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
  paper=paper_presentation_get();
@@ -254,7 +260,7 @@ void app_main(void){
  app->set_back_exits_app(false);uint32_t rendered=0;
  for(;;){
   if(paper?(dirty&&scan.phase!=BLE_STARTING&&(!active()||(uint32_t)(app->millis()-rendered)>=3000)):
-     ((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250))){draw();rendered=app->millis();}
+     ((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250))){draw();if(!utility_frame_pending)rendered=app->millis();}
   t5_app_input_t input={0};if(!app->poll(&input,20)){if(portable_app_sleep_retained())return;break;}
   if(input.exit_requested)break;
   if(paper){if(!paper_input(&input))break;pump();continue;}

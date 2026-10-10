@@ -4,6 +4,7 @@
 #ifndef UTILITIES_ALARM_APP_SHARED_H
 #define UTILITIES_ALARM_APP_SHARED_H
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "RiscRuntimeV1.h"
 #include "PortableRtcClock.h"
 #include "PortableTime.h"
@@ -142,6 +143,7 @@ static void close_dependencies(void) {
 #include "alarm_nova.inc"
 #else
 static void draw(void) {
+ if(!utility_frame_begin(app))return;
     int w=app->screen_width(),h=app->screen_height();app->clear();app->draw_text(8,16,"BACK");
     app->draw_label(52,16,w-104,DAILY_ALARM_KIND==1?"ALARM":"COUNTDOWN");
     unsigned columns=DAILY_ALARM_KIND==1?2:3;int cell=(w-16)/(int)columns;
@@ -192,6 +194,7 @@ static void draw(void) {
 }
 #endif
 void app_main(void) {
+ utility_frame_reset();
 #ifdef DAILY_NOVA_APP
     alarm_page=alarm_field=0;
 #if DAILY_ALARM_KIND == 1
@@ -204,7 +207,7 @@ void app_main(void) {
 #if defined(PORTABLE_PAPER_UTILITIES)
     up_open(app);
 #endif
-    if(!open_dependencies()){notice="ALARM SERVICE UNAVAILABLE";draw();for(;;){t5_app_input_t i={0};if(!app->poll(&i,50)) {
+    if(!open_dependencies()){notice="ALARM SERVICE UNAVAILABLE";draw();for(;;){if(utility_frame_pending)draw();t5_app_input_t i={0};if(!app->poll(&i,50)) {
 #if defined(PORTABLE_PAPER_UTILITIES) && defined(PORTABLE_ALARM_CLIENT)
         if(portable_app_sleep_retained())return;
 #endif
@@ -301,13 +304,13 @@ void app_main(void) {
             }
         #endif
         }
-        if(dirty||(uint32_t)(app->millis()-last_draw)>=
+        if(dirty||utility_frame_pending||(uint32_t)(app->millis()-last_draw)>=
 #if defined(PORTABLE_PAPER_UTILITIES)
             (utility_paper?1000u:250u)
 #else
             250u
 #endif
-            ){draw();last_draw=app->millis();}
+            ){draw();if(!utility_frame_pending)last_draw=app->millis();}
     }
     close_dependencies();
 }

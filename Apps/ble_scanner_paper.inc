@@ -5,7 +5,6 @@ static bool bp_release_seen;
  * sensor provider lifecycle remain authoritative. RF is changed only by an explicit tap. */
 static bool bp_down,bp_list;
 static int bp_x,bp_y,bp_last_y;
-static unsigned bp_detail_lines;
 static int bp_w(void){return app->screen_width();}
 static int bp_h(void){return app->screen_height();}
 static unsigned bp_rows(void){return (unsigned)(bp_h()-256)/88u;}
@@ -44,7 +43,6 @@ static void paper_draw(void){
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);char text[96];
  if(detail&&detail_index<scan.count){
   unsigned row=detail_lines(bp_line);
-  bp_detail_lines=row;
   snprintf(text,sizeof(text),"LINES %u-%u OF %u",detail_scroll+1,detail_scroll+11<row?detail_scroll+11:row,row);
  }else{
   if(scroll>=n)scroll=0;
@@ -89,7 +87,7 @@ static void paper_enable(void){
  if(kg.api&&!runtime->release(&kg)){uncertain=true;retain();}
  dirty=true;
 }
-static void bp_more(void){if(detail){detail_scroll=detail_scroll+11<bp_detail_lines?detail_scroll+11:0;dirty=true;}else{sensors=!sensors;scroll=selected=0;dirty=true;}}
+static void bp_more(void){if(detail){unsigned lines=detail_count();detail_scroll=detail_scroll+11<lines?detail_scroll+11:0;dirty=true;}else{sensors=!sensors;scroll=selected=0;dirty=true;}}
 static bool paper_input(const t5_app_input_t*i){
  springboard_contact c={0};paper->contact(&c);bool tap=false,gesture=false;int x=0,y=0;
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
@@ -121,7 +119,7 @@ static bool paper_input(const t5_app_input_t*i){
   else if(!detail&&portable_nova_hit(x,y,32,112,bp_w()-64,(int)bp_rows()*88)){unsigned list[BLE_MAX_DEVICES],n=indexes(list),at=scroll+(unsigned)(y-112)/88;if(at<n){selected=at;detail_index=list[at];detail=true;detail_scroll=0;dirty=true;}}
  }
  if(action){if(detail)begin_name();else if(paper_enable_needed)paper_enable();else start_scan();}
- if(detail&&bp_detail_lines&&detail_scroll>=bp_detail_lines)detail_scroll=bp_detail_lines>11?bp_detail_lines-11:0;
+ unsigned lines=detail_count();if(detail&&lines&&detail_scroll>=lines)detail_scroll=lines>11?lines-11:0;
  if(dirty&&(tap||gesture||i->buttons)&&scan.phase!=BLE_STARTING)draw();
  return true;
 }

@@ -1,4 +1,5 @@
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "RiscRuntimeV1.h"
 #include "AudioInputV1.h"
 #include "RiscKeyValueV1.h"
@@ -287,6 +288,18 @@ static void draw_axes(bool waterfall,bool foreground){
  }
  if(!waterfall){for(unsigned i=0;i<5;i++){int y;char name[12];if(prefs.log_amplitude){int db=-(int)i*20;y=PLOT_Y+PLOT_H-(db+90)*PLOT_H/90;snprintf(name,sizeof(name),"%d",db);}else{if(i==4)continue;unsigned pct=100-i*25;y=PLOT_Y+PLOT_H-(int)pct*PLOT_H/100;snprintf(name,sizeof(name),"%u%%",pct);}y=clamp_int(y,PLOT_Y,PLOT_Y+PLOT_H-1);if(!foreground)fill(PLOT_X,y,PLOT_W,1,NOVA_LINE);else text(1,PLOT_X+2,clamp_int(y-16,PLOT_Y,PLOT_Y+PLOT_H-33),39,name,0x73949b);}}
 }
+/* Hit geometry derives from the current cursor/model, even when the last
+ * submitted image is still busy. No pixels or frame completion are consulted. */
+static void cursor_layout(char caption[40]){
+ pill_w=pill_h=0;caption[0]=0;
+ if(!cursor_visible||page!=PAGE_MAIN||!started||view>=2)return;
+ int p=(int)spectrum_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);
+ int db=view==1?fall_db[p]:spec_db[p];char f[20];freq_text(cursor_hz,f);
+ snprintf(caption,40,"%s  %d dB",f,db/100);
+ pill_w=clamp_int(text_width(1,caption)+16,112,PLOT_W-4);pill_h=28;
+ pill_x=view==1?PLOT_X+PLOT_W-pill_w-6:PLOT_X+clamp_int(p-pill_w/2,2,PLOT_W-pill_w-2);
+ pill_y=view==1?PLOT_Y+clamp_int(p<38?p+8:p-36,2,PLOT_H-30):PLOT_Y+4;
+}
 static void draw_plot(void){
  if(view==1){for(unsigned x=0;x<history_count;x++){unsigned source=(history_next+PLOT_W-history_count+x)%PLOT_W;unsigned at=PLOT_W-history_count+x;unsigned alpha=at<12?at*255/12:at>PLOT_W-13?(PLOT_W-1-at)*255/12:255;for(unsigned y=0;y<PLOT_H;y++)fill(PLOT_X+(int)at,PLOT_Y+(int)y,1,1,fade(palette[history[source][y]],alpha));}draw_axes(true,true);}
  else{
@@ -308,10 +321,9 @@ static void draw_plot(void){
  if(event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),"%.16s %u%%",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}
  if(event_match.complete&&event_match.selected>=0){char event_name[48];int shift=event_match.shift[event_match.selected]*15;snprintf(event_name,sizeof(event_name),"%.16s %u%% %+d.%d st",event_library.labels[event_match.selected].name,event_match.score/10,shift/10,abs_int(shift%10));fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,18,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,event_name,0x3dff9au);}
  if(signature_filter()>=0)text(1,PLOT_X+112,PLOT_Y+1,113,"BG FILTER",0xffd24au);
- if(cursor_visible){int p=(int)spectrum_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);int db=view==1?fall_db[p]:spec_db[p];char f[20],caption[40];freq_text(cursor_hz,f);snprintf(caption,sizeof(caption),"%s  %d dB",f,db/100);
+ if(cursor_visible){int p=(int)spectrum_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);char caption[40];cursor_layout(caption);
   if(view==1)fill(PLOT_X,PLOT_Y+p,PLOT_W,1,NOVA_WHITE);else fill(PLOT_X+p,PLOT_Y,1,PLOT_H-18,NOVA_WHITE);
   int px=view==1?PLOT_X+PLOT_W-9:PLOT_X+p,py=view==1?PLOT_Y+p:PLOT_Y+PLOT_H-1-(int)((uint32_t)spec_levels[p]*(PLOT_H-1)/32767);round_rect(px-4,py-4,9,9,4,NOVA_CYAN);round_rect(px-2,py-2,5,5,2,NOVA_WHITE);
-  pill_w=clamp_int(text_width(1,caption)+16,112,PLOT_W-4);pill_h=28;pill_x=view==1?PLOT_X+PLOT_W-pill_w-6:PLOT_X+clamp_int(p-pill_w/2,2,PLOT_W-pill_w-2);pill_y=view==1?PLOT_Y+clamp_int(p<38?p+8:p-36,2,PLOT_H-30):PLOT_Y+4;
   round_rect(pill_x,pill_y,pill_w,pill_h,13,NOVA_CYAN);round_rect(pill_x+1,pill_y+1,pill_w-2,pill_h-2,12,0);center(1,pill_x+5,pill_y+5,pill_w-10,caption,NOVA_CYAN);
  }
 }
@@ -400,6 +412,7 @@ static void draw_keyboard(void){
 }
 static int toast_top(void){return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}
 static void draw(void){
+ if(!utility_frame_begin(app))return;
 #ifdef PORTABLE_NOVA_UI
  portable_nova_begin();
 #else
@@ -462,6 +475,7 @@ static void settings_change(unsigned setting,int direction,int segment){
  configure_dsp();pending_save|=1;persist();dirty=true;
 }
 static bool process_contact(void){
+ char caption[40];cursor_layout(caption);
  if(!optional_contact())return false;
  t5_app_contact_t contact={0};if(!app->touch_contact(&contact))return false;
  int x=contact.x-(app->screen_width()-240)/2,y=contact.y-(app->screen_height()-240)/2;
@@ -482,6 +496,7 @@ static bool request_root_exit(void){
  return true;
 }
 static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested){
+ char caption[40];cursor_layout(caption);
  if(x<0||y<0||x>=240||y>=240)return false;
  if(page!=PAGE_KEYBOARD&&toast_message&&hit(x,y,14,toast_top(),212,28)){if(undo_slot>=0&&x>=167)undo_delete();else{toast_message=NULL;dirty=true;}return false;}
  if(page==PAGE_EVENTS||page==PAGE_EVENT_LABEL||page==PAGE_EVENT_CAPTURE||page==PAGE_EVENT_EXAMPLES){event_tap(x,y,toggle_requested);return false;}
@@ -497,6 +512,7 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(y>=216&&y<240){if(x>=6&&x<150)*toggle_requested=true;else if(x>=154&&x<240){if(running)*freeze_requested=true;else return request_root_exit();}}return false;
 }
 void app_main(void){
+ utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->diagnostic||!runtime->yield_ms)return;
  if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;

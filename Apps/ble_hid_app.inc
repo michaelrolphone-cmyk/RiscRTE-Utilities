@@ -1,4 +1,5 @@
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "RiscRuntimeV1.h"
 #include "RiscBluetoothHidV1.h"
 #include "RiscTouchV1.h"
@@ -356,6 +357,7 @@ static void change_value(int delta){
 #include "ble_hid_paper.inc"
 #endif
 static void draw(void){
+ if(!utility_frame_begin(app))return;
 #ifdef PORTABLE_PAPER_HID
  if(paper){paper_draw();return;}
 #endif
@@ -424,6 +426,7 @@ static void tap(int x,int y){
  else if(portable_nova_hit(x,y,124,196,108,44)){stop_session("Stopped");view=HID_VIEW_SETTINGS;dirty=true;}
 }
 void app_main(void){
+ utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
 #ifdef PORTABLE_PAPER_HID
@@ -435,7 +438,7 @@ void app_main(void){
  pair_trace_down=pair_trace_cancelled=pair_trace_gap=false;
  ui_block_until=app->millis();app->set_back_exits_app(false);
  for(;;){
-  if(dirty&&(!paper||held_button<0))draw();
+  if(dirty||utility_frame_pending)draw();
   t5_app_input_t input={0};if(!app->poll(&input,20)){if(portable_app_sleep_retained())return;break;}
   if(input.exit_requested)break;
 #ifdef PORTABLE_PAPER_HID
