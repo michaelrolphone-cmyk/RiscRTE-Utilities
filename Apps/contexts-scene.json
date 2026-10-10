@@ -1,0 +1,49 @@
+{
+  "min_firmware_version": "0.1.83",
+  "version": "0.4.1",
+  "display_name": "Contexts",
+  "file_name": "contexts.elf",
+  "icon": "solid:f015",
+  "category": [
+    "Utilities"
+  ],
+  "runtime_profile": "portable-riscrte-v1",
+  "requires": [
+    {
+      "capability": "ui.scene",
+      "api": 1
+    },
+    {
+      "capability": "contexts.service",
+      "api": 1
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1
+    },
+    {
+      "capability": "storage.shared-data",
+      "api": 1
+    },
+    {
+      "capability": "time.civil",
+      "api": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 1
+    },
+    {
+      "capability": "board.battery",
+      "api": 1
+    },
+    {
+      "capability": "rtc.clock",
+      "api": 2
+    }
+  ],
+  "type": "application",
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "id": "contexts"
+}

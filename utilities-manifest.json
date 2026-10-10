@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.4.5",
+      "version": "0.5.1",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -197,7 +197,10 @@
         "lib/VoiceActivity/src/vad/vad_gmm.c",
         "lib/VoiceActivity/src/vad/vad_gmm.h",
         "lib/VoiceActivity/src/vad/vad_sp.c",
-        "lib/VoiceActivity/src/vad/vad_sp.h"
+        "lib/VoiceActivity/src/vad/vad_sp.h",
+        "Apps/context_fingerprint_app.inc",
+        "lib/ContextFingerprint/include/ContextFingerprint.h",
+        "lib/ContextFingerprint/include/ContextFingerprintStore.h"
       ],
       "min_firmware_version": "0.1.32"
     }
@@ -242,7 +245,7 @@
     {
       "id": "waterfall",
       "display_name": "Waterfall",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/waterfall.c",
@@ -267,7 +270,10 @@
         "Apps/rf_temporal_store.h",
         "Apps/rf_temporal_files.h",
         "Apps/rf_neural.h",
-        "Apps/rf_neural_store.h"
+        "Apps/rf_neural_store.h",
+        "Apps/context_fingerprint_app.inc",
+        "lib/ContextFingerprint/include/ContextFingerprint.h",
+        "lib/ContextFingerprint/include/ContextFingerprintStore.h"
       ],
       "min_firmware_version": "0.1.41"
     }
@@ -308,6 +314,24 @@
         "Apps/ble_touchpad_gesture.h"
       ],
       "min_firmware_version": "0.1.34"
+    }
+  ],
+  "contexts_apps": [
+    {
+      "id": "contexts",
+      "display_name": "Contexts",
+      "version": "0.4.0",
+      "origin": "original",
+      "runtime_profile": "portable-riscrte-v1",
+      "source_path": "Apps/contexts.c",
+      "manifest_path": "Apps/contexts.json",
+      "file_name": "contexts.elf",
+      "additional_sources": [
+        "Apps/contexts_controller.inc",
+        "Apps/contexts_scene_view.inc",
+        "lib/Contexts/include/ContextsServiceV1.h"
+      ],
+      "min_firmware_version": "0.1.83"
     }
   ]
 }

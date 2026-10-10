@@ -23,6 +23,8 @@ static bool fx_resident_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime
  if(!strcmp(n,"telemetry.broadcast")){g->api=&resident_bt;fx_grants++;return true;}
  if(!strcmp(n,"alarm.service")){assert(v==2);g->api=&fx_resident_alarm;fx_grants++;return true;}
  if(!strcmp(n,"input.navigation")){g->api=&fx_nav_api;fx_grants++;return true;}
- return fx_acquire(n,v,id,g);
+ bool ok=fx_acquire(n,v,id,g);
+ if(!ok)*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};
+ return ok;
 }
 static const risc_runtime_api_v1 fx_runtime={.api_version=1,.struct_size=sizeof(fx_runtime),.health=fx_health,.yield_ms=fx_yield,.diagnostic=fx_diag,.request_launch=fx_launch,.acquire=fx_resident_acquire,.release=fx_release,.resident_shell=fx_resident_get,.retain_invocation=fx_resident_retain};

@@ -10,9 +10,9 @@ sources=[x for x in cmd if x.endswith('.c') and x!=original]
 stubs=a.output/'serial.c';stubs.write_text('void rf_serial_start(void){} void rf_serial_line(const char*s){(void)s;} void rf_serial_finish(int a,int b){(void)a;(void)b;}\n')
 scene='''wait 4
 set poll_ms 20
-set frame_delay 60
+set frame_delay 600
 nav 8
-wait 2
+wait 40
 check frame_pending eq 1
 remember presents
 nav 8
@@ -30,7 +30,7 @@ check history ge 8
 check transforms ge 8
 check canonical ge 8
 check busy_checks ge 20
-set frame_delay 0
+release_frame
 wait 55
 check frame_pending eq 0
 check last_page eq 1
@@ -46,7 +46,7 @@ for paper in (False,True):
   selected=flags if paper else [f for f in flags if f!='-DPORTABLE_DISPLAY_ROTATION=90']
   extra=['-DRF_RENDER_PAPER'] if paper else []
   sf=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie'] if san else []
-  exe=out/'rf';command=['cc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*sf,*selected,*extra,'-DRF_RENDER_RESIDENT','-DRF_RENDER_ORDERED_INPUT',str(ROOT/'test/native_apps/rf_renderer_test.c'),str(stubs),*sources,'-lm','-o',str(exe)]
+  exe=out/'rf';command=['cc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*sf,*selected,*extra,'-DRF_RENDER_RESIDENT','-DRF_RENDER_ORDERED_INPUT','-DRF_RENDER_MONITOR_STATE',str(ROOT/'test/native_apps/rf_renderer_test.c'),str(stubs),*sources,'-lm','-o',str(exe)]
   subprocess.run(command,check=True);actions=out/'actions.txt';actions.write_text(scene)
   result=subprocess.run([str(exe),str(out),str(actions)],capture_output=True,text=True,timeout=90,env={**os.environ,'RF_RENDER_ASYNC':'1','RF_RENDER_NO_IMAGES':'1','RF_RENDER_EXPECT_LAUNCH':'1','ASAN_OPTIONS':'detect_leaks=0','UBSAN_OPTIONS':'halt_on_error=1'})
   (out/'run.log').write_text(result.stdout+result.stderr)
