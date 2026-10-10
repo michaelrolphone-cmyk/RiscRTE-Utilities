@@ -4,7 +4,7 @@
 No device access or update/migration qualification. The baseline owns every
 unmodified byte, including the partition map, bootloader and unrelated drivers.
 """
-import argparse, hashlib, json, subprocess, sys
+import argparse, hashlib, json, re, subprocess, sys
 from pathlib import Path
 
 def digest(raw): return hashlib.sha256(raw).hexdigest()
@@ -18,6 +18,7 @@ def main():
  for name in ('baseline','baseline-image','apps','service','iq','firmware','native-elf','runtime','packaging','product','output'):
   p.add_argument('--'+name,type=Path,required=True)
  p.add_argument('--home',type=Path);p.add_argument('--version',required=True);p.add_argument('--runtime-version',required=True)
+ p.add_argument('--product-revision',help='Published commit with the same verified source tree as the local product')
  a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
  sys.path.insert(0,str(a.packaging.resolve()/'scripts'))
  from current_bootfs import build
@@ -58,7 +59,9 @@ def main():
  assert 32<=len(firmware)<=0x260000
  for marker in (b'RISC_PAIRED_STORE_ABI:2\0',b'RISC_APP_POLICY_ROWS:24\0',b'RISC_RUNTIME_VERSION:'+a.runtime_version.encode()+b'\0'):
   assert marker in firmware and marker in native,marker
- cohort=json.loads(store['cohort.json']);cohort.update(version=a.version,runtime_version=a.runtime_version,firmware_sha256=digest(firmware),firmware_size=len(firmware),source_revision=revision(a.product))
+ product_revision=a.product_revision or revision(a.product)
+ assert re.fullmatch('[0-9a-f]{40}',product_revision)
+ cohort=json.loads(store['cohort.json']);cohort.update(version=a.version,runtime_version=a.runtime_version,firmware_sha256=digest(firmware),firmware_size=len(firmware),source_revision=product_revision)
  store['cohort.json']=encoded(cohort)
  # Admission uses the production Runtime and exact native import profile.
  qualification=admit_cohort(a.runtime,native,store,store,app_policy_rows=24)
@@ -79,6 +82,7 @@ def main():
  for key,value in store.items():
   dest=a.output/'store'/key;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(value)
  proof=dict(target=a.target,version=a.version,runtime_version=a.runtime_version,firmware_sha256=digest(firmware),native_elf_sha256=digest(native),full_image_sha256=digest(image),full_image_bytes=len(image),baseline_image_sha256=digest(original),changed_store_members=changed,store_admission=admission,cohort_admission=qualification,bootfs=geometry,hardware_verified=False,update_migration_qualified=False,source_revisions={'native':revision(a.runtime),'product':revision(a.product)},files={k:{'sha256':digest(v),'bytes':len(v)} for k,v in sorted(store.items())})
+ proof['source_revisions']['published_product']=product_revision
  (a.output/'integration-proof.json').write_bytes(encoded(proof))
  print(name, 'PASS',len(image),digest(image),flush=True)
 
