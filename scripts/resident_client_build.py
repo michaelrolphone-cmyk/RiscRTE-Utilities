@@ -25,6 +25,7 @@ def exact(path,pin):
 
 def options(parser):
     parser.add_argument('--resident-shell-client',action='store_true',required=True)
+    parser.add_argument('--raster-snapshot',action='store_true',help='Select bounded shared-System raster replay explicitly')
     parser.add_argument('--system-apps',type=Path,required=True)
     parser.add_argument('--system-revision',default=SYSTEM)
     parser.add_argument('--development-system',action='store_true',help='Review-only dirty System build; never final custody')
@@ -54,9 +55,12 @@ def prepare(a,p,utilities):
     shared=importlib.util.module_from_spec(spec);spec.loader.exec_module(shared)
     selected=argparse.Namespace(resident_shell_client=True,resident_shell_host=False,resident_policy=True,
       resident_runtime_sdk=runtime/'sdk/app',alarm_client=True,quick_actions=False,quick_radios=False,
-      quick_usb_transfer=False,paper_transitions=False,home_app=None)
+      quick_usb_transfer=False,paper_transitions=False,home_app=None,
+      raster_snapshot=getattr(a,'raster_snapshot',False))
     flags,sources=shared.configure(selected,p,system,output,inc)
     if sources:raise ValueError('Foreground unexpectedly has shared renderer sources')
+    if getattr(a,'raster_snapshot',False) and '-DPORTABLE_RASTER_SNAPSHOT' not in flags:
+        raise ValueError('Selected System builder does not support --raster-snapshot')
     cc=os.environ.get('NATIVE_APP_CC')
     if not cc:raise ValueError('Set NATIVE_APP_CC to existing pinned GCC8.4')
     compiler=subprocess.check_output([cc,'--version'],text=True).splitlines()[0]

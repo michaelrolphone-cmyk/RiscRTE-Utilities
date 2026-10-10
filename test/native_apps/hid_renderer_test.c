@@ -34,6 +34,7 @@ static bool hid_owned,allow_pair,paired_confirm,paired_reject;
 static unsigned diagnostic_lines, pairing_contacts, pairing_requests, pairing_results, pairing_confirmations;
 static bool diagnostic_moved,diagnostic_multitouch,diagnostic_gap,diagnostic_transport,diagnostic_closed,transport_failed;
 static unsigned hid_opens,hid_closes,hid_polls,hid_keyboard_reports,hid_mouse_reports,hid_releases;
+static unsigned key_presses,key_neutrals,key_gap_neutrals;
 static unsigned hid_scroll_reports,drag_moves,drag_releases;
 static int scroll_x,scroll_y;
 static bool drag_held;
@@ -223,7 +224,10 @@ static bool fake_hid_status(void*c,uint64_t t,risc_bluetooth_hid_status_v1*s){(v
  return true;
 }
 static bool fake_hid_confirm(void*c,uint64_t t,bool accept){(void)c;assert(t==77&&hid_owned);pairing_confirmations++;if(getenv("HID_RENDER_PAIR_RECOVERED"))assert(polls>=60);paired_confirm=accept;paired_reject=!accept;return true;}
-static bool fake_hid_keyboard(void*c,uint64_t t,uint8_t mods,const uint8_t keys[6]){(void)c;assert(hid_owned&&t==77);held_mod=mods;held_key=keys[0];hid_keyboard_reports++;return true;}
+static bool fake_hid_keyboard(void*c,uint64_t t,uint8_t mods,const uint8_t keys[6]){(void)c;assert(hid_owned&&t==77);
+ if(keys[0]){key_presses++;if(getenv("HID_RENDER_KEYS"))assert(keys[0]==6&&mods==1);}
+ else if(held_key){assert(!mods);key_neutrals++;}
+ held_mod=mods;held_key=keys[0];hid_keyboard_reports++;return true;}
 static void observe_pointer(uint8_t b,int x,int y){
  if(getenv("HID_RENDER_SCROLL_X")||getenv("HID_RENDER_SCROLL_Y")||getenv("HID_RENDER_SCROLL_FREE"))assert(!b&&!x&&!y);
  if(b==1&&(x||y)){drag_moves++;drag_held=true;}
@@ -240,7 +244,9 @@ static bool fake_hid_scroll(void*c,uint64_t t,uint8_t b,int16_t x,int16_t y,int1
  if(wx||wy){hid_scroll_reports++;scroll_x+=wx;scroll_y+=wy;}
  return fake_hid_mouse(c,t,b,(int8_t)x,(int8_t)y,0);
 }
-static bool fake_hid_release(void*c,uint64_t t){(void)c;assert(hid_owned&&t==77);held_mod=held_key=held_mouse=0;hid_releases++;return true;}
+static bool fake_hid_release(void*c,uint64_t t){(void)c;assert(hid_owned&&t==77);
+ if(held_key){key_neutrals++;key_gap_neutrals++;}
+ held_mod=held_key=held_mouse=0;hid_releases++;return true;}
 static bool fake_hid_close(void*c,uint64_t t){(void)c;assert(hid_owned&&t==77);if(getenv("HID_RENDER_REQUIRE_CONFIRM"))assert(paired_confirm||paired_reject);if(getenv("HID_RENDER_CLEANUP")&&++close_attempts==1)return false;held_mod=held_key=held_mouse=0;hid_owned=false;hid_closes++;return true;}
 static bool fake_hid_forget(void*c){(void)c;assert(!hid_owned);return true;}
 static bool fake_hid_battery(void*c,uint64_t t,uint8_t p){(void)c;assert(hid_owned&&t==77&&p==73);return true;}
@@ -311,7 +317,15 @@ if(getenv("HID_RENDER_SCROLL_FREE"))assert(hid_scroll_reports>=2&&scroll_x>0&&sc
 if(getenv("HID_RENDER_MOUSE_RECONNECT"))assert(hid_opens==1&&hid_closes==1&&hid_mouse_reports>=3);
 if(getenv("HID_RENDER_TRANSPORT_RECONNECT"))assert(hid_opens==2&&hid_closes==2&&diagnostic_transport&&diagnostic_closed);
 if(getenv("HID_RENDER_LOW_BATTERY"))assert(hid_opens==1&&hid_closes==1&&low_battery_seen);
-if(getenv("HID_RENDER_KEYS"))assert(hid_keyboard_reports>=2);
+if(getenv("HID_RENDER_KEYS")){
+ /* The paper compatibility fixture spends 1600 ms inside submit. Its preserved
+  * >100 ms timing fence releases through release_all, before the next touch UP.
+  * Check the actual key and exactly one neutral, rather than requiring that
+  * both reports use keyboard(). Compact rendering still takes ordinary UP. */
+ assert(key_presses==1&&key_neutrals==1);
+ assert(paper_profile?(hid_keyboard_reports==1&&key_gap_neutrals==1):
+                       (hid_keyboard_reports==2&&!key_gap_neutrals));
+}
 if(getenv("HID_RENDER_BACK"))assert(launches==1);
 if(getenv("HID_RENDER_QUICK"))assert((paper_profile?radio_control_calls==0:radio_control_calls>=2)&&hid_closes==1);
 if(getenv("HID_RENDER_GAP"))assert(gap_given&&hid_releases>=2);

@@ -27,7 +27,6 @@ static void paper_draw(void){
   unsigned row=detail_lines(bp_line);
   snprintf(text,sizeof(text),"LINES %u-%u OF %u",detail_scroll+1,detail_scroll+11<row?detail_scroll+11:row,row);
  }else{
-  if(scroll>=n)scroll=0;
   for(unsigned row=0;row<bp_rows()&&scroll+row<n;row++){
    unsigned i=scroll+row;ble_device*d=&scan.devices[list[i]];int y=112+(int)row*88;bool chosen=i==selected;char addr[32];address(d,addr);
    if(chosen)app->fill_rect(32,y,bp_w()-64,88,true);
@@ -71,6 +70,7 @@ static void paper_enable(void){
 }
 static void bp_more(void){if(detail){unsigned lines=detail_count();detail_scroll=detail_scroll+11<lines?detail_scroll+11:0;dirty=true;}else{sensors=!sensors;scroll=selected=0;dirty=true;}}
 static bool paper_input(const t5_app_input_t*i){
+ normalize_results();
  springboard_contact c={0};paper->contact(&c);bool tap=false,gesture=false;int x=0,y=0;
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
  /* Shared QuickActions may reject its top-edge gesture and return one
@@ -93,7 +93,7 @@ static bool paper_input(const t5_app_input_t*i){
   else if(!detail&&portable_nova_hit(x,y,32,112,bp_w()-64,(int)bp_rows()*88)){unsigned list[BLE_MAX_DEVICES],n=indexes(list),at=scroll+(unsigned)(y-112)/88;if(at<n){selected=at;detail_index=list[at];detail=true;detail_scroll=0;dirty=true;}}
  }
  if(action){if(detail)begin_name();else if(paper_enable_needed)paper_enable();else start_scan();}
- unsigned lines=detail_count();if(detail&&lines&&detail_scroll>=lines)detail_scroll=lines>11?lines-11:0;
+ normalize_results();
  if(!naming&&!name_client.retained&&dirty&&(tap||gesture||i->buttons)&&scan.phase!=BLE_STARTING)draw();
  return true;
 }

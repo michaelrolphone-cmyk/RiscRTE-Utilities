@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "profile": "x4-native-utc-utilities",
+  "versions": {
+    "calculator": "0.1.12",
+    "stopwatch": "0.1.12",
+    "battery": "1.1.5",
+    "ble_scanner": "0.2.7",
+    "ble_touchpad": "0.1.7",
+    "ble_buttons": "0.1.7",
+    "waterfall": "0.2.3"
+  },
+  "reservation": "2026-10-08: native-only X4 direct stage-log test cohort; Watch/raw profiles unchanged. Local only.",
+  "system_sha": "63f0fcdb2b2e943733a87c1d0dcb6916912319d0",
+  "runtime_sha": "30dcec5ce6ce33223f2b203a2399283e1f758567",
+  "alarm_sdk_sha": "637e13b0bce62ad49b756bec2468a6271d163fc7",
+  "alarm_service_api": 2,
+  "alarm_service_version": "0.4.4",
+  "common_grants": [
+    {
+      "capability": "display.output",
+      "api": 1,
+      "instance_id": 3
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1,
+      "instance_id": 4
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1,
+      "instance_id": 6
+    },
+    {
+      "capability": "board.battery",
+      "api": 1,
+      "instance_id": 7
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1,
+      "instance_id": 0,
+      "access": "read-only"
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 1,
+      "purpose": "exact IANA time_zone preference, time_format and existing shared QuickActions/radio settings"
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2,
+      "instance_id": 0,
+      "binding": "tagged native UTC visual service 0.4.4"
+    }
+  ],
+  "app_grants": {
+    "calculator": [],
+    "stopwatch": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 2,
+        "keys": [
+          "stopwatch_utc"
+        ]
+      }
+    ],
+    "battery": [],
+    "ble_scanner": [
+      {
+        "capability": "bluetooth.sensors",
+        "api": 1,
+        "instance_id": 0
+      },
+      {
+        "capability": "bluetooth.hci",
+        "api": 1,
+        "instance_id": 0
+      }
+    ],
+    "ble_touchpad": [
+      {
+        "capability": "bluetooth.hid",
+        "api": 1,
+        "instance_id": 0
+      }
+    ],
+    "ble_buttons": [
+      {
+        "capability": "bluetooth.hid",
+        "api": 1,
+        "instance_id": 0
+      },
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 11
+      }
+    ],
+    "waterfall": [
+      {
+        "capability": "radio.iq",
+        "api": 1,
+        "instance_id": 0
+      },
+      {
+        "capability": "storage.key-value",
+        "api": 2,
+        "instance_id": 8
+      },
+      {
+        "capability": "storage.app-data",
+        "api": 1,
+        "instance_id": 3
+      }
+    ]
+  },
+  "clock_policy": "Read-only runtime.realtime@1; exact IANA time_zone preference, with missing preference using the Reader virtual UTC default. Corrupt/unavailable preference or time displays unavailable. No RTC fallback or native control.",
+  "stopwatch_policy": "Separate namespace 2 stopwatch_utc/SWU1; UTC anchors since 2000 bounded by native signed Unix2038; awake monotonic elapsed; explicit clock-loss/drift and verified save/retry; no migration of stopwatch/SW01.",
+  "home": "default.elf",
+  "local_back": "springboard.elf",
+  "hardware_verified": false,
+  "publication": "Local-only development; System ancestry publication is blocked."
+}

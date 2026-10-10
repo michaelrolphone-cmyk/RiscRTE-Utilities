@@ -42,6 +42,7 @@ static bool naming,name_save_failed;
 static char aliases[BLE_MAX_DEVICES][BLE_ALIAS_MAX+1],editing[BLE_ALIAS_MAX+1];
 static int8_t alias_state[BLE_MAX_DEVICES]; /* 0 unloaded, 1 valid, -1 failed */
 static unsigned indexes(unsigned out[BLE_MAX_DEVICES]);
+static void normalize_results(void);
 static unsigned visible_rows(void){return paper?(unsigned)(app->screen_height()-256)/88u:3u;}
 static void load_alias(unsigned i){
  risc_runtime_capability_v1 g={.struct_size=sizeof(g)};
@@ -127,8 +128,7 @@ static void pump(void){
   if(!ok&&scan.phase!=BLE_ERROR){scan.phase=BLE_ERROR;strcpy(scan.error,"Sensor scan failed");}
  }
  unsigned after[BLE_MAX_DEVICES],count=indexes(after);for(unsigned i=0;i<count;i++)if(after[i]==old_index){selected=i;break;}
- if(selected<scroll)scroll=selected;
- if(selected>=scroll+visible_rows())scroll=selected-visible_rows()+1;
+ normalize_results();
  if(scan.phase==BLE_ERROR||scan.phase==BLE_COMPLETE){
   const char*result=scan.phase==BLE_ERROR?scan.error:scan.dropped?"32 saved - result list full":"Scan complete";
   stop();if(!restore_failed)message=result;
@@ -283,6 +283,24 @@ static unsigned detail_lines(void (*emit)(unsigned,const char*)){
 }
 static void count_line(unsigned n,const char*s){(void)n;(void)s;}
 static unsigned detail_count(void){return detail&&detail_index<scan.count?detail_lines(count_line):0;}
+/* Result counts, row hit targets and selection advance together even when
+ * the display cannot accept a frame. Rendering never repairs list state. */
+static void normalize_results(void){
+ unsigned list[BLE_MAX_DEVICES],n=indexes(list),rows=visible_rows();
+ unsigned old_selected=selected,old_scroll=scroll,old_detail_scroll=detail_scroll;
+ bool old_detail=detail;
+ if(!n)selected=scroll=0;
+ else{
+  if(selected>=n)selected=n-1;
+  if(scroll>=n)scroll=0;
+  if(selected<scroll)scroll=selected;
+  if(selected>=scroll+rows)scroll=selected-rows+1;
+ }
+ if(detail&&detail_index>=scan.count){detail=name_save_failed=false;detail_scroll=0;}
+ unsigned lines=detail_count(),detail_rows=paper?11u:6u;
+ if(detail&&detail_scroll>=lines)detail_scroll=lines>detail_rows?lines-detail_rows:0;
+ if(selected!=old_selected||scroll!=old_scroll||detail_scroll!=old_detail_scroll||detail!=old_detail)dirty=true;
+}
 static void paper_draw(void);
 static void draw(void){
  if(!utility_frame_begin(app))return;
@@ -329,10 +347,13 @@ void app_main(void){
  for(;;){
   if(name_client.retained)return;
   if(naming){name_step();if(name_client.retained)return;if(naming)runtime->yield_ms(20);continue;}
-  if(paper?(dirty&&scan.phase!=BLE_STARTING&&(!active()||(uint32_t)(app->millis()-rendered)>=3000)):
-     ((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250))){draw();if(!utility_frame_pending)rendered=app->millis();}
+  normalize_results();
+  /* Retry the latest owed frame without waiting for another scan refresh. */
+  if(utility_frame_pending||(paper?(dirty&&scan.phase!=BLE_STARTING&&(!active()||(uint32_t)(app->millis()-rendered)>=3000)):
+     ((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250)))){draw();if(!utility_frame_pending)rendered=app->millis();}
   t5_app_input_t input={0};if(!app->poll(&input,20)){if(portable_app_sleep_retained())return;break;}
   if(input.exit_requested)break;
+  normalize_results();
   if(paper){if(!paper_input(&input))break;if(name_client.retained)return;if(!naming)pump();continue;}
   if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44))){if(!navigate_back())break;continue;}
   bool swiped=drag();

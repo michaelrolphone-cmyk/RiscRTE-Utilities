@@ -1,0 +1,58 @@
+{
+  "scope": "Host source qualification; no target ELF build or hardware qualification",
+  "baseline_revision": "dd36ee171164dd7526a8d9e7c5e5fc23ad29aed0",
+  "source_sha256": {
+    "Apps/audio_spectrum.c": "afec2ace9ecb13c849f10f902b95294f409aa23265ee8e5421be8e78c5b5b00f",
+    "Apps/ble_scanner.c": "8ac29780490db621fca994550ec315aac50aa63f74db1eddf6ef54954f40ee82",
+    "Apps/ble_scanner_paper.inc": "c586e9a93264c949f09e2f46c1a582d80c4cf1b67b63ab6bbe039685a73a3838",
+    "Apps/rf_application.inc": "c8de6d6e2f929e47757a25bc3ca0fadad21e9fa48308beafa6f84b40c1ffb5b7",
+    "test/native_apps/rf_renderer_test.c": "c4a48f9318ca77d62d8fa60f13df4d06ab60e1a09da06bc09064961e89a6c3cd",
+    "scripts/test_utility_list_state.py": "b2a1ddd50acf4eb365daba8ce1367ef188b31a35caec079bbca431b03059bb76",
+    "test/native_apps/utility_monitor_state_test.c": "f08e609340ebd323cf77fa756f7be44ec106d361385ce7d805de219fb092d545",
+    "tests/utility_scanner_state_test.c": "02014a1ff90f56b6c0cc98dd217036b52f1243f3ef2ffbc2284c6dc84272c51b"
+  },
+  "focused_runs": 12,
+  "focused_evidence": "/tmp/utility-list-tests/final/evidence.json",
+  "shared_text_runs": 48,
+  "shared_text_all_passed": true,
+  "shared_text_evidence": "/tmp/utility-list-tests/shared-text/summary.json",
+  "existing_checks": [
+    "test_utility_frames.py normal + ASan/UBSan (6 executions)",
+    "audio_spectrum_test.c normal + ASan/UBSan"
+  ],
+  "baseline_regressions": [
+    {
+      "name": "audio",
+      "returncode": -6,
+      "stderr": "audio: /tmp/utility-list-baseline/test/native_apps/utility_monitor_state_test.c:27: expired_event: Assertion `event_slot==-1&&!list_scroll' failed.\n"
+    },
+    {
+      "name": "scanner",
+      "returncode": -6,
+      "stderr": "scanner: /tmp/utility-list-baseline/tests/utility_scanner_state_test.c:22: present: Assertion `selected<n&&scroll<n' failed.\n"
+    },
+    {
+      "name": "rf-lcd-withheld",
+      "returncode": -6,
+      "stderr": "line 40 check list_scroll eq 4: got 6; page=0 polls=62 captures=3 message=FROZEN / RF OFF"
+    },
+    {
+      "name": "scanner-cadence",
+      "returncode": -6,
+      "stderr": "scanner-cadence: /tmp/utility-list-baseline/tests/scanner_cadence_only.c:77: poll_input: Assertion `!utility_frame_pending&&presents==2&&tick<1000&&provider_polls==3' failed."
+    }
+  ],
+  "aggregate_unittest": {
+    "tests_run": 78,
+    "failures": [
+      "ERROR: test_watch_and_legacy_profiles_keep_original_pins (test_native_paper_motion.NativePaperMotion.test_watch_and_legacy_profiles_keep_original_pins)",
+      "FAIL: test_reuse_keyboard_and_provider (test_ble_inventory.BleInventory.test_reuse_keyboard_and_provider)",
+      "FAIL: test_scanner_identity_and_capabilities (test_ble_inventory.BleInventory.test_scanner_identity_and_capabilities)"
+    ],
+    "baseline_same_failures": true,
+    "current_log": "/tmp/utility-list-tests/python-tests.log",
+    "baseline_log": "/tmp/utility-list-tests/python-baseline.log"
+  },
+  "commit": "c374479bfdcb5848bd9dbc8fc82b5a14c2bb43d2",
+  "worktree_clean": true
+}

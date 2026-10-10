@@ -355,11 +355,18 @@ static unsigned monitor_items(monitor_item items[17]){
  for(unsigned i=1;i<n;i++){monitor_item key=items[i];unsigned j=i;while(j&&(items[j-1].confidence<key.confidence||(items[j-1].confidence==key.confidence&&items[j-1].amplitude_db<key.amplitude_db))){items[j]=items[j-1];j--;}items[j]=key;}
  return n;
 }
+/* Resolve the visible list before presentation or input. A denied frame must
+ * not retain an obsolete origin after detections or saved labels disappear. */
+static void normalize_monitor(void){
+ if(page!=PAGE_MAIN||view!=2)return;
+ unsigned n,rows=lab_edit?2u:3u;
+ if(lab_edit)n=saved_count();else{monitor_item items[17];n=monitor_items(items);}
+ if(list_scroll>=n){unsigned next=n>rows?n-rows:0;if(list_scroll!=next){list_scroll=next;dirty=true;}}
+}
 static void draw_monitor(void){
  if(lab_edit){
   unsigned order[8],n=ordered_labels(order);char header[40];text(0,20,46,143,"EDIT LABELS",NOVA_CYAN);if(pending_save)snprintf(header,sizeof(header),"UNSAVED CHANGES");else snprintf(header,sizeof(header),"%u SAVED",saved_count());text(1,20,64,145,header,NOVA_CAP);pill(166,48,54,28,"DONE",false);fill(20,84,200,1,NOVA_DIM);
   if(!n){center(1,20,112,200,"NO LABELS SAVED",NOVA_CAP);center(1,20,133,200,"DRAG A FREQUENCY LINE",NOVA_CAP);center(1,20,154,200,"THEN TAP ITS PILL TO NAME",NOVA_CAP);}
-  if(list_scroll>=n)list_scroll=n>2?n-2:0;
   for(unsigned row=0;row<2&&row+list_scroll<n;row++){unsigned slot=order[row+list_scroll];spectrum_label *l=&labels[slot];int y=88+(int)row*55;uint32_t color=label_colors[l->color];fill(20,y,2,50,color);text(1,30,y,152,l->name,NOVA_WHITE);char frequency[20];freq_text(l->frequency_hz,frequency);text(1,30,y+20,117,frequency,NOVA_CAP);pill(184,y+4,32,32,"X",false);fill(30,y+51,190,1,NOVA_LINE);}
   if(n>2){pill(21,204,44,24,"<",false);char count[24];snprintf(count,sizeof(count),"%u-%u / %u",list_scroll+1,list_scroll+2<n?list_scroll+2:n,n);center(1,66,207,108,count,NOVA_CAP);pill(176,204,44,24,">",false);}return;
  }
@@ -376,8 +383,7 @@ static void draw_monitor(void){
  else snprintf(room_detail,sizeof(room_detail),"%s %u%%  AMP %d dB",room_tracker.ambiguous?"AMBIGUOUS":"NO MATCH",room_tracker.confidence,monitor_scene_db()/100);
  text(1,20,106,200,room_detail,NOVA_CAP);fill(20,126,200,1,NOVA_DIM);
  pill(10,211,28,27,"<",false);pill(45,211,65,27,running?"STOP":"START",running);pill(117,211,78,27,"LEARN",false);pill(202,211,28,27,">",false);
- if(!n){center(1,20,145,200,input_waiting?"WAITING FOR AUDIO":running?"NO SOUND IDENTIFIED":"START MIC TO MONITOR",NOVA_CAP);center(1,20,166,200,running?"LEARN A SOUND BELOW":"ROOM / EVENTS / VOICE",NOVA_CAP);list_scroll=0;return;}
- if(list_scroll>=n)list_scroll=n>3?n-3:0;
+ if(!n){center(1,20,145,200,input_waiting?"WAITING FOR AUDIO":running?"NO SOUND IDENTIFIED":"START MIC TO MONITOR",NOVA_CAP);center(1,20,166,200,running?"LEARN A SOUND BELOW":"ROOM / EVENTS / VOICE",NOVA_CAP);return;}
  for(unsigned row=0;row<3&&row+list_scroll<n;row++){monitor_item *item=&items[row+list_scroll];int y=132+(int)row*26;fill(20,y+1,2,22,item->color);text(1,28,y,40,item->kind==MONITOR_EVENT?"EVENT":item->kind==MONITOR_CANDIDATE?"MAYBE":item->kind==MONITOR_VOICE?"VOICE":"LABEL",NOVA_CAP);text(1,70,y,99,item->name,NOVA_WHITE);char confidence[12],amplitude[20];snprintf(confidence,sizeof(confidence),"%u%%",item->confidence);snprintf(amplitude,sizeof(amplitude),"AMP %d dB",item->amplitude_db/100);text(1,176,y,44,confidence,item->color);text(1,70,y+13,100,amplitude,NOVA_CAP);}
 }
 static void draw_footer(void){
@@ -523,6 +529,7 @@ void app_main(void){
  restore();signature_restore();event_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
  for(;;){
   if(temporal_retained())return;
+  normalize_monitor();
   /* Paint between complete analysis windows, not between their RX chunks.
    * Otherwise each slow paint can discard the same unfinished FFT forever.
    * Plots wait for their selected FFT; other pages need only the 512-sample
@@ -540,6 +547,7 @@ void app_main(void){
   if(input.exit_requested){if(signature_exit_ready()&&temporal_exit_ready())break;continue;}
   if(input.buttons&T5_APP_BUTTON_BACK){if(page==PAGE_KEYBOARD){keyboard_cancel();}else if(page==PAGE_EVENT_CAPTURE){if(event_armed||event_training.ready){notify("SAVE OR CANCEL THE WINDOW");}else set_page(PAGE_EVENT_LABEL);}else if(page==PAGE_EVENT_EXAMPLES){set_page(PAGE_EVENT_LABEL);}else if(page==PAGE_EVENT_LABEL){toast_message=NULL;set_page(PAGE_EVENTS);}else if(page==PAGE_EVENTS){toast_message=NULL;set_page(PAGE_CONTROLS);}else if(page==PAGE_SIGNATURE_EDIT){set_page(PAGE_SIGNATURES);}else if(page==PAGE_SIGNATURES){set_page(PAGE_CONTROLS);}else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else if(signature_exit_ready()&&temporal_exit_ready())break;continue;}
   uint32_t now=app->millis();if(event_slot>=0&&(uint32_t)(now-last_event_at)>2000u){event_slot=-1;dirty=true;}if(toast_message&&(int32_t)(now-toast_until)>=0){toast_message=NULL;undo_slot=-1;dirty=true;}
+  normalize_monitor();
   bool consumed=process_contact(),toggle_requested=false,freeze_requested=false;
   if(page==PAGE_MAIN){toggle_requested=!!(input.buttons&T5_APP_BUTTON_CONFIRM);freeze_requested=!!(input.buttons&T5_APP_BUTTON_DOWN);if(input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_RIGHT)){view=(view+(input.buttons&T5_APP_BUTTON_LEFT?2u:1u))%3;list_scroll=0;lab_edit=false;set_page(PAGE_MAIN);}}
   else if(page==PAGE_CONTROLS){if(input.buttons&T5_APP_BUTTON_UP)controls_move(controls_scroll-CONTROLS_ROW_HEIGHT);if(input.buttons&T5_APP_BUTTON_DOWN)controls_move(controls_scroll+CONTROLS_ROW_HEIGHT);}

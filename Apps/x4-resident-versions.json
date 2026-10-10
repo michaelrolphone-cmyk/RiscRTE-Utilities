@@ -1,11 +1,11 @@
 {
-  "alarms": "0.2.16",
-  "battery": "1.1.14",
-  "calculator": "0.1.21",
-  "stopwatch": "0.1.21",
-  "countdown": "0.1.20",
-  "ble_scanner": "0.2.20",
-  "ble_touchpad": "0.1.19",
-  "ble_buttons": "0.1.20",
-  "waterfall": "0.2.19"
+  "alarms": "0.2.17",
+  "battery": "1.1.15",
+  "calculator": "0.1.22",
+  "stopwatch": "0.1.22",
+  "countdown": "0.1.21",
+  "ble_scanner": "0.2.21",
+  "ble_touchpad": "0.1.20",
+  "ble_buttons": "0.1.21",
+  "waterfall": "0.2.20"
 }
