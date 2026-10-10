@@ -1,0 +1,224 @@
+{
+  "schema": 1,
+  "purpose": "BLE Buttons 0.1.22 queued Watch contacts; X4 compatibility",
+  "production_source": {
+    "local_commit": "c0015db6ac7fbae38aef5b67446c5d90f52e7f44",
+    "public_commit": "31d5e6913601889411c5913394559223eb7f02d0",
+    "tree": "25237b321e489d230d6a7c726c77267d7b553e35",
+    "app_sha256": "5cb9cfcc7350d4c2723e0d7f4e3110026a0044ab3203dc925e606cd8353bfaa7",
+    "baseline_public": "35c2141c68668971dc524d98702109b00c740815"
+  },
+  "targets": {
+    "target-x4/ble_buttons/ble_buttons.elf": {
+      "bytes": 228812,
+      "sha256": "636ad9240c55ec0c1ee59cda76d636018c57d7eab876ef6bec995e28173b7b78"
+    },
+    "target-x4/ble_touchpad/ble_touchpad.elf": {
+      "bytes": 228780,
+      "sha256": "d31f288a18e7c2934d338d4555d801d62de268a460d18687927f7b4cb279ab98"
+    },
+    "target-watch/ble_buttons.elf": {
+      "bytes": 185928,
+      "sha256": "28e08dad6c753fbb7f2100e6cb1f8a685cff33dd471f68576bba3b10a5439707"
+    },
+    "target-watch/ble_touchpad.elf": {
+      "bytes": 184164,
+      "sha256": "f447cb25135d033b864adbc64e0ce137044b47a8e8c3793865954e24abc8badc"
+    }
+  },
+  "matrices": {
+    "x4-019-normal": {
+      "passed_cases": 26,
+      "sha256": "7e23b9496ddeebec7f2626cdf27a9f800142192981711da3c9f11fbffc666c0d"
+    },
+    "x4-019-sanitized": {
+      "passed_cases": 26,
+      "sha256": "7e23b9496ddeebec7f2626cdf27a9f800142192981711da3c9f11fbffc666c0d"
+    },
+    "x4-0110-normal": {
+      "passed_cases": 26,
+      "sha256": "7e23b9496ddeebec7f2626cdf27a9f800142192981711da3c9f11fbffc666c0d"
+    },
+    "x4-0110-sanitized": {
+      "passed_cases": 26,
+      "sha256": "7e23b9496ddeebec7f2626cdf27a9f800142192981711da3c9f11fbffc666c0d"
+    },
+    "x4-historical-018-focused": {
+      "passed_cases": 2,
+      "sha256": "7d3c7fded930a7124777a5e78f711af60aff1ae8b9ccc163161bb1e1501a8ffd"
+    },
+    "watch-queue-normal": {
+      "passed_cases": 25,
+      "sha256": "4aded91fb0c0e94ec4a5dfd2ae053f3470dc084a904bc4d95f64dfe51af531fb"
+    },
+    "watch-queue-san": {
+      "passed_cases": 25,
+      "sha256": "66ee87c43ca74f90c3424dda2ea0d154e7c6d50060ad2b4e57ecbf0122a0eb70"
+    }
+  },
+  "wire": {
+    "wire-report.json": {
+      "transactions": [
+        [
+          "1b140005004c0000000000",
+          "1b14000000000000000000"
+        ],
+        [
+          "1b140005004c0000000000",
+          "1b14000000000000000000"
+        ]
+      ],
+      "protocol": "report",
+      "expected_baseline_loss": false,
+      "hardware_tested": false,
+      "source_or_binary_sha256": {
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/test/ble_hid_protocol_test.py": "22537059b007a91883360cc41b98bf0fda08567c02d80a90dd777838dc172061",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/build/ble-hid-host/driver.so": "b0352dca653def594a12bff9fc9ef98327b509c3d9db4cf474bc95cfad694e92",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/watch-seam/app-seam.so": "406b2dd99165d76646c800460888bc03ad4bf92337777b9aabf188ef2886e309",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/utilities/scripts/test_hid_buttons_wire.py": "d409878ddf5da101fbd642237b9b8e517887ed80572ec2c30577e1cba5e5137a"
+      }
+    },
+    "wire-boot.json": {
+      "transactions": [
+        [
+          "1b230005004c0000000000",
+          "1b23000000000000000000"
+        ],
+        [
+          "1b230005004c0000000000",
+          "1b23000000000000000000"
+        ]
+      ],
+      "protocol": "boot",
+      "expected_baseline_loss": false,
+      "hardware_tested": false,
+      "source_or_binary_sha256": {
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/test/ble_hid_protocol_test.py": "22537059b007a91883360cc41b98bf0fda08567c02d80a90dd777838dc172061",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/build/ble-hid-host/driver.so": "b0352dca653def594a12bff9fc9ef98327b509c3d9db4cf474bc95cfad694e92",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/watch-seam/app-seam.so": "406b2dd99165d76646c800460888bc03ad4bf92337777b9aabf188ef2886e309",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/utilities/scripts/test_hid_buttons_wire.py": "d409878ddf5da101fbd642237b9b8e517887ed80572ec2c30577e1cba5e5137a"
+      }
+    },
+    "wire-report-san.json": {
+      "transactions": [
+        [
+          "1b140005004c0000000000",
+          "1b14000000000000000000"
+        ],
+        [
+          "1b140005004c0000000000",
+          "1b14000000000000000000"
+        ]
+      ],
+      "protocol": "report",
+      "expected_baseline_loss": false,
+      "hardware_tested": false,
+      "source_or_binary_sha256": {
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/test/ble_hid_protocol_test.py": "22537059b007a91883360cc41b98bf0fda08567c02d80a90dd777838dc172061",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/build/ble-hid-san/driver.so": "0673b3b878e25dbefe3fcd50109be8368d490cc3696e3d681019277a60a39c74",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/watch-seam-san/app-seam.so": "b457d4f21475d97aca048affe5c779bd2dd5d6a1ba3c37ef30a0c3f24669e284",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/utilities/scripts/test_hid_buttons_wire.py": "d409878ddf5da101fbd642237b9b8e517887ed80572ec2c30577e1cba5e5137a"
+      }
+    },
+    "wire-boot-san.json": {
+      "transactions": [
+        [
+          "1b230005004c0000000000",
+          "1b23000000000000000000"
+        ],
+        [
+          "1b230005004c0000000000",
+          "1b23000000000000000000"
+        ]
+      ],
+      "protocol": "boot",
+      "expected_baseline_loss": false,
+      "hardware_tested": false,
+      "source_or_binary_sha256": {
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/test/ble_hid_protocol_test.py": "22537059b007a91883360cc41b98bf0fda08567c02d80a90dd777838dc172061",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/build/ble-hid-san/driver.so": "0673b3b878e25dbefe3fcd50109be8368d490cc3696e3d681019277a60a39c74",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/watch-seam-san/app-seam.so": "b457d4f21475d97aca048affe5c779bd2dd5d6a1ba3c37ef30a0c3f24669e284",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/utilities/scripts/test_hid_buttons_wire.py": "d409878ddf5da101fbd642237b9b8e517887ed80572ec2c30577e1cba5e5137a"
+      }
+    },
+    "wire-baseline.json": {
+      "transactions": [
+        [],
+        []
+      ],
+      "protocol": "report",
+      "expected_baseline_loss": true,
+      "hardware_tested": false,
+      "source_or_binary_sha256": {
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/test/ble_hid_protocol_test.py": "22537059b007a91883360cc41b98bf0fda08567c02d80a90dd777838dc172061",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/drivers/build/ble-hid-host/driver.so": "b0352dca653def594a12bff9fc9ef98327b509c3d9db4cf474bc95cfad694e92",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/watch-seam-baseline/app-seam.so": "7b4523a697a7745be6a4fac59c6b4459fdedfed45f2639aacbe788a0a539296b",
+        "/workspace/shared/ble-buttons-report-recovery-20261010/utilities/scripts/test_hid_buttons_wire.py": "d409878ddf5da101fbd642237b9b8e517887ed80572ec2c30577e1cba5e5137a"
+      }
+    }
+  },
+  "unchanged_touchpad_target_bytes": {
+    "x4": true,
+    "watch": true
+  },
+  "providers": {
+    "hid": "58ad37140bd86bd2247bfa3244c4acc8942b2bd8",
+    "gt911_019_driver_sha256": "da287cbd675b6a59131b97278a48c6cf1734b90e30a9e2674e72b0063c9a86d1",
+    "gt911_0110_public": "6590cbdcd7203ac1c2e58c84225e34d8df8602a3",
+    "watch_021_driver_sha256": "01b5247d473f3bc7ce34a6de79d259854902637bf78547ce3cbe53a4e407fbc6"
+  },
+  "existing_suites": {
+    "generic_hid_apps_models_nova": "passed normal and ASan/UBSan on declared System a7f08a9",
+    "real_nimble_protocol_and_port": "passed normal and ASan/UBSan",
+    "real_nimble_scenarios_per_mode": 34
+  },
+  "limits": [
+    "No hardware, RF or host OS key acceptance tested",
+    "Original X4 report firmware unconfirmed; current .57 is unchanged",
+    "Current System old direct-Nova fixture aggregate fails compile because raster helpers were added; current app/model portion and actual X4 raster suite pass",
+    "Historical .18 aggregate replay with current async display is incompatible; only synchronous ordinary-contact control and plain split-contact loss are counted",
+    "An exploratory historical configured-split scenario did not lose the tap under current renderer timing and is not counted",
+    "Watch .2.0 old sequence behavior was investigated but is not the corrected-provider control",
+    "LeakSanitizer not run"
+  ],
+  "evidence_files": {
+    "real-hid-normal.log": "6789cac78173216e681081a3612690375431ac4a5a16c1913a38f761f3ffa887",
+    "x4-historical-018.log": "5ea4d4103b7de6e9e1b21a96b71b15c39184dfe23da9fdb5d6e293d560493158",
+    "existing-hid-apps.log": "76ae2b3fb7e11ddbcde8b9bef7e318e755f0288b33fef1b65a2be832e048ebd8",
+    "target-watch-baseline.log": "c230be85048ae7087c5325f1ad7be078f28bf26c6b815ced02bf7f749858b549",
+    "target-x4.log": "6398d6d361cfbdffcee878f01c6fe609c491d7dbeb9d8080880b3e5315bb6d86",
+    "x4-historical-018-synchronous.log": "54a466c309c7bebcbefbe566b5da2cdb2f50bc46eb47cca436142776d2674973",
+    "wire-baseline.log": "6938231dac3e0644f1bd17fd6bf9c6527dc92b65b573be6bd8e902e1f70a4f1a",
+    "wire-boot-san.log": "711bf4107cf7d5463bee60549460f20917c46a30310973001a86616701c87e28",
+    "x4-019-normal.log": "a2010d8845f873efa499bc75d9d178f01642a1e00d8e26202ca524e52c205488",
+    "target-watch.log": "c230be85048ae7087c5325f1ad7be078f28bf26c6b815ced02bf7f749858b549",
+    "real-hid-san.log": "6789cac78173216e681081a3612690375431ac4a5a16c1913a38f761f3ffa887",
+    "watch-queue-normal.log": "2d742f0a9a46381a6c01fff7fcb1332c1170ae345ed8aaa284470996841cd577",
+    "legacy-hid-apps.log": "dfacd55818c1d7040e28c803a081047ee2543975b4adc70c6d6d53466e636ea9",
+    "watch-physical-before.log": "4f3262001876f136a7641b3fc8b255921e563f95c434617d4f250a17f54a8466",
+    "wire-report.log": "49c1ccff00f6de645538caa36a932676b2b5b1667bdccac09319f1e34c4c0abf",
+    "x4-historical-018-focused.log": "57463cb9d607ab284a0f56ad5cb9691293db0dcfb4e43d2c6886f263dbeb5a20",
+    "watch-queue-san.log": "2d742f0a9a46381a6c01fff7fcb1332c1170ae345ed8aaa284470996841cd577",
+    "watch-seam-san.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "watch-021-after.log": "1f8e1e1926595883133815aea28408fd4afcb10a589adc920a44796e9b58fffc",
+    "watch-021-baseline.log": "501a017d0b8317f2b624f0ff033681c7309d1cc2b36f5406ae6fca79ff320491",
+    "watch-seam-baseline.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "watch-short-before.log": "8d3f41309c7ed109a33ba38299b34bc07c660fcd20820ce4561625bc08bd496f",
+    "x4-019-sanitized.log": "a2010d8845f873efa499bc75d9d178f01642a1e00d8e26202ca524e52c205488",
+    "hid-host-build-san.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "hid-host-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "current-x4.log": "a2010d8845f873efa499bc75d9d178f01642a1e00d8e26202ca524e52c205488",
+    "watch-physical-after.log": "f1c633a33b1a01ecab2b1cce81582ca4463833024b25f5d433bf639ce7d65b7a",
+    "x4-0110-sanitized.log": "a2010d8845f873efa499bc75d9d178f01642a1e00d8e26202ca524e52c205488",
+    "wire-boot.log": "711bf4107cf7d5463bee60549460f20917c46a30310973001a86616701c87e28",
+    "wire-report-san.log": "49c1ccff00f6de645538caa36a932676b2b5b1667bdccac09319f1e34c4c0abf",
+    "x4-0110-normal.log": "a2010d8845f873efa499bc75d9d178f01642a1e00d8e26202ca524e52c205488",
+    "watch-seam.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "live_version_reservation": {
+    "heads": 72,
+    "heads_and_tags": 92,
+    "buttons": "0.1.22",
+    "live_versions_sha256": "38ad80d76dc341217eb0c0c7bde742fae1aef4145ea0918ca3850165939352d4"
+  }
+}
