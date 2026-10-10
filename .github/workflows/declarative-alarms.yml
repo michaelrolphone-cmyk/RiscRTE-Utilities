@@ -1,0 +1,82 @@
+name: Declarative Alarms prototype
+on:
+  push:
+    branches: [feat/declarative-alarms]
+  pull_request:
+    paths: ['Apps/alarms_scene.*', 'Services/alarm_control/**', 'lib/Alarm/include/AlarmControlV1.h', 'scripts/*alarms_scene*', 'scripts/scene_support.py', 'test/scene/**', '.github/workflows/declarative-alarms.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prototype:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: b70cb87bdead507b9bc826f445935c5ad2b08bad
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 320465b83b4d54d2c1461318f9c04fc5436cdbf8
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: e215c5c3b614594b31209b3a33afb446be54bf66
+          path: Watch
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiskRTE-XTEINK-X4-PRO
+          ref: e02de71b142290cbdf7db18e07dd30229bdf59eb
+          path: X4
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Domain and controller fault tests
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          python Utilities/scripts/test_alarms_scene.py --runtime Runtime --system-apps System 2>&1 | tee evidence/domain-app.log
+          python Utilities/scripts/test_alarms_scene.py --runtime Runtime --system-apps System --sanitize 2>&1 | tee evidence/domain-app-sanitized.log
+      - name: Actual production Runtime ELF lifecycle with hardware doubles
+        run: |
+          set -o pipefail
+          python Utilities/scripts/test_alarms_scene_runtime.py --runtime Runtime --system-apps System --output runtime-normal 2>&1 | tee evidence/runtime.log
+          python Utilities/scripts/test_alarms_scene_runtime.py --runtime Runtime --system-apps System --sanitize --output runtime-sanitized 2>&1 | tee evidence/runtime-sanitized.log
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Build and strictly validate providers and identical Alarms ELF
+        run: |
+          set -o pipefail
+          python System/scripts/build_scene_services.py --runtime Runtime --output packages/system 2>&1 | tee evidence/presenter-build.log
+          python Utilities/scripts/build_alarms_scene.py --runtime Runtime --system-apps System --output packages/alarms 2>&1 | tee evidence/alarms-build.log
+      - name: Verify opt-in component composition and product selections
+        run: |
+          set -o pipefail
+          python Utilities/scripts/test_alarms_scene_composition.py --runtime Runtime --system-packages packages/system --alarm-packages packages/alarms --watch-profile Watch/prototypes/alarms-scene/profile.json --paper-profile X4/minimal/prototypes/alarms-scene/profile.json 2>&1 | tee evidence/composition.log
+          for repo in Runtime System Utilities Watch X4; do
+            printf '%s ' "$repo" >> evidence/source-commits.txt
+            git -C "$repo" rev-parse HEAD >> evidence/source-commits.txt
+          done
+          printf '%s\n' 'Component ELF packages and host-runtime tests only. Not a flashable product image or physical-hardware qualification.' > evidence/QUALIFICATION.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: declarative-alarms-components-${{ github.sha }}
+          path: |
+            evidence/
+            packages/
+          if-no-files-found: error
