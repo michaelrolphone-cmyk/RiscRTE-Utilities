@@ -1,0 +1,40 @@
+{
+  "purpose": "Test-only HID report-path correction; no production changes",
+  "system_source": "a7f08a9db7342a69ef5b9bc03e3b1ea60dafbb7c",
+  "utilities_base": "3ab7b836bccba698da12940eeab23df8385cf7d9",
+  "failure": "Paper keys expected two keyboard() calls although submit injects1600ms and preserved100ms timing fence neutralizes through release_all().",
+  "observed_trace": {
+    "press_ms": 3742,
+    "contact": [
+      91,
+      514
+    ],
+    "neutral_timing_fence_ms": 5343,
+    "same_contact_still_held": true,
+    "key": 6,
+    "modifiers": 1
+  },
+  "assertions": [
+    "Exactly one expected Ctrl+C press",
+    "Exactly one actual neutral before teardown",
+    "Paper: one keyboard() plus one release_all() neutral",
+    "Compact: press and UP through two keyboard() calls",
+    "All prior ownership, pairing, geometry, lifecycle and final-neutral checks retained"
+  ],
+  "runs": {
+    "paper_full_normal_and_asan_ubsan": 102,
+    "paper_keys_normal_and_asan_ubsan": 2,
+    "compact_keys_normal_and_asan_ubsan": 2
+  },
+  "logs": {
+    "/workspace/shared/hid-keys-trace.log": "275addf0f1fa20e933fcf27b74bb18302c69bfa38d4f730f18fa2181344485c2",
+    "/workspace/shared/hid-paper-keys-fixed.log": "3927059c51f8bb241a727d1c60a176d40873386375111fa727410a0373f65546",
+    "/workspace/shared/hid-compact-keys-fixed.log": "d27503e3e245387e0adf4aaccca6c1e36fc24f11c79632a70112e2116bcb2cf0",
+    "/workspace/shared/hid-paper-fixed-full.log": "7fc4cdfb094a2bc26f3af7d7dca8a294f4ef383f6406ef6c23b2ee2409fc26db"
+  },
+  "production_sha256": {
+    "Apps/ble_hid_app.inc": "95517037a6d8d63e8fb58624a15434265cb2e35c5ae92eb712eab5e7daf59f70",
+    "Apps/ble_hid_paper.inc": "9d5552799841b98efa2f56d82f8816f1b11bc55c44e1eb87b2b53e1e101a2bc0",
+    "Apps/ble_hid_model.h": "f106d4cdd9f4301c4e20646f4015d646b9e00590b6b1b1978472ac230371fae6"
+  }
+}
