@@ -18,10 +18,13 @@
     "app_ui_hid_interface_cases_asan_ubsan": 26,
     "baseline_loss_and_safety_cases": 26,
     "pairing_policy_cases_both_apps": 12,
-    "pairing_policy_cases_both_apps_asan_ubsan": 12
+    "pairing_policy_cases_both_apps_asan_ubsan": 12,
+    "actual_gt911_app_ui_hid_cases": 26,
+    "actual_gt911_app_ui_hid_cases_asan_ubsan": 26,
+    "actual_gt911_baseline_loss_and_safety_cases": 26
   },
-  "touch_evidence": "Declared RiscTouchV1 interface double with independent ordered subscriber queues; actual GT911 .1.9 source unavailable",
-  "actual_gt911_source_compiled": false,
+  "touch_evidence": "Exact recovered GT911 0.1.9 driver compiled into the production Buttons/shared-adapter host tests; modeled I2C/GPIO/time and HID API",
+  "actual_gt911_source_compiled": true,
   "installed_gt911_019_elf_must_preserve_sha256": "d35def1c97411fae9e976ab7d1bd18d8289d99d343f2d39bdf93e74c8e0a9ee0",
   "actual_bluetooth_provider_tested": false,
   "over_air_tested": false,
@@ -30,5 +33,7 @@
   "telemetry": "No",
   "new_permissions_or_grants": false,
   "universal_presentation_overhaul_included": false,
-  "scope": "Suitable for explicitly labelled application test image; no physical-provider or hardware validation claim"
+  "scope": "Source/target and actual-provider host qualification; physical hardware and over-air remain untested. Final product clean-build required.",
+  "gt911_driver_sha256": "da287cbd675b6a59131b97278a48c6cf1734b90e30a9e2674e72b0063c9a86d1",
+  "installed_gt911_019_elf_must_preserve_sha256_note": "Delivered-byte custody reference only; final .55 must rebuild driver from recovered source."
 }
