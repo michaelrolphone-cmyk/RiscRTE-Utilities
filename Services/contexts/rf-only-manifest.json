@@ -1,0 +1,26 @@
+{
+  "type": "driver",
+  "id": "contexts-service",
+  "version": "0.3.1",
+  "driver_abi": 2,
+  "architecture": "xtensa-esp32s3",
+  "file_name": "driver.elf",
+  "requires": [
+    {
+      "capability": "platform.clock",
+      "api": 1
+    },
+    {
+      "capability": "radio.iq",
+      "api": 1
+    }
+  ],
+  "provides": [
+    {
+      "capability": "contexts.service",
+      "api": 1
+    }
+  ],
+  "physical_verification": "pending",
+  "status": "development; independent temporal RF/audio fingerprints, explicit learning, confidence-gated adaptation and persisted context rules; hardware validation pending"
+}

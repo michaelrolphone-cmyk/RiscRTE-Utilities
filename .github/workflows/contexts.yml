@@ -1,0 +1,49 @@
+name: Contexts service and editor
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contexts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 1027b44b309521aea5835d6fb63014c56a16023d
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Drivers
+          ref: 4088b6892c2e2654b0342f04a7d191068e4a8e2e
+          path: .dependencies/drivers
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: ad956b518e99fa380419892a87e6367e3980dcd0
+          path: .dependencies/runtime
+          persist-credentials: false
+      - name: Verify explicit RF-only contract compatibility
+        env:
+          CONTEXTS_SYSTEM_APPS: .dependencies/system
+        run: |
+          python3 scripts/check_contexts_contract.py --system-apps .dependencies/system
+          python3 -m unittest discover -s tests -p test_contexts_contract.py -v
+      - name: Test production service, owner export and real Nova7 editor
+        run: |
+          python3 scripts/test_context_fingerprints.py --drivers .dependencies/drivers --runtime .dependencies/runtime
+          python3 scripts/test_contexts_service.py --drivers .dependencies/drivers --runtime .dependencies/runtime --system-apps .dependencies/system
+          python3 scripts/test_contexts_app.py --system-apps .dependencies/system
+          python3 scripts/test_contexts_rf_retained.py --system-apps .dependencies/system
