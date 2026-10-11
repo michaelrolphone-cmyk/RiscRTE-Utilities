@@ -17,10 +17,10 @@ for sanitized in (False,True):
   path=out/'actions.txt';path.write_text(''.join(f'{n} {x} {y}\n' for n,x,y in actions))
   env=dict(os.environ)
   if name.startswith('samples-'):env['SPECTRUM_CAPTURE_POLLS']='560'
-  if name=='samples-room':env['SPECTRUM_EXPECT_SAMPLE']='1'
+  if name=='samples-room':env.update(SPECTRUM_EXPECT_SAMPLE='1',SPECTRUM_EXPECT_FILTER_WRITES='1')
   if name=='samples-event':env['SPECTRUM_EXPECT_SAMPLE']='2'
-  if name=='samples-manual':env['SPECTRUM_SAMPLE_FIXTURE']='1'
-  if name=='samples-ambiguous':env.update(SPECTRUM_SAMPLE_FIXTURE='2',SPECTRUM_EXPECT_NO_WRITES='1')
+  if name=='samples-manual':env.update(SPECTRUM_SAMPLE_FIXTURE='1',SPECTRUM_EXPECT_FILTER_WRITES='1')
+  if name=='samples-ambiguous':env.update(SPECTRUM_SAMPLE_FIXTURE='2',SPECTRUM_EXPECT_NO_WRITES='1',SPECTRUM_EXPECT_FILTER_WRITES='1')
   if name in ('controls-scroll','keyboard','samples-keyboard','samples-pause'):env['SPECTRUM_EXPECT_NO_WRITES']='1'
   if name=='nested-back':env['SPECTRUM_EXIT_POLL']='180'
   elif name=='touch-exit':env['SPECTRUM_EXIT_POLL']='91'
