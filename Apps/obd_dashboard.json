@@ -1,0 +1,13 @@
+{
+  "type": "application",
+  "id": "obd-dashboard",
+  "version": "0.1.0",
+  "display_name": "OBD Dashboard",
+  "file_name": "obd_dashboard.elf",
+  "icon": "solid:f7c0",
+  "category": ["Utilities"],
+  "runtime_profile": "minimal-riscrte-v1",
+  "requires": [{"capability": "ui.scene", "api": 1}, {"capability": "bluetooth.serial", "api": 1}],
+  "file_associations": [],
+  "description": "Read-only BLE ELM327 vehicle telemetry dashboard. Generic Mode 01 sensors; no code clearing."
+}
