@@ -21,7 +21,7 @@ void hid_serial_start(void);void hid_serial_line(const char*);void hid_serial_fi
 #endif
 void app_main(void);int app_module_init(void);void app_module_fini(void);
 static unsigned ticks,polls,grants,frames,subs,presents,last_touch_at,paper_busy_until;
-static bool touch_poll_seen;
+static bool touch_poll_seen,paper_pending;
 #ifdef HID_RENDER_RESIDENT
 #include "RiscResidentShellV1.h"
 #include "RiscRealtimeV1.h"
@@ -82,7 +82,8 @@ static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;
 #ifdef HID_RENDER_RESIDENT
  return true;
 #else
- return polls<stop_poll;
+ /* End the fixture only after the provider confirms its outstanding token. */
+ return polls<stop_poll||paper_pending;
 #endif
 }
 static void fake_yield(uint32_t n){ticks+=n;
@@ -111,8 +112,8 @@ static bool fake_launch(const char*s){assert(!radio_owned&&!hid_owned);assert(!s
 static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=paper_profile?800:240,.height=paper_profile?480:240,.nominal_refresh_millihz=paper_profile?1000:60000,.typical_present_latency_us=paper_profile?1600000:16000,.flags=RISC_DISPLAY_INFO_PARTIAL_DAMAGE|(paper_profile?(RISC_DISPLAY_INFO_RETAINS_IMAGE|RISC_DISPLAY_INFO_ASYNC_PRESENT):0),.supported_formats=RISC_DISPLAY_FORMAT_BIT(paper_profile?RISC_DISPLAY_FORMAT_MONO1:RISC_DISPLAY_FORMAT_RGB565)};return true;}
 static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=paper_profile?800:240,.height=paper_profile?480:240,.stride_bytes=paper_profile?104:488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
 static void fake_frame_release(void*c,risc_display_frame_v1 f){(void)c;assert(frames&&f==1);frames=0;}
-static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){(void)c;(void)r;(void)n;(void)o;assert(frames&&f==1);frames=0;*t=++presents;save_frame();if(paper_profile)paper_busy_until=ticks+1600;return true;}
-static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){(void)c;assert(t);s->state=paper_profile&&ticks<paper_busy_until?RISC_DISPLAY_PRESENT_ACTIVE:RISC_DISPLAY_PRESENT_COMPLETE;return true;}
+static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){(void)c;(void)r;(void)n;(void)o;assert(frames&&f==1);frames=0;*t=++presents;save_frame();if(paper_profile){paper_busy_until=ticks+1600;paper_pending=true;}return true;}
+static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){(void)c;assert(t);s->state=paper_profile&&ticks<paper_busy_until?RISC_DISPLAY_PRESENT_ACTIVE:RISC_DISPLAY_PRESENT_COMPLETE;if(s->state==RISC_DISPLAY_PRESENT_COMPLETE)paper_pending=false;return true;}
 static bool fake_brightness(void*c,uint16_t level,uint16_t maximum){(void)c;assert(level<=maximum&&maximum==100);if(getenv("HID_RENDER_LOW_BATTERY"))assert(level==15&&!hid_owned);return true;}
 static const risc_display_output_api_v1 display_api={.api_version=1,.struct_size=sizeof(display_api),.get_info=fake_info,.acquire=fake_frame,.release=fake_frame_release,.submit=fake_submit,.present_status=fake_present,.set_brightness=fake_brightness};
 static void current_touch(risc_touch_snapshot_v1*s){
@@ -313,6 +314,7 @@ hid_serial_finish();
 #ifdef HID_RENDER_WATCH_TOUCH
 hid_watch_touch_stop();
 #endif
+fprintf(stderr,"HID fixture end: grants=%u frames=%u subs=%u polls=%u time=%u pending=%u\n",grants,frames,subs,polls,ticks,paper_pending?1u:0u);
 assert(!grants&&!frames&&!subs&&!radio_owned&&!hid_owned&&!held_mod&&!held_key&&!held_mouse);
 if(getenv("HID_RENDER_ACTIVE"))assert(hid_opens>=1&&hid_opens==hid_closes&&hid_polls>0);else assert(!hid_opens);
 if(getenv("HID_RENDER_PAIR"))assert(allow_pair&&(paired_confirm||paired_reject)&&pairing_confirmations==1&&pairing_contacts>=1&&pairing_requests==1&&pairing_results==1);
