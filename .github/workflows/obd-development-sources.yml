@@ -1,0 +1,41 @@
+name: OBD development sources
+on:
+  push:
+    branches: [feat/obd-dashboard]
+    paths: [.github/workflows/obd-development-sources.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Drivers
+          ref: 179979b94cc5a1d4787c0ad99515c5c07edd92d8
+          path: Drivers
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: dea97a70cdcc657c5d2b2730ca2b62715949a10a
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 7071f0c25e223f24670bed409a5f8b6f291c8042
+          path: Runtime
+          persist-credentials: false
+      - name: Archive source closure
+        run: tar -czf obd-development-sources.tar.gz Utilities Drivers System Runtime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obd-development-sources
+          path: obd-development-sources.tar.gz
+          retention-days: 3
