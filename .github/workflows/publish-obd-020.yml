@@ -1,0 +1,42 @@
+name: Publish completed OBD 0.2.0 source
+on:
+  push:
+    branches: [feat/obd-nova7-design]
+    paths: [.github/workflows/publish-obd-020.yml]
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify and apply the delivered source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor c215abd4d3ebf566a8f536539605191ce182ed29 HEAD
+          python3 - <<'PY'
+          import base64,gzip,hashlib,subprocess
+          from pathlib import Path
+          root=Path('.source-import/obd-020')
+          parts=[(root/f'{i:02}.txt').read_text() for i in range(1,21)]
+          # Repair one identified transport transcription; the entire decoded
+          # patch must still match the already delivered source SHA256.
+          assert parts[7].count('WJ5551')==1
+          parts[7]=parts[7].replace('WJ5551','W5551')
+          data=''.join(''.join(part.split()) for part in parts)
+          patch=gzip.decompress(base64.b64decode(data,validate=True))
+          assert hashlib.sha256(patch).hexdigest()=='4401beff47e97b17c5324199c13664cac88e20784c9aa0edd81c601ba74c936a'
+          Path('/tmp/obd-020.patch').write_bytes(patch)
+          subprocess.run(['git','apply','--check','/tmp/obd-020.patch'],check=True)
+          subprocess.run(['git','apply','--index','/tmp/obd-020.patch'],check=True)
+          PY
+          git rm -r .source-import/obd-020
+          git rm .github/workflows/publish-obd-020.yml
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Publish completed OBD 0.2.0 NOVA-7 dashboard, diagnostics, history and trip recording'
+          git push origin HEAD:feat/obd-nova7-design
