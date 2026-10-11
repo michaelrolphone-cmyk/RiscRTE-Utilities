@@ -1,0 +1,95 @@
+name: Publish qualified Utilities source 2026-10-11
+on:
+  push:
+    branches: [publish/utilities-source-20261011]
+permissions:
+  contents: write
+  actions: read
+  pull-requests: read
+concurrency:
+  group: utilities-source-v2026.10.11
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'michaelrolphone-cmyk/RiscRTE-Utilities'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify exact source and CI, then publish with collision guards
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import hashlib, json, os, urllib.request, urllib.error, urllib.parse
+          repo = "michaelrolphone-cmyk/RiscRTE-Utilities"
+          source = "b2c0ad80c1825b7aae7b4485ee7f6a5cedc426ba"
+          qualified = "99e491abf4632097b97a5eb0bf5343ff02d1aaf0"
+          tree = "85546ae237525c18524fe8a94d27e8e000529cc6"
+          tag = "source-v2026.10.11"
+          required = [".github/workflows/alarm-abi.yml",".github/workflows/battery-power.yml",".github/workflows/ble-hid.yml",".github/workflows/ble-scanner.yml",".github/workflows/build.yml",".github/workflows/canvas-apps.yml",".github/workflows/contexts.yml",".github/workflows/native-utc-alarm.yml",".github/workflows/obd-dashboard.yml",".github/workflows/paper-utilities.yml",".github/workflows/waterfall.yml"]
+          token = os.environ["GH_TOKEN"]
+          root = "https://api.github.com/repos/" + repo
+          def api(path, data=None, method=None, optional=False):
+              req = urllib.request.Request(root + path, data=None if data is None else json.dumps(data).encode(),
+                  method=method or ("POST" if data is not None else "GET"),
+                  headers={"Authorization":"Bearer " + token, "Accept":"application/vnd.github+json",
+                           "X-GitHub-Api-Version":"2022-11-28", "Content-Type":"application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as response:
+                      return json.load(response)
+              except urllib.error.HTTPError as error:
+                  if optional and error.code == 404:
+                      return None
+                  raise
+          assert os.environ["GITHUB_REPOSITORY"] == repo
+          pr = api("/pulls/61")
+          assert pr["merged"] and pr["merge_commit_sha"] == source
+          assert pr["head"]["sha"] == qualified and pr["base"]["ref"] == "main"
+          assert api("/git/commits/" + source)["tree"]["sha"] == tree
+          assert api("/git/commits/" + qualified)["tree"]["sha"] == tree
+          assert api("/compare/" + source + "...main")["status"] in ("ahead", "identical")
+          runs = api("/actions/runs?head_sha=" + qualified + "&per_page=100")["workflow_runs"]
+          verified = []
+          for path in required:
+              matches = [r for r in runs if r["path"] == path and r["event"] == "pull_request"
+                  and r["head_sha"] == qualified and r["head_branch"] == "release/completed-20261011"]
+              assert matches, "Missing required CI: " + path
+              run = max(matches, key=lambda r:r["id"])
+              assert run["status"] == "completed" and run["conclusion"] == "success", path
+              verified.append({k:run[k] for k in ("id", "path", "head_sha", "html_url", "conclusion", "event")})
+          assert api("/git/ref/tags/" + tag, optional=True) is None, "Tag collision: refusing overwrite"
+          assert api("/releases/tags/" + tag, optional=True) is None, "Release collision: refusing overwrite"
+          record = {"repository":repo, "tag":tag, "source_commit":source, "source_tree":tree,
+              "qualified_pr_head":qualified, "pull_request":pr["html_url"], "ci":verified,
+              "qualification":"Source-only integration; no new hardware qualification or full product firmware."}
+          payload = (json.dumps(record, indent=2, sort_keys=True) + "\n").encode()
+          name = tag + "-provenance.json"
+          digest = hashlib.sha256(payload).hexdigest()
+          body = ("Completed Utilities source integration: shared Contexts/UI, canvas apps, OBD dashboard and Bluetooth utilities.\n\n"
+              "Exact source commit: " + source + "\nQualified PR head: " + qualified + "\nSource tree: " + tree + "\n\n"
+              "All eleven required exact-head workflows passed. The merge tree is identical to the qualified source tree. "
+              "Fixture repairs preserve production features and assertions, including ordered raw input, shared text service "
+              "save/cancel behavior and Spectrum sample/filter persistence.\n\n"
+              "This release contains source archives and CI provenance. It does not replace exact product build receipts. "
+              "OBD physical adapter compatibility and new hardware behavior remain unqualified. No device was flashed.\n\n"
+              "Provenance SHA256: " + digest + "\n")
+          api("/git/refs", {"ref":"refs/tags/" + tag, "sha":source})
+          release = api("/releases", {"tag_name":tag, "target_commitish":source,
+              "name":"Utilities completed source 2026-10-11", "body":body, "draft":False,
+              "prerelease":False, "make_latest":"false"})
+          upload = release["upload_url"].split("{",1)[0] + "?name=" + name
+          assert urllib.parse.urlsplit(upload).scheme == "https" and urllib.parse.urlsplit(upload).hostname == "uploads.github.com"
+          request = urllib.request.Request(upload, data=payload, method="POST",
+              headers={"Authorization":"Bearer " + token, "Accept":"application/vnd.github+json",
+                       "Content-Type":"application/json"})
+          with urllib.request.urlopen(request, timeout=60) as response:
+              asset = json.load(response)
+          assert asset["name"] == name and asset["size"] == len(payload)
+          if asset.get("digest"):
+              assert asset["digest"] == "sha256:" + digest
+          assert api("/git/ref/tags/" + tag)["object"]["sha"] == source
+          assert api("/releases/tags/" + tag)["id"] == release["id"]
+          print(release["html_url"])
+          print(asset["browser_download_url"])
+          print("provenance_sha256=" + digest)
+          
