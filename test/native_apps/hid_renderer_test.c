@@ -107,7 +107,7 @@ static bool fake_diag(const char*s){
 #endif
  fprintf(stderr,"%s\n",s);return true;
 }
-static bool fake_launch(const char*s){assert(!radio_owned&&!hid_owned);assert(!strcmp(s,getenv("HID_RENDER_HOME")?"default.elf":"springboard.elf"));launches++;printf("launch=%s\n",s);stop_poll=polls;return true;}
+static bool fake_launch(const char*s){assert(!radio_owned&&!hid_owned);assert(!strcmp(s,getenv("HID_RENDER_HOME")?"default.elf":"springboard.elf"));launches++;printf("launch=%s\n",s);return true;}
 static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=paper_profile?800:240,.height=paper_profile?480:240,.nominal_refresh_millihz=paper_profile?1000:60000,.typical_present_latency_us=paper_profile?1600000:16000,.flags=RISC_DISPLAY_INFO_PARTIAL_DAMAGE|(paper_profile?(RISC_DISPLAY_INFO_RETAINS_IMAGE|RISC_DISPLAY_INFO_ASYNC_PRESENT):0),.supported_formats=RISC_DISPLAY_FORMAT_BIT(paper_profile?RISC_DISPLAY_FORMAT_MONO1:RISC_DISPLAY_FORMAT_RGB565)};return true;}
 static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=paper_profile?800:240,.height=paper_profile?480:240,.stride_bytes=paper_profile?104:488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
 static void fake_frame_release(void*c,risc_display_frame_v1 f){(void)c;assert(frames&&f==1);frames=0;}
