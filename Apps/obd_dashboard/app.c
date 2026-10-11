@@ -241,7 +241,7 @@ __attribute__((visibility("default"))) void app_main(void){
  if(!a->components||!a->components->lifecycle.configure||!a->scene->next||!a->scene->snapshot||!a->scene->close||!risc_scene_resident_bind_v1(a->rt,&a->resident))goto cleanup;
  a->grants[1].struct_size=sizeof(a->grants[1]);found=a->rt->acquire(RISC_BLUETOOTH_SERIAL_CAPABILITY,1,0,&a->grants[1]);if(!authority(a))return;
  if(found){a->acquired=2;if(serial_api_valid(a->grants[1].api))a->ble=a->grants[1].api;}
- if(a->rt->diagnostic)a->rt->diagnostic("OBD/dashboard version=0.1.0 transport=BLE read_only=1");if(!authority(a))return;
+ if(a->rt->diagnostic)a->rt->diagnostic("OBD/dashboard version=0.1.1 transport=BLE read_only=1");if(!authority(a))return;
  if(!a->rt->monotonic_ms(&a->now)||!authority(a))goto cleanup;
  if(!publish(a,true))goto cleanup;
  while(!a->done&&authority(a)){
