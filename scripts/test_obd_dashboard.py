@@ -11,7 +11,7 @@ _optional = {'description','display_name','icon','supported_file_types','runtime
 assert _required <= _manifest.keys() <= _required | _optional
 assert _manifest['architecture'] == 'xtensa-esp32s3' and _manifest['entry'] == 'app_main'
 assert _manifest['runtime_lifecycle'] == 'foreground'
-assert _manifest['requires'] == [{'capability':'ui.scene','api':1},{'capability':'bluetooth.serial','api':1}]
+assert _manifest['requires'] == [{'capability':'ui.scene','api':1},{'capability':'bluetooth.serial','api':1},{'capability':'storage.volume','api':1}]
 
 from build_obd_dashboard import stage
 ROOT=Path(__file__).resolve().parents[1]
@@ -20,9 +20,10 @@ def run(runtime,system,drivers,out,sanitize):
  cc=os.environ.get('CC','cc');flags=['-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-format-truncation','-I'+str(inc),'-I'+str(ROOT/'Apps/obd_dashboard'),'-I'+str(system/'test/scene')]
  if sanitize:flags+=['-fsanitize=address,undefined','-fno-omit-frame-pointer','-fno-sanitize-recover=all']
  env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0')
- exe=out/'elm-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'test/obd/elm_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
- exe=out/'app-test';subprocess.run([cc,*flags,str(system/'Services/scene_host/host.c'),str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'test/obd/app_test.c'),'-o',str(exe)],check=True)
- for scenario in range(6):
+ exe=out/'math-test';subprocess.run([cc,*flags,'-D__udivdi3=obd_unsigned_divide','-D__divdi3=obd_signed_divide',str(ROOT/'Apps/obd_dashboard/math.c'),str(ROOT/'test/obd/math_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
+ exe=out/'elm-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/diagnostics_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
+ exe=out/'app-test';subprocess.run([cc,*flags,str(system/'test/scene/telemetry_probe.c'),str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/app_test.c'),'-o',str(exe)],check=True)
+ for scenario in range(12):
   frames=out/'frames'/str(scenario);frames.mkdir(parents=True,exist_ok=True)
   subprocess.run([str(exe),str(scenario),str(frames)],env=env,check=True,timeout=60)
 if __name__=='__main__':

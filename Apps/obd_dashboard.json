@@ -1,7 +1,7 @@
 {
   "type": "application",
   "id": "obd-dashboard",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "display_name": "OBD Dashboard",
   "file_name": "obd_dashboard.elf",
   "icon": "solid:f7c0",
@@ -13,9 +13,13 @@
     {
       "capability": "bluetooth.serial",
       "api": 1
+    },
+    {
+      "capability": "storage.volume",
+      "api": 1
     }
   ],
-  "description": "Read-only BLE ELM327 vehicle telemetry dashboard. Generic Mode 01 sensors; no code clearing.",
+  "description": "NOVA-7 BLE vehicle dashboard, graphs, diagnostic reads and explicitly confirmed code clearing.",
   "architecture": "xtensa-esp32s3",
   "entry": "app_main",
   "runtime_lifecycle": "foreground",
