@@ -46,6 +46,7 @@ jobs:
           python3 scripts/test_context_fingerprints.py --drivers .dependencies/drivers --runtime .dependencies/runtime
           python3 scripts/test_contexts_service.py --drivers .dependencies/drivers --runtime .dependencies/runtime --system-apps .dependencies/system
           python3 scripts/test_contexts_scene.py --system-apps .dependencies/system --runtime .dependencies/runtime --frames build/contexts-scene
+          python3 scripts/test_contexts_scene.py --system-apps .dependencies/system --runtime .dependencies/runtime --frames build/contexts-scene-sanitizer --sanitize
           python3 scripts/test_contexts_rf_retained.py --system-apps .dependencies/system
       - name: Install pinned target compiler
         run: |
@@ -55,12 +56,20 @@ jobs:
         run: |
           python3 scripts/build_contexts_scene.py --runtime .dependencies/runtime --system-apps .dependencies/system --target watch --output dist/contexts-watch
           python3 scripts/build_contexts_scene.py --runtime .dependencies/runtime --system-apps .dependencies/system --target x4 --output dist/contexts-x4
+      - name: Build both learning services
+        run: |
+          export NATIVE_APP_CC="$HOME/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc"
+          python3 scripts/build_contexts_service.py --runtime .dependencies/runtime --system-apps .dependencies/system --drivers .dependencies/drivers --profile full
+          python3 scripts/build_contexts_service.py --runtime .dependencies/runtime --system-apps .dependencies/system --drivers .dependencies/drivers --profile rf-only
       - uses: actions/upload-artifact@v4
         with:
           name: contexts-scene-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             build/contexts-scene/
+            build/contexts-scene-sanitizer/
             dist/contexts-watch/
             dist/contexts-x4/
+            dist/contexts-service/
+            dist/contexts-service-rf-only/
           if-no-files-found: error
           retention-days: 14

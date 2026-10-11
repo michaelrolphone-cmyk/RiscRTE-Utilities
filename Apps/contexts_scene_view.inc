@@ -72,9 +72,21 @@ static void cs_declare(void){
   cs_header(cu_name,cu_add_sample?"ADDING ANOTHER SAMPLE":"READY WHEN YOU ARE",true);n=cs_node(RISC_COMPONENT_EMPTY,cu_kind==CR_EVENT?"THREE TAKES":"LEARN THIS PLACE",cu_kind==CR_EVENT?"Make the event three times. Leave quiet between each take.":"Stand in the room and carry on as normal. This takes about 30 seconds.",0);cs_detail(n)->symbol=cu_kind==CR_EVENT?RISC_SYMBOL_EVENT:RISC_SYMBOL_PLACE;cs_button("START",CU_ROW_START,RISC_SCENE_PRIMARY);break;
  case CU_LEARN:
   snprintf(b,sizeof(b),cu_kind==CR_EVENT?"TAKE %u OF 3":"LEARNING",cu_learning.samples<3?cu_learning.samples+1:3);cs_header(cu_name,b,false);
-  n=cs_node(RISC_COMPONENT_RING,"","",0);n->maximum=100;n->value=(int)(cu_learning.progress>100?100:cu_learning.progress);snprintf(cs_detail(n)->badge,16,"%u",cu_kind==CR_EVENT?(cu_learning.samples<3?cu_learning.samples+1:3):(30u*(100u-cu_learning.progress)/100u));
-  cs_say(cu_learning.state==CONTEXTS_LEARN_READY?"READY TO SAVE":cu_kind==CR_EVENT?"MAKE THE EVENT":"LEARNING... STAY HERE",cu_kind==CR_EVENT?"LEAVE QUIET BETWEEN TAKES.":"COLLECTING TEMPORAL AND SPECTRAL EVIDENCE.");
-  if(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning_saved)cs_button(cu_learning_saved?"RETRY SAVE":"SAVE TO LIBRARY",CU_ROW_SAVE,RISC_SCENE_PRIMARY);
+  if(cu_learning.state==CONTEXTS_LEARN_FAILED){
+   cs_say("CAPTURE INCOMPLETE",cs_client.low_battery?"LOW BATTERY HAS PAUSED CAPTURE.":!cs_client.settings_valid?"CAPTURE SETTINGS COULD NOT BE READ.":!(cs_client.fingerprint_sources&cs_source_mask)?"ENABLE A SOURCE IN SOURCES.":!(cs_client.policy.radio_allowed&&(cs_source_mask&CONTEXTS_RADIO))&&!(cs_client.policy.audio_allowed&&(cs_source_mask&CONTEXTS_AUDIO))?"CHECK WI-FI, BLUETOOTH AND AIRPLANE SETTINGS.":"NOT ENOUGH USABLE SIGNAL. CHECK SOURCES AND RETRY.");
+   snprintf(b,sizeof(b),"%u USABLE %s",cu_learning.samples,cu_kind==CR_EVENT?"TAKES":"WINDOWS");cs_say("NOT SAVED",b);cs_button("RETRY CAPTURE",CU_ROW_START,RISC_SCENE_PRIMARY);
+  }else if(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning_saved){
+   n=cs_node(RISC_COMPONENT_PROGRESS,cu_autosave?"SAVING TO LIBRARY":"SAVE NEEDS ATTENTION",cu_autosave?"VERIFYING YOUR LEARNED PROFILE":"YOUR CAPTURE IS STILL AVAILABLE",0);n->maximum=0;n->value=0;
+   if(!cu_autosave)cs_button("RETRY SAVE",CU_ROW_SAVE,RISC_SCENE_PRIMARY);
+  }else if(cu_kind!=CR_EVENT&&cu_learning.progress>=100){
+   snprintf(b,sizeof(b),"%u OF 3 USABLE WINDOWS",cu_learning.samples);
+   n=cs_node(RISC_COMPONENT_PROGRESS,"FINISHING CAPTURE",b,0);n->maximum=0;n->value=(int)(cs_learning_draw_at/1000u%3u);
+   cs_say("STILL COLLECTING",ctx_status.radio.capture_error?"RF CAPTURE IS RETRYING. PLEASE STAY HERE.":"WAITING FOR ENOUGH CLEAN SIGNAL. PLEASE STAY HERE.");
+  }else{
+   n=cs_node(RISC_COMPONENT_RING,"","",0);n->maximum=100;n->value=(int)(cu_learning.progress>100?100:cu_learning.progress);snprintf(cs_detail(n)->badge,16,"%u",cu_kind==CR_EVENT?(cu_learning.samples<3?cu_learning.samples+1:3):((30u*(100u-cu_learning.progress)+99u)/100u));
+   snprintf(b,sizeof(b),"%u USABLE %s",cu_learning.samples,cu_kind==CR_EVENT?"TAKES":"WINDOWS");
+   cs_say(cu_kind==CR_EVENT?"MAKE THE EVENT":"RECORDING... STAY HERE",cu_kind==CR_EVENT?"LEAVE QUIET BETWEEN TAKES.":b);
+  }
   cs_button("CANCEL",CU_ROW_CANCEL,0);break;
  case CU_DONE:
   cs_header("ALL SET",cu_name,false);snprintf(b,sizeof(b),"%s LEARNED",cu_name);cs_node(RISC_COMPONENT_EMPTY,b,"",0);n=cs_node(RISC_COMPONENT_STRENGTH,"STRENGTH",cs_samples(cu_item)>=3?"STRONG":cs_samples(cu_item)==2?"GOOD":"OK",0);n->value=cs_samples(cu_item)>3?3:(int)cs_samples(cu_item);cs_say("",cu_uses(cu_item)?"ALREADY USED BY A CONTEXT.":"NOTHING HAPPENS YET. YOU CAN DECIDE NOW OR LATER.");cs_button("SET UP WHAT HAPPENS",CU_ROW_NEW,RISC_SCENE_PRIMARY);cs_button("DONE - DECIDE LATER",CS_FINISH,0);break;

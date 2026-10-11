@@ -26,7 +26,7 @@ static unsigned fp_learning_state,fp_learning_kind;
 static uint64_t fp_learning_at,fp_learning_seen[2],fp_event_quiet[2],fp_event_started[2];
 static uint32_t fp_learning_samples[2];
 static void fp_learn_observe(unsigned s,const cf_feature *f,uint64_t now,bool event){
- if(!fp_learning_state||fp_learning_state==CONTEXTS_LEARN_READY||((fp_learning_kind==CF_EVENT)!=event))return;
+ if((fp_learning_state!=CONTEXTS_LEARN_WAITING&&fp_learning_state!=CONTEXTS_LEARN_RECORDING)||((fp_learning_kind==CF_EVENT)!=event))return;
  if(!(f->flags&(CF_TEMPORAL|CF_SPECTRAL))||f->flags&CF_OVERFLOW||fp_learning_seen[s]==now)return;
  fp_learning_seen[s]=now;
  if(fp_learning.present[s]){if(!cf_blend(&fp_learning.feature[s],f,1.f/(float)(fp_learning_samples[s]+1u)))return;}
@@ -71,7 +71,7 @@ static void fp_evaluate(uint64_t now){
     fp_room=cf_match_profiles(&fp_bank,&fp_fusion,CF_ROOM,now*1000u,fp_seconds(now),&fp_config);
     for(unsigned s=0;s<2;s++)if(fp_event_fusion.have[s]&&(now*1000u<fp_event_fusion.observed_us[s]||now*1000u-fp_event_fusion.observed_us[s]>4000000u))fp_event_fusion.have[s]=false;
     fp_event=cf_match_profiles(&fp_bank,&fp_event_fusion,CF_EVENT,now*1000u,fp_seconds(now),&fp_config);
-    if(fp_room.slot>=0&&!fp_learning_state){
+    if(fp_room.slot>=0&&(!fp_learning_state||fp_learning_state==CONTEXTS_LEARN_FAILED)){
         uint32_t before=fp_bank.generation;
         cf_train(&fp_bank,&fp_fusion,(unsigned)fp_room.slot,fp_bank.profiles[fp_room.slot].name,CF_ROOM,now*1000u,fp_seconds(now),&fp_config,false);
         if(before!=fp_bank.generation)fp_dirty|=fp_sources;
@@ -132,7 +132,7 @@ static bool fingerprint(void*context,uint32_t operation,void*request){
             ok=true;
             if(q->operation==CONTEXTS_LEARN_BEGIN){
                 ok=(q->kind==CF_ROOM||q->kind==CF_EVENT)&&cr_name(q->name,17)&&fp_sources;
-                if(ok){memset(&fp_learning,0,sizeof(fp_learning));memcpy(fp_learning.name,q->name,17);fp_learning.kind=(uint8_t)q->kind;fp_learning_kind=q->kind;fp_learning_at=now;fp_learning_state=CONTEXTS_LEARN_WAITING;memset(fp_learning_samples,0,sizeof(fp_learning_samples));for(unsigned i=0;i<2;i++){fp_learning_seen[i]=now;fp_event_started[i]=0;if(i||CONTEXTS_HAS_AUDIO)cf_window_reset(fp_event_pipeline(i),now*1000u);}}
+                if(ok){memset(&fp_learning,0,sizeof(fp_learning));memcpy(fp_learning.name,q->name,17);fp_learning.kind=(uint8_t)q->kind;fp_learning_kind=q->kind;fp_learning_at=now;fp_learning_state=CONTEXTS_LEARN_WAITING;memset(fp_learning_samples,0,sizeof(fp_learning_samples));for(unsigned i=0;i<2;i++){fp_learning_seen[i]=now;fp_event_started[i]=0;if(i||CONTEXTS_HAS_AUDIO){cf_window_reset(fp_event_pipeline(i),now*1000u);cf_window_reset(fp_pipeline(i),now*1000u);}}}
             }else if(q->operation==CONTEXTS_LEARN_CANCEL){fp_learning_state=0;memset(&fp_learning,0,sizeof(fp_learning));}
             else if(q->operation==CONTEXTS_LEARN_SAVE){
                 ok=fp_learning_state==CONTEXTS_LEARN_READY;int slot=-1;
@@ -143,9 +143,13 @@ static bool fingerprint(void*context,uint32_t operation,void*request){
             }else if(q->operation!=CONTEXTS_LEARN_POLL)ok=false;
             unsigned samples=fp_learning_samples[0]>fp_learning_samples[1]?fp_learning_samples[0]:fp_learning_samples[1];
             bool event=fp_learning_kind==CF_EVENT;
-            if(fp_learning_state&&((event&&samples>=3)||(!event&&now>=fp_learning_at+30000u&&samples>=3)))fp_learning_state=CONTEXTS_LEARN_READY;
+            uint64_t elapsed=now>=fp_learning_at?now-fp_learning_at:0;
+            if(fp_learning_state==CONTEXTS_LEARN_WAITING||fp_learning_state==CONTEXTS_LEARN_RECORDING){
+                if((event&&samples>=3)||(!event&&elapsed>=30000u&&samples>=3))fp_learning_state=CONTEXTS_LEARN_READY;
+                else if(elapsed>=(event?120000u:45000u))fp_learning_state=CONTEXTS_LEARN_FAILED;
+            }
             q->state=fp_learning_state;q->samples=samples;q->sources=(fp_learning.present[0]?1u:0u)|(fp_learning.present[1]?2u:0u);
-            q->progress=event?(samples>=3?100:samples*100/3):(uint32_t)((now-fp_learning_at)/300u);if(q->progress>100)q->progress=100;
+            q->progress=event?(samples>=3?100:samples*100/3):(uint32_t)(elapsed/300u);if(q->progress>100)q->progress=100;
         }
     }else if(operation==CONTEXTS_FP_RULES){
         contexts_rules_v1*q=request;if(q->struct_size>=sizeof(*q)){ok=true;if(q->set){ok=cr_valid(&q->store);if(ok){for(unsigned i=0;i<CR_RULES;i++)if(memcmp(&fp_rules.rules[i],&q->store.rules[i],sizeof(cr_rule))){fp_rules_engine.pending&=~(1u<<i);fp_workflow_next[i]=0;}fp_rules=q->store;fp_rules_available=q->available;}}else{q->store=fp_rules;q->available=fp_rules_available;}}

@@ -32,6 +32,8 @@ static risc_scene_resident_v1 cs_resident;
 static uint64_t cs_session;
 static unsigned cs_source_mask=CONTEXTS_ALL,ctx_model_source;
 static bool ctx_enabled,ctx_dirty,ctx_exit,ctx_fp_valid;
+static bool cs_training_stopped;
+static uint32_t cs_learning_at,cs_learning_draw_at;
 static contexts_status_v1 ctx_status;
 static contexts_fingerprint_status_v1 ctx_fp;
 static const char *ctx_message;
@@ -55,7 +57,12 @@ static bool cs_backend_open(void){
  return true;
 }
 const contexts_service_v1*portable_contexts_service(void){return cs_backend_open()?cs_client.api:NULL;}
-bool portable_contexts_training(bool on){if(!cs_backend_open()||!portable_contexts_pause(&cs_client))return false;cs_client.foreground_learning=on;return true;}
+bool portable_contexts_training(bool on){
+ if(!cs_backend_open()||!portable_contexts_pause(&cs_client))return false;
+ cs_client.foreground_learning=on;cs_training_stopped=!on;
+ if(on){risc_runtime_health_v1 h={.struct_size=sizeof(h)};if(!ctx_runtime->health(&h))return false;cs_learning_at=h.uptime_ms;cs_learning_draw_at=h.uptime_ms;}
+ return true;
+}
 bool portable_contexts_enable(bool on){return cs_backend_open()&&portable_contexts_set_enabled(&cs_client,on);}
 bool portable_contexts_rules_read(cr_store*out){return cs_backend_open()&&portable_context_rules_read(&cs_client,out);}
 bool portable_contexts_rules_save(const cr_store*in){return cs_backend_open()&&portable_context_rules_save(&cs_client,in);}
@@ -107,8 +114,38 @@ static bool cs_service_tick(void){
  if(!portable_contexts_step(&cs_client,true,true)||!portable_contexts_capture(&cs_client)){cs_retain();return false;}
  if(cs_client.settings_valid&&ctx_enabled!=cs_client.policy.enabled){ctx_enabled=cs_client.policy.enabled;ctx_dirty=true;}
  if(ctx_read_status()&&(cu_page==CU_HOME||cu_page==CU_SOURCES))ctx_dirty=true;
- if(cu_page==CU_LEARN&&!cu_learning_saved){unsigned progress=cu_learning.progress,state=cu_learning.state,samples=cu_learning.samples;cu_learning.operation=CONTEXTS_LEARN_POLL;if(!cu_call(CONTEXTS_FP_LEARN,&cu_learning)){ctx_note("CAPTURE UNAVAILABLE / RETRY");return true;}if(progress!=cu_learning.progress||state!=cu_learning.state||samples!=cu_learning.samples)ctx_dirty=true;}
+ bool learning_page=cu_page==CU_LEARN||(cu_page==CU_CANCEL&&cu_return==CU_LEARN);
+ if(learning_page&&!cu_learning_saved&&!cs_training_stopped){
+  unsigned progress=cu_learning.progress,state=cu_learning.state,samples=cu_learning.samples;
+  cu_learning.operation=CONTEXTS_LEARN_POLL;
+  bool polled=cu_call(CONTEXTS_FP_LEARN,&cu_learning);
+  risc_runtime_health_v1 h={.struct_size=sizeof(h)};bool clocked=ctx_runtime->health(&h);
+  /* Also bound older service versions, which can remain at 100% forever. */
+  if(!polled||!clocked||(!cu_learning.state)||
+     (cu_learning.state!=CONTEXTS_LEARN_READY&&(uint32_t)(h.uptime_ms-cs_learning_at)>=(cu_kind==CR_EVENT?120000u:45000u)))
+   cu_learning.state=CONTEXTS_LEARN_FAILED;
+  bool changed=progress!=cu_learning.progress||state!=cu_learning.state||samples!=cu_learning.samples;
+  if(clocked&&cu_learning.progress>=100&&cu_learning.state!=CONTEXTS_LEARN_READY&&cu_learning.state!=CONTEXTS_LEARN_FAILED&&(uint32_t)(h.uptime_ms-cs_learning_draw_at)>=1000u){ctx_dirty=true;cs_learning_draw_at=h.uptime_ms;}
+#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+  if(changed&&(state!=cu_learning.state||samples!=cu_learning.samples||(uint32_t)(h.uptime_ms-cs_learning_draw_at)>=1000u)){ctx_dirty=true;cs_learning_draw_at=h.uptime_ms;}
+#else
+  if(changed)ctx_dirty=true;
+#endif
+  if(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning.state==CONTEXTS_LEARN_FAILED){
+   if(!portable_contexts_training(false))return false;
+   ctx_dirty=true;
+  }
+ }
  return cs_alive();
+}
+static bool cs_finish_learning(void){
+ if(cu_page!=CU_LEARN||!cu_autosave||cu_learning.state!=CONTEXTS_LEARN_READY||ctx_dirty)return true;
+ /* Present SAVING before synchronous, verified persistence. Input remains live. */
+ risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;
+ if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())return false;
+ if(flags&RISC_SCENE_ACTIVITY)cs_resident.activity=true;
+ if(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))return true;
+ cu_action(CU_ROW_SAVE);return cs_alive();
 }
 static bool cs_rules_tick(void){
  if(!cs_client.rules_available)return true;
@@ -166,7 +203,7 @@ static void cs_cleanup(void){
 __attribute__((visibility("default"))) const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1={1,sizeof(risc_resident_app_descriptor_v1_t),RISC_RESIDENT_ROLE_FOREGROUND,0};
 __attribute__((visibility("default"))) void app_main(void){
  ctx_runtime=risc_runtime_get_api(1);if(!ctx_runtime||ctx_runtime->struct_size<RISC_RUNTIME_RETAIN_INVOCATION_V1_SIZE||!ctx_runtime->retain_invocation||!ctx_runtime->acquire||!ctx_runtime->release||!ctx_runtime->yield_ms||!ctx_runtime->health)return;
- cs_terminal=ctx_exit=false;ctx_dirty=true;ctx_enabled=false;ctx_message="";cs_session=0;cs_revision=cs_toast_token=0;cs_last_event=0;cs_toast[0]=cs_launch[0]=cs_workflow_message[0]=0;cs_active=0;cs_client=(portable_contexts_client){0};
+ cs_terminal=ctx_exit=false;cs_training_stopped=true;cu_autosave=false;ctx_dirty=true;ctx_enabled=false;ctx_message="";cs_session=0;cs_revision=cs_toast_token=0;cs_last_event=0;cs_toast[0]=cs_launch[0]=cs_workflow_message[0]=0;cs_active=0;cs_client=(portable_contexts_client){0};
  cs_scene_grant=(risc_runtime_capability_v1){.struct_size=sizeof(cs_scene_grant)};cs_civil_grant=(risc_runtime_capability_v1){.struct_size=sizeof(cs_civil_grant)};cs_battery_grant=(risc_runtime_capability_v1){.struct_size=sizeof(cs_battery_grant)};cs_alarm_grant=(risc_runtime_capability_v1){.struct_size=sizeof(cs_alarm_grant)};
  bool acquired=ctx_runtime->acquire(RISC_SCENE_CAPABILITY,1,0,&cs_scene_grant);if(!cs_alive())return;
  if(!acquired){(void)cs_release(&cs_scene_grant);return;}
@@ -191,8 +228,9 @@ __attribute__((visibility("default"))) void app_main(void){
    if(e.kind==RISC_SCENE_SUSPEND_EVENT){if(cu_unsaved()){cu_return=cu_page;cu_page_set(CU_CANCEL);}else break;}else cs_event(&e);
   }
   if(cs_client.api){if(!cs_service_tick())break;}
+  if(!cs_finish_learning())break;
   if(++ticks>=50){ticks=0;if(cs_client.api&&!cs_rules_tick())break;
-   if(cs_resident.enabled){risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())break;if(flags&RISC_SCENE_ACTIVITY)cs_resident.activity=true;int result=risc_scene_resident_poll_v1(&cs_resident,flags);if(!cs_alive())return;if(result==RISC_RESIDENT_RETAINED){cs_retain();break;}if(result==RISC_RESIDENT_EXIT)break;if(cs_resident.policy&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!cs_checkpoint(RISC_RESIDENT_CHECKPOINT_POLICY))break;}
+   if(cs_resident.enabled){risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())break;if(flags&RISC_SCENE_ACTIVITY)cs_resident.activity=true;bool working=cs_client.foreground_learning||((cu_page==CU_LEARN||(cu_page==CU_CANCEL&&cu_return==CU_LEARN))&&(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning_saved));uint32_t work=working?RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY:0;int result=risc_scene_resident_poll_work_v1(&cs_resident,flags,work);if(!cs_alive())return;if(result==RISC_RESIDENT_RETAINED){cs_retain();break;}if(result==RISC_RESIDENT_EXIT)break;if(cs_resident.policy&&!working&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!cs_checkpoint(RISC_RESIDENT_CHECKPOINT_POLICY))break;}
   }
   if(ctx_dirty){cs_declare();rc=cs_components->update(cs_scene->context,cs_session,&cs_document);if(!cs_alive())return;if(rc){if(rc==RISC_SCENE_RETAINED)cs_retain();break;}ctx_dirty=false;}
   if(cs_launch[0])break;
