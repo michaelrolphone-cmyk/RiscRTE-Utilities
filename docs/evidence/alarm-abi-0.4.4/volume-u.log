@@ -1,0 +1,8 @@
+Alarm volume default50,0-100,full-scalePCM,persisted selection,mute,vibration,failures and gain admission passed
+Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+Alarm volume default50,0-100,full-scalePCM,persisted selection,mute,vibration,failures and gain admission passed
+Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+Alarm 10% peak 3276 -> ACK/cleanup -> real Frequency 100% peak 32767: unity gain, no overlap, cleanup passed
+Alarm 90% peak 29490 -> ACK/cleanup -> real Frequency 100% peak 32767: unity gain, no overlap, cleanup passed
+Alarm 10% peak 3276 -> ACK/cleanup -> real Frequency 100% peak 32767: unity gain, no overlap, cleanup passed
+Alarm 90% peak 29490 -> ACK/cleanup -> real Frequency 100% peak 32767: unity gain, no overlap, cleanup passed

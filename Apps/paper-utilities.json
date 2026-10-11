@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "profile": "nova7-paper-utilities",
+  "system_apps_sha": "a7f08a9db7342a69ef5b9bc03e3b1ea60dafbb7c",
+  "home": "default.elf",
+  "local_back": "springboard.elf",
+  "clock_policy": "rtc-wall-time",
+  "common_grants": [
+    {
+      "capability": "display.output",
+      "api": 1,
+      "instance_id": 3
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1,
+      "instance_id": 4
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1,
+      "instance_id": 6
+    },
+    {
+      "capability": "board.battery",
+      "api": 1,
+      "instance_id": 7
+    },
+    {
+      "capability": "rtc.clock",
+      "api": 2,
+      "instance_id": 8
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 1,
+      "access": "read-write",
+      "purpose": "common preferences"
+    },
+    {
+      "capability": "alarm.service",
+      "api": 1,
+      "binding": "visual alarm service",
+      "instance_id": 0
+    }
+  ],
+  "app_grants": {
+    "calculator": [],
+    "stopwatch": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 2,
+        "access": "read-write",
+        "keys": [
+          "stopwatch"
+        ]
+      }
+    ],
+    "countdown": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 3,
+        "access": "read-write",
+        "keys": [
+          "timer_cfg"
+        ]
+      }
+    ],
+    "battery": [],
+    "alarms": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 3,
+        "access": "read-write",
+        "keys": [
+          "alarm_cfg"
+        ]
+      }
+    ]
+  },
+  "quick_actions": "Shared capability-gated controls; no radio grants or radio build flag. Sound unavailable unless alarm service advertises sound; frontlight and torch unavailable without display brightness.",
+  "qualification": "Development build only; not an install catalog or hardware qualification",
+  "touch_coordinates": "Logical portrait 480x800; native MONO1 framebuffer 800x480 rotates 90 degrees. RGB565 Watch remains 240x240.",
+  "reference_pngs": {
+    "docs/nova/screens/epaper-settings.png": "8081bf398590dedd83b9e255197eef11a88778de0ad034a70d9b5bff7399487e",
+    "docs/nova/screens/epaper-launcher.png": "19ae6c8a3365aa1cf335e690c357dee46d99d36168815c1b5cce0b371e030bde"
+  },
+  "binding_note": "Non-storage clients acquire instance 0 (the default granted binding); bind them to the listed deployment instance IDs. Storage clients explicitly acquire namespaces 1, 2 or 3. Assign alarm.service to the visual service instance.",
+  "versions": {
+    "calculator": "0.1.9",
+    "stopwatch": "0.1.9",
+    "countdown": "0.1.8",
+    "battery": "1.1.2",
+    "alarms": "0.2.4"
+  }
+}

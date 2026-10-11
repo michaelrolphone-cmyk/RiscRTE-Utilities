@@ -20,5 +20,11 @@ int main(void){
  s=sample(1,100,120);hid_gesture_sample(&g,&s,600);s.contact_count=0;assert(!hid_gesture_sample(&g,&s,1000).click);
  hid_gesture_reset(&g,true);s=sample(1,100,120);hid_gesture_sample(&g,&s,1100);s.contact_count=0;assert(!hid_gesture_sample(&g,&s,1120).click);s.contact_count=1;hid_gesture_sample(&g,&s,1140);s.contact_count=0;assert(hid_gesture_sample(&g,&s,1160).click==1);
  hid_gesture_reset(&g,false);s=sample(1,100,120);hid_gesture_sample(&g,&s,UINT32_MAX-100);s.contact_count=0;assert(hid_gesture_sample(&g,&s,40).click==1);
+ /* Paper uses genuine unscaled raw deltas and its full 416x400 surface. */
+ hid_gesture_reset(&g,false);s=sample(1,400,580);s.width=480;s.height=800;
+ hid_gesture_sample_bounds(&g,&s,0,32,224,448,624);s.contacts[0].x=417;s.contacts[0].y=601;
+ o=hid_gesture_sample_bounds(&g,&s,20,32,224,448,624);assert(o.dx==17&&o.dy==21);
+ s.contacts[0].x=448;o=hid_gesture_sample_bounds(&g,&s,40,32,224,448,624);assert(!o.dx&&!o.dy);
+ s.contact_count=0;assert(!hid_gesture_sample_bounds(&g,&s,60,32,224,448,624).click);
  puts("HID model: left/right tap, second-contact motion, bounds, gaps, wrap and atomic persistence passed");
 }

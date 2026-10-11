@@ -1,0 +1,828 @@
+{
+  "source_sha": "b33cdb68301d0e948a886606cf76428c3c507a0b",
+  "working_tree_dirty": false,
+  "app_sources": {
+    "Apps/countdown_paper.inc": "d3ff6d660f29e9fe56184fb63068844239582c3d5f19d492c967323087bbd005",
+    "Apps/countdown.c": "ce8bd99601b488a09b5c150584fa713e65472dadfb00d9430ef9beeb593dcc5d",
+    "Apps/alarms.c": "e2c0218f36c9b9dac6d9e6e826aceb44b79cd101a9124d5f6a334df00a667072",
+    "Apps/utility_paper.h": "3426adeea1120f98900cd741a3348f11814d5d3aac7199cbf80444c24730a44f",
+    "Apps/alarm_native_utc_io.h": "aed522729f53fa75e2a565e0de4a30f88855a0e6fcc164acb6413df9659a0cf4",
+    "Apps/alarms_paper.inc": "9f69a6bf4952f0ea4fefb771e282dfd8aa5d80facb1e73a999333298418dcf67",
+    "Apps/alarms.json": "2e525927f9ec76e4553ef3364c2c9da8fb5a058206180caf6e6de44dbacb23df",
+    "Apps/alarm_app_shared.h": "976e3aab2c076c3071c24b941dbb39203bb8dda0631bcc89b3f76b7b58e18cf5",
+    "Apps/alarm_nova.inc": "3f6ce0db812462753353f9c253ba89075778af7fc03093872a25cb2e364f5049",
+    "Apps/countdown.json": "8c465ccf13beba122f386dfc5a0ca243f5d02def4a5b23c74de33bcb6fe93316",
+    "Apps/alarm_writer.h": "6a28cd9955cbd099fe778777c63ebcb2c606ee48bab206fece6f45c644138ba0",
+    "Apps/alarm_native_utc_app.h": "5c194143c37779e38e7fb1345a2d36e5c47657e877125d60b794636623390fca"
+  },
+  "system_time_ref": "1d589d90bf27c7ffb76420de46564088ddb3714f",
+  "adapter_ref": "81f884b8a053cf917054fb1433c7850714cd0c48",
+  "runtime_ref": "30dcec5ce6ce33223f2b203a2399283e1f758567",
+  "profile": "native-utc-app-local-composition",
+  "publication": "blocked on separately owned System source clearance",
+  "hardware": false,
+  "sources": {
+    "/workspace/scratch/c744abbbbd60/x4-points-alarm-v2-adapter/lib/PortableApps/src/adapter.c": "c8f7fa7a4df4db356863671d5ff95638631f5b2f1a7928985be5243afada97c6",
+    "/workspace/scratch/c744abbbbd60/x4-points-alarm-v2-adapter/lib/PortableApps/src/quick_actions.c": "1858158201a1053616029caf65642ba787f5f53859a858f3b5f201c729046bfb",
+    "/workspace/scratch/c744abbbbd60/x4-points-alarm-v2-adapter/lib/PortableApps/src/quick_render.c": "70ff531a8b882d36919f647d15944eb7776f080a6075eb031711111eb1ea89cf",
+    "/workspace/scratch/c744abbbbd60/x4-points-alarm-v2-adapter/lib/PortableApps/src/quick_session.c": "f09f4b59e26c4111465a531af3b23cc0ef4e5fea2829c32e36aa56f5bd19c3c5",
+    "/workspace/scratch/c744abbbbd60/x4-alarm-app-system-public/lib/PortableApps/src/PortableRealtimeClient.c": "bb20f4f0e17a5517eef2dc55202fb23099363183d0f6c093280aca41f5bdb00f",
+    "/workspace/scratch/c744abbbbd60/x4-alarm-app-system-public/lib/PortableApps/src/PortableTimeZone.c": "28c0fecf7a4d83bde07d2b72cb591122cf3c49c3219c8344b97b82a90625c5e7",
+    "/workspace/scratch/c744abbbbd60/x4-alarm-app-system-public/lib/PortableApps/src/PortableTimeZoneCatalog.c": "29d4c86037f7554c94a4404d5e39e28091430a1f9c23b5e35224aed3df826f20",
+    "/workspace/scratch/c744abbbbd60/x4-alarm-app-system-public/lib/PortableApps/src/PortableTimeZonePreference.c": "b54e455d587ba2ecda8f59dd899b59b767214aee807b92d79d18c5e9d30b6bb7"
+  },
+  "runs": [
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 0,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 1,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 2,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 3,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 4,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 5,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 6,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 7,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 8,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 9,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 10,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 11,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 12,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 13,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 14,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 16,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 0,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 1,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 2,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 3,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 4,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 5,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 6,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 7,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 8,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 9,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 10,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 11,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 12,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 13,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 14,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 15,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 16,
+      "sanitized": false
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 0,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 1,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 2,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 3,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 4,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 5,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 6,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 7,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 8,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 9,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 10,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 11,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 12,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 13,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 14,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": false,
+      "scenario": 16,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 0,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 1,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 2,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 3,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 4,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 5,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 6,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 7,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 8,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 9,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 10,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 11,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 12,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 13,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 14,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 15,
+      "sanitized": true
+    },
+    {
+      "app": "alarms",
+      "paper": true,
+      "scenario": 16,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 0,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 1,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 2,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 3,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 4,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 5,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 6,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 7,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 8,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 9,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 10,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 11,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 12,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 13,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 14,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 16,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 0,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 1,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 2,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 3,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 4,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 5,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 6,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 7,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 8,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 9,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 10,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 11,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 12,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 13,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 14,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 15,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 16,
+      "sanitized": false
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 0,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 1,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 2,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 3,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 4,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 5,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 6,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 7,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 8,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 9,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 10,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 11,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 12,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 13,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 14,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": false,
+      "scenario": 16,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 0,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 1,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 2,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 3,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 4,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 5,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 6,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 7,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 8,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 9,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 10,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 11,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 12,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 13,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 14,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 15,
+      "sanitized": true
+    },
+    {
+      "app": "countdown",
+      "paper": true,
+      "scenario": 16,
+      "sanitized": true
+    }
+  ]
+}

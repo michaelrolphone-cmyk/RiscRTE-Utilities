@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "reservation": "2026-10-09: parent freshly checked Utilities alarm-service PR inventory through 0.4.4 and reserved 0.4.5 Watch API1 / 0.4.6 native UTC API2; no publication.",
+  "base_sha": "0d3c1fbb4488549a47459279cbcaadb7f9fbd064",
+  "runtime_sha": "34095f642d307f157ac0ed32ee5cb7f6532f9ac1",
+  "runtime_inputs": {
+    "sdk/driver/RiscProviderV2.h": "62478822fa8943ddfd1607f8923de52d7b5b6fc8a0db2df6ca07c65c95c62d41",
+    "sdk/driver/RiscBoundAppDataV1.h": "f4c6b9e475409515ee3b385a85790f592e8d943b0f811707926a32be4e1a6a42",
+    "sdk/driver/RiscBoundKeyValueV1.h": "0d77dffef1e6513cbf9b3cf38266f7c9ebcc25d000605838821241ba742cd672",
+    "sdk/driver/RiscPlatformClockV1.h": "41a12f6529f38731ee874f8bc166e1cf89fe376a1448fe5a4dd4c9abac90e5e2",
+    "sdk/driver/RiscPlatformRealtimeV1.h": "ed642c0f37350f7f1402342c7710564019db9c4750f3572f153d2ef1e37eca98",
+    "sdk/app/RiscAppDataV1.h": "49ced12bd617ce9e29626f97ee21d824edcf5f8272524a7da8780c60979df201"
+  },
+  "system_checkout_sha": "393c2aae1c52fa5b03274a6bca319d18395116a4",
+  "system_inputs": {
+    "lib/PortableApps/include/PortableTimeZone.h": "3cfb6687d8f3675beb020a059b8cd3b3d8beffd42c11c6fd61d14b48af729c54",
+    "lib/PortableApps/src/PortableTimeZone.c": "28c0fecf7a4d83bde07d2b72cb591122cf3c49c3219c8344b97b82a90625c5e7",
+    "lib/PortableApps/src/PortableTimeZoneCatalog.c": "29d4c86037f7554c94a4404d5e39e28091430a1f9c23b5e35224aed3df826f20",
+    "lib/PortableApps/time/TIMEZONE_PROVENANCE.json": "4dda9d416b6ca815155dbf3ecac6452789564ff1312bba2d28a6d5a9b7eaab1b",
+    "LICENSE": "7212963b5b1b5ee34ca158163356beb1e6945dd2cc5d320f1fe7573c424ea640",
+    "lib/PortableApps/include/PortableTime.h": "350b8c5255dafa9e25c4a20cfb458cdcda3439da929dab05e0de0c82e981ff6e",
+    "lib/PortableApps/include/PortableRtcClock.h": "43508db1cd392606cf37a7e55ad15e3770de1284af13a431876fd5d7785b838c",
+    "lib/PortableApps/time/denver/display_time.h": "9460e26e1d6faf574a212cdec86d9477de7a0e5d50168d5e7e76613be2868a03",
+    "lib/PortableApps/time/denver/twatch_calendar.h": "67e4a670e4ee8a485843e99be0d198d0b60d84a0bc8d84fc77a3d0e4bde39733",
+    "lib/PortableApps/time/denver/twatch_caps.h": "b8b3003c77c72eb251227329c94fda7244389fb45c7a7e92aa01a5ddce50600e"
+  },
+  "versions": {
+    "watch": "0.4.5",
+    "native-utc": "0.4.6"
+  },
+  "hardware_verified": false,
+  "required_bound_kv_keys": 10,
+  "runtime_admission": "Runtime0.1.83 exact-file provider storage and ten bound KV keys are qualified normally and with ASan/UBSan; public source is tree-equivalent to the local target-build pin.",
+  "runtime_public_sha": "3fcbba6a04626f8484a523e7da59fb44c82e6e49",
+  "runtime_tree": "a3cfc65b221581ad682d438df4952defc6cf61ed"
+}

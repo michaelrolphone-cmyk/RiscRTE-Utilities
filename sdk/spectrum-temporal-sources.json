@@ -2,14 +2,14 @@
   "schema": 1,
   "runtime_repository": "michaelrolphone-cmyk/RiscRTE",
   "runtime_minimum": "0.1.32",
-  "runtime_commit": "da92aef5174b9279de1bad0ec05f7234ba587169",
+  "runtime_commit": "c3d750d113dbc79af87daaad316ab1d63d57dd60",
   "runtime_publication": "published",
   "watch_installable": true,
   "required_layout_abi": 2,
   "capability": "storage.app-data",
   "api": 1,
   "namespace": 2,
-  "api_header_sha256": "49ced12bd617ce9e29626f97ee21d824edcf5f8272524a7da8780c60979df201",
+  "api_header_sha256": "9eb18840ea691f88e85cca6ede3de4833467745ec29225a51a58cb84c0aac84e",
   "preserved_key_value_namespaces": {
     "spectrum_api2": 7,
     "shared_preferences_api1": 1
@@ -22,5 +22,8 @@
     "spectrum_policy_sha256": "d5b9b0fb46e8263bb841edf7639577d42c19e5ad77b2bc65b234b606d4251646",
     "requirements": 12,
     "grants": 12
-  }
+  },
+  "previous_runtime_commit": "da92aef5174b9279de1bad0ec05f7234ba587169",
+  "runtime_pin_reason": "Align the exact production-backend fixture with the published Runtime SDK already copied into Apps/RiscAppDataV1.h; preserve the prior published pin as source provenance.",
+  "legacy_api_header_sha256": "49ced12bd617ce9e29626f97ee21d824edcf5f8272524a7da8780c60979df201"
 }

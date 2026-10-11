@@ -1,0 +1,6 @@
+PASS Buttons/combo busy display: input/reports continue; latest-only frame; legacy suffix; checks=5
+PASS Touchpad busy display: input/reports continue; latest-only frame; legacy suffix; checks=5
+PASS Spectrum full loop: busy display preserves PCM/FFT/history; logical scroll; latest-only redraw
+PASS Buttons/combo busy display: input/reports continue; latest-only frame; legacy suffix; checks=5
+PASS Touchpad busy display: input/reports continue; latest-only frame; legacy suffix; checks=5
+PASS Spectrum full loop: busy display preserves PCM/FFT/history; logical scroll; latest-only redraw

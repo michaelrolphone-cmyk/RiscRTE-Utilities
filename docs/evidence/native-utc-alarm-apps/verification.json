@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "verified_source_sha": "b33cdb68301d0e948a886606cf76428c3c507a0b",
+  "source_clean_during_build_and_adapter_suite": true,
+  "native_controller_sanitizers": [
+    "address",
+    "undefined"
+  ],
+  "actual_controller_adapter_cases": 132,
+  "actual_controller_adapter_profiles": [
+    "Nova RGB565",
+    "paper MONO1",
+    "shared QuickActions"
+  ],
+  "original_regressions": [
+    "alarm service and Alarms/Countdown controllers normal+ASan/UBSan",
+    "complete paper/Watch utility production-adapter suite normal+ASan/UBSan"
+  ],
+  "flag_off_full_elf_comparisons": 4,
+  "all_catalog_zones": 419,
+  "inspected_renders": [
+    "alarms-paper-kathmandu.png",
+    "alarms-nova-kathmandu.png",
+    "countdown-paper.png"
+  ],
+  "leak_sanitizer": "disabled: executor ptrace limitation; ASan/UBSan active",
+  "publication": "Local commits only; System81f884b dependency source publication not cleared",
+  "hardware_verified": false,
+  "evidence_sha256": {
+    "adapter-evidence.json": "00aab843ea197a0091526dc226bd1ff3a619d99b2d914d787209c6b4ab096ab5",
+    "alarms-nova-kathmandu.png": "f5f5308cdecdba72fb67d5ae3fcd2ee9aaa9306b908253453fe9a0bf41487f9b",
+    "alarms-paper-kathmandu.png": "ca65359fea81ddeb028579814b275e5545e789d8d617ee630da7cab7ca96c319",
+    "alarms.boot-policy.json": "24f966e5779b85bdb229ab59c0cd4660ee51bc9a66b5725778d403a7f4c9e695",
+    "alarms.json": "74e986d4cd06b0d8fc1a68f998cec87776103931061953cee1b335e7fe538cfa",
+    "build-evidence.json": "b8bae967d3bf8fc296e5877848e665a2ccc1a9bd95af4b7339a99ddf6cf83397",
+    "countdown-paper.png": "9771926d6226dfc256c9f3fb898c8970a4b4f12377dd1e39bac8b99b7d49c5e4",
+    "countdown.boot-policy.json": "d898e45f923238c62ad26df1600dcd6c5fc6551aea3db2ff79f58eab5abaa5d1",
+    "countdown.json": "5693bd17384b4e30d9b599d3710e4ae774813b4bbea9d0a2a47766aee1f1034e",
+    "native-adapter.log": "dc9aec025802f9976a80cb82c429417f2c5754cedf5ac14d2c0a92ca3d9ba846",
+    "native-controllers.log": "2250f41c34de751d3c98c159af8e398f7f95bb5c9583b50232e786887b7979ed",
+    "original-alarm-regressions.log.gz": "fbe80e6199e33898134b655330c79d7671d044aa35efb989320f69518e188af1",
+    "paper-watch-regressions.log.gz": "0983cd582f2f76f0355ac3c71cd9000b48ce2d903ac0fdadfff02221ffb91fac",
+    "target-build.log": "9fee8ac56d3febb039f97a901b48934f990df725ad7ebd3effc39bfbce2474e1"
+  }
+}

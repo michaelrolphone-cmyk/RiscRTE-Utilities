@@ -1,0 +1,3 @@
+PASS dist/native-utc-visual-service/watch.elf: 8 alignments, 2120 relocation-site checks, exact sections and redzones intact
+PASS dist/native-utc-visual-service/raw-visual.elf: 8 alignments, 2032 relocation-site checks, exact sections and redzones intact
+PASS dist/native-utc-visual-service/native-utc.elf: 8 alignments, 9256 relocation-site checks, exact sections and redzones intact

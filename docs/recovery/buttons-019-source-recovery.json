@@ -1,0 +1,14 @@
+{
+  "source": "retained exact diff and final guards",
+  "sha256": "216b4b22fbd739ba38b66751bc2b0a5ca3ec4c3f453f75b52bf02762cabf938f",
+  "matched_previous_qualified_source": true,
+  "build_or_tests_rerun": false,
+  "runner_reconstructed_from_retained_tool_text": true,
+  "runner_byte_exact": false,
+  "runner_sha256": "e018539857b1f512eda26a5629c94adb4533fcc4cc045cd0c02deccdfd16065e",
+  "runner_prior_sha256": "b806bd44c14ef760a94d61df0196cdafee8ddec3a0b12573dfd7fdd0ec6924ce",
+  "runner_validation": "Python syntax only; production/driver tests not rerun",
+  "cases": 26,
+  "baseline_fixture_transform_anchors_verified": 13,
+  "fixture_generated_without_build": true
+}

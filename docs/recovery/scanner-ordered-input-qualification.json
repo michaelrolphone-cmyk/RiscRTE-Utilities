@@ -1,0 +1,716 @@
+{
+  "schema": 2,
+  "scope": "Source-only host qualification",
+  "source_revision": "1499896e3c9a56f985325043bcea192435f6c497",
+  "source_dirty": true,
+  "source_manifest_version": "0.2.4",
+  "selected_x4_version": "0.2.20",
+  "baseline_target_version": "0.2.19",
+  "system_revision": "b6da27eb856b7be8d04eeaf641d1a401a61584f6",
+  "system_dirty": true,
+  "runtime_revision": "274bc66f193cbe29018d2a85c9400cb0dce8aacc",
+  "driver_revision": "4088b6892c2e2654b0342f04a7d191068e4a8e2e",
+  "baseline_target_elf_sha256": "9153e2d7650314a5fa9e3ed7aca007bd035398e8cd8f219b7104eaecc736864a",
+  "baseline_target_receipt_sha256": "1f1f6c7a333962cfb1dd493b19ba6f4cedf69f9116bb66a70edc8673acdffbfd",
+  "baseline_source_revision": "6ae146c4b4ea85bfa47c8408df49f0a3bc53cb5f",
+  "baseline_system_revision": "c336b776c869029ecd9f096aa5e6497759581440",
+  "build_defines": [
+    "-DPORTABLE_NOVA_UI",
+    "-DPORTABLE_ALARM_CLIENT",
+    "-DPORTABLE_DISPLAY_ROTATION=90",
+    "-DPORTABLE_INPUT_NAVIGATION",
+    "-DPORTABLE_HOME_APP=\"default.elf\"",
+    "-DPORTABLE_APP_OWNS_TOUCH_CHROME",
+    "-DPORTABLE_RADIO_SESSION",
+    "-DPORTABLE_RETURN_APP=\"springboard.elf\"",
+    "-DPORTABLE_STAGE_LOGS",
+    "-DALARM_SERVICE_TAGGED_V2",
+    "-DPORTABLE_NATIVE_CUSTODY_FENCE",
+    "-DPORTABLE_NATIVE_TIME_TOOLBAR",
+    "-DPORTABLE_BLE_BROADCAST",
+    "-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF",
+    "-DPORTABLE_PAPER_PREFERENCES",
+    "-DPORTABLE_UNPADDED_HOURS",
+    "-DPORTABLE_BLE_FOREGROUND",
+    "-DPORTABLE_RESIDENT_SHELL_CLIENT",
+    "-DPORTABLE_ALARM_TERMINAL_RETENTION",
+    "-DPORTABLE_RESIDENT_POLICY",
+    "-DPORTABLE_TEXT_INPUT_CLIENT",
+    "-DPORTABLE_APP_LAUNCH_GUARD"
+  ],
+  "requires": [
+    {
+      "capability": "display.output",
+      "api": 1
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1
+    },
+    {
+      "capability": "board.battery",
+      "api": 1
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2
+    },
+    {
+      "capability": "bluetooth.sensors",
+      "api": 1
+    },
+    {
+      "capability": "bluetooth.hci",
+      "api": 1
+    },
+    {
+      "capability": "telemetry.broadcast",
+      "api": 1
+    },
+    {
+      "capability": "ui.text-input",
+      "api": 1
+    }
+  ],
+  "required_grants": [
+    {
+      "capability": "display.output",
+      "api": 1,
+      "instance_id": 3
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1,
+      "instance_id": 4
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1,
+      "instance_id": 6
+    },
+    {
+      "capability": "board.battery",
+      "api": 1,
+      "instance_id": 7
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2,
+      "instance_id": 0
+    },
+    {
+      "capability": "bluetooth.sensors",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "bluetooth.hci",
+      "api": 1,
+      "instance_id": 16
+    },
+    {
+      "capability": "telemetry.broadcast",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "ui.text-input",
+      "api": 1,
+      "instance_id": 0
+    }
+  ],
+  "physical_panel": [
+    800,
+    480
+  ],
+  "logical_viewport": [
+    480,
+    800
+  ],
+  "profile_flags": [
+    "-DSCENE_PROFILE_PAPER=1",
+    "-DSCENE_DISPLAY_ROTATION=270"
+  ],
+  "compiled_dependencies_sha256": {
+    "System/Services/scene_host/host.c": "5922080ddec668196c1ef46fbcfaa4615bd17e15bf51b605657a393da1c803f6",
+    "System/sdk/app/RiscSceneLifecycleV1.h": "df77c7efc4556c84f4016883b0f65ea0e64eec3d2b27a0204f989d576cfce92c",
+    "System/sdk/app/RiscSceneV1.h": "11d99e7e2cb1b598c53fba42ca19681bf4a68cc90e223cc8a7fbe391ff7d3b24",
+    "CompiledSDK/RiscProviderV2.h": "2935d83493a411e19ee98b8c7e805b86f4adf98c6bde66fd031df7cc379bdc17",
+    "CompiledSDK/RiscStreamProviderV1.h": "0fe306e060321387c816bb70ec4370a501a423f4fe19a20c9be80aa1b98f3432",
+    "CompiledSDK/RiscRuntimeV1.h": "90411ef3271f19b5c3613e5e41aa20e6c9e284d7804aec0309c2b072a68894d4",
+    "CompiledSDK/RiscDisplayOutputV1.h": "99b682ba34f07e7868dec8e78dfb816c067fdc184e647033bc6ed8d489b9c9a2",
+    "CompiledSDK/RiscTouchV1.h": "fe18fab3ac20fda95747388f1428408b7795e5da3511c7a9fff07c16ddfd2c7d",
+    "CompiledSDK/RiscInputNavigationV1.h": "2644754feb7238d066908658ac9d4fe25537d4d5e424a6aef1365fabea600a26",
+    "CompiledSDK/RiscPlatformClockV1.h": "41a12f6529f38731ee874f8bc166e1cf89fe376a1448fe5a4dd4c9abac90e5e2",
+    "System/Services/scene_profile/SceneProfileV1.h": "d687e02a50837161e833103006d93c179b22a063fa4ac3410b3e87e43ac66fc5",
+    "System/Services/text_input/SceneKeyboardV1.h": "ae67bfa4dde956ba116f4608aecdff3da578c409abaa7b42e724906d4e74ec1d",
+    "System/Services/scene_host/glyphs.inc": "5f3e8fa90c8852b241f16dd4aad5957392bad468f7aa31b61b5445ea05fe5760",
+    "System/Services/scene_host/keyboard.inc": "c14890d86bccbdce18ea7a0084c4284209b49d19d27c8e8e708dab2741a9798a",
+    "System/Services/scene_host/keyboard_paper.inc": "dd4db0ade718bea38ab2928ef78b6ad5c56805f7a7b849fc43be0ec3f1c615f3",
+    "System/Services/scene_host/fonts/text.inc": "0a5effa6e62d08d8a32c827a996c9527f70d2dfc14fdb606391817e52224c89b",
+    "System/Services/text_input/host.c": "c51b28b0c5810a357e88796fc3fafbde92da4ee0a4dc262e2e18b1cbbee751f6",
+    "CompiledSDK/RiscTextEntryV1.h": "9278434aa9ebe637812e7334b3204e17e4ae6999c479a0a6dce15e3194a3b329",
+    "System/Services/text_input/RiscUsbHidV1.h": "5b5549c4cb718dec55f2aca8bc93f401b2d5a703d30aaa1a78d1bcdd26755b5c",
+    "System/Services/text_input/RiscUsbControllerV1.h": "2fb2908caee99b0822838956f33cf8302db9d2cbd0600a9eed21fcce5f68232b",
+    "System/Services/text_input/RiscUsbProviderV1.h": "77f67cf5db7ed3fd7c6e148807bc705b5f8443c90d401b546069d756eb997b9a",
+    "System/Services/scene_profile/profile.c": "ae72dc5de62ca7d212b46194406d4b4ce8a1be4767682efd8a4dce9ea2476c17",
+    "Drivers/Drivers/ble_sensors/driver.c": "7ccbd31e6253db7183fe9178f87c2c825b37c5cf59ac27bb61a15f46ac2d79e2",
+    "Drivers/sdk/driver/RiscBluetoothHostV1.h": "d3846ce9597357772ad37739a1919e28a15790d9d2067be3060dabe976d27156",
+    "Drivers/Drivers/ble_sensors/ble_scan_core.h": "a776910e3b5b1b062d9290668b58a449c8a598fdc5a3979a5cdc92d720e04aac",
+    "CompiledSDK/RiscBluetoothSensorsV1.h": "62f21be78604b6c32c47beb8317f1fea059653b407baa73a93ee23ce8d8d050e",
+    "CompiledSDK/RiscTelemetryV1.h": "8ef64c586e8392c1d7521498c25cfdaccefd53242530e2dda9116e9cc12a5d48",
+    "Source/test/native_apps/ble_paper_renderer_test.c": "e1974f25c1725d791291aa2ca0a52add11b517b4b8b0e3789047205a9da7bcc8",
+    "CompiledSDK/PortableApps.h": "d8fc1fae3669c439fda7af94568a93bc1d1f35ddc6fe05615eac1cb41ea4a78e",
+    "System/lib/NativeApps/include/T5AppApi.h": "23ec6910005343055e71d0a364458824734f52c91a28364e419a85e94aa4ff42",
+    "CompiledSDK/RiscBatteryGaugeV1.h": "03d2f2b78e8f261cfb10f5c44bcabc1495bfecb17d7953586a58c27dce151b86",
+    "CompiledSDK/PortableRtcClock.h": "43508db1cd392606cf37a7e55ad15e3770de1284af13a431876fd5d7785b838c",
+    "CompiledSDK/RiscKeyValueV1.h": "5d5524ffd27b164f31505c5f538f528b39b35e356922e03e2eb59a9c68677b56",
+    "CompiledSDK/PortableNavigation.h": "f3b9623d1e97d6a18df565aef0d9c934f18a1b97b701fbbc208de3bf0a344e6d",
+    "CompiledSDK/PortableAppSleep.h": "027f70965663bc86e7f3bbf2733002870e2254ec92d39037def5f42c52fedc62",
+    "CompiledSDK/AlarmServiceV2.h": "d7e750a8093e1b5e698483254edc38533b7242a3446d0bca5866c9dfd6ad07a1",
+    "CompiledSDK/AlarmServiceV1.h": "c70c087550306c123255e1ace41aeb504809e16b0193e382ec8dfbd7cb5531f5",
+    "CompiledSDK/PortableTextInputHandoff.h": "ef811b3b7cf805ccdab1fb330e09dd8c533e303d29b8b4693ae5089a85432c36",
+    "Source/lib/Bluetooth/include/PortableBluetoothHost.h": "78fa8d54f5973b7712532af34dca48b8aabba5cbac9c50d4ba9e131dcda798b4",
+    "Source/Apps/ble_sensor_names.h": "bf827a0c8264b29aec51059e795ecb9f5f2c1d4e882e3e06afb633c4ab67b536",
+    "CompiledSDK/WifiApi.h": "aca1437adcbe8a99bd6a76332a4543657b6440d98f622972c9f599fa21c5322a",
+    "CompiledSDK/RiscRadioScanV1.h": "696227eecfd124f941023673680e0a15917d5b03c8f769756ed12ec34f7ccc9b",
+    "CompiledSDK/RiscRealtimeV1.h": "639781f728841cda6d40c3033877436b9e5d59519a4b15e11a9bc99b2365395d",
+    "CompiledSDK/PortableNativeTimeToolbar.h": "940454536d845d560b734eb8e887e789f4d32fadff7e5d132dc259eb69106b3b",
+    "CompiledSDK/PortableNativeCustody.h": "9dc7d0fb89bbab8304d829fa63e5baed3c6c348fdf37cc4166f5e8117a2594b6",
+    "CompiledSDK/RiscResidentShellV1.h": "1a84715c03fcc7fae7f75cb72c0daf875e761567dda5d1b39ec0dc8b14fba8bd",
+    "CompiledSDK/TelemetryBroadcastV1.h": "986a52b5a3ddd361189d204e33624ce6275d953bca6a94a6e6dd5c136a89e2d5",
+    "Source/Apps/ble_scanner.c": "5696429e48cd657fb497312cb9d2cdbbacf6942e222d1871a5c9ec31af0c93f9",
+    "Source/Apps/utility_frame.h": "9eb5120642d00cb9bcf6cfa64f342b77028e5dfefed938678432de5c9a29e29b",
+    "System/lib/NativeApps/include/T5AppFrame.h": "2a8fd35c485045294a2f9dceaf1b8474226e1475e63849080711601f6b60c8f9",
+    "CompiledSDK/PortableTextInputClient.h": "ec3db906ead1808c6e6807dccc20f3e8d9927fe4ad0581707a0361854abe680f",
+    "CompiledSDK/PortableRadioSession.h": "8b09b402a8235dbf48826b890a04dbcabe2f7ac6c600b90b42f71ac5997356b2",
+    "CompiledSDK/PortableRadioPolicy.h": "2b6ca371fafe5dac5d30145d40e72d88b2fe04bba52a43efae3bff9ead58b3b5",
+    "CompiledSDK/PortableQuickPreferences.h": "bc0de08849d553da4049cee1608d765db1f48d89aa27524094088ea31d8b1b91",
+    "CompiledSDK/PortableNovaUi.h": "7301c01a0bdeee5888b518bfb19aefeec65403caf52c589b41eb4e1dfc628291",
+    "Source/Apps/ble_scan_model.h": "9cd2629a08c8f61b168cd42ec41a5a1ef759f3448e202ec6baf7cc2499bedb63",
+    "System/Apps/PaperPresentation.h": "8d13a8c73187d1e35f67c3208f861b95ceac143b6401e6572c2b4356ef409747",
+    "System/Apps/SpringboardPresentation.h": "af80cd3f66de0ca0ca7077a926e196a14de2c79263d449f90e501090aa55031b",
+    "CompiledSDK/PortableBluetoothControl.h": "777f0c7f92092d05a428c04255b6df1b3e9510a36c7425fc95092b3321e67a2c",
+    "Source/Apps/ble_scanner_paper.inc": "aec59e8c0b0c83a49b3145d58efc17749512de44d600717db146059457359883",
+    "System/lib/PortableApps/src/adapter.c": "cc3939654c8933cba6c5c8a5e3e33b9f1fb93463ef0637af09fcf357a88fd001",
+    "CompiledSDK/PortablePerformance.h": "4242d93019235138f6d0a80cd1edc58e55b9c591157d5f90b0d6c2992ce0672e",
+    "CompiledSDK/PortableStageLog.h": "b347496d8bbb70cbbc19bd85d4a4a214f57b660d90cfb1ccaab9138fac787f02",
+    "CompiledSDK/PortableTouch.h": "817d5bde4d3a3c4634512503d283d0c7e731744a65e743305038294b58205004",
+    "CompiledSDK/PortableReaderPreferences.h": "3f0b7b12b1ddf6bf9c45c9598dab5488feadde0e9f5879b5e12c9f4eff8d4eda",
+    "CompiledSDK/PortableSleepPolicy.h": "70fa8ff8f63270b2a04d591bdbc61cd7e16d6483421121a96fe22f2855966d9d",
+    "CompiledSDK/T5BatteryApi.h": "f939c924102099de4ed746519791ce2b68eb2bac79bc212caeaad1366dc8c9a5",
+    "System/lib/NativeApps/include/T5StorageApi.h": "be0d63a89943a75a58723b703284992e8c6e95956c7cb39a9b3523af2c5d23ba",
+    "System/lib/NativeApps/include/T5UiApi.h": "88dbfde2a45ab385c69ee0b8192e8025446c9872711e4810f799251479b1057a",
+    "System/lib/NativeApps/include/T5VideoApi.h": "af3f2318e53e20efb4e8e9e98d93abae11f1788fe14640c7b02392c22d08c6a4",
+    "CompiledSDK/PortableBackgroundServices.h": "f1291afed98c321a81550e7648234d478652f81299cbad9c44814218a384e5b8",
+    "CompiledSDK/PortableAppLaunchGuard.h": "a7da58c80c62ef35cdf4e76aff0d2f66768b66963457c3a00f5e9890ca357558",
+    "System/lib/PortableApps/src/performance.inc": "547a1f1902f60b816b8dc25a28821fb0a4c84c21e219c460a6dbb760a8c71db9",
+    "CompiledSDK/PortableAlarmClient.h": "587a85823462e36a2819fe22227b029bcd687fee6d4484a86063b03b4e420aa1",
+    "CompiledSDK/PortableAlarmTerminalClient.h": "1aa14ef12171b849c63ad002e9c3b7988379a6fc01f7687da8c1190b3bc79635",
+    "System/lib/PortableApps/src/native_custody_adapter.inc": "665375f91e48324ea5a52ca459cd5d8bdee3441a177c53b7fe35252b921114d4",
+    "CompiledSDK/PortableBroadcastClient.h": "51ed76a5fac542fb2d5ae039797806fd8b1d31f69a072340c0ce91e628cbff2d",
+    "System/lib/PortableApps/src/broadcast_adapter.inc": "5ae10c1fe8885f5f7b6f006d1be528d3d3d141cdbacddcf97251d64b1b5de96d",
+    "System/lib/PortableApps/src/native_toolbar.inc": "0ecab2af95aab850734d9a13482a9e3177d4a6cddf5499435ae746fe7a21151f",
+    "System/lib/PortableApps/src/nova.inc": "7db5cdf0362c1b5beb7b69e9ebc03e7458cd2b1c6f47d3de9ce15e47b23df203",
+    "System/lib/PortableApps/fonts/icons.inc": "fbfee54e9dd3fd331bdfc6babf60427ccffa93c4e8956ceb0129d2b6111d411d",
+    "System/lib/PortableApps/fonts/text.inc": "88aad3c3002381190ba5fc584fb2177b623cbeb30bc6cf7bfde10b0399d20c42",
+    "System/lib/PortableApps/src/nova_ui.inc": "0d91191e5e47c1b734d309e605c1bd7a85545475e219b48651dae63fef1830ef",
+    "System/lib/PortableApps/settings_fonts/text.inc": "8453a3f7c123799354a0ff4246dba420de2a612f421d6d9de9bf4c976073b449",
+    "System/lib/PortableApps/src/paper.inc": "cd3cf01c5cd454bedccc14e61ada2e75d4f4143959ece4912dbe6dd68335735c",
+    "System/lib/PortableApps/paper_fonts/text.inc": "9ee273df1c27df92d8ab2a985fb474d15b715770984894da4fee40b8cd9f2e4a",
+    "System/lib/PortableApps/src/resident_adapter.inc": "2f6d7da19c355d89747b6b7eff624c8254f5aca45d9c75cabffd757557b3d6f5",
+    "System/lib/PortableApps/src/resident_shell.inc": "16d3f9db466aa871d6247cefafc1e8c80db8873bd6e9a8b434295889e0fce210",
+    "System/lib/PortableApps/src/alarm.inc": "11e6ecc6b6ca8691eb224dde6be8574e179d25f00b3c074bb590da4becc731b6",
+    "System/lib/PortableApps/src/text_input_handoff.inc": "0ef2e8afd0de6d2bbc4a0d6563be33699a1b0a65db224aad4a632f0df103a43d",
+    "System/lib/PortableApps/src/foreground_adapter_open.inc": "6a5b4ac9060b694adf2217dc5508bd04d5a7fed1f94a9832e7a5f05f85c1d55a",
+    "System/lib/PortableApps/src/PortableNativeTimeSource.c": "04da733a4c3b0c01e244896a206774f1237c1fe0f9b1cfed668f541a19867710",
+    "CompiledSDK/PortableRealtimeClient.h": "9a366511975762ab7124931e9124756319acfe586ba9f3881a9f710129290b0a",
+    "CompiledSDK/PortableRtcBasis.h": "89bd6751cf29c78e0eb3b76b3fe1862d5ebe733b9da0de4688e95150885496f9",
+    "CompiledSDK/PortableTimeZone.h": "3cfb6687d8f3675beb020a059b8cd3b3d8beffd42c11c6fd61d14b48af729c54",
+    "CompiledSDK/PortableTimeZonePreference.h": "0674f99eebc20d8665dc63915019c39b0dd7171e0ea8b6a284150b2eb473d7b0",
+    "System/lib/PortableApps/src/PortableRealtimeClient.c": "a8115817eb490bb51f3e338fde4dce2542cb82dceefe476beae21a91c14ceade",
+    "System/lib/PortableApps/src/PortableTimeZone.c": "28c0fecf7a4d83bde07d2b72cb591122cf3c49c3219c8344b97b82a90625c5e7",
+    "System/lib/PortableApps/src/PortableTimeZoneCatalog.c": "29d4c86037f7554c94a4404d5e39e28091430a1f9c23b5e35224aed3df826f20",
+    "System/lib/PortableApps/src/PortableTimeZonePreference.c": "b54e455d587ba2ecda8f59dd899b59b767214aee807b92d79d18c5e9d30b6bb7",
+    "BaselineBuild/ble_scanner/catalog.c": "b777404301a5286ce19a95f4099bac47d93a46d3f86190b51b6c78665bbce23c"
+  },
+  "runner_sha256": "51810399928df26c1e074c86d7608c6e3307d946fd545a4904eb116f90112b65",
+  "results": [
+    {
+      "sanitized": false,
+      "scenario": "idle",
+      "frames": 1,
+      "passed": true,
+      "actions_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run_log_sha256": "148e34c78bb832c8bb978136ac0fcc34fddeafff3b17fa210faa745796b9c0af"
+    },
+    {
+      "sanitized": false,
+      "scenario": "scan-stop",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "ebab3e552078d88c0a0f3e35a424a662f99d7d94a16eb0de7df52b0969e72ddf",
+      "run_log_sha256": "461fb7abcf14e85d1fd17f870d5c09805ea4f428ebc906934959b191928afa01"
+    },
+    {
+      "sanitized": false,
+      "scenario": "nested-back",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "b1b9dfe9c141c0bd382d1fa06b9728d51e8d65da5a5175f3ef0499245545d359",
+      "run_log_sha256": "4da0308be3f9ceece1a2963996fecef66520ba287c070c51950efc6f5d79acf2"
+    },
+    {
+      "sanitized": false,
+      "scenario": "enable-scan",
+      "frames": 4,
+      "passed": true,
+      "actions_sha256": "c73f0dafc01ccc8bb871c2d74804c2b27a94d156c50754b6ce103419bcb2f328",
+      "run_log_sha256": "6ecdf4bd4e8aaa0d86b0efd26be650955cf3a3d1d4e6435a443186e65dc0558c"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-save",
+      "frames": 5,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "ab088418c28859a77882ea2a3c3208100ee1bf13795279778f561826ebbdfbaa"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-cancel",
+      "frames": 5,
+      "passed": true,
+      "actions_sha256": "59a0e109605edac469169e2241f20425eefeecff72ef9debb6cb2dd27695b3d1",
+      "run_log_sha256": "a18b9cc84813452d7825ebcd6a9e63d5a2edba567fd924f785027f8c09bff261"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-navigation-back",
+      "frames": 5,
+      "passed": true,
+      "actions_sha256": "b19ce4ec92867f722f7942a1f04718fecdc8411c37b252d2dde6769e5208248f",
+      "run_log_sha256": "ee821db00e4bdba2ede009c20234ba65fc9a479457d6877ce17dd4ce9a11da29"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-unavailable",
+      "frames": 4,
+      "passed": true,
+      "actions_sha256": "9627e807043ee4d1c49220c02d3b15c3913d686bf5e0c61bd5d2c82b127cfccc",
+      "run_log_sha256": "751380ba02e23973aacbfda0e5cb108d151573a99283b924375d42be7fe16672"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-retained",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "59a0e109605edac469169e2241f20425eefeecff72ef9debb6cb2dd27695b3d1",
+      "run_log_sha256": "b61172f2c0a91d374466691f345d469b20520c2738498ff5791334e0bdb58122"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-back-return",
+      "frames": 5,
+      "passed": true,
+      "actions_sha256": "0d065aa0d299d103b8ae894924647b83145e93ae004eb3f455d7a85ff62e94e7",
+      "run_log_sha256": "13de31f8bad8e43c967a3a37b562a8f3190bc641572d0f0cfb2276524248a2a2"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-repeat",
+      "frames": 9,
+      "passed": true,
+      "actions_sha256": "9390f9de9247f2b6296b4d0cf40fe45be85795e20c73d947bc454392e7ca6f41",
+      "run_log_sha256": "2b5a234241352d6c7b7e6647f1a052c5994ec5c71900206c91681378df689a8b"
+    },
+    {
+      "sanitized": false,
+      "scenario": "home",
+      "frames": 1,
+      "passed": true,
+      "actions_sha256": "1ac47ebb6afbdb9daf750b0815f1ae99077780e7d0f4f0291c36b62e51fa4ffb",
+      "run_log_sha256": "ef994fca7ab4e95093ac7904918564a18fe140b0baae5174199d6162b30c17ea"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-navigation-home",
+      "frames": 4,
+      "passed": true,
+      "actions_sha256": "19584cd95e89fec53c00bfba7dea282d7eef3bfed549461fdfb70675a71cf70f",
+      "run_log_sha256": "8ee217a54f145ff0bd388725ea8e381c99c683b387a750323c6288ad75296019"
+    },
+    {
+      "sanitized": false,
+      "scenario": "resident-controls",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "3e42e0a91e317859637e8445b4f148bd62f9270742fe3abcb31eb095830c7774",
+      "run_log_sha256": "da9c002bbbf003e32c30abda4f8aa964c6cf9d2fed323fb47e1a655e8cdfbf57"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-acquire",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "6ffe7ed7e67dd04335fef80ed3e3422b03997259f7c8629adfd6adf9c87e31d1"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-open",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "6ffe7ed7e67dd04335fef80ed3e3422b03997259f7c8629adfd6adf9c87e31d1"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-poll",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "6ffe7ed7e67dd04335fef80ed3e3422b03997259f7c8629adfd6adf9c87e31d1"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-close",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-release",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-kv-acquire",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-kv-get",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-kv-put",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-kv-release",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": false,
+      "scenario": "name-loss-acquire-fail",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "6ffe7ed7e67dd04335fef80ed3e3422b03997259f7c8629adfd6adf9c87e31d1"
+    },
+    {
+      "sanitized": true,
+      "scenario": "idle",
+      "frames": 1,
+      "passed": true,
+      "actions_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run_log_sha256": "148e34c78bb832c8bb978136ac0fcc34fddeafff3b17fa210faa745796b9c0af"
+    },
+    {
+      "sanitized": true,
+      "scenario": "scan-stop",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "ebab3e552078d88c0a0f3e35a424a662f99d7d94a16eb0de7df52b0969e72ddf",
+      "run_log_sha256": "461fb7abcf14e85d1fd17f870d5c09805ea4f428ebc906934959b191928afa01"
+    },
+    {
+      "sanitized": true,
+      "scenario": "nested-back",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "b1b9dfe9c141c0bd382d1fa06b9728d51e8d65da5a5175f3ef0499245545d359",
+      "run_log_sha256": "4da0308be3f9ceece1a2963996fecef66520ba287c070c51950efc6f5d79acf2"
+    },
+    {
+      "sanitized": true,
+      "scenario": "enable-scan",
+      "frames": 4,
+      "passed": true,
+      "actions_sha256": "c73f0dafc01ccc8bb871c2d74804c2b27a94d156c50754b6ce103419bcb2f328",
+      "run_log_sha256": "6ecdf4bd4e8aaa0d86b0efd26be650955cf3a3d1d4e6435a443186e65dc0558c"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-save",
+      "frames": 5,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "ab088418c28859a77882ea2a3c3208100ee1bf13795279778f561826ebbdfbaa"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-cancel",
+      "frames": 5,
+      "passed": true,
+      "actions_sha256": "59a0e109605edac469169e2241f20425eefeecff72ef9debb6cb2dd27695b3d1",
+      "run_log_sha256": "a18b9cc84813452d7825ebcd6a9e63d5a2edba567fd924f785027f8c09bff261"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-navigation-back",
+      "frames": 5,
+      "passed": true,
+      "actions_sha256": "b19ce4ec92867f722f7942a1f04718fecdc8411c37b252d2dde6769e5208248f",
+      "run_log_sha256": "ee821db00e4bdba2ede009c20234ba65fc9a479457d6877ce17dd4ce9a11da29"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-unavailable",
+      "frames": 4,
+      "passed": true,
+      "actions_sha256": "9627e807043ee4d1c49220c02d3b15c3913d686bf5e0c61bd5d2c82b127cfccc",
+      "run_log_sha256": "751380ba02e23973aacbfda0e5cb108d151573a99283b924375d42be7fe16672"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-retained",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "59a0e109605edac469169e2241f20425eefeecff72ef9debb6cb2dd27695b3d1",
+      "run_log_sha256": "b61172f2c0a91d374466691f345d469b20520c2738498ff5791334e0bdb58122"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-back-return",
+      "frames": 5,
+      "passed": true,
+      "actions_sha256": "0d065aa0d299d103b8ae894924647b83145e93ae004eb3f455d7a85ff62e94e7",
+      "run_log_sha256": "13de31f8bad8e43c967a3a37b562a8f3190bc641572d0f0cfb2276524248a2a2"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-repeat",
+      "frames": 9,
+      "passed": true,
+      "actions_sha256": "9390f9de9247f2b6296b4d0cf40fe45be85795e20c73d947bc454392e7ca6f41",
+      "run_log_sha256": "2b5a234241352d6c7b7e6647f1a052c5994ec5c71900206c91681378df689a8b"
+    },
+    {
+      "sanitized": true,
+      "scenario": "home",
+      "frames": 1,
+      "passed": true,
+      "actions_sha256": "1ac47ebb6afbdb9daf750b0815f1ae99077780e7d0f4f0291c36b62e51fa4ffb",
+      "run_log_sha256": "ef994fca7ab4e95093ac7904918564a18fe140b0baae5174199d6162b30c17ea"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-navigation-home",
+      "frames": 4,
+      "passed": true,
+      "actions_sha256": "19584cd95e89fec53c00bfba7dea282d7eef3bfed549461fdfb70675a71cf70f",
+      "run_log_sha256": "8ee217a54f145ff0bd388725ea8e381c99c683b387a750323c6288ad75296019"
+    },
+    {
+      "sanitized": true,
+      "scenario": "resident-controls",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "3e42e0a91e317859637e8445b4f148bd62f9270742fe3abcb31eb095830c7774",
+      "run_log_sha256": "da9c002bbbf003e32c30abda4f8aa964c6cf9d2fed323fb47e1a655e8cdfbf57"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-acquire",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "6ffe7ed7e67dd04335fef80ed3e3422b03997259f7c8629adfd6adf9c87e31d1"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-open",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "6ffe7ed7e67dd04335fef80ed3e3422b03997259f7c8629adfd6adf9c87e31d1"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-poll",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "6ffe7ed7e67dd04335fef80ed3e3422b03997259f7c8629adfd6adf9c87e31d1"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-close",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-release",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-kv-acquire",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-kv-get",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-kv-put",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-kv-release",
+      "frames": 3,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "426296270cb3cfcb2b1a967b8fcd44a48edfb7be6c8300f5e8c3b9018b25910f"
+    },
+    {
+      "sanitized": true,
+      "scenario": "name-loss-acquire-fail",
+      "frames": 2,
+      "passed": true,
+      "actions_sha256": "e3d788f00fe1b307bb25d29c44203f5624c46971c29247a182555aaab12357d3",
+      "run_log_sha256": "6ffe7ed7e67dd04335fef80ed3e3422b03997259f7c8629adfd6adf9c87e31d1"
+    }
+  ],
+  "native_time_callback_checked_after_clean_app_return": true,
+  "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+  "sanitizers": [
+    "address",
+    "undefined"
+  ],
+  "asan_options": "detect_leaks=0",
+  "ubsan_options": "halt_on_error=1",
+  "target_elf_compiled": false,
+  "hardware_verified": false,
+  "host_compile_commands_record": "Full original qualification summary and commands preserved in scanner-qualification-evidence.tar.gz; current runner reproduces them.",
+  "union_source_dependency_comparison": {
+    "matched": 53,
+    "mismatched": [],
+    "all_included_source_paths": {
+      "System/Services/scene_host/host.c": "5922080ddec668196c1ef46fbcfaa4615bd17e15bf51b605657a393da1c803f6",
+      "System/sdk/app/RiscSceneLifecycleV1.h": "df77c7efc4556c84f4016883b0f65ea0e64eec3d2b27a0204f989d576cfce92c",
+      "System/sdk/app/RiscSceneV1.h": "11d99e7e2cb1b598c53fba42ca19681bf4a68cc90e223cc8a7fbe391ff7d3b24",
+      "System/Services/scene_profile/SceneProfileV1.h": "d687e02a50837161e833103006d93c179b22a063fa4ac3410b3e87e43ac66fc5",
+      "System/Services/text_input/SceneKeyboardV1.h": "ae67bfa4dde956ba116f4608aecdff3da578c409abaa7b42e724906d4e74ec1d",
+      "System/Services/scene_host/glyphs.inc": "5f3e8fa90c8852b241f16dd4aad5957392bad468f7aa31b61b5445ea05fe5760",
+      "System/Services/scene_host/keyboard.inc": "c14890d86bccbdce18ea7a0084c4284209b49d19d27c8e8e708dab2741a9798a",
+      "System/Services/scene_host/keyboard_paper.inc": "dd4db0ade718bea38ab2928ef78b6ad5c56805f7a7b849fc43be0ec3f1c615f3",
+      "System/Services/scene_host/fonts/text.inc": "0a5effa6e62d08d8a32c827a996c9527f70d2dfc14fdb606391817e52224c89b",
+      "System/Services/text_input/host.c": "c51b28b0c5810a357e88796fc3fafbde92da4ee0a4dc262e2e18b1cbbee751f6",
+      "System/Services/text_input/RiscUsbHidV1.h": "5b5549c4cb718dec55f2aca8bc93f401b2d5a703d30aaa1a78d1bcdd26755b5c",
+      "System/Services/text_input/RiscUsbControllerV1.h": "2fb2908caee99b0822838956f33cf8302db9d2cbd0600a9eed21fcce5f68232b",
+      "System/Services/text_input/RiscUsbProviderV1.h": "77f67cf5db7ed3fd7c6e148807bc705b5f8443c90d401b546069d756eb997b9a",
+      "System/Services/scene_profile/profile.c": "ae72dc5de62ca7d212b46194406d4b4ce8a1be4767682efd8a4dce9ea2476c17",
+      "Drivers/Drivers/ble_sensors/driver.c": "7ccbd31e6253db7183fe9178f87c2c825b37c5cf59ac27bb61a15f46ac2d79e2",
+      "Drivers/sdk/driver/RiscBluetoothHostV1.h": "d3846ce9597357772ad37739a1919e28a15790d9d2067be3060dabe976d27156",
+      "Drivers/Drivers/ble_sensors/ble_scan_core.h": "a776910e3b5b1b062d9290668b58a449c8a598fdc5a3979a5cdc92d720e04aac",
+      "Source/test/native_apps/ble_paper_renderer_test.c": "e1974f25c1725d791291aa2ca0a52add11b517b4b8b0e3789047205a9da7bcc8",
+      "System/lib/NativeApps/include/T5AppApi.h": "23ec6910005343055e71d0a364458824734f52c91a28364e419a85e94aa4ff42",
+      "Source/lib/Bluetooth/include/PortableBluetoothHost.h": "78fa8d54f5973b7712532af34dca48b8aabba5cbac9c50d4ba9e131dcda798b4",
+      "Source/Apps/ble_sensor_names.h": "bf827a0c8264b29aec51059e795ecb9f5f2c1d4e882e3e06afb633c4ab67b536",
+      "Source/Apps/ble_scanner.c": "5696429e48cd657fb497312cb9d2cdbbacf6942e222d1871a5c9ec31af0c93f9",
+      "Source/Apps/utility_frame.h": "9eb5120642d00cb9bcf6cfa64f342b77028e5dfefed938678432de5c9a29e29b",
+      "System/lib/NativeApps/include/T5AppFrame.h": "2a8fd35c485045294a2f9dceaf1b8474226e1475e63849080711601f6b60c8f9",
+      "Source/Apps/ble_scan_model.h": "9cd2629a08c8f61b168cd42ec41a5a1ef759f3448e202ec6baf7cc2499bedb63",
+      "System/Apps/PaperPresentation.h": "8d13a8c73187d1e35f67c3208f861b95ceac143b6401e6572c2b4356ef409747",
+      "System/Apps/SpringboardPresentation.h": "af80cd3f66de0ca0ca7077a926e196a14de2c79263d449f90e501090aa55031b",
+      "Source/Apps/ble_scanner_paper.inc": "aec59e8c0b0c83a49b3145d58efc17749512de44d600717db146059457359883",
+      "System/lib/PortableApps/src/adapter.c": "cc3939654c8933cba6c5c8a5e3e33b9f1fb93463ef0637af09fcf357a88fd001",
+      "System/lib/NativeApps/include/T5StorageApi.h": "be0d63a89943a75a58723b703284992e8c6e95956c7cb39a9b3523af2c5d23ba",
+      "System/lib/NativeApps/include/T5UiApi.h": "88dbfde2a45ab385c69ee0b8192e8025446c9872711e4810f799251479b1057a",
+      "System/lib/NativeApps/include/T5VideoApi.h": "af3f2318e53e20efb4e8e9e98d93abae11f1788fe14640c7b02392c22d08c6a4",
+      "System/lib/PortableApps/src/performance.inc": "547a1f1902f60b816b8dc25a28821fb0a4c84c21e219c460a6dbb760a8c71db9",
+      "System/lib/PortableApps/src/native_custody_adapter.inc": "665375f91e48324ea5a52ca459cd5d8bdee3441a177c53b7fe35252b921114d4",
+      "System/lib/PortableApps/src/broadcast_adapter.inc": "5ae10c1fe8885f5f7b6f006d1be528d3d3d141cdbacddcf97251d64b1b5de96d",
+      "System/lib/PortableApps/src/native_toolbar.inc": "0ecab2af95aab850734d9a13482a9e3177d4a6cddf5499435ae746fe7a21151f",
+      "System/lib/PortableApps/src/nova.inc": "7db5cdf0362c1b5beb7b69e9ebc03e7458cd2b1c6f47d3de9ce15e47b23df203",
+      "System/lib/PortableApps/fonts/icons.inc": "fbfee54e9dd3fd331bdfc6babf60427ccffa93c4e8956ceb0129d2b6111d411d",
+      "System/lib/PortableApps/fonts/text.inc": "88aad3c3002381190ba5fc584fb2177b623cbeb30bc6cf7bfde10b0399d20c42",
+      "System/lib/PortableApps/src/nova_ui.inc": "0d91191e5e47c1b734d309e605c1bd7a85545475e219b48651dae63fef1830ef",
+      "System/lib/PortableApps/settings_fonts/text.inc": "8453a3f7c123799354a0ff4246dba420de2a612f421d6d9de9bf4c976073b449",
+      "System/lib/PortableApps/src/paper.inc": "cd3cf01c5cd454bedccc14e61ada2e75d4f4143959ece4912dbe6dd68335735c",
+      "System/lib/PortableApps/paper_fonts/text.inc": "9ee273df1c27df92d8ab2a985fb474d15b715770984894da4fee40b8cd9f2e4a",
+      "System/lib/PortableApps/src/resident_adapter.inc": "2f6d7da19c355d89747b6b7eff624c8254f5aca45d9c75cabffd757557b3d6f5",
+      "System/lib/PortableApps/src/resident_shell.inc": "16d3f9db466aa871d6247cefafc1e8c80db8873bd6e9a8b434295889e0fce210",
+      "System/lib/PortableApps/src/alarm.inc": "11e6ecc6b6ca8691eb224dde6be8574e179d25f00b3c074bb590da4becc731b6",
+      "System/lib/PortableApps/src/text_input_handoff.inc": "0ef2e8afd0de6d2bbc4a0d6563be33699a1b0a65db224aad4a632f0df103a43d",
+      "System/lib/PortableApps/src/foreground_adapter_open.inc": "6a5b4ac9060b694adf2217dc5508bd04d5a7fed1f94a9832e7a5f05f85c1d55a",
+      "System/lib/PortableApps/src/PortableNativeTimeSource.c": "04da733a4c3b0c01e244896a206774f1237c1fe0f9b1cfed668f541a19867710",
+      "System/lib/PortableApps/src/PortableRealtimeClient.c": "a8115817eb490bb51f3e338fde4dce2542cb82dceefe476beae21a91c14ceade",
+      "System/lib/PortableApps/src/PortableTimeZone.c": "28c0fecf7a4d83bde07d2b72cb591122cf3c49c3219c8344b97b82a90625c5e7",
+      "System/lib/PortableApps/src/PortableTimeZoneCatalog.c": "29d4c86037f7554c94a4404d5e39e28091430a1f9c23b5e35224aed3df826f20",
+      "System/lib/PortableApps/src/PortableTimeZonePreference.c": "b54e455d587ba2ecda8f59dd899b59b767214aee807b92d79d18c5e9d30b6bb7"
+    }
+  }
+}

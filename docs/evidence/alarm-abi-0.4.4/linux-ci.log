@@ -1,0 +1,77 @@
+2026-10-07T18:10:52.1621616Z Production ABI matrix row passed
+2026-10-07T18:10:52.5282050Z Production ABI matrix row passed
+2026-10-07T18:10:52.8942934Z Production ABI matrix row passed
+2026-10-07T18:10:53.2602711Z Production ABI matrix row passed
+2026-10-07T18:10:53.6261633Z Production ABI matrix row passed
+2026-10-07T18:10:54.0924257Z Production ABI matrix row passed
+2026-10-07T18:10:56.0461625Z Production ABI matrix row passed
+2026-10-07T18:10:57.1933531Z Production ABI matrix row passed
+2026-10-07T18:10:58.2758773Z Production ABI matrix row passed
+2026-10-07T18:10:59.4094826Z Production ABI matrix row passed
+2026-10-07T18:11:00.4918632Z Production ABI matrix row passed
+2026-10-07T18:11:01.6761941Z Production ABI matrix row passed
+2026-10-07T18:11:02.0343025Z Alarm sleep-resume source guards passed: independent clocks, one-use tickets, refusal, invalid/backward RTC, awake jumps, activation, expiry and Deep restart
+2026-10-07T18:11:02.8597130Z Alarm sleep-resume source guards passed: independent clocks, one-use tickets, refusal, invalid/backward RTC, awake jumps, activation, expiry and Deep restart
+2026-10-07T18:11:03.4837446Z Alarm sleep-resume source guards passed: independent clocks, one-use tickets, refusal, invalid/backward RTC, awake jumps, activation, expiry and Deep restart
+2026-10-07T18:11:05.3145599Z Alarm sleep-resume source guards passed: independent clocks, one-use tickets, refusal, invalid/backward RTC, awake jumps, activation, expiry and Deep restart
+2026-10-07T18:11:06.1358147Z Alarm sleep-resume source guards passed: independent clocks, one-use tickets, refusal, invalid/backward RTC, awake jumps, activation, expiry and Deep restart
+2026-10-07T18:11:06.9107350Z Alarm sleep-resume source guards passed: independent clocks, one-use tickets, refusal, invalid/backward RTC, awake jumps, activation, expiry and Deep restart
+2026-10-07T18:11:07.5347613Z Alarm sleep-resume source guards passed: independent clocks, one-use tickets, refusal, invalid/backward RTC, awake jumps, activation, expiry and Deep restart
+2026-10-07T18:11:09.2121844Z Alarm sleep-resume source guards passed: independent clocks, one-use tickets, refusal, invalid/backward RTC, awake jumps, activation, expiry and Deep restart
+2026-10-07T18:11:09.2215667Z Sanitizers: address,undefined; Legacy and deployed-profile alarm sleep resume normal/selected sanitizer passed
+2026-10-07T18:11:10.0487975Z Native UTC visual: timezone, DST, 2038, replay, sleep, foreground and terminal custody passed
+2026-10-07T18:11:11.8366032Z Native UTC visual: timezone, DST, 2038, replay, sleep, foreground and terminal custody passed
+2026-10-07T18:11:11.8383197Z Sanitizers: address,undefined; Native UTC visual alarm normal + selected sanitizer passed
+2026-10-07T18:11:12.2903741Z Points default schedule, PTM1/PTM2 metadata, cue flags, bounded projection, weekdays, midnight, revisions and DST fixtures passed
+2026-10-07T18:11:13.6167778Z Points default schedule, PTM1/PTM2 metadata, cue flags, bounded projection, weekdays, midnight, revisions and DST fixtures passed
+2026-10-07T18:11:14.0402010Z Points default schedule, PTM1/PTM2 metadata, cue flags, bounded projection, weekdays, midnight, revisions and DST fixtures passed
+2026-10-07T18:11:15.4664795Z Points default schedule, PTM1/PTM2 metadata, cue flags, bounded projection, weekdays, midnight, revisions and DST fixtures passed
+2026-10-07T18:11:16.0946234Z Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+2026-10-07T18:11:17.7402393Z Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+2026-10-07T18:11:18.3679872Z Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+2026-10-07T18:11:20.1163572Z Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+2026-10-07T18:11:20.7379491Z Visual-only real service: descriptor, delivery, persistence, replay, foreground failure, DND and sleep passed
+2026-10-07T18:11:22.4656268Z Visual-only real service: descriptor, delivery, persistence, replay, foreground failure, DND and sleep passed
+2026-10-07T18:11:23.1393139Z Visual-only real service: descriptor, delivery, persistence, replay, foreground failure, DND and sleep passed
+2026-10-07T18:11:24.9178581Z Visual-only real service: descriptor, delivery, persistence, replay, foreground failure, DND and sleep passed
+2026-10-07T18:11:24.9240730Z Sanitizers: address,undefined; Points normal/selected sanitizer fixtures passed for raw and UTC+08/Denver policies
+2026-10-07T18:11:25.0752273Z Alarm record bounds, integrity, dates and reserved-byte fixtures passed
+2026-10-07T18:11:25.3989504Z Alarm record bounds, integrity, dates and reserved-byte fixtures passed
+2026-10-07T18:11:25.7720012Z Alarm production service lifecycle, persistence, outputs, RTC, sleep and retry fixtures passed
+2026-10-07T18:11:26.5969736Z Alarm production service lifecycle, persistence, outputs, RTC, sleep and retry fixtures passed
+2026-10-07T18:11:27.0203419Z Reviewed cancellation, generation, RTC retry, sleep, reentrancy and stop-only regressions passed
+2026-10-07T18:11:27.9451110Z Reviewed cancellation, generation, RTC retry, sleep, reentrancy and stop-only regressions passed
+2026-10-07T18:11:28.2691264Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:28.9003563Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:29.1665321Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:29.6903276Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:30.0137153Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:30.6883567Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:30.9614032Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:31.5867956Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:31.8089807Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:32.3337805Z Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+2026-10-07T18:11:32.3412575Z Sanitizers: address,undefined; Alarm/Countdown production-source normal and selected sanitizer fixtures passed
+2026-10-07T18:11:32.7407582Z Alarm volume default50,0-100,full-scalePCM,persisted selection,mute,vibration,failures and gain admission passed
+2026-10-07T18:11:33.3394738Z Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+2026-10-07T18:11:34.1974988Z Alarm volume default50,0-100,full-scalePCM,persisted selection,mute,vibration,failures and gain admission passed
+2026-10-07T18:11:35.8806681Z Points default weekday cues, existing/corrupt catalogs, short non-modal start/warning/end cues, custom kinds, modes, sleep and reboot replay passed
+2026-10-07T18:11:36.5219165Z Alarm 10% peak 3276 -> ACK/cleanup -> real Frequency 100% peak 32767: unity gain, no overlap, cleanup passed
+2026-10-07T18:11:36.5219984Z Alarm 90% peak 29490 -> ACK/cleanup -> real Frequency 100% peak 32767: unity gain, no overlap, cleanup passed
+2026-10-07T18:11:38.2932882Z Alarm 10% peak 3276 -> ACK/cleanup -> real Frequency 100% peak 32767: unity gain, no overlap, cleanup passed
+2026-10-07T18:11:38.2934368Z Alarm 90% peak 29490 -> ACK/cleanup -> real Frequency 100% peak 32767: unity gain, no overlap, cleanup passed
+2026-10-07T18:11:39.0088349Z DND all: due/active visual state, confirmed mute, off/restart no replay and interrupted cleanup passed
+2026-10-07T18:11:40.7653306Z DND all: due/active visual state, confirmed mute, off/restart no replay and interrupted cleanup passed
+2026-10-07T18:11:46.3005713Z Actual native UTC visual ELF: nine-key admission, safe polling, UTC sleep/ACK, cold UNSET and retained invocation passed
+2026-10-07T18:11:54.5465916Z Actual native UTC visual ELF: nine-key admission, safe polling, UTC sleep/ACK, cold UNSET and retained invocation passed
+2026-10-07T18:11:54.6478704Z Ran 28 tests in 0.010s
+2026-10-07T18:12:06.2083122Z Native ELF structural validation tests passed
+2026-10-07T18:12:06.2091603Z Native ELF structural validation tests passed
+2026-10-07T18:12:06.2100947Z Native ELF structural validation tests passed
+2026-10-07T18:12:06.2119797Z Native ELF structural validation tests passed
+2026-10-07T18:12:06.5396376Z PASS /home/runner/work/RiscRTE-Utilities/RiscRTE-Utilities/dist/native-utc-visual-service/watch.elf: 8 alignments, 2328 relocation-site checks, exact sections and redzones intact
+2026-10-07T18:12:06.5399819Z PASS /home/runner/work/RiscRTE-Utilities/RiscRTE-Utilities/dist/native-utc-visual-service/tagged-watch.elf: 8 alignments, 2328 relocation-site checks, exact sections and redzones intact
+2026-10-07T18:12:06.5403173Z PASS /home/runner/work/RiscRTE-Utilities/RiscRTE-Utilities/dist/native-utc-visual-service/raw-visual.elf: 8 alignments, 2240 relocation-site checks, exact sections and redzones intact
+2026-10-07T18:12:06.5406015Z PASS /home/runner/work/RiscRTE-Utilities/RiscRTE-Utilities/dist/native-utc-visual-service/native-utc.elf: 8 alignments, 9464 relocation-site checks, exact sections and redzones intact
+2026-10-07T18:12:06.5598428Z Native UTC target ELF passed; Watch ELF exactly matches public paper base bytes
+2026-10-07T18:12:07.1400239Z (node:3386) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.

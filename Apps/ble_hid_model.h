@@ -60,32 +60,4 @@ static inline bool hid_save(const risc_key_value_v1*kv,const hid_assignment a[4]
  return kv->get(kv->context,HID_BUTTONS_KEY,check,sizeof(check),&n)==RISC_KEY_VALUE_OK&&n==sizeof(check)&&!memcmp(b,check,sizeof(b));
 }
 
-typedef struct { bool down,valid,blocked,owned; uint8_t peak,id,seen; uint8_t ids[RISC_TOUCH_MAX_CONTACTS]; int sx[RISC_TOUCH_MAX_CONTACTS],sy[RISC_TOUCH_MAX_CONTACTS]; int x,y; uint32_t began; } hid_gesture;
-typedef struct { int8_t dx,dy; uint8_t click; } hid_gesture_output;
-static inline int hid_abs(int v){return v<0?-v:v;}
-static inline bool hid_pad_point(int x,int y){return x>=8&&x<232&&y>=80&&y<190;}
-static inline void hid_gesture_reset(hid_gesture *g,bool blocked){memset(g,0,sizeof(*g));g->blocked=blocked;}
-/* One authoritative sample per complete controller report; two contacts never
- * inherit a preceding one-finger motion baseline. A gap requires neutral first. */
-static inline hid_gesture_output hid_gesture_sample(hid_gesture*g,const risc_touch_snapshot_v1*s,uint32_t now){
- hid_gesture_output o={0};unsigned n=s->contact_count;
- if(n>RISC_TOUCH_MAX_CONTACTS){hid_gesture_reset(g,true);return o;}
- if(g->blocked){if(!n)g->blocked=false;return o;}
- if(!n){if(g->down&&g->valid&&(uint32_t)(now-g->began)<=HID_TAP_MS)o.click=g->peak==2?2:1;hid_gesture_reset(g,false);return o;}
- const risc_touch_contact_v1*c=s->contacts;
- if(!g->down){g->down=true;g->valid=true;g->began=now;g->peak=(uint8_t)n;g->id=c->id;g->x=c->x;g->y=c->y;g->owned=hid_pad_point(c->x,c->y);}
- for(unsigned i=0;i<n;i++){
-  if(!hid_pad_point(c[i].x,c[i].y)){g->valid=false;g->owned=false;}
-  unsigned j=0;while(j<g->seen&&g->ids[j]!=c[i].id)j++;
-  if(j==g->seen){if(j==RISC_TOUCH_MAX_CONTACTS){g->valid=false;continue;}g->ids[j]=c[i].id;g->sx[j]=c[i].x;g->sy[j]=c[i].y;g->seen++;}
-  if(hid_abs((int)c[i].x-g->sx[j])>HID_TAP_SLOP||hid_abs((int)c[i].y-g->sy[j])>HID_TAP_SLOP)g->valid=false;
- }
- if(g->seen>2||(g->seen>1&&g->peak==1&&n==1))g->valid=false;
- if(n>2)g->valid=false;
- if(n>g->peak)g->peak=(uint8_t)n;
- if(g->owned&&n==1&&g->peak==1&&g->id==c->id&&hid_pad_point(c->x,c->y)&&hid_pad_point(g->x,g->y)){
-  int dx=(int)c->x-g->x,dy=(int)c->y-g->y;
-  o.dx=(int8_t)(dx<-127?-127:dx>127?127:dx);o.dy=(int8_t)(dy<-127?-127:dy>127?127:dy);
- }
- g->x=c->x;g->y=c->y;g->id=c->id;return o;
-}
+#include "ble_touchpad_gesture.h"

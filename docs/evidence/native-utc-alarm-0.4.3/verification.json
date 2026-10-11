@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "date_utc": "2026-10-07",
+  "source_commit": "37553a4a368cbea9c4da5aeaee76c3c445e0fdba",
+  "service_version": "0.4.3",
+  "runtime_commit": "30dcec5ce6ce33223f2b203a2399283e1f758567",
+  "frozen_timezone_commit": "d52a74bfb4acc01cc3f0a9dda2c95ba2ba679ee9",
+  "reserved_service_tag_absent_on_live_recheck": true,
+  "flag_off_full_elf_bytes_equal": {
+    "watch": true,
+    "raw_visual": true
+  },
+  "checks": {
+    "native_host_normal_asan_ubsan": "passed",
+    "actual_runtime_native_normal_asan_ubsan": "passed",
+    "actual_runtime_legacy_normal_asan_ubsan": "passed",
+    "alarm_countdown_regressions_normal_asan_ubsan": "passed",
+    "points_raw_denver_visual_normal_asan_ubsan": "passed",
+    "watch_volume_dnd_regressions": "passed",
+    "points_shared_client_audio_ownership_24_scenarios": "passed",
+    "repository_unittests_66": "passed",
+    "gcc_8_4_all_three_elf_import_export_structural": "passed",
+    "target_loader_eight_alignments_each": "passed"
+  },
+  "sanitizer_note": "Local ASAN_OPTIONS=detect_leaks=0 for ptrace execution; address and undefined behavior checks enabled. CI has ordinary sanitizer defaults.",
+  "activation": "development profile only; no product, BIN, main, tag or release writes",
+  "hardware_verified": false
+}

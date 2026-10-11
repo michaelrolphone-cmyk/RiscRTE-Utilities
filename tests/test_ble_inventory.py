@@ -7,14 +7,14 @@ class BleInventory(unittest.TestCase):
  def test_scanner_identity_and_capabilities(self):
   rows=inventory();self.assertEqual([a['id'] for a in rows],['ble_scanner'])
   side=json.loads((ROOT/'Apps/ble_scanner.json').read_text())
-  self.assertEqual(side['version'],'0.2.0');self.assertEqual(side['icon'],'solid:f7c0')
+  self.assertEqual(side['version'],'0.2.19');self.assertEqual(side['icon'],'solid:f7c0')
   self.assertEqual({r['capability'] for r in side['requires']},{'display.output','input.touch.raw','bluetooth.sensors','bluetooth.hci','alarm.service','storage.key-value'})
-  self.assertEqual({r['capability'] for r in side['optional']},{'rtc.clock','net.wifi'})
+  self.assertEqual({r['capability'] for r in side['optional']},{'rtc.clock','net.wifi','ui.text-input'})
  def test_reuse_keyboard_and_provider(self):
   source=(ROOT/'Apps/ble_scanner.c').read_text()
   for expected in ('touch_contact','detail_scroll','PORTABLE_RADIO_AIRPLANE','portable_radio_suspend','retain()','scrollbar'):
    self.assertIn(expected,source)
-  self.assertIn('PortableWatchKeyboard.h',source)
+  self.assertIn('PortableTextInputClient.h',source)
   self.assertNotIn('send_owned',source)
   self.assertNotIn('ble_scan_core.h',source)
  def test_pinned_radio_hooks_and_notices(self):

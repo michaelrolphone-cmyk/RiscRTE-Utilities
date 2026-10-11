@@ -8,7 +8,7 @@ inc=[r/'lib/Alarm/include',a.runtime/'sdk/driver',a.system_apps/'lib/PortableApp
 for san in (False,True):
  for fixture in ('alarm_volume_service_test','points_service_test'):
   exe=out/f'{fixture}-{int(san)}';flags=['-DALARM_VOLUME_CONTROL'] if fixture=='points_service_test' else []
-  if san:flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
+  if san:flags+=['-fsanitize='+os.environ.get('ALARM_TEST_SANITIZERS','address,undefined'),'-fno-sanitize-recover=all','-fno-omit-frame-pointer']
   subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*['-I'+str(x) for x in inc],str(r/'test/native_apps'/f'{fixture}.c'),'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True)
 
@@ -17,7 +17,7 @@ for san in (False,True):
 for san in (False,True):
  exe=out/f'alarm_frequency_gain-{int(san)}'
  flags=['-DALARM_VOLUME_CONTROL','-DPOINTS_IN_TIME_SERVICE']
- if san:flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
+ if san:flags+=['-fsanitize='+os.environ.get('ALARM_TEST_SANITIZERS','address,undefined'),'-fno-sanitize-recover=all','-fno-omit-frame-pointer']
  sources=[r/'test/native_apps/alarm_frequency_gain_test.c',r/'Services/alarm_service/service.c',r/'Apps/frequency_generator.c']
  subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*['-I'+str(x) for x in inc],*map(str,sources),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True,timeout=30)

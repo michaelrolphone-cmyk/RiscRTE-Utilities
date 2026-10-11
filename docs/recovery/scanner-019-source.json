@@ -1,0 +1,12 @@
+{
+  "original_commit": "6ae146c4b4ea85bfa47c8408df49f0a3bc53cb5f",
+  "exact_tree": "ed20b1bf2c7410b3aa3a195ac26126b9c0318892",
+  "source_archive_sha256": "6936a10a0807df87b6925509c0c2d4e2422c31a5ed9e14779b700b204de6b1a9",
+  "files": {
+    "Apps/ble_scanner.c": "50d0b372cad9c07ea2ca45dab82bfd4472ddb1002c21a52616131084385f572c",
+    "Apps/ble_scanner_paper.inc": "7482bc1728e18e8fee52d90ec3ebb6e7c2e73c22e115a81667f80a66109b9c68",
+    "Apps/ble_sensor_names.h": "bf827a0c8264b29aec51059e795ecb9f5f2c1d4e882e3e06afb633c4ab67b536",
+    "Apps/ble_scan_model.h": "9cd2629a08c8f61b168cd42ec41a5a1ef759f3448e202ec6baf7cc2499bedb63"
+  },
+  "merge": "Preserve exact delivered shared-text scanner; reapply only already-reconstructed frame readiness and logical detail bounds. Final combined qualification pending."
+}

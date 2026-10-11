@@ -1,0 +1,87 @@
+test_delivered_subset_unchanged (test_alarm_inventory.AlarmInventory.test_delivered_subset_unchanged) ... ok
+test_namespace_contract (test_alarm_inventory.AlarmInventory.test_namespace_contract) ... ok
+test_new_apps_and_ordinary_service (test_alarm_inventory.AlarmInventory.test_new_apps_and_ordinary_service) ... ok
+test_build_requires_audio_adapter (test_audio_inventory.AudioInventory.test_build_requires_audio_adapter) ... ok
+test_bundled_font_notices_are_preserved (test_audio_inventory.AudioInventory.test_bundled_font_notices_are_preserved) ... ok
+test_exact_generator_identity (test_audio_inventory.AudioInventory.test_exact_generator_identity) ... ok
+test_generator_nova_uses_shared_controls (test_audio_inventory.AudioInventory.test_generator_nova_uses_shared_controls) ... ok
+test_hooks_do_not_change_provider_gain (test_audio_inventory.AudioInventory.test_hooks_do_not_change_provider_gain) ... ok
+test_spectrum_declares_alarm_and_input (test_audio_inventory.AudioInventory.test_spectrum_declares_alarm_and_input) ... ok
+test_speech_sources_and_host_only_fixture (test_audio_inventory.AudioInventory.test_speech_sources_and_host_only_fixture) ... ok
+test_temporal_backend_and_verified_watch_profile_are_pinned (test_audio_inventory.AudioInventory.test_temporal_backend_and_verified_watch_profile_are_pinned) ... ok
+test_watch_spectrum_product_controls (test_audio_inventory.AudioInventory.test_watch_spectrum_product_controls) ... ok
+test_pinned_radio_hooks_and_notices (test_ble_inventory.BleInventory.test_pinned_radio_hooks_and_notices) ... ok
+test_reuse_keyboard_and_provider (test_ble_inventory.BleInventory.test_reuse_keyboard_and_provider) ... ok
+test_scanner_identity_and_capabilities (test_ble_inventory.BleInventory.test_scanner_identity_and_capabilities) ... ok
+test_sensor_driver_pin_and_copied_contracts (test_ble_inventory.BleInventory.test_sensor_driver_pin_and_copied_contracts) ... ok
+test_invalid_version_rejected (test_development_versions.Versions.test_invalid_version_rejected) ... ok
+test_newer_version_with_identical_bytes_is_not_release_parity (test_development_versions.Versions.test_newer_version_with_identical_bytes_is_not_release_parity) ... ok
+test_newer_versions_are_separate_development_builds (test_development_versions.Versions.test_newer_versions_are_separate_development_builds) ... ok
+test_numeric_version_order (test_development_versions.Versions.test_numeric_version_order) ... ok
+test_older_version_is_rejected_even_with_identical_bytes (test_development_versions.Versions.test_older_version_is_rejected_even_with_identical_bytes) ... ok
+test_same_version_changed_payload_is_rejected (test_development_versions.Versions.test_same_version_changed_payload_is_rejected) ... ok
+test_unchanged_release_requires_byte_parity (test_development_versions.Versions.test_unchanged_release_requires_byte_parity) ... ok
+test_exact_contract (test_hid_inventory.HidInventory.test_exact_contract) ... ok
+test_scoped_integration_contract (test_hid_inventory.HidInventory.test_scoped_integration_contract) ... ok
+test_separate_profile (test_hid_inventory.HidInventory.test_separate_profile) ... ok
+test_exact_clean_declarations (test_lora_package.LoRaAbiPin.test_exact_clean_declarations) ... ok
+test_rejects_changed_declaration (test_lora_package.LoRaAbiPin.test_rejects_changed_declaration) ... ok
+test_rejects_dirty_source (test_lora_package.LoRaAbiPin.test_rejects_dirty_source) ... ok
+test_rejects_wrong_source (test_lora_package.LoRaAbiPin.test_rejects_wrong_source) ... ok
+test_existing_radio_abi (test_lora_package.LoRaPackage.test_existing_radio_abi) ... ok
+test_inventory (test_lora_package.LoRaPackage.test_inventory) ... ok
+test_reader_utility_stays_independent (test_lora_package.LoRaPackage.test_reader_utility_stays_independent) ... ok
+test_source_identity (test_lora_package.LoRaPackage.test_source_identity) ... ok
+test_source_pins (test_lora_package.LoRaPackage.test_source_pins) ... ok
+test_all_app_manifests (test_pipeline.PipelineTests.test_all_app_manifests) ... ok
+test_bad_manifest_name_rejected (test_pipeline.PipelineTests.test_bad_manifest_name_rejected) ... ok
+test_current_reader_release_inputs_and_provenance (test_pipeline.PipelineTests.test_current_reader_release_inputs_and_provenance) ... ok
+test_git_blob_identity (test_pipeline.PipelineTests.test_git_blob_identity) ... ok
+test_inventory_cannot_escape_output_or_collide (test_pipeline.PipelineTests.test_inventory_cannot_escape_output_or_collide) ... ok
+test_release_parity_uses_actual_bytes_and_version (test_pipeline.PipelineTests.test_release_parity_uses_actual_bytes_and_version) ... ok
+test_release_report_cannot_hide_nonrequired_apps (test_pipeline.PipelineTests.test_release_report_cannot_hide_nonrequired_apps) ... ok
+test_sdk_snapshot_and_inventory (test_pipeline.PipelineTests.test_sdk_snapshot_and_inventory) ... ok
+test_stamped_artifact_cannot_silently_change (test_pipeline.PipelineTests.test_stamped_artifact_cannot_silently_change) ... ok
+test_three_way_conflict_preservation (test_pipeline.PipelineTests.test_three_way_conflict_preservation) ... ok
+test_unknown_import_rejected (test_pipeline.PipelineTests.test_unknown_import_rejected) ... ok
+test_bound_namespace_mapping (test_points_inventory.PointsInventory.test_bound_namespace_mapping) ... ok
+test_copied_service_status_contract (test_points_inventory.PointsInventory.test_copied_service_status_contract) ... ok
+test_distinct_opt_in_identity (test_points_inventory.PointsInventory.test_distinct_opt_in_identity) ... ok
+test_current_icons_are_available_in_pinned_client (test_portable_inventory.PortableInventory.test_current_icons_are_available_in_pinned_client) ... ok
+test_explicit_shared_original_apps (test_portable_inventory.PortableInventory.test_explicit_shared_original_apps) ... ok
+test_reader_release_cohort_is_preserved (test_portable_inventory.PortableInventory.test_reader_release_cohort_is_preserved) ... ok
+test_scope_excludes_unrequested_apps (test_portable_inventory.PortableInventory.test_scope_excludes_unrequested_apps) ... ok
+test_create_and_repeat_are_idempotent (test_watch_101_component_tags.PublisherTests.test_create_and_repeat_are_idempotent) ... ok
+test_failed_or_incomplete_ci_blocks (test_watch_101_component_tags.PublisherTests.test_failed_or_incomplete_ci_blocks) ... ok
+test_identical_annotated_tags_are_accepted (test_watch_101_component_tags.PublisherTests.test_identical_annotated_tags_are_accepted) ... ok
+test_main_rejects_untrusted_event_before_network (test_watch_101_component_tags.PublisherTests.test_main_rejects_untrusted_event_before_network) ... ok
+test_old_ci_success_does_not_mask_new_failure (test_watch_101_component_tags.PublisherTests.test_old_ci_success_does_not_mask_new_failure) ... ok
+test_preflight_late_collision_creates_nothing (test_watch_101_component_tags.PublisherTests.test_preflight_late_collision_creates_nothing) ... ok
+test_racing_identical_create_verified (test_watch_101_component_tags.PublisherTests.test_racing_identical_create_verified) ... ok
+test_scope_config_validation (test_watch_101_component_tags.PublisherTests.test_scope_config_validation) ... ok
+test_source_and_metadata_ancestry_are_checked (test_watch_101_component_tags.PublisherTests.test_source_and_metadata_ancestry_are_checked) ... ok
+test_unknown_future_release_is_not_admitted (test_watch_101_component_tags.PublisherTests.test_unknown_future_release_is_not_admitted) ... ok
+test_unmerged_source_blocks (test_watch_101_component_tags.PublisherTests.test_unmerged_source_blocks) ... ok
+test_watch_102_keeps_collision_and_ci_guards (test_watch_101_component_tags.PublisherTests.test_watch_102_keeps_collision_and_ci_guards) ... ok
+test_watch_102_manifest_uses_two_verified_workflows (test_watch_101_component_tags.PublisherTests.test_watch_102_manifest_uses_two_verified_workflows) ... ok
+test_watch_102_requires_explicit_selection (test_watch_101_component_tags.PublisherTests.test_watch_102_requires_explicit_selection) ... ok
+test_wrong_source_branch_event_or_workflow_does_not_count (test_watch_101_component_tags.PublisherTests.test_wrong_source_branch_event_or_workflow_does_not_count) ... ok
+test_wrong_version_or_identity_blocks (test_watch_101_component_tags.PublisherTests.test_wrong_version_or_identity_blocks) ... ok
+
+----------------------------------------------------------------------
+Ran 69 tests in 0.021s
+
+OK
+LoRa consumer ABI matches pinned Watch provider declaration exactly
+app-stopwatch-v0.1.4 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+service-alarm-service-v0.4.0 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+app-stopwatch-v0.1.4 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+service-alarm-service-v0.4.0 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+app-stopwatch-v0.1.4 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+service-alarm-service-v0.4.0 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+app-stopwatch-v0.1.4 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+service-alarm-service-v0.4.0 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+app-stopwatch-v0.1.4 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+service-alarm-service-v0.4.0 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+app-stopwatch-v0.1.4 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+service-alarm-service-v0.4.0 -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

@@ -1,0 +1,547 @@
+/* Cooperative room/event inference. Fingerprints are copied, adapt in memory,
+ * and are checkpointed by the app owner after capture has stopped. */
+#include "ContextsServiceV1.h"
+#include "source_profile.h"
+#include "AudioInputV1.h"
+#include "RiscRadioIqV1.h"
+#include "RiscPlatformClockV1.h"
+#include "spectrum_signature_store.h"
+#include "spectrum_background.h"
+#include "spectrum_store.h"
+#include "rf_signature_store.h"
+#include "rf_background.h"
+#include "rf_store.h"
+#include <string.h>
+#include "temporal_models.h"
+#include "ContextFingerprintService.h"
+static void fp_event_boundary(unsigned,bool,bool,uint64_t);
+#define FRESH_MS 500u
+#define EVENT_HOLD_MS 2000u
+#define RETRY_MS 5000u
+#define RF_INTERVAL_MS 100u
+#define AUDIO_DRAIN_CHUNKS 2u
+#define AUDIO_DRAIN_MS 8u
+#define AUDIO_GAP_MS 32u
+typedef struct {
+    spectrum_signature signatures[8];
+    uint32_t means[8][128];
+    spectrum_signature_analyzer analyzer;
+    spectrum_background background;
+    spectrum_room_tracker room;
+    spectrum_preferences prefs;
+} audio_models;
+typedef struct {
+    rf_signature signatures[8];
+    uint32_t means[8][128];
+    rf_signature_analyzer analyzer;
+    rf_background background;
+    rf_room_tracker room;
+    rf_preferences prefs;
+} radio_models;
+static audio_models a;
+static radio_models r;
+_Static_assert(sizeof(a)+sizeof(r)<40000u,"bounded copied models and DSP state");
+static const twatch_audio_in_api_v1 *microphone;
+static const risc_radio_iq_extended_api_v1 *receiver;
+static const risc_radio_iq_temporal_api_v1 *timed_receiver;
+static bool timed_radio;
+static risc_radio_iq_format_v1 timed_format;
+static risc_radio_iq_envelope_v1 timed_samples[256];
+static uint64_t timed_fft_at;
+static const risc_platform_clock_api_v1 *clock_api;
+static contexts_status_v1 view;
+static bool started,busy,audio_owned,radio_retained,audio_active,radio_active,audio_permitted;
+static bool have_observation[2];
+static uint16_t exported[2];
+static bool export_invalid[2];
+static uint32_t record_digest[2][9],model_digest[2];
+static char claimed_name[CONTEXTS_NAME_SIZE];
+static struct {int32_t slot;uint32_t generation;char name[17];bool known;} room_identity[2];
+static uint64_t observed[2],event_at[2],retry_at[2],radio_at;
+static uint64_t last_pcm,audio_accounted;
+static uint32_t audio_debt;
+static unsigned temporal_turn;
+static uint32_t foreground[128],residual[8][128],pairs[256];
+static contexts_source_status_v1 *source_status(uint32_t source) {
+    return source==CONTEXTS_AUDIO?&view.audio:source==CONTEXTS_RADIO?&view.radio:NULL;
+}
+static bool enter(void) {if(!started||busy)return false;busy=true;return true;}
+static void leave(void) {busy=false;}
+static void update_room(contexts_source_status_v1*,int,unsigned,bool,bool,const char*);
+#include "fingerprint.h"
+#include "temporal_inference.h"
+static void invalidate(contexts_source_status_v1 *s) {
+    s->current=s->room_valid=s->event_valid=false;
+}
+static void reset_audio(void) {
+    fp_reset(CF_AUDIO);
+    if(CONTEXTS_HAS_AUDIO){
+        spectrum_signature_init(&a.analyzer);spectrum_background_reset(&a.background);
+        spectrum_room_reset(&a.room);
+    }
+    audio_active=false;have_observation[0]=false;invalidate(&view.audio);
+    ct_reset(0);
+}
+static void reset_radio(void) {
+    fp_reset(CF_RF);
+    rf_signature_init(&r.analyzer);rf_background_reset(&r.background);
+    rf_room_reset(&r.room);radio_active=false;have_observation[1]=false;invalidate(&view.radio);
+    ct_reset(1);
+}
+static bool close_audio(void) {
+    if(CONTEXTS_HAS_AUDIO&&audio_owned&&!microphone->close(microphone->context)) {
+        view.cleanup_pending=true;view.state=CONTEXTS_RETAINED;return false;
+    }
+    audio_owned=false;reset_audio();return true;
+}
+static bool close_radio(void) {
+    /* BUSY is another owner's refusal, never authority to suspend it. */
+    if((radio_retained||timed_radio)&&!receiver->base.base.suspend(receiver->base.base.context)) {
+        view.cleanup_pending=true;view.state=CONTEXTS_RETAINED;return false;
+    }
+    radio_retained=timed_radio=false;reset_radio();return true;
+}
+static bool pause_internal(void) {
+    audio_permitted=false;
+    invalidate(&view.audio);invalidate(&view.radio);
+    if(!close_audio()||!close_radio())return false;
+    view.cleanup_pending=false;view.state=CONTEXTS_PAUSED;return true;
+}
+static bool pause_service(void *context) {
+    (void)context;if(!enter())return false;
+    bool ok=pause_internal();leave();return ok;
+}
+static void update_room(contexts_source_status_v1 *s,int slot,unsigned confidence,
+        bool ambiguous,bool confirmed,const char *name) {
+    s->room_slot=slot;s->room_confidence=confidence;s->room_ambiguous=ambiguous;
+    s->room_valid=confirmed&&slot>=0&&!ambiguous;
+    memset(s->room_name,0,sizeof(s->room_name));
+    if(name)memcpy(s->room_name,name,sizeof(s->room_name));
+    if(s->room_valid) {
+        unsigned index=s->source==CONTEXTS_AUDIO?0u:1u;
+        if(!room_identity[index].known||room_identity[index].slot!=slot||
+           room_identity[index].generation!=s->model_generation||strcmp(room_identity[index].name,s->room_name)) {
+            if(++s->room_entry==0)++s->room_entry;
+            room_identity[index].slot=slot;room_identity[index].generation=s->model_generation;
+            memcpy(room_identity[index].name,s->room_name,17);room_identity[index].known=true;
+        }
+    }
+}
+static void update_event(contexts_source_status_v1 *s,unsigned index,int slot,
+        unsigned confidence,bool ambiguous,const char *name,uint64_t now) {
+    s->event_ambiguous=ambiguous;
+    if(slot>=0&&!ambiguous) {
+        s->event_slot=slot;s->event_confidence=confidence;s->event_valid=true;
+        memcpy(s->event_name,name,sizeof(s->event_name));event_at[index]=now;
+    } else if(ambiguous||now<event_at[index]||now-event_at[index]>EVENT_HOLD_MS) {
+        s->event_valid=false;s->event_slot=-1;s->event_name[0]=0;
+    }
+}
+static void audio_observe(uint64_t now) {
+    fp_observe(CF_AUDIO,a.analyzer.power,now,NULL);
+    a.background.freeze_upward=ct_freeze(0);
+    spectrum_background_observe(&a.background,a.analyzer.power);
+    if(a.background.ready)spectrum_room_observe(&a.room,a.analyzer.power,a.signatures,a.means);
+    int room=a.room.selected;
+    if(!fp_configured)update_room(&view.audio,room,a.room.confidence,a.room.ambiguous,
+        a.background.ready&&!a.room.misses&&a.room.candidate==room&&a.room.stable>=64,
+        room>=0?a.signatures[room].name:NULL);
+    uint64_t excess=spectrum_background_salient(&a.background,foreground);
+    for(unsigned i=0;i<8;i++)for(unsigned b=0;b<128;b++)
+        residual[i][b]=spectrum_signature_residual(a.means[i][b],a.background.slow[b]);
+    unsigned confidence=0;bool ambiguous=false;
+    int event=a.background.ready&&a.background.foreground&&
+        spectrum_background_db(excess)>=a.prefs.threshold_db*100?
+        spectrum_signature_best(foreground,a.signatures,residual,SPECTRUM_SIGNATURE_EVENT,&confidence,&ambiguous):-1;
+    update_event(&view.audio,0,event,confidence,ambiguous,event>=0?a.signatures[event].name:NULL,now);
+    ct_audio_observe(a.background.ready,a.background.foreground&&spectrum_background_db(excess)>=a.prefs.threshold_db*100,foreground,now);
+    if(view.audio.samples<UINT32_MAX)++view.audio.samples;
+    observed[0]=now;have_observation[0]=true;view.audio.current=true;view.audio.capture_error=0;
+}
+static void radio_observe(uint64_t now,const rf_capture_identity *identity) {
+    fp_observe(CF_RF,r.analyzer.power,now,identity);
+    r.background.freeze_upward=ct_freeze(1);
+    rf_background_observe(&r.background,r.analyzer.power);
+    if(r.background.ready)rf_room_observe(&r.room,r.analyzer.power,r.signatures,r.means,identity);
+    int room=r.room.selected;
+    if(!fp_configured)update_room(&view.radio,room,r.room.confidence,r.room.ambiguous,
+        r.background.ready&&!r.room.misses&&r.room.candidate==room&&r.room.stable>=64,
+        room>=0?r.signatures[room].name:NULL);
+    uint64_t excess=rf_background_salient(&r.background,foreground);
+    for(unsigned i=0;i<8;i++)for(unsigned b=0;b<128;b++)
+        residual[i][b]=rf_signature_residual(r.means[i][b],r.background.slow[b]);
+    unsigned confidence=0;bool ambiguous=false;
+    int event=r.background.ready&&r.background.foreground&&
+        rf_background_db(excess)>=r.prefs.threshold_db*100?
+        rf_signature_best(foreground,r.signatures,residual,RF_SIGNATURE_EVENT,&confidence,&ambiguous,identity):-1;
+    update_event(&view.radio,1,event,confidence,ambiguous,event>=0?r.signatures[event].name:NULL,now);
+    ct_radio_observe(r.background.ready,r.background.foreground&&rf_background_db(excess)>=r.prefs.threshold_db*100,foreground,identity,now);
+    if(view.radio.samples<UINT32_MAX)++view.radio.samples;
+    observed[1]=now;have_observation[1]=true;view.radio.current=true;view.radio.capture_error=0;
+}
+static bool audio_drain(uint64_t now) {
+    if(now<audio_accounted||now-audio_accounted>=AUDIO_GAP_MS) {
+        /* An unpolled/overflow-prone interval has no contiguous event evidence.
+         * Reopen our own RX on the next permitted step to discard stale DMA. */
+        view.audio.capture_error=5;return close_audio();
+    }
+    audio_debt+=(uint32_t)(now-audio_accounted)*16u;audio_accounted=now;
+    if(audio_debt>16u*AUDIO_GAP_MS){view.audio.capture_error=5;return close_audio();}
+    const uint64_t began=now;
+    for(unsigned chunk=0;chunk<AUDIO_DRAIN_CHUNKS&&audio_debt>=256u;chunk++) {
+        int16_t pcm[256];size_t wanted=256u,got=0;
+        if(!microphone->read(microphone->context,pcm,wanted,&got)||got>wanted) {
+            view.audio.capture_error=2;retry_at[0]=now+RETRY_MS;return close_audio();
+        }
+        uint64_t stamp=clock_api->monotonic_ms(clock_api->context);
+        if(stamp==UINT64_MAX||stamp<audio_accounted||stamp-audio_accounted>=AUDIO_GAP_MS) {
+            view.audio.capture_error=4;return close_audio();
+        }
+        audio_debt+=(uint32_t)(stamp-audio_accounted)*16u;audio_accounted=stamp;
+        if(!got) {
+            /* An empty native read is a wait, not missing synthetic PCM. */
+            audio_debt=0;
+            if(stamp<last_pcm||stamp-last_pcm>=AUDIO_GAP_MS){reset_audio();audio_active=true;}
+            return true;
+        }
+        audio_debt-=(uint32_t)got;
+        if(stamp<last_pcm||stamp-last_pcm>=AUDIO_GAP_MS)reset_audio();
+        last_pcm=stamp;
+        uint32_t before=a.analyzer.transforms;
+        if(!spectrum_signature_feed(&a.analyzer,pcm,got)) {
+            view.audio.capture_error=3;retry_at[0]=stamp+RETRY_MS;return close_audio();
+        }
+        cf_pipeline*fp=fp_pipeline(CF_AUDIO);
+        uint64_t start=fp->contiguous?fp->expected_us:(stamp*1000u>got*1000000u/16000u?stamp*1000u-got*1000000u/16000u:0);
+        cf_pcm(fp,pcm,got,16000,start,true);
+        for(size_t k=0;k<got;k+=16u){size_t n=got-k;if(n>16u)n=16u;cf_pcm(fp_event_pipeline(CF_AUDIO),pcm+k,n,16000,start+k*1000000u/16000u,true);fp_temporal_event(CF_AUDIO,(start+(k+n)*1000000u/16000u)/1000u);}
+        if(a.analyzer.transforms!=before)audio_observe(stamp);
+        if(got<wanted)audio_debt=0;
+        uint64_t after=clock_api->monotonic_ms(clock_api->context);
+        if(after==UINT64_MAX||after<audio_accounted){view.audio.capture_error=4;return close_audio();}
+        if(after-audio_accounted>=AUDIO_GAP_MS){view.audio.capture_error=5;return close_audio();}
+        /* FFT and inference work also produces native RX frames. Account for
+         * them before returning copied evidence or checking the drain budget. */
+        audio_debt+=(uint32_t)(after-audio_accounted)*16u;audio_accounted=after;
+        if(audio_debt>16u*AUDIO_GAP_MS){view.audio.capture_error=5;return close_audio();}
+        if(got<wanted)break;
+        if(after-began>=AUDIO_DRAIN_MS)break;
+    }
+    if(audio_debt>=256u) {
+        /* The bounded step could not catch up. Keep custody but expose no
+         * current label and discard partial/hysteresis state until it can. */
+        reset_audio();view.audio.capture_error=5;
+    }
+    return true;
+}
+static bool audio_step(uint64_t now) {
+    if(retry_at[0]&&now<retry_at[0]&&retry_at[0]-now<=RETRY_MS)return true;
+    if(!audio_owned) {
+        audio_owned=true;
+        if(!microphone->open(microphone->context,16000u)) {
+            view.audio.capture_error=1;retry_at[0]=now+RETRY_MS;return close_audio();
+        }
+        audio_active=true;retry_at[0]=0;
+        audio_accounted=last_pcm=clock_api->monotonic_ms(clock_api->context);audio_debt=0;
+        if(audio_accounted==UINT64_MAX){view.audio.capture_error=4;return close_audio();}
+        return true; /* Do not make a speculative blocking read on a fresh RX. */
+    }
+    return audio_drain(now);
+}
+static bool capture_audio(void *context) {
+    (void)context;if(!enter())return false;
+    if(view.cleanup_pending){leave();return false;}
+    if(!CONTEXTS_HAS_AUDIO||!audio_permitted||!audio_owned){leave();return true;}
+    uint64_t now=clock_api->monotonic_ms(clock_api->context);
+    bool ok=audio_drain(now);leave();return ok;
+}
+static bool radio_step(uint64_t now) {
+    if(retry_at[1]&&now<retry_at[1]&&retry_at[1]-now<=RETRY_MS)return true;
+    if(!timed_receiver&&radio_active&&now>=radio_at&&now-radio_at<RF_INTERVAL_MS)return true;
+    radio_active=true;radio_at=now;
+    const rf_capture_identity *i=&r.prefs.identity;
+    risc_radio_iq_settings_v1 settings={sizeof(settings),i->lo_hz,i->sample_rate_hz,i->width_hz,i->raw_gain,
+        i->rf_gain,i->bb_gain,i->filter,{i->dc[0],i->dc[1],i->dc[2],i->dc[3]},i->iq_correction};
+    risc_radio_iq_format_v1 format={.struct_size=sizeof(format)};
+    int result;
+    if(timed_receiver){
+        if(!timed_radio){
+            timed_format=(risc_radio_iq_format_v1){.struct_size=sizeof(timed_format)};
+            result=timed_receiver->start_envelope(receiver->base.base.context,&settings,1000,&timed_format);
+            if(!result){timed_radio=true;timed_fft_at=0;}
+        }else result=RISC_RADIO_IQ_OK;
+        if(!result){
+            format=timed_format;rf_capture_identity actual=*i;actual.lo_hz=format.center_hz;
+            cf_pipeline*rp=fp_pipeline(CF_RF),*ep=fp_event_pipeline(CF_RF);uint32_t identity=fp_identity(&actual);
+            if(rp->identity!=identity){cf_config c=cf_defaults(CF_RF);cf_init(rp,&c,identity);c.window_ms=100;cf_init(ep,&c,identity);}
+            uint32_t count=0,dropped=0;
+            for(unsigned batch=0;batch<8;batch++){
+                result=timed_receiver->read_envelope(receiver->base.base.context,timed_samples,256,&count,&dropped);
+                if(result)break;
+                for(unsigned j=0;j<count;j++){const risc_radio_iq_envelope_v1*v=&timed_samples[j];bool gap=(v->flags&RISC_RADIO_IQ_ENVELOPE_GAP)!=0;
+                    cf_envelope_sample(rp,v->magnitude,v->timestamp_us,v->observed_us,gap);cf_envelope_sample(ep,v->magnitude,v->timestamp_us,v->observed_us,gap);
+                    fp_temporal_event(CF_RF,v->timestamp_us/1000u);
+                }
+                if(count<256)break;
+            }
+            uint64_t stamp=0;
+            if(!result)result=timed_receiver->latest_iq(receiver->base.base.context,pairs,256,&stamp);
+            if(result==RISC_RADIO_IQ_BUSY)return true;
+            if(!result&&stamp==timed_fft_at)return true;
+            if(!result){timed_fft_at=stamp;now=stamp/1000u;}
+        }
+    }else result=receiver->capture_configured(receiver->base.base.context,pairs,256,&settings,&format);
+    if(result!=RISC_RADIO_IQ_OK) {
+        view.radio.capture_error=result;retry_at[1]=now+RETRY_MS;
+        radio_retained=result==RISC_RADIO_IQ_CLEANUP_RETAINED;
+        if(radio_retained){view.cleanup_pending=true;view.state=CONTEXTS_RETAINED;return false;}
+        if(timed_radio&&!close_radio())return false;
+        reset_radio();return true;
+    }
+    if(format.struct_size<sizeof(format)||format.component_bits!=10||format.component_full_scale!=512||
+       format.pair_count!=256||format.sample_rate_hz!=i->sample_rate_hz||format.bandwidth_hz!=i->width_hz||
+       format.sample_format!=RISC_RADIO_IQ_FORMAT_S10_I0_Q10||!(format.flags&RISC_RADIO_IQ_FLAG_COHERENT_BURST)) {
+        view.radio.capture_error=RISC_RADIO_IQ_BAD_ARGUMENT;retry_at[1]=now+RETRY_MS;reset_radio();return true;
+    }
+    rf_capture_identity actual=*i;actual.lo_hz=format.center_hz;
+    if(!rf_identity_valid(&actual)||!rf_signature_burst(&r.analyzer,&actual,pairs,256)) {
+        view.radio.capture_error=RISC_RADIO_IQ_BAD_ARGUMENT;retry_at[1]=now+RETRY_MS;reset_radio();return true;
+    }
+    cf_pipeline*fp=fp_pipeline(CF_RF);
+    if(fp->identity!=fp_identity(&actual)){cf_config c=cf_defaults(CF_RF);cf_init(fp,&c,fp_identity(&actual));}
+    if(!timed_radio)cf_iq_snapshot(fp,pairs,256,actual.sample_rate_hz,now*1000u);
+    cf_pipeline*ep=fp_event_pipeline(CF_RF);
+    if(ep->identity!=fp->identity){cf_config c=cf_defaults(CF_RF);c.window_ms=100;cf_init(ep,&c,fp->identity);}
+    if(!timed_radio)cf_iq_snapshot(ep,pairs,256,actual.sample_rate_hz,now*1000u);
+    radio_observe(now,&actual);retry_at[1]=0;return true;
+}
+static bool step(void *context,const contexts_policy_v1 *p) {
+    (void)context;if(!p||p->struct_size<sizeof(*p)||(p->sources&~CONTEXTS_ALL)||!enter())return false;
+    if(view.cleanup_pending){bool ok=pause_internal();leave();return ok;}
+    uint64_t now=clock_api->monotonic_ms(clock_api->context);
+    if(!p->enabled||!p->awake||!p->sources||now==UINT64_MAX) {
+        bool ok=pause_internal();if(ok&&!p->enabled)view.state=CONTEXTS_OFF;leave();return ok;
+    }
+    bool pending=view.export_active||view.export_pending;
+    bool audio_ready=CONTEXTS_HAS_AUDIO&&(p->sources&CONTEXTS_AUDIO)&&(fp_configured||view.audio.model_state==CONTEXTS_MODEL_READY);
+    bool radio_ready=(p->sources&CONTEXTS_RADIO)&&(fp_configured||view.radio.model_state==CONTEXTS_MODEL_READY);
+    if(pending||(!audio_ready&&!radio_ready)) {
+        bool ok=pause_internal();if(ok)view.state=pending?CONTEXTS_LOADING:CONTEXTS_UNAVAILABLE;
+        leave();return ok;
+    }
+    bool audio=p->audio_allowed&&audio_ready&&(fp_sources&CONTEXTS_AUDIO);
+    bool radio=p->radio_allowed&&radio_ready&&(fp_sources&CONTEXTS_RADIO);
+    cf_enable(&fp_fusion,CF_AUDIO,audio);cf_enable(&fp_fusion,CF_RF,radio);
+    cf_enable(&fp_event_fusion,CF_AUDIO,audio);cf_enable(&fp_event_fusion,CF_RF,radio);
+    audio_permitted=audio;
+    if(!audio&&!close_audio()){leave();return false;}
+    if(!radio&&!close_radio()){leave();return false;}
+    if(CONTEXTS_HAS_AUDIO&&audio&&!audio_step(now)){leave();return false;}
+    if(radio) {
+        now=clock_api->monotonic_ms(clock_api->context);
+        if(now==UINT64_MAX){bool ok=pause_internal();leave();return ok;}
+        if(!radio_step(now)){leave();return false;}
+    }
+    if(ct_m[0].details.match_pending||ct_m[1].details.match_pending){
+        uint64_t began=clock_api->monotonic_ms(clock_api->context);
+        /* No unbounded library walk: at most128 work units, in eight-unit
+         * slices, with owned audio serviced between slices and a4ms budget. */
+        for(unsigned slice=0;slice<16;slice++){
+            unsigned i=temporal_turn++&1u;
+            if((i?radio:audio)&&ct_m[i].details.match_pending)ct_tick(i);
+            now=clock_api->monotonic_ms(clock_api->context);
+            if(now==UINT64_MAX||now<began){bool ok=pause_internal();leave();return ok;}
+            if(CONTEXTS_HAS_AUDIO&&audio_permitted&&audio_owned&&!audio_drain(now)){leave();return false;}
+            now=clock_api->monotonic_ms(clock_api->context);
+            if(now==UINT64_MAX||now<began){bool ok=pause_internal();leave();return ok;}
+            if(now-began>=4u||(!ct_m[0].details.match_pending&&!ct_m[1].details.match_pending))break;
+        }
+    }
+    fp_publish(&view.audio,0,now);fp_publish(&view.radio,1,now);
+    view.state=audio||radio?CONTEXTS_LIVE:CONTEXTS_PAUSED;
+    leave();return true;
+}
+static bool status(void *context,contexts_status_v1 *out) {
+    (void)context;if(!out||out->struct_size<sizeof(*out)||!enter())return false;
+    *out=view;out->struct_size=sizeof(*out);
+    if(view.cleanup_pending){invalidate(&out->audio);invalidate(&out->radio);leave();return true;}
+    uint64_t now=clock_api->monotonic_ms(clock_api->context);
+    contexts_source_status_v1 *sources[]={&out->audio,&out->radio};
+    for(unsigned i=0;i<2;i++) {
+        contexts_source_status_v1 *s=sources[i];
+        uint64_t age=now>=observed[i]?now-observed[i]:UINT64_MAX;
+        s->age_ms=!have_observation[i]||age>UINT32_MAX?UINT32_MAX:(uint32_t)age;
+        if(now==UINT64_MAX||s->age_ms>FRESH_MS)invalidate(s);
+        if(now<event_at[i]||now-event_at[i]>EVENT_HOLD_MS)s->event_valid=false;
+        ct_publish(i,s,now,event_at[i],EVENT_HOLD_MS);
+        fp_publish(s,i,now);
+    }
+    leave();return true;
+}
+static bool request_export(void *context,uint32_t sources) {
+    (void)context;if(!sources||(sources&~CONTEXTS_ALL)||!(sources&CONTEXTS_SUPPORTED_SOURCES)||!enter())return false;
+    sources&=CONTEXTS_SUPPORTED_SOURCES;
+    if(!pause_internal()){leave();return false;}
+    if(view.export_active){leave();return false;}
+    view.export_pending|=sources;
+    if(sources&CONTEXTS_AUDIO){view.audio.model_state=CONTEXTS_MODEL_REQUESTED;view.audio.signatures_ready=false;}
+    if(sources&CONTEXTS_RADIO){view.radio.model_state=CONTEXTS_MODEL_REQUESTED;view.radio.signatures_ready=false;}
+    view.state=CONTEXTS_LOADING;leave();return true;
+}
+static bool begin_export(void *context,uint32_t source) {
+    (void)context;if(!contexts_source_supported(source)||!enter())return false;
+    if(view.export_active||!(view.export_pending&source)||!pause_internal()){leave();return false;}
+    unsigned index=source==CONTEXTS_AUDIO?0u:1u;
+    exported[index]=0;export_invalid[index]=false;view.export_active=source;
+    ct_begin(index);
+    contexts_source_status_v1 *s=source_status(source);s->model_state=CONTEXTS_MODEL_LOADING;s->model_error=0;
+    s->temporal_ready=s->neural_ready=false;
+    s->room_slot=s->event_slot=-1;s->room_name[0]=s->event_name[0]=0;s->samples=0;s->age_ms=UINT32_MAX;
+    view.state=CONTEXTS_LOADING;leave();return true;
+}
+static bool export_record(void *context,uint32_t source,uint32_t kind,uint32_t index,const void *bytes,uint32_t size) {
+    (void)context;if(!contexts_source_supported(source)||!enter())return false;
+    if(view.export_active!=source){leave();return false;}
+    unsigned which=source==CONTEXTS_AUDIO?0u:1u;bool ok=false;uint16_t bit=0;
+    if(kind==CONTEXTS_RECORD_TEMPORAL_BANK||kind==CONTEXTS_RECORD_NEURAL){
+        ok=ct_record(which,kind,index,bytes,size,&r.prefs.identity);leave();return ok;
+    }
+    if(!bytes){leave();return false;}
+    if(kind==CONTEXTS_RECORD_PREFERENCES&&index==0) {
+        bit=256u;
+        ok=CONTEXTS_HAS_AUDIO&&source==CONTEXTS_AUDIO?spectrum_preferences_decode(&a.prefs,bytes,size):rf_preferences_decode(&r.prefs,bytes,size);
+    } else if(kind==CONTEXTS_RECORD_SIGNATURE&&index<8) {
+        bit=(uint16_t)(1u<<index);
+        ok=CONTEXTS_HAS_AUDIO&&source==CONTEXTS_AUDIO?spectrum_signature_decode(&a.signatures[index],bytes,size):rf_signature_decode(&r.signatures[index],bytes,size);
+        if(ok) {
+            if(CONTEXTS_HAS_AUDIO&&source==CONTEXTS_AUDIO)spectrum_signature_mean(&a.signatures[index],a.means[index]);
+            else rf_signature_mean(&r.signatures[index],r.means[index]);
+        }
+    }
+    if(!ok||(exported[which]&bit))export_invalid[which]=true;
+    else {
+        exported[which]|=bit;
+        /* CRC32 over a record INCLUDING its CRC has a constant residue.
+         * Use an independent byte fingerprint for semantic change detection. */
+        uint32_t hash=UINT32_C(2166136261);const uint8_t *record=bytes;
+        for(uint32_t i=0;i<size;i++)hash=(hash^record[i])*UINT32_C(16777619);
+        record_digest[which][kind==CONTEXTS_RECORD_PREFERENCES?8:index]=hash;
+    }
+    leave();return ok&&!export_invalid[which];
+}
+static bool finish_export(void *context,uint32_t source,uint32_t result) {
+    (void)context;if(!contexts_source_supported(source)||result>CONTEXTS_EXPORT_UNSUPPORTED||!enter())return false;
+    if(view.export_active!=source&&!(view.export_pending&source)){leave();return false;}
+    unsigned index=source==CONTEXTS_AUDIO?0u:1u;
+    if(result==CONTEXTS_EXPORT_OK&&(view.export_active!=source||export_invalid[index]||exported[index]!=511u))result=CONTEXTS_EXPORT_INVALID;
+    contexts_source_status_v1 *s=source_status(source);
+    s->model_error=result;s->signatures_ready=result==CONTEXTS_EXPORT_OK;
+    ct_finish(index,s->signatures_ready);
+    s->temporal_ready=ct_m[index].details.temporal_state==CONTEXTS_IMPORT_READY;
+    s->neural_ready=ct_m[index].details.neural_state==CONTEXTS_IMPORT_READY;
+    s->model_state=result==CONTEXTS_EXPORT_OK?CONTEXTS_MODEL_READY:CONTEXTS_MODEL_FAILED;
+    if(result==CONTEXTS_EXPORT_OK) {
+        s->capture_error=0;
+        uint32_t digest=spectrum_signature_crc((const uint8_t *)record_digest[index],sizeof(record_digest[index]));
+        if(!s->model_generation||digest!=model_digest[index]) {
+            if(++s->model_generation==0)++s->model_generation;
+            model_digest[index]=digest;
+        }
+    }
+    view.export_pending&=~source;if(view.export_active==source)view.export_active=0;
+    view.state=view.export_pending?CONTEXTS_LOADING:CONTEXTS_PAUSED;leave();return true;
+}
+static bool export_model_error(void *context,uint32_t source,uint32_t kind,uint32_t index,int32_t error){
+    (void)context;if(!contexts_source_supported(source)||!enter())return false;
+    bool ok=view.export_active==source&&ct_record_error(source==CONTEXTS_AUDIO?0u:1u,kind,index,error);
+    leave();return ok;
+}
+static bool model_details(void *context,uint32_t source,contexts_model_details_v1 *out){
+    (void)context;if(!source_status(source)||!out||out->struct_size<sizeof(*out)||!enter())return false;
+    unsigned i=source==CONTEXTS_AUDIO?0u:1u;*out=ct_m[i].details;
+    if(!contexts_source_supported(source)||view.cleanup_pending){out->event_engine=CONTEXTS_EVENT_NONE;out->event_age_ms=UINT32_MAX;out->match_pending=false;}
+    else{
+        uint64_t now=clock_api->monotonic_ms(clock_api->context),age=now>=ct_m[i].event_at?now-ct_m[i].event_at:UINT64_MAX;
+        out->event_age_ms=out->event_engine&&age<=UINT32_MAX?(uint32_t)age:UINT32_MAX;
+        if(now==UINT64_MAX||age>EVENT_HOLD_MS||!have_observation[i]||now<observed[i]||now-observed[i]>FRESH_MS)out->event_engine=CONTEXTS_EVENT_NONE;
+    }
+    leave();return true;
+}
+static int32_t label(void *context,uint32_t source,uint32_t slot,contexts_label_v1 *out) {
+    (void)context;if(!contexts_source_supported(source)||!out||!enter())return -1;
+    if(source_status(source)->model_state!=CONTEXTS_MODEL_READY){leave();return -1;}
+    if(slot>=8){leave();return 0;}
+    *out=(contexts_label_v1){.source=source,.slot=slot};
+    if(CONTEXTS_HAS_AUDIO&&source==CONTEXTS_AUDIO){out->kind=a.signatures[slot].kind;memcpy(out->name,a.signatures[slot].name,17);}
+    else{out->kind=r.signatures[slot].kind;memcpy(out->name,r.signatures[slot].name,17);}
+    leave();return 1;
+}
+static bool claim_preset(void *context,uint32_t source,uint32_t slot,const char *name,uint32_t generation) {
+    (void)context;if(!contexts_source_supported(source)||slot>=8||!name||!memchr(name,0,17)||!enter())return false;
+    contexts_source_status_v1 *s=source_status(source);
+    if(view.cleanup_pending){leave();return false;}
+    unsigned index=source==CONTEXTS_AUDIO?0u:1u;
+    uint64_t now=clock_api->monotonic_ms(clock_api->context);
+    bool valid=!view.cleanup_pending&&s->model_state==CONTEXTS_MODEL_READY&&s->current&&s->room_valid&&
+        !s->room_ambiguous&&s->room_slot==(int32_t)slot&&s->model_generation==generation&&
+        !strcmp(s->room_name,name)&&now!=UINT64_MAX&&now>=observed[index]&&now-observed[index]<=FRESH_MS;
+    bool same=s->room_entry==s->preset_entry;
+    if(valid&&!same) {
+        view.preset_source=source;view.preset_slot=(int32_t)slot;view.preset_generation=generation;
+        view.preset_result=CONTEXTS_PRESET_CLAIMED;memcpy(claimed_name,s->room_name,17);
+        s->preset_entry=s->room_entry;
+    }
+    leave();return valid&&!same;
+}
+static bool preset_result(void *context,uint32_t source,uint32_t generation,uint32_t result) {
+    (void)context;if(!contexts_source_supported(source)||result<CONTEXTS_PRESET_APPLIED||result>CONTEXTS_PRESET_PARTIAL||!enter())return false;
+    bool ok=source==view.preset_source&&generation==view.preset_generation&&view.preset_result==CONTEXTS_PRESET_CLAIMED;
+    if(ok)view.preset_result=result;
+    leave();return ok;
+}
+static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
+    if(started||busy||audio_owned||radio_retained||!deps||count!=(CONTEXTS_RF_ONLY?2u:3u))return false;
+    const risc_platform_clock_api_v1 *c=NULL;const twatch_audio_in_api_v1 *m=NULL;
+    const risc_radio_iq_extended_api_v1 *q=NULL;
+    for(size_t i=0;i<count;i++) {
+        if(!deps[i].capability_id||deps[i].api_version!=1||!deps[i].api)return false;
+        if(!strcmp(deps[i].capability_id,"platform.clock")&&!c)c=deps[i].api;
+        else if(CONTEXTS_HAS_AUDIO&&!strcmp(deps[i].capability_id,"audio.input")&&!m)m=deps[i].api;
+        else if(!strcmp(deps[i].capability_id,"radio.iq")&&!q)q=deps[i].api;
+        else return false;
+    }
+    if(!c||c->api_version!=1||c->struct_size<sizeof(*c)||!c->monotonic_ms||
+       (CONTEXTS_HAS_AUDIO&&(!m||m->api_version!=1||m->struct_size<sizeof(*m)||!m->open||!m->read||!m->close))||
+       !q||q->base.base.api_version!=1||q->base.base.struct_size<sizeof(*q)||
+       !q->base.base.suspend||!q->capture_configured)return false;
+    clock_api=c;microphone=m;receiver=q;timed_receiver=risc_radio_iq_temporal(q);timed_radio=false;
+    if(CONTEXTS_HAS_AUDIO){memset(&a,0,sizeof(a));a.prefs=spectrum_preferences_default();}
+    memset(&r,0,sizeof(r));r.prefs=rf_preferences_default();memset(exported,0,sizeof(exported));
+    memset(export_invalid,0,sizeof(export_invalid));memset(observed,0,sizeof(observed));
+    memset(record_digest,0,sizeof(record_digest));memset(model_digest,0,sizeof(model_digest));
+    memset(claimed_name,0,sizeof(claimed_name));
+    memset(room_identity,0,sizeof(room_identity));
+    memset(event_at,0,sizeof(event_at));memset(retry_at,0,sizeof(retry_at));radio_at=0;
+    view=(contexts_status_v1){.struct_size=sizeof(view),.state=CONTEXTS_OFF,
+        .audio={.source=CONTEXTS_AUDIO,.room_slot=-1,.event_slot=-1,.age_ms=UINT32_MAX},
+        .radio={.source=CONTEXTS_RADIO,.room_slot=-1,.event_slot=-1,.age_ms=UINT32_MAX}};
+    if(!CONTEXTS_HAS_AUDIO){
+        view.audio.model_state=CONTEXTS_MODEL_UNAVAILABLE;
+        view.audio.model_error=CONTEXTS_EXPORT_UNSUPPORTED;
+    }
+    fp_init();ct_init();temporal_turn=0;reset_audio();reset_radio();started=true;return true;
+}
+static bool quiesce(void) {
+    if(!started)return true;
+    if(busy)return false;
+    busy=true;bool ok=pause_internal();busy=false;return ok;
+}
+static void stop(void) {
+    if(busy||audio_owned||radio_retained)return;
+    started=false;microphone=NULL;receiver=NULL;clock_api=NULL;
+}
+static const contexts_fingerprint_service_v1 api={{1,sizeof(api),NULL,step,pause_service,status,
+    request_export,begin_export,export_record,finish_export,label,claim_preset,preset_result,capture_audio,
+    export_model_error,model_details},0x31504643u,fingerprint};
+static const risc_driver_v2 driver={2,sizeof(driver),"contexts-service",CONTEXTS_SERVICE_CAPABILITY,1,&api,start,stop,quiesce};
+__attribute__((visibility("default"))) const risc_driver_v2 *t5_driver_get(uint32_t abi){return abi==2?&driver:NULL;}

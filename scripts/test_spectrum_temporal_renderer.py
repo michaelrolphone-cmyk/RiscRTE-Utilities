@@ -6,12 +6,12 @@ ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);a=p.parse_args()
 menu=[(3,120,120),(40,225,26)]
 for n in (60,70,80,90,100):menu +=[(n,150,175),(n+1,150,65)]
-menu += [(130,178,166)]
+menu += [(130,178,166),(145,195,20)]
 name=menu+[(160,120,204),(180,90,54),(200,52,84),(210,79,84)]
 saved=name+[(220,190,190),(240,200,54)]
 record=saved+[(430,60,120)]
 scenes={
- 'monitor-learn-record-save': ([(3,120,120),(60,136,26),(80,152,222),(100,120,202),(120,52,84),(130,79,84),(140,190,190),(160,60,120),(550,60,193)],580,{'SPECTRUM_TEMPORAL_SIGNAL':'1','SPECTRUM_EXPECT_EVENT_EXAMPLES':'1','SPECTRUM_EXPECT_EVENT_WRITES':'2'}),
+ 'monitor-learn-record-save': ([(3,120,120),(60,136,26),(80,152,222),(90,195,20),(100,120,202),(120,52,84),(130,79,84),(140,190,190),(160,60,120),(550,60,193)],580,{'SPECTRUM_TEMPORAL_SIGNAL':'1','SPECTRUM_EXPECT_EVENT_EXAMPLES':'1','SPECTRUM_EXPECT_EVENT_WRITES':'2'}),
  'live-idle-empty-recovery': ([(3,120,120)],9000,{'SPECTRUM_CONTINUOUS_TEST':'1'}),
  'events-empty':(menu,260,{}),
  'events-keyboard':(name,220,{}),

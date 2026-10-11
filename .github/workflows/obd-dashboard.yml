@@ -1,0 +1,62 @@
+name: OBD dashboard
+on:
+  push:
+    branches: [feat/obd-dashboard]
+    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/build_obd_dashboard.py', 'scripts/test_obd_dashboard.py', 'test/obd/**', '.github/workflows/obd-dashboard.yml']
+  pull_request:
+    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/build_obd_dashboard.py', 'scripts/test_obd_dashboard.py', 'test/obd/**', '.github/workflows/obd-dashboard.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dashboard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 7071f0c25e223f24670bed409a5f8b6f291c8042
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: dea97a70cdcc657c5d2b2730ca2b62715949a10a
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Drivers
+          ref: 8ec572af94ee6e844b1685d8d050471cd58cad87
+          path: Drivers
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test protocol and actual native app with the shared scene
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python Utilities/scripts/test_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/plain 2>&1 | tee evidence/host.log
+          python Utilities/scripts/test_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/sanitized --sanitize 2>&1 | tee evidence/sanitized.log
+      - name: Compile ESP32-S3 app and check ABI/imports/stack frames
+        run: |
+          set -euo pipefail
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+          python Utilities/scripts/build_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/target | tee evidence/target.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obd-dashboard-010
+          path: |
+            build/target/obd_dashboard.elf
+            build/target/obd_dashboard.json
+            build/target/build.json
+            build/plain/frames/
+            evidence/
+          retention-days: 14
