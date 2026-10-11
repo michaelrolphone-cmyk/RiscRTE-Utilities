@@ -69,6 +69,12 @@ static int width(void){return 240;}static int height(void){return 240;}static vo
 #include "RiscDisplayOutputV1.h"
 static unsigned surface_format=RISC_DISPLAY_FORMAT_RGB565;
 static void np_pixel(int x,int y,uint32_t rgb,unsigned alpha){(void)x;(void)y;(void)rgb;(void)alpha;assert(0);}
+/* Standalone pixel fixture has a continuously owned, writable surface.
+ * Full adapter tests separately exercise interrupted raster ownership. */
+static bool failed;
+static unsigned raster_pixels;
+static bool raster_checkpoint(void){return true;}
+static bool raster_surface_writable(void){return surface.frame&&surface.pixels;}
 #include "nova_ui.inc"
 static void capture(const char*n){const char*dir=getenv("HID_FRAME_DIR");assert(dir);char p[512];snprintf(p,sizeof(p),"%s/%s.ppm",dir,n);FILE*f=fopen(p,"wb");assert(f);fprintf(f,"P6\n240 240\n255\n");for(unsigned i=0;i<240*240;i++){uint16_t v=pixels[i];uint8_t rgb[]={(uint8_t)((v>>11)*255/31),(uint8_t)(((v>>5)&63)*255/63),(uint8_t)((v&31)*255/31)};assert(fwrite(rgb,1,3,f)==3);}assert(!fclose(f));}
 #endif
