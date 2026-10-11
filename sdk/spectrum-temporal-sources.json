@@ -24,5 +24,6 @@
     "grants": 12
   },
   "previous_runtime_commit": "da92aef5174b9279de1bad0ec05f7234ba587169",
-  "runtime_pin_reason": "Align the exact production-backend fixture with the published Runtime SDK already copied into Apps/RiscAppDataV1.h; preserve the prior published pin as source provenance."
+  "runtime_pin_reason": "Align the exact production-backend fixture with the published Runtime SDK already copied into Apps/RiscAppDataV1.h; preserve the prior published pin as source provenance.",
+  "legacy_api_header_sha256": "49ced12bd617ce9e29626f97ee21d824edcf5f8272524a7da8780c60979df201"
 }
