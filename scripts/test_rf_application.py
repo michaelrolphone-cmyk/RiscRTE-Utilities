@@ -80,9 +80,9 @@ def target_scenes(target):
         offset=min((number-1)*48,max_scroll)
         return [tap(225,26), check('page',1), *(['nav 32']*(number-1)), tap(x,48+(number-1)*48-offset+20)]
     def samples():
-        return setting(12,180)+[check('page',4)]
+        return setting(12,180)+[check('page',11),tap(195,20),check('page',4)]
     def events():
-        return setting(13,180)+[check('page',6)]
+        return setting(13,180)+[check('page',11),tap(195,20),check('page',6)]
     controls=['wait 3',tap(225,26),'nav 104',check('scroll',48),'nav 1']
     for number,x,name,value in [(1,215,'low',2402500000),(2,100,'high',2477500000),(3,130,'log_frequency',1),(4,190,'log_amplitude',0),(5,190,'show_labels',0),(6,215,'palette',1),(7,215,'gain',3),(8,215,'window',2),(10,215,'threshold',-55)]:
         controls+=setting(number,x)+[check(name,value),'nav 1']
