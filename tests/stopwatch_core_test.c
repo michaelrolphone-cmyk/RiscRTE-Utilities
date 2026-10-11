@@ -93,12 +93,25 @@ static void consistency_tests(void){
  assert(!sw_clock_consistent(&c,true,100,2999));
 }
 static void format_tests(void){
- char b[12];sw_format(0,b);assert(!strcmp(b,"00:00:00.00"));
+ char b[12];
+#ifdef PORTABLE_UNPADDED_HOURS
+ sw_format(0,b);assert(!strcmp(b,"0:00:00.00"));
+ sw_format(3723456,b);assert(!strcmp(b,"1:02:03.45"));
+ sw_format(9u*3600000u+62340u,b);assert(!strcmp(b,"9:01:02.34"));
+ sw_format(10u*3600000u+62340u,b);assert(!strcmp(b,"10:01:02.34"));
+#else
+ sw_format(0,b);assert(!strcmp(b,"00:00:00.00"));
  sw_format(3723456,b);assert(!strcmp(b,"01:02:03.45"));
+#endif
  sw_format(SW_MAX_MS,b);assert(!strcmp(b,"99:59:59.99"));
  for(unsigned i=0;i<100000;i++){
   uint32_t ms=random32()%(SW_MAX_MS+1u);unsigned h,m,s,cs;sw_format(ms,b);
-  assert(strlen(b)==11&&sscanf(b,"%u:%u:%u.%u",&h,&m,&s,&cs)==4);
+  #ifdef PORTABLE_UNPADDED_HOURS
+  assert(strlen(b)==(ms<10u*3600000u?10u:11u));
+#else
+  assert(strlen(b)==11);
+#endif
+  assert(sscanf(b,"%u:%u:%u.%u",&h,&m,&s,&cs)==4);
   assert(h<100&&m<60&&s<60&&cs<100&&h*3600000u+m*60000u+s*1000u+cs*10u==ms-ms%10u);
  }
 }

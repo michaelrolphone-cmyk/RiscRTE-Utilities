@@ -1,0 +1,45 @@
+name: Portable Model Viewer and Hollow Trail
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  canvas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: cee9e9c46c738386c1b172c63cdc17c874ebfbbb
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: f541fdfcff26359fd2ca08689c3ad63c1f5f97e2
+          path: .dependencies/runtime
+          persist-credentials: false
+      - name: Run real entrypoints under address and undefined behavior sanitizers
+        run: python3 scripts/test_canvas_apps.py --runtime .dependencies/runtime --system-apps .dependencies/system --output build/canvas-tests
+      - name: Install pinned compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Build and validate target modules
+        run: |
+          python3 scripts/build_canvas_apps.py --runtime .dependencies/runtime --system-apps .dependencies/system --target x4 --output dist/x4
+          python3 scripts/build_canvas_apps.py --runtime .dependencies/runtime --system-apps .dependencies/system --target watch --output dist/watch
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canvas-apps-${{ github.sha }}
+          path: |
+            build/canvas-tests/*.ppm
+            dist/
+          if-no-files-found: error

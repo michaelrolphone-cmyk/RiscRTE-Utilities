@@ -26,7 +26,6 @@ p.add_argument('--watch', type=Path)
 p.add_argument('--runtime', type=Path, required=True)
 p.add_argument('--scene', action='append')
 p.add_argument('--normal-only', action='store_true')
-p.add_argument('--continuous-capture', action='store_true', help='Enable the app-local automatic-idle capture inhibitor')
 a = p.parse_args()
 OUT = ROOT / 'build/rf-application'
 
@@ -156,15 +155,6 @@ def target_scenes(target):
     for policy in ['airplane','unread']:
         result['radio-policy-'+policy]=(scene('wait 3',check('running',0),check('captures',0),check('radio_acquires',0),'finish'),{'RF_RENDER_POLICY':policy})
     result['sleep-stop']=(scene('wait 3','set jump 61000','wait 1',check('sleep',1),check('running',0),'remember captures','wait 5','same captures','nav 2',check('running',1),'finish'),{'RF_RENDER_SLEEP':'1'})
-    if a.continuous_capture:
-        result['sleep-stop']=(scene('wait 3','set jump 61000','wait 3',check('sleep',0),check('running',1),
-            'set jump 600000','wait 3',check('sleep',0),check('running',1),'nav 2',check('running',0),
-            'set jump 61000','wait 2',check('sleep',1),'remember captures','wait 3','same captures',
-            'nav 2',check('running',1),'finish'),{'RF_RENDER_SLEEP':'1'})
-        result['capture-error-idle']=(scene('wait 3','set jump 61000','wait 2',check('sleep',0),
-            'set rf_failure 2','wait 2',check('running',0),check('capture_error',1),
-            'set jump 61000','wait 2',check('sleep',1,'ge'),'nav 2',check('running',1),'finish'),{'RF_RENDER_SLEEP':'1'})
-
     result['release-reentry']=(scene('wait 3',check('captures',3,'ge'),check('running',1),'finish'),{'RF_RENDER_RELEASE_RETRY':'1','RF_RENDER_REENTRY':'1'})
     result['trace-dedup']=(scene('wait 100',check('captures',100,'ge'),check('diag_captures',1),check('diag_stages',1),check('diag_total',8,'le'),'finish'),{})
     for traced in [False,True]:
@@ -176,7 +166,7 @@ def target_scenes(target):
     result['root-exit']=(scene('wait 3','nav 1'),{'RF_RENDER_EXPECT_LAUNCH':'1'})
     discard=event_base+[tap(60,120),'wait 70','set signal 2','wait 12','set signal 0','wait 8',check('event_ready',1),'set storage_failure 1',tap(60,190),check('event_pending',0),check('examples',1),tap(175,200),check('event_pending',0),tap(175,200),check('event_pending',-1),check('examples',0),check('app_writes',2),'finish']
     result['event-discard']=(scene(*discard),{})
-    profile=['wait 3']+samples()+[tap(150,207),check('page',5),tap(110,89),*type_name('Pulse'),tap(60,165),check('room_kind',2),check('room_frames',1),check('signature_pending',0),'finish']
+    profile=['wait 3']+samples()+[tap(150,207),check('page',5),tap(110,89),*type_name('Pulse'),tap(60,165),'wait 70',check('room_kind',2),check('room_frames',64),check('signature_pending',0),'finish']
     result['burst-profile']=(scene(*profile),{})
     scale=2 if target=='x4' else 1
     drag=['wait 3',*(f'point {x*scale} {120*scale}' for x in [100,140,180]),'wait 1',check('cursor',1),check('cursor_hz',2461000000,'ge'),check('cursor_hz',2462000000,'le'),tap(225,26),f'point {150*scale} {175*scale}',f'point {150*scale} {75*scale}','wait 1',check('scroll',100),check('gain',0),'snapshot controls-scroll','nav 1','finish']
@@ -193,6 +183,9 @@ def target_scenes(target):
     review=event_base+[tap(60,120),'wait 70','set signal 2','wait 12','set signal 0','wait 8',check('event_ready',1)]
     result['guard-event-review']=(scene(*review,'remember event_count',guard+'0',check('page',8),check('event_ready',1),'same event_count',tap(175,190),check('event_ready',0),guard+'1','finish'),{})
     result['guard-event-pending']=(scene(*review,'set storage_failure 1',tap(60,190),check('event_pending',0),guard+'0',check('page',6),check('examples',1),'set storage_failure 0',tap(50,200),check('event_pending',-1),check('examples',1),guard+'1','finish'),{})
+    for action in ['retry','discard']:
+        resolve=['set storage_failure 0',tap(50,200)] if action=='retry' else [tap(175,200),check('fingerprint_dirty',1),tap(175,200)]
+        result['guard-fingerprint-'+action]=(scene(*review,'set storage_failure 4',tap(60,190),check('event_pending',-1),check('fingerprint_dirty',1),guard+'0',check('page',6),*resolve,check('fingerprint_dirty',0),check('examples',1),guard+'1','finish'),{})
     storage_y=48+10*48-max_scroll+20
     pending_guard=['wait 3']+setting(7)+['nav 1','set kv_failure 3']+setting(7)+[check('gain',6),check('pending',1),guard+'0',check('page',1),check('scroll',max_scroll),'remember writes',tap(205,storage_y),check('pending',1),tap(205,storage_y),check('pending',0),check('gain',3),'same writes',guard+'1','finish']
     result['guard-storage-discard']=(scene(*pending_guard),{})
@@ -248,7 +241,6 @@ for sanitized in (False, True):
         out = OUT / target / ('sanitized' if sanitized else 'normal')
         out.mkdir(parents=True, exist_ok=True)
         flags = ['-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
-        if a.continuous_capture:flags += ['-DPORTABLE_RADIO_CONTINUOUS_CAPTURE']
         san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitized else []
         if target == 'x4':
             flags += ['-DRF_RENDER_PAPER', '-DPORTABLE_DISPLAY_ROTATION=90', '-DPORTABLE_HOME_APP="default.elf"']

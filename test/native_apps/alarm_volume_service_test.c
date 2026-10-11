@@ -17,11 +17,11 @@ int main(void){
  boot(true);get_fail=true;until(ALARM_STATE_BLOCKED);assert(!opens&&!effects);
  boot(true);schedule(1,1,101);mode(3);volume(70);rtc_base=101;gain_fail=true;until(ALARM_STATE_ALERT);pump(12);until(ALARM_STATE_BLOCKED);assert(snapshot().error==ALARM_OUTPUT&&closes&&!writes&&!effects&&!snapshot().output_uncertain);
  /* Read failure at the exact preference phase never chooses default. */
- boot(true);volume_read_fail=true;until(ALARM_STATE_BLOCKED);assert(snapshot().error==ALARM_STORAGE&&gets==4&&!opens&&!effects);volume_read_fail=false;client->refresh(NULL);until(ALARM_STATE_READY);
+ boot(true);volume_read_fail=true;until(ALARM_STATE_BLOCKED);assert(snapshot().error==ALARM_STORAGE&&get_count==4&&!opens&&!effects);volume_read_fail=false;client->refresh(NULL);until(ALARM_STATE_READY);
  before_gain();alarm_token_v1 t=snapshot().occurrence;assert(client->acknowledge(NULL,&t)==ALARM_PENDING);until(ALARM_STATE_READY);assert(!gains&&!writes&&!effects&&closes);
  before_gain();ms+=ALARM_INVOCATION_MS;until(ALARM_STATE_READY);assert(!gains&&!writes&&!effects&&closes);
  before_gain();alarm_sleep_v1 plan={.struct_size=sizeof(plan)};assert(client->prepare_sleep(NULL,&plan)==ALARM_PENDING&&phase==SET_AUDIO_GAIN&&!gains);
- int32_t stopped=ALARM_PENDING;for(unsigned i=0;i<3&&stopped==ALARM_PENDING;i++)stopped=client->stop_only(NULL);assert(stopped==ALARM_OK&&!gains&&!writes&&!effects&&!audio_uncertain);int calls=gets+put_count+reads;pump(5);assert(calls==gets+put_count+reads);
+ int32_t stopped=ALARM_PENDING;for(unsigned i=0;i<3&&stopped==ALARM_PENDING;i++)stopped=client->stop_only(NULL);assert(stopped==ALARM_OK&&!gains&&!writes&&!effects&&!audio_uncertain);int calls=get_count+put_count+reads;pump(5);assert(calls==get_count+put_count+reads);
  before_gain();t=snapshot().occurrence;close_fail=true;assert(client->acknowledge(NULL,&t)==ALARM_PENDING);until(ALARM_STATE_BLOCKED);assert(audio_uncertain&&!gains&&!writes&&!effects);close_fail=false;assert(client->acknowledge(NULL,&t)==ALARM_PENDING);until(ALARM_STATE_READY);assert(!audio_uncertain&&!gains&&!writes&&!effects);
  /* Reboot reads the explicitly selected value; it never resets it to default. */
  active_alarm(30,2);boot(false);until(ALARM_STATE_ALERT);pump(12);assert(last_gain==100&&blobs[5][0]==30);

@@ -142,7 +142,7 @@ accessible on one screen, using the shared NOVA helpers.
 ## BLE HID controls
 
 [BLE Touchpad](docs/apps/ble_touchpad.md) and
-[BLE Buttons](docs/apps/ble_buttons.md), both 0.1.1, add a separate `hid_apps`
+[BLE Buttons](docs/apps/ble_buttons.md), both 0.1.3, add a separate `hid_apps`
 profile: genuine raw one/two-contact mouse input and four durable configurable
 keyboard/mouse controls. They use the generic secure-comparison HID provider,
 shared Nova7 controls and checked interruption/cleanup. The standalone build and
@@ -150,4 +150,18 @@ shared Nova7 controls and checked interruption/cleanup. The standalone build and
 scanner, SDR and existing migration profiles unchanged. Target validation and
 software-rendered screenshots do not establish physical qualification.
 
-Watch deployments may select the [ordinary BLE broadcast service and Battery controls](docs/BLE_BROADCAST.md).
+The capability-selected paper profile and its build/grant evidence are documented
+in [Nova7 paper HID](docs/BLE_HID_PAPER.md).
+## Optional native UTC visual alarms
+
+The [native UTC visual alarm profile](docs/NATIVE_UTC_VISUAL_ALARMS.md) provides
+a separate development-only 0.4.3 service and pure Points timezone hooks. It
+uses the readonly native-time provider and nine explicit keys, with no product
+activation or migration. Existing Watch and raw-RTC visual ELF bytes remain
+exactly unchanged.
+
+The opt-in [native UTC Alarms/Countdown apps](docs/NATIVE_UTC_ALARM_APPS.md)
+use the qualified tagged alarm API2 and app-owned native timezone clock. This
+is a separate local development profile; ordinary Watch/raw paper app ELFs are
+verified byte-identical to the exact paper base. System dependency publication
+and hardware qualification remain separate integration gates.

@@ -1,0 +1,45 @@
+{
+  "manifest": "alarms.json",
+  "grants": [
+    {
+      "capability": "display.output",
+      "api": 1,
+      "instance_id": 3
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1,
+      "instance_id": 4
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1,
+      "instance_id": 6
+    },
+    {
+      "capability": "board.battery",
+      "api": 1,
+      "instance_id": 7
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2,
+      "instance_id": 0
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 3
+    }
+  ]
+}

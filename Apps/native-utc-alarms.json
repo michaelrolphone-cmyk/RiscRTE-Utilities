@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "profile": "native-utc-alarms-paper-nova",
+  "versions": {
+    "alarms": "0.2.7",
+    "countdown": "0.1.11"
+  },
+  "reservation": "2026-10-08: native-only X4 direct stage-log test cohort; Watch/raw profiles unchanged. Local only.",
+  "native_time": "runtime.realtime@1 readonly, one open/read/close per sample; UNSET and malformed snapshots unavailable; no RTC recovery or control",
+  "absolute_time": "UTC seconds since 2000, bounded by signed Unix seconds INT32_MAX",
+  "timezone": "Explicit namespace 1 time_zone TZ1 record; missing is virtual UTC; malformed/unavailable blocks local alarm planning and local clock display",
+  "dst_policy": "Reject a gap or fold for a requested local one-shot alarm; never choose an offset silently",
+  "alarm_service_api": 2,
+  "alarm_service_version": "0.4.4",
+  "common_grants": [
+    {
+      "capability": "display.output",
+      "api": 1,
+      "instance_id": 3
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1,
+      "instance_id": 4
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1,
+      "instance_id": 6
+    },
+    {
+      "capability": "board.battery",
+      "api": 1,
+      "instance_id": 7
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1,
+      "instance_id": 0,
+      "access": "read-only"
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 1,
+      "purpose": "time_zone/time_format reads and existing shared QuickActions preferences"
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2,
+      "instance_id": 0,
+      "binding": "tagged native UTC visual alarm service 0.4.4"
+    }
+  ],
+  "app_grants": {
+    "alarms": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 3,
+        "keys": [
+          "alarm_utc_cfg"
+        ]
+      }
+    ],
+    "countdown": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 3,
+        "keys": [
+          "timer_utc_cfg"
+        ]
+      }
+    ]
+  },
+  "home": "default.elf",
+  "local_back": "springboard.elf",
+  "handoff": "Unconfirmed saves block Home/Back/Quick launch until explicit retry verifies the same pending record",
+  "publication": "Local development only; combined System dependencies require separate source clearance",
+  "hardware_verified": false,
+  "system_sha": "63f0fcdb2b2e943733a87c1d0dcb6916912319d0",
+  "adapter_sha": "63f0fcdb2b2e943733a87c1d0dcb6916912319d0",
+  "runtime_sha": "30dcec5ce6ce33223f2b203a2399283e1f758567",
+  "alarm_sdk_sha": "637e13b0bce62ad49b756bec2468a6271d163fc7"
+}

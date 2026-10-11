@@ -7,8 +7,8 @@ by this work.
 
 ## Sources and outputs
 
-- `hid_apps` inventory: `ble_touchpad` and `ble_buttons`, both 0.1.1.
-- Exact standalone System-Apps source: `d5b6c0fa7c06bb36a776e7ce501028a9827221e2`.
+- `hid_apps` inventory: `ble_touchpad` and `ble_buttons`, both 0.1.3.
+- Exact standalone System-Apps source: `2aa0cf63346e507525af884bbfbf6b69313442c4`.
 - Generic `RiscBluetoothHidV1.h` is an exact copy of Drivers' public API and is
   SHA-256 locked in `sdk/hid-sources.json`.
 - `scripts/build_hid_apps.py` creates `dist/hid-apps/{ble_touchpad,ble_buttons}.elf`
@@ -143,3 +143,6 @@ backend and serial diagnostic journal over their existing host shims. The radio
 in this UI fixture remains a copied peripheral API fake; the Drivers protocol
 suite independently runs production NimBLE and cryptographic pairing/reconnect.
 Physical host/controller behavior is still unqualified.
+
+The capability-selected paper profile and its build/grant evidence are documented
+in [Nova7 paper HID](BLE_HID_PAPER.md).

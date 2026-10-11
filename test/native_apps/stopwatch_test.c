@@ -13,7 +13,7 @@ static uint32_t ms_value;static uint64_t awake_ms;static int64_t rtc_offset;
 static bool rtc_available,rtc_invalid_calendar,rtc_invalid_weekday;
 static uint8_t blob[64];static uint32_t blob_size;static bool blob_present;
 static int32_t get_result,put_result;static bool persist_on_error,fail_after_put;static uint32_t put_latency;
-static unsigned gets,writes,reads,acquires,releases,frames,polls,live;
+static unsigned storage_gets,writes,reads,acquires,releases,frames,polls,live;
 static bool provide_app,provide_runtime,deny_storage,deny_rtc,null_storage,null_rtc;
 static t5_app_api_v1 fake_app;static risc_runtime_api_v1 fake_runtime;
 static risc_key_value_v1 fake_storage;static twatch_rtc_api_v1 fake_rtc;
@@ -72,7 +72,7 @@ static bool rtc_read_fake(void*context,twatch_rtc_time_v1*out){
  return true;
 }
 static int32_t get_fake(void*context,const char*key,void*dest,uint32_t capacity,uint32_t*n){
- assert(context==&fake_storage&&!strcmp(key,"stopwatch")&&capacity==SW_RECORD_SIZE&&dest&&n);gets++;*n=0;
+ assert(context==&fake_storage&&!strcmp(key,"stopwatch")&&capacity==SW_RECORD_SIZE&&dest&&n);storage_gets++;*n=0;
  if(get_result!=RISC_KEY_VALUE_OK)return get_result;
  if(!blob_present)return RISC_KEY_VALUE_NOT_FOUND;
  *n=blob_size;if(blob_size>capacity)return RISC_KEY_VALUE_BUFFER_SMALL;
@@ -96,7 +96,7 @@ const risc_runtime_api_v1*risc_runtime_get_api(uint32_t version){assert(version=
 static void setup(bool erase){
  event_count=event_index=0;ms_value=0;awake_ms=0;rtc_offset=0;rtc_available=true;rtc_invalid_calendar=rtc_invalid_weekday=false;
  get_result=put_result=RISC_KEY_VALUE_OK;persist_on_error=fail_after_put=false;put_latency=0;
- gets=writes=reads=acquires=releases=frames=polls=live=0;provide_app=provide_runtime=true;deny_storage=deny_rtc=null_storage=null_rtc=false;
+ storage_gets=writes=reads=acquires=releases=frames=polls=live=0;provide_app=provide_runtime=true;deny_storage=deny_rtc=null_storage=null_rtc=false;
  screen_w=screen_h=240;seen_status[0]=seen_left[0]=0;render_path=NULL;
  if(erase){memset(blob,0,sizeof(blob));blob_size=0;blob_present=false;}
  fake_app=(t5_app_api_v1){.abi_version=1,.struct_size=sizeof(fake_app),.screen_width=width,.screen_height=height,.clear=clear_screen,.draw_text=draw_text_fake,.fill_rect=fill_screen,.present=present_fake,.poll=poll_fake,.millis=fake_millis,.draw_label=draw_label_fake};
@@ -112,9 +112,9 @@ static void run(void){app_main();assert(!live);assert(!runtime&&!storage&&!rtc);
 static void seed(sw_record r){sw_encode(&r,blob);blob_size=SW_RECORD_SIZE;blob_present=true;}
 static sw_record saved(void){sw_record r;assert(sw_decode(&r,blob,blob_size));return r;}
 static void normal_tests(void){
- setup(true);run();assert(loaded&&!clock_state.running&&clock_state.elapsed_ms==0&&gets==1&&writes==0&&releases==2);
+ setup(true);run();assert(loaded&&!clock_state.running&&clock_state.elapsed_ms==0&&storage_gets==1&&writes==0&&releases==2);
  setup(true);confirm(0);for(int i=0;i<120;i++)add((event){.advance=50});confirm(123);back();run();
- assert(writes==2&&gets==1&&!clock_state.running&&clock_state.elapsed_ms==6123&&saved().elapsed_ms==6123&&!saved().running&&frames>100);
+ assert(writes==2&&storage_gets==1&&!clock_state.running&&clock_state.elapsed_ms==6123&&saved().elapsed_ms==6123&&!saved().running&&frames>100);
  setup(false);rtc_offset=500;run();assert(clock_state.elapsed_ms==6123&&!clock_state.running&&writes==0);
  setup(true);confirm(0);add((event){.advance=1234});back();run();assert(writes==1&&saved().running&&clock_state.elapsed_ms==1234);
  /* Fresh invocation / Light/Deep reset: uptime restarts, raw RTC advances. */
@@ -126,7 +126,7 @@ static void normal_tests(void){
 }
 static void heartbeat_tests(void){
  setup(true);confirm(0);for(unsigned i=0;i<3600;i++)add((event){.advance=1000});run();
- assert(writes==1&&gets==1&&clock_state.running&&clock_state.elapsed_ms==3600000&&reads==3602);
+ assert(writes==1&&storage_gets==1&&clock_state.running&&clock_state.elapsed_ms==3600000&&reads==3602);
  setup(true);ms_value=UINT32_MAX-100;confirm(0);add((event){.advance=5123});confirm(0);run();
  assert(writes==2&&!clock_state.clock_changed&&saved().elapsed_ms==5123);
 }
@@ -135,7 +135,7 @@ static void retry_tests(void){
  assert(clock_state.running&&clock_state.elapsed_ms==456&&!clock_state.approximate&&writes==1);
  setup(true);seed((sw_record){12345,0,false,false});get_result=RISC_KEY_VALUE_IO;
  add((event){.recover_get=true,.tap=true,.x=100,.y=220});run();
- assert(loaded&&clock_state.elapsed_ms==12345&&!clock_state.running&&writes==0&&gets==2);
+ assert(loaded&&clock_state.elapsed_ms==12345&&!clock_state.running&&writes==0&&storage_gets==2);
  setup(true);seed((sw_record){100,1000,true,false});rtc_available=false;
  add((event){.advance=3000,.recover_rtc=true,.tap=true,.x=100,.y=220});run();
  assert(loaded&&clock_state.running&&clock_state.elapsed_ms==3100&&clock_state.approximate&&writes==0);
@@ -184,14 +184,14 @@ static void record_tests(void){
 static void uncertain_tests(void){
  for(unsigned persist=0;persist<2;persist++){
   setup(true);put_result=RISC_KEY_VALUE_IO;persist_on_error=persist;confirm(0);run();
-  assert(writes==1&&gets==2&&loaded&&clock_state.running==(persist!=0)&&strstr(seen_status,"UNCONFIRMED"));
+  assert(writes==1&&storage_gets==2&&loaded&&clock_state.running==(persist!=0)&&strstr(seen_status,"UNCONFIRMED"));
  }
  setup(true);seed((sw_record){100,1000,true,false});put_result=RISC_KEY_VALUE_IO;persist_on_error=false;confirm(123);run();
- assert(clock_state.running&&clock_state.approximate&&writes==1&&gets==2&&saved().running);
+ assert(clock_state.running&&clock_state.approximate&&writes==1&&storage_gets==2&&saved().running);
  setup(true);seed((sw_record){100,1000,true,false});put_result=RISC_KEY_VALUE_IO;persist_on_error=true;confirm(123);run();
- assert(!clock_state.running&&clock_state.elapsed_ms==223&&!saved().running&&writes==1&&gets==2);
+ assert(!clock_state.running&&clock_state.elapsed_ms==223&&!saved().running&&writes==1&&storage_gets==2);
  setup(true);put_result=RISC_KEY_VALUE_IO;persist_on_error=true;fail_after_put=true;confirm(0);confirm(20);run();
- assert(!loaded&&!clock_state.running&&writes==1&&gets==2);
+ assert(!loaded&&!clock_state.running&&writes==1&&storage_gets==2);
  setup(true);seed((sw_record){12345,0,false,false});put_result=RISC_KEY_VALUE_IO;persist_on_error=false;tap(170,170);tap(170,170);run();assert(clock_state.elapsed_ms==12345&&writes==1);
  setup(true);seed((sw_record){12345,0,false,false});put_result=RISC_KEY_VALUE_IO;persist_on_error=true;tap(170,170);tap(170,170);run();assert(clock_state.elapsed_ms==0&&writes==1);
 }
@@ -222,15 +222,15 @@ static void capability_tests(void){
   setup(true);if(kind==0)provide_runtime=false;if(kind==1)fake_runtime.api_version=2;if(kind==2)fake_runtime.struct_size=RISC_RUNTIME_CAPABILITIES_V1_SIZE-1;if(kind==3)fake_runtime.acquire=NULL;if(kind==4)fake_runtime.release=NULL;
   back();run();assert(!acquires&&!releases&&frames==1);
  }
- setup(true);deny_storage=true;back();run();assert(acquires==1&&!releases&&!gets);
- setup(true);deny_rtc=true;back();run();assert(acquires==2&&releases==1&&!gets);
+ setup(true);deny_storage=true;back();run();assert(acquires==1&&!releases&&!storage_gets);
+ setup(true);deny_rtc=true;back();run();assert(acquires==2&&releases==1&&!storage_gets);
  for(unsigned kind=0;kind<4;kind++){
   setup(true);if(kind==0)fake_storage.api_version=2;if(kind==1)fake_storage.struct_size=sizeof(fake_storage)-1;if(kind==2)fake_storage.get=NULL;if(kind==3)fake_storage.put=NULL;
-  back();run();assert(acquires==1&&releases==1&&!gets);
+  back();run();assert(acquires==1&&releases==1&&!storage_gets);
  }
  for(unsigned kind=0;kind<3;kind++){
   setup(true);if(kind==0)fake_rtc.api_version=1;if(kind==1)fake_rtc.struct_size=sizeof(fake_rtc)-1;if(kind==2)fake_rtc.read=NULL;
-  back();run();assert(acquires==2&&releases==2&&!gets);
+  back();run();assert(acquires==2&&releases==2&&!storage_gets);
  }
  setup(true);fake_app.struct_size=offsetof(t5_app_api_v1,draw_label)+sizeof(fake_app.draw_label);run();assert(loaded&&releases==2);
 }

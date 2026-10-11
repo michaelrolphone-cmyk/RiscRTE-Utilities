@@ -1,6 +1,7 @@
 /* Original portable LoRa Messages application. The installed provider owns
  * hardware. Packets are raw broadcasts, without delivery receipts/encryption. */
 #include "T5AppApi.h"
+#include "utility_frame.h"
 #include "RiscRuntimeV1.h"
 #include "RiscKeyValueV1.h"
 #include "PortableRtcClock.h"
@@ -39,11 +40,7 @@ static const char *field_help(unsigned field){
  if(field==4)return model.choice==4?"-18 to 13 dBm / check local limits":"-9 to 22 dBm / check local limits";
  return field==2?"5 to 12":field==3?"5 to 8":"8 to 4096";
 }
-static void retain(void){
-#ifdef PORTABLE_BLE_BROADCAST
- while(!portable_broadcast_stop())runtime->yield_ms(50);
-#endif
-runtime->diagnostic("LORA cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
+static void retain(void){runtime->diagnostic("LORA cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
 bool portable_radio_services_safe(void){return !model.uncertain;}
 bool portable_radio_suspend(void){
  bool active=model.owned;
@@ -153,6 +150,7 @@ static void draw_keyboard(void){
  char counter[64];snprintf(counter,sizeof(counter),"%u / %u    %s",(unsigned)n,edit_field<6?11:LM_TEXT_MAX,edit_field<6?"Exact value":"ASCII / raw broadcast");text(214,notice?notice:counter,NOVA_CAP);
 }
 static void draw(void){
+ if(!utility_frame_begin(app))return;
  char line[80],clock[32];
  if(page==PAGE_KEYBOARD){draw_keyboard();app->present(false);dirty=false;return;}
  header(page==PAGE_HOME?"LORA MESSAGES":page==PAGE_COMPOSE?"REVIEW MESSAGE":(page==PAGE_RF || page==PAGE_RF_ERROR)?(profile_save_state==2?"RF SAVE UNCERTAIN":profile_save_state==1?"RF SESSION ONLY":"RF SETTINGS"):page==PAGE_HISTORY?"SESSION HISTORY":page==PAGE_RADIO?"RADIO HARDWARE":"MESSAGE");
@@ -310,6 +308,7 @@ static bool input(t5_app_input_t *in){
  return true;
 }
 void app_main(void){
+ utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app || app->abi_version!=1 || app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label) || !app->poll || !app->present || !app->millis || !app->screen_width || !app->screen_height || !app->set_back_exits_app ||
     !runtime || runtime->api_version!=1 || runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE || !runtime->acquire || !runtime->release || !runtime->diagnostic || !runtime->yield_ms)return;

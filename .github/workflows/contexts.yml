@@ -1,0 +1,64 @@
+name: Contexts service and editor
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contexts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 6d56ab826f223e7621a0574d934bd80247c9da47
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Drivers
+          ref: aac1cb342696e96345d4546e2c69023834c6c8d4
+          path: .dependencies/drivers
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: f541fdfcff26359fd2ca08689c3ad63c1f5f97e2
+          path: .dependencies/runtime
+          persist-credentials: false
+      - name: Verify explicit RF-only contract compatibility
+        run: |
+          python3 scripts/check_contexts_contract.py --system-apps .dependencies/system
+          python3 -m unittest discover -s tests -p test_contexts_contract.py -v
+      - name: Test production service, owner export and real Contexts entry point
+        run: |
+          python3 scripts/test_context_fingerprints.py --drivers .dependencies/drivers --runtime .dependencies/runtime
+          python3 scripts/test_contexts_service.py --drivers .dependencies/drivers --runtime .dependencies/runtime --system-apps .dependencies/system
+          python3 scripts/test_contexts_scene.py --system-apps .dependencies/system --runtime .dependencies/runtime --frames build/contexts-scene
+          python3 scripts/test_contexts_rf_retained.py --system-apps .dependencies/system
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Build and validate both shipping Contexts packages
+        run: |
+          python3 scripts/build_contexts_scene.py --runtime .dependencies/runtime --system-apps .dependencies/system --target watch --output dist/contexts-watch
+          python3 scripts/build_contexts_scene.py --runtime .dependencies/runtime --system-apps .dependencies/system --target x4 --output dist/contexts-x4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contexts-scene-${{ github.sha }}
+          path: |
+            build/contexts-scene/
+            dist/contexts-watch/
+            dist/contexts-x4/
+          if-no-files-found: error
+          retention-days: 14

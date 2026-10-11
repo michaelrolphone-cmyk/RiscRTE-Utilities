@@ -1,0 +1,17 @@
+Alarm record bounds, integrity, dates and reserved-byte fixtures passed
+Alarm record bounds, integrity, dates and reserved-byte fixtures passed
+Alarm production service lifecycle, persistence, outputs, RTC, sleep and retry fixtures passed
+Alarm production service lifecycle, persistence, outputs, RTC, sleep and retry fixtures passed
+Reviewed cancellation, generation, RTC retry, sleep, reentrancy and stop-only regressions passed
+Reviewed cancellation, generation, RTC retry, sleep, reentrancy and stop-only regressions passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Production schedule app UI, commit, uncertainty, cancel, invalid RTC, alert and grant fixtures passed
+Alarm/Countdown production-source normal and ASan/UBSan fixtures passed

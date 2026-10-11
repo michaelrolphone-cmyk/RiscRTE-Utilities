@@ -1,0 +1,34 @@
+{
+  "status": "development-only; not integrated or shipped",
+  "host": "macOS arm64",
+  "normal_and_ubsan": "passed production ABI matrix, sleep, native UTC, Points, Alarm/Countdown, volume/audio cleanup, DND and actual Runtime",
+  "inventory_tests": 28,
+  "target": "GCC8.4 four profiles; structural/import/export checks passed; flag-off Watch ELF byte-identical to public bb81ab0",
+  "source_refs": {
+    "public": "bb81ab0cdc137e1b2fddcfbe191880c1c6e649ad",
+    "pr45": "4be6383256d0742dd724538d720bd5b5d3802f89",
+    "runtime": "30dcec5ce6ce33223f2b203a2399283e1f758567",
+    "system": "1d589d90bf27c7ffb76420de46564088ddb3714f"
+  },
+  "delivered_defect_claim": false,
+  "hardware_verified": false,
+  "local_host_limitations": [
+    "ASan startup times out on this Mac, including with leak detection disabled and outside sandbox; Linux CI default keeps ASan+UBSan",
+    "Target relocation loader uses Linux low-address mapping and is not verified locally; --skip-loader recorded explicitly; Linux CI does not skip"
+  ],
+  "remaining_gates": [],
+  "linux_ci": {
+    "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/actions/runs/37664810833",
+    "tested_head": "257b5cdd558a834067c5c257d07a8ab658b8246c",
+    "job_id": 112941199916,
+    "conclusion": "success",
+    "checks": [
+      "normal ASan UBSan production ABI and lifecycle",
+      "actual Runtime normal ASan UBSan",
+      "GCC8.4 four target profiles",
+      "production target loader eight alignments",
+      "exact Watch flag-off ELF byte gate",
+      "28 inventory tests"
+    ]
+  }
+}

@@ -11,7 +11,7 @@ fixtures += [('test/native_apps/alarm_app_test.c',['-DDAILY_ALARM_KIND='+str(kin
 for index,(fixture,defs) in enumerate(fixtures):
  for sanitized in (False,True):
   target=out/f'fixture-{index}-{int(sanitized)}'
-  flags=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer'] if sanitized else []
+  flags=['-fsanitize='+os.environ.get('ALARM_TEST_SANITIZERS','address,undefined'),'-fno-sanitize-recover=all','-fno-omit-frame-pointer'] if sanitized else []
   subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*defs,*['-I'+str(x) for x in includes],str(ROOT/fixture),'-o',str(target)],check=True,timeout=120)
   subprocess.run([str(target)],check=True,timeout=120)
-print('Alarm/Countdown production-source normal and ASan/UBSan fixtures passed')
+print('Sanitizers: '+os.environ.get('ALARM_TEST_SANITIZERS','address,undefined')+'; '+ 'Alarm/Countdown production-source normal and selected sanitizer fixtures passed')
