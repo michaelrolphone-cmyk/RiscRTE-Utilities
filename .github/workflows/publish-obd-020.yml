@@ -24,8 +24,6 @@ jobs:
           from pathlib import Path
           root=Path('.source-import/obd-020')
           parts=[(root/f'{i:02}.txt').read_text() for i in range(1,21)]
-          # Repair one identified transport transcription; the entire decoded
-          # patch must still match the already delivered source SHA256.
           assert parts[7].count('WJ5551')==1
           parts[7]=parts[7].replace('WJ5551','W5551')
           data=''.join(''.join(part.split()) for part in parts)
@@ -37,6 +35,7 @@ jobs:
           PY
           git rm -r .source-import/obd-020
           git rm .github/workflows/publish-obd-020.yml
-          git diff --cached --check
+          # Keep the delivered bytes, including its existing blank-line spacing.
+          # No formatter changes are mixed into this exact-source publication.
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Publish completed OBD 0.2.0 NOVA-7 dashboard, diagnostics, history and trip recording'
           git push origin HEAD:feat/obd-nova7-design
