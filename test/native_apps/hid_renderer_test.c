@@ -161,7 +161,7 @@ static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;
 #ifdef HID_RENDER_WATCH_TOUCH
  return watch_touch->snapshot(watch_touch->context,s);
 #else
- current_touch(s);return true;
+ current_touch(s);if(getenv("HID_RENDER_KEYS")&&polls>=27&&polls<=36)fprintf(stderr,"fixture keys poll=%u time=%u sequence=%llu contacts=%u first=%u,%u\n",polls,ticks,(unsigned long long)s->sequence,s->contact_count,s->contacts[0].x,s->contacts[0].y);return true;
 #endif
 }
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
