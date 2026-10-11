@@ -45,7 +45,7 @@ scenes={
 if a.paper:
  scenes['quick-controls']=([(3,110,732),(30,200,20),(31,200,100),(90,240,620),(91,240,560)],['ACTIVE','QUICK'])
  # Exercise both a fast queued Save and the settled-panel control sequence.
- scenes['quick-edit']=([(3,348,732),(10,100,530),(20,405,345),(30,200,20),(31,200,100),(90,240,620),(91,240,560),(110,348,732)],['SAVED'])
+ scenes['quick-edit']=([(3,348,732),(10,100,530),(20,405,345),(30,200,20),(31,200,100),(90,240,620),(91,240,560),(110,348,732)],['SAVED','QUEUED_SAVE'])
  scenes['quick-edit-settled']=(scenes['quick-edit'][0][:-1]+[(350,348,732)],['SAVED'])
  def paper_actions(scene,actions):
   if scene in ('quick-controls','quick-edit','quick-edit-settled'):return actions
