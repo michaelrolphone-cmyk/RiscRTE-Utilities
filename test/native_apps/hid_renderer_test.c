@@ -137,10 +137,10 @@ assert(watch_touch->unsubscribe(watch_touch->context,watch_subscriptions[n]));wa
 #endif
 
 subscribers[n].live=false;subs--;return true;}
-/* Raster capture and the app's HID sampler share one physical report clock.
+/* Raster capture and the app's HID sampler share one 20 ms physical report clock.
  * Every snapshot change has ordered raw edges for each independent subscriber. */
 static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);
- if(!touch_poll_seen||ticks!=last_touch_at){
+ if(!touch_poll_seen||(uint32_t)(ticks-last_touch_at)>=20u){
   touch_poll_seen=true;last_touch_at=ticks;polls++;
 #ifndef HID_RENDER_WATCH_TOUCH
   risc_touch_snapshot_v1 next;current_touch(&next);
