@@ -44,7 +44,8 @@ scenes={
 }
 if a.paper:
  scenes['quick-controls']=([(3,110,732),(30,200,20),(31,200,100),(90,240,620),(91,240,560)],['ACTIVE','QUICK'])
- scenes['quick-edit']=([(3,348,732),(10,100,530),(20,405,345),(30,200,20),(31,200,100),(90,240,620),(91,240,560),(110,348,732)],['SAVED'])
+ # The 1.6s asynchronous panel must finish the quick-sheet exit before Save.
+ scenes['quick-edit']=([(3,348,732),(10,100,530),(20,405,345),(30,200,20),(31,200,100),(90,240,620),(91,240,560),(350,348,732)],['SAVED'])
  def paper_actions(scene,actions):
   if scene in ('quick-controls','quick-edit'):return actions
   result=[]
@@ -106,6 +107,7 @@ for san in (False,True):
    folder=out/scene;folder.mkdir(exist_ok=True)
    for f in folder.glob('frame-*.*'):f.unlink()
    path=folder/'actions.txt';path.write_text(''.join(f'{n} {x} {y}\n' for n,x,y in actions));env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0',**{'HID_RENDER_'+c:'1' for c in checks})
+   if scene=='quick-edit':env['HID_RENDER_STOP_POLLS']='450'
    subprocess.run([str(exe),str(folder),str(path)],check=True,env=env,timeout=30)
    frames=sorted(folder.glob('frame-*.*'));assert frames,scene
    for frame in frames:
