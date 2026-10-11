@@ -2,20 +2,22 @@
 """Run production BLE host/model fixtures without touching a radio."""
 import os,subprocess,argparse,sys
 from pathlib import Path
+from ble_test_support import stage_sdk
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);a=p.parse_args()
 out=ROOT/'build/ble-scanner';out.mkdir(parents=True,exist_ok=True)
+sdk=stage_sdk(a.system_apps,out)
 for san in (False,True):
  flags=['-fsanitize='+os.environ.get('BLE_SANITIZERS','address,undefined'),'-fno-sanitize-recover=all','-fno-omit-frame-pointer',*(['-no-pie'] if sys.platform!='darwin' else [])] if san else []
  exe=out/f'core-{int(san)}'
- subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',*flags,'-I'+str(ROOT/'Apps'),'-I'+str(a.system_apps/'lib/PortableApps/include'),str(ROOT/'tests/ble_sensor_names_test.c'),'-o',str(exe)],check=True)
+ subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',*flags,'-I'+str(ROOT/'Apps'),'-I'+str(sdk),str(ROOT/'tests/ble_sensor_names_test.c'),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True,env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'))
 
 if a.system_apps:
  for san in (False,True):
   flags=['-fsanitize='+os.environ.get('BLE_SANITIZERS','address,undefined'),'-fno-sanitize-recover=all','-fno-omit-frame-pointer',*(['-no-pie'] if sys.platform!='darwin' else [])] if san else []
   exe=out/f'app-{int(san)}'
-  includes=[ROOT/'Apps',a.system_apps/'Apps',ROOT/'lib/Bluetooth/include',a.system_apps/'lib/PortableApps/include',a.system_apps/'lib/NativeApps/include']
+  includes=[ROOT/'Apps',a.system_apps/'Apps',sdk,a.system_apps/'lib/NativeApps/include']
   subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*['-I'+str(p) for p in includes],str(ROOT/'tests/ble_app_test.c'),'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True,env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'))
 

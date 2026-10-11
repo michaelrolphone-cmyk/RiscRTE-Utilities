@@ -10,6 +10,29 @@ static unsigned input_mode,input_step,launches;static bool back_enabled;
 static uint32_t tick;static unsigned grants,claims,closes,sends;static bool close_bad,send_bad,release_bad,claim_bad;static int restore_result=1;
 static bool allow_write,write_bad,enable_bad,status_bad,rollback_bad;static unsigned controls,writes;static uint8_t enabled;
 static uint8_t policy=3;static size_t queued_size;static char drawn[4000];static jmp_buf retention;
+/* Exercise production PortableTextInputClient with a copied service ABI. */
+static bool text_suspended,text_retained,text_live,text_available=true;
+static unsigned text_opens,text_closes,text_releases,text_resumes,text_close_again;
+static bool text_close_bad;
+static risc_text_entry_state_v1 text_result;
+static char text_initial[BLE_ALIAS_MAX+1];
+int portable_text_adapter_suspend(void){assert(!text_suspended&&!token&&!acquired);text_suspended=true;return RISC_TEXT_ENTRY_OK;}
+int portable_text_adapter_resume(void){assert(text_suspended&&!text_live);text_suspended=false;text_resumes++;return RISC_TEXT_ENTRY_OK;}
+int portable_text_adapter_attention(void){assert(text_suspended);return 0;}
+void portable_text_adapter_retain(void){text_retained=true;}
+bool portable_text_adapter_retained(void){return text_retained;}
+static int32_t text_open(void*c,const risc_text_entry_request_v1*q,uint64_t*t){
+ (void)c;assert(text_suspended&&!text_live&&q->capacity==sizeof(editing)&&!strcmp(q->label,"Sensor name"));
+ text_live=true;text_opens++;strcpy(text_initial,q->text);*t=17;
+ text_result=(risc_text_entry_state_v1){.struct_size=sizeof(text_result),.state=RISC_TEXT_ENTRY_EDITING,.revision=1};
+ strcpy(text_result.text,q->text);return RISC_TEXT_ENTRY_OK;
+}
+static int32_t text_poll(void*c,uint64_t t,risc_text_entry_state_v1*s){(void)c;assert(text_suspended&&text_live&&t==17);*s=text_result;return RISC_TEXT_ENTRY_OK;}
+static int32_t text_close(void*c,uint64_t t){(void)c;assert(text_suspended&&text_live&&t==17);text_closes++;if(text_close_bad)return RISC_TEXT_ENTRY_RETAINED;if(text_close_again){text_close_again--;return RISC_TEXT_ENTRY_AGAIN;}text_live=false;return RISC_TEXT_ENTRY_OK;}
+static const risc_text_entry_api_v1 text_api={1,sizeof(text_api),NULL,text_open,text_poll,text_close};
+#ifndef BLE_RENDER
+static void text_accept(const char*s){assert(naming&&strlen(s)<sizeof(editing));strcpy(text_result.text,s);text_result.state=RISC_TEXT_ENTRY_ACCEPTED;name_step();}
+#endif
 static uint32_t millis(void){return tick;}
 static int32_t screen(void){return 240;}
 static bool poll_input(t5_app_input_t*i,uint32_t t){
@@ -33,10 +56,10 @@ static bool host_status(void*c,risc_ble_sensor_status_v1*out){(void)c;*out=(risc
 static bool host_device(void*c,uint32_t i,ble_device*out){(void)c;if(i>=provider_count)return false;*out=provider_devices[i];return true;}
 static risc_bluetooth_sensors_v1 fake_host={1,sizeof(fake_host),NULL,claim,poll_host,host_status,host_device,close_host};
 static int32_t get(void*c,const char*k,void*data,uint32_t cap,uint32_t*n){uint8_t*v=data;(void)c;if(!strcmp(k,"quick_radio")){assert(cap==4);v[0]=0x51;v[1]=1;v[2]=policy;v[3]=(uint8_t)(policy^0xa5);*n=4;return 0;}assert(cap==40);if(!name_present||strcmp(k,name_key_saved))return -1;memcpy(data,name_record,40);*n=40;return 0;}
-static int32_t put(void*c,const char*k,const void*v,uint32_t n){(void)c;if(!strcmp(k,"quick_radio")){assert(allow_write&&n==4);writes++;if(write_bad)return RISC_KEY_VALUE_IO;policy=((const uint8_t*)v)[2];return RISC_KEY_VALUE_OK;}assert(n==40);if(name_write_bad)return -5;strcpy(name_key_saved,k);memcpy(name_record,v,40);name_present=true;return 0;}
+static int32_t put(void*c,const char*k,const void*v,uint32_t n){(void)c;if(!strcmp(k,"quick_radio")){assert(allow_write&&n==4);writes++;if(write_bad)return RISC_KEY_VALUE_IO;policy=((const uint8_t*)v)[2];return RISC_KEY_VALUE_OK;}assert(n==40&&!text_live&&!text_suspended&&text_releases==text_opens&&text_resumes==text_opens);if(name_write_bad)return -5;strcpy(name_key_saved,k);memcpy(name_record,v,40);name_present=true;return 0;}
 static risc_key_value_v1 kv={1,sizeof(kv),NULL,get,put};
-static bool acquire(const char*n,uint32_t v,uint64_t inst,risc_runtime_capability_v1*g){assert(v==1);if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(inst==1);g->api=&kv;}else if(!strcmp(n,"bluetooth.hci")){assert(inst==16);g->api=&control;}else{assert(!strcmp(n,RISC_BLUETOOTH_SENSORS_CAPABILITY)&&inst==0);g->api=&fake_host;}grants++;return true;}
-static bool release(risc_runtime_capability_v1*g){assert(g->api&&grants);if(release_bad)return false;grants--;return true;}
+static bool acquire(const char*n,uint32_t v,uint64_t inst,risc_runtime_capability_v1*g){assert(v==1);if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)){assert(inst==0);if(!text_available)return false;g->api=&text_api;}else if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(inst==1);g->api=&kv;}else if(!strcmp(n,"bluetooth.hci")){assert(inst==16);g->api=&control;}else{assert(!strcmp(n,RISC_BLUETOOTH_SENSORS_CAPABILITY)&&inst==0);g->api=&fake_host;}grants++;g->slot=grants;g->generation=1;return true;}
+static bool release(risc_runtime_capability_v1*g){assert(g->api&&grants);if(release_bad)return false;if(g->api==&text_api){assert(!text_live&&text_suspended);text_releases++;}grants--;*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;}
 static bool launch(const char*s){assert(!strcmp(s,"springboard.elf")&&!token&&!acquired);launches++;return true;}
 static bool diagnostic(const char*s){assert(s);return true;}
 static void yield(uint32_t ms){(void)ms;longjmp(retention,1);}
@@ -57,7 +80,10 @@ bool portable_nova_hit(int x,int y,int l,int t,int w,int h){return x>=l&&y>=t&&x
 #else
 static uint16_t pixels[240*240];
 static struct {unsigned frame;void *pixels;size_t stride_bytes;} surface={1,pixels,480};
-static bool list_mode;
+static bool list_mode,failed;
+static unsigned raster_pixels;
+static bool raster_checkpoint(void){return true;}
+static bool raster_surface_writable(void){return surface.frame&&surface.pixels;}
 static unsigned surface_format=RISC_DISPLAY_FORMAT_RGB565;
 static void np_pixel(int x,int y,uint32_t rgb,uint8_t alpha){(void)x;(void)y;(void)rgb;(void)alpha;assert(!"mono in Watch fixture");}
 static int width(void){return 240;}
@@ -70,7 +96,7 @@ static void snapshot(const char *name){
  for(unsigned i=0;i<240*240;i++){uint16_t v=pixels[i];uint8_t rgb[]={(uint8_t)((v>>11)*255/31),(uint8_t)(((v>>5)&63)*255/63),(uint8_t)((v&31)*255/31)};assert(fwrite(rgb,1,3,f)==3);}fclose(f);
 }
 #endif
-static void reset(void){paper=NULL;paper_enable_needed=false;allow_write=write_bad=enable_bad=status_bad=rollback_bad=false;controls=writes=0;enabled=0;app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=naming=name_save_failed=false;selected=scroll=detail_scroll=detail_index=0;memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=launches=0;back_enabled=true;provider_count=provider_polls=0;provider_phase=BLE_IDLE;provider_restore=false;name_present=name_write_bad=false;}
+static void reset(void){name_client=(portable_text_client){0};name_state=(risc_text_entry_state_v1){0};name_closing=false;name_draft_index=0;text_suspended=text_retained=text_live=text_close_bad=false;text_available=true;text_opens=text_closes=text_releases=text_resumes=text_close_again=0;paper=NULL;paper_enable_needed=false;allow_write=write_bad=enable_bad=status_bad=rollback_bad=false;controls=writes=0;enabled=0;app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=naming=name_save_failed=false;selected=scroll=detail_scroll=detail_index=0;memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=launches=0;back_enabled=true;provider_count=provider_polls=0;provider_phase=BLE_IDLE;provider_restore=false;name_present=name_write_bad=false;}
 #ifndef BLE_RENDER
 static springboard_contact paper_contact;
 static int32_t paper_width(void){return 480;}
@@ -101,8 +127,8 @@ static void ordering_regression(bool use_paper){
  draw();assert(!strstr(drawn,"Kitchen sensor")); /* Reordering must not change open details. */
  detail=false;sensors=true;assert(indexes(list)==7&&list[0]==7&&list[1]==1&&list[2]==2);
  scroll=selected=0;draw();assert(strstr(drawn,"Kitchen sensor"));assert(strstr(drawn,"Sensors")||strstr(drawn,"SENSORS"));
- if(use_paper){paper_tap(100,150);assert(detail&&detail_index==7);paper_tap(100,730);assert(naming&&!active());paper_tap(140,240);assert(!strcmp(editing,"Kitchen sensorb"));paper_tap(360,600);assert(!naming&&!strcmp(aliases[7],"Kitchen sensorb"));}
- else {detail=true;detail_index=7;begin_name();name_key(2);save_name();assert(!naming&&!strcmp(aliases[7],"Kitchen sensorb"));}
+ if(use_paper){paper_tap(100,150);assert(detail&&detail_index==7);paper_tap(100,730);assert(naming&&!active());assert(!strcmp(text_initial,"Kitchen sensor"));text_accept("Kitchen sensorb");assert(!naming&&!strcmp(aliases[7],"Kitchen sensorb"));}
+ else {detail=true;detail_index=7;begin_name();text_accept("Kitchen sensorb");assert(!naming&&!strcmp(aliases[7],"Kitchen sensorb"));}
  assert(ble_alias_load(&kv,1,provider_devices[7].address,editing)==1&&!strcmp(editing,"Kitchen sensorb"));
  scan.devices[7].reading_count=3;scan.devices[7].readings[0]=(risc_ble_reading_v1){RISC_TELEMETRY_TEMPERATURE_CENTIC,-123};scan.devices[7].readings[1]=(risc_ble_reading_v1){RISC_TELEMETRY_TEMPERATURE_CENTIC,2250};scan.devices[7].readings[2]=(risc_ble_reading_v1){RISC_TELEMETRY_VOLTAGE_MV,2990};
  detail_scroll=use_paper?0:5;draw();assert(strstr(drawn,"Temperature -1.23 C")&&strstr(drawn,"Temperature 22.50 C")&&strstr(drawn,"Voltage 2990 mV"));
@@ -115,7 +141,7 @@ int main(void){
  reset();message="Enable Bluetooth in controls";draw();snapshot("empty");
  scan.count=8;for(unsigned i=0;i<8;i++){ble_device*d=&scan.devices[i];snprintf(d->name,32,"Sensor %u",i+1);d->rssi=-48-(int)i*6;d->bthome=true;d->bthome_version=2;d->seen=1000;d->measurement_seen=1000;d->service_count=1;d->services[0]=0xfcd2;}
  tick=2000;message="Passive scan - 15 seconds";draw();snapshot("results");
- detail=true;draw();snapshot("detail");detail_scroll=5;scan.devices[0].has_temperature=true;scan.devices[0].temperature=2250;scan.devices[0].has_humidity=true;scan.devices[0].humidity=5340;scan.devices[0].has_battery=true;scan.devices[0].battery=88;scan.devices[0].reading_count=3;scan.devices[0].readings[0]=(risc_ble_reading_v1){RISC_TELEMETRY_TEMPERATURE_CENTIC,2250};scan.devices[0].readings[1]=(risc_ble_reading_v1){RISC_TELEMETRY_HUMIDITY_CENTIPERCENT,5340};scan.devices[0].readings[2]=(risc_ble_reading_v1){RISC_TELEMETRY_BATTERY_PERCENT,88};draw();snapshot("sensor");begin_name();strcpy(editing,"Kitchen sensor");draw();snapshot("naming");
+ detail=true;draw();snapshot("detail");detail_scroll=5;scan.devices[0].has_temperature=true;scan.devices[0].temperature=2250;scan.devices[0].has_humidity=true;scan.devices[0].humidity=5340;scan.devices[0].has_battery=true;scan.devices[0].battery=88;scan.devices[0].reading_count=3;scan.devices[0].readings[0]=(risc_ble_reading_v1){RISC_TELEMETRY_TEMPERATURE_CENTIC,2250};scan.devices[0].readings[1]=(risc_ble_reading_v1){RISC_TELEMETRY_HUMIDITY_CENTIPERCENT,5340};scan.devices[0].readings[2]=(risc_ble_reading_v1){RISC_TELEMETRY_BATTERY_PERCENT,88};draw();snapshot("sensor"); /* Shared keyboard pixels are captured by the production host replay. */
  puts("BLE production Nova pixels rendered");
 }
 #else
@@ -137,14 +163,16 @@ int main(void){
  reset();app_main();assert(!claims&&!grants);
  reset();input_mode=1;app_main();assert(input_step==3&&back_enabled&&launches==1&&!claims&&!grants);
  reset();scan.count=3;for(unsigned i=0;i<3;i++){scan.devices[i].address[0]=(uint8_t)i;scan.devices[i].bthome=true;}detail=true;detail_index=2;
- begin_name();assert(naming);strcpy(editing,"Kitchen");save_name();assert(!naming&&!strcmp(aliases[2],"Kitchen")&&name_present);
+ begin_name();assert(naming&&!portable_app_before_launch("springboard.elf"));text_accept("Kitchen");assert(portable_app_before_launch("springboard.elf"));assert(!naming&&!strcmp(aliases[2],"Kitchen")&&name_present);
  unsigned list[BLE_MAX_DEVICES];assert(indexes(list)==3&&list[0]==2&&selected==0);assert(detail_index==2);
  memset(aliases,0,sizeof(aliases));load_alias(2);assert(!strcmp(aliases[2],"Kitchen"));
- begin_name();strcpy(editing,"Canceled");assert(navigate_back()&&!naming&&!strcmp(aliases[2],"Kitchen"));
- begin_name();strcpy(editing,"Failed");name_write_bad=true;save_name();assert(naming&&name_save_failed&&!strcmp(aliases[2],"Kitchen"));name_write_bad=false;
- editing[0]=0;save_name();assert(!naming&&!aliases[2][0]);memset(aliases,0,sizeof(aliases));load_alias(2);assert(!aliases[2][0]);
- begin_name();key_page=2;name_key(1);assert(editing[0]=='a');name_key(PWK_DELETE);assert(!editing[0]);name_key(PWK_PAGE);assert(key_page==0);draw();assert(strstr(drawn,"SENSOR NAME"));
- naming=false;detail=false;sensors=true;scan.devices[1].bthome=false;assert(indexes(list)==2);
+ begin_name();strcpy(text_result.text,"Canceled");assert(navigate_back()&&!naming&&!strcmp(aliases[2],"Kitchen"));
+ begin_name();name_write_bad=true;text_accept("Failed");assert(!naming&&name_save_failed&&!strcmp(aliases[2],"Kitchen")&&!strcmp(editing,"Failed"));name_write_bad=false;
+ begin_name();assert(!strcmp(text_initial,"Failed"));text_accept("");assert(!naming&&!aliases[2][0]);memset(aliases,0,sizeof(aliases));load_alias(2);assert(!aliases[2][0]);
+ begin_name();text_close_again=1;text_accept("Retry close");assert(naming&&name_closing&&text_live&&grants==1&&!aliases[2][0]);name_step();assert(!naming&&!strcmp(aliases[2],"Retry close")&&!grants);
+ begin_name();text_result.state=RISC_TEXT_ENTRY_CANCELLED;name_step();assert(!naming&&!strcmp(aliases[2],"Retry close")&&!grants);
+ text_available=false;begin_name();assert(!naming&&!grants&&!strcmp(message,"Text input unavailable"));text_available=true;
+ detail=false;sensors=true;scan.devices[1].bthome=false;assert(indexes(list)==2);
  reset();start_scan();for(unsigned i=0;i<5;i++)pump();provider_count=2;provider_devices[0]=(ble_device){.address={1},.address_type=1};provider_devices[1]=(ble_device){.address={2},.address_type=1};
  assert(ble_alias_save(&kv,1,provider_devices[1].address,"Named"));pump();assert(indexes(list)==2&&list[0]==1&&!strcmp(aliases[1],"Named"));stop();
  static const paper_presentation paper_stub={.struct_size=sizeof(paper_stub)};
@@ -157,6 +185,9 @@ int main(void){
  reset();paper=&paper_stub;policy=1;allow_write=true;enable_bad=rollback_bad=true;if(!setjmp(retention)){paper_enable();assert(!"Expected enable rollback retention");}assert(uncertain&&grants==2&&!claims);
  reset();paper=&paper_stub;policy=1;allow_write=true;release_bad=true;if(!setjmp(retention)){paper_enable();assert(!"Expected enable grant retention");}assert(uncertain&&grants==2&&!claims);
  ordering_regression(false);ordering_regression(true);
+ reset();scan.count=1;detail=true;begin_name();text_close_bad=true;text_accept("Uncommitted");assert(uncertain&&name_client.retained&&text_retained&&text_live&&grants==1&&!name_present&&!portable_app_before_launch("springboard.elf"));
+ reset();scan.count=1;detail=true;begin_name();release_bad=true;text_accept("Uncommitted");assert(uncertain&&name_client.retained&&text_retained&&!text_live&&text_suspended&&grants==1&&!name_present&&!portable_app_before_launch("springboard.elf"));
+ reset();
  puts("BLE real app: policy, results/details/scroll, stop/retry, no implicit RF and retained cleanup passed");
 }
 
