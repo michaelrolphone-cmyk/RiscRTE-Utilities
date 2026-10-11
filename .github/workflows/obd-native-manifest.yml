@@ -1,0 +1,43 @@
+name: OBD native manifest repair
+on:
+  push:
+    branches: [feat/obd-dashboard]
+    paths: [.github/workflows/obd-native-manifest.yml]
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Correct native app schema and add regression checks
+        run: |
+          set -euo pipefail
+          git diff --exit-code 866653f3694fa6f0276cd1931df4da3f9ad3be36 HEAD -- Apps/obd_dashboard Apps/obd_dashboard.json scripts/build_obd_dashboard.py scripts/test_obd_dashboard.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('Apps/obd_dashboard.json');m=json.loads(p.read_text())
+          assert m['version']=='0.1.0'
+          for key in ('category','runtime_profile','file_associations'):m.pop(key)
+          m.update(version='0.1.1',architecture='xtensa-esp32s3',entry='app_main',runtime_lifecycle='foreground',supported_file_types=[])
+          p.write_text(json.dumps(m,indent=2)+'\n')
+          p=Path('Apps/obd_dashboard/app.c');s=p.read_text();assert s.count('OBD/dashboard version=0.1.0')==1
+          p.write_text(s.replace('OBD/dashboard version=0.1.0','OBD/dashboard version=0.1.1'))
+          p=Path('scripts/build_obd_dashboard.py');s=p.read_text();assert s.count("'version':'0.1.0'")==1
+          s=s.replace("'version':'0.1.0'","'version':json.loads((ROOT/'Apps/obd_dashboard.json').read_text())['version']")
+          p.write_text(s)
+          p=Path('Apps/obd_dashboard/README.md');s=p.read_text().replace('Dashboard 0.1.0','Dashboard 0.1.1')
+          s+='\n## 0.1.1 native integration correction\n\nThe first component-only JSON used catalog fields that the native loader rejects.\nThe delivered manifest now contains the required architecture/entry, native\nsupported_file_types, and explicit foreground lifecycle. Vehicle protocol and\nGUI behavior are unchanged. Build metadata reads the declared manifest version;\nfull-image qualification independently runs the real Runtime manifest parser.\n'
+          p.write_text(s)
+          p=Path('scripts/test_obd_dashboard.py');s=p.read_text()
+          check="\n# Native boot/catalog app schema, not the unrelated store catalog schema.\nimport json as _manifest_json\n_manifest = _manifest_json.loads((Path(__file__).resolve().parents[1]/'Apps/obd_dashboard.json').read_text())\n_required = {'type','id','version','architecture','file_name','entry','requires'}\n_optional = {'description','display_name','icon','supported_file_types','runtime_lifecycle'}\nassert _required <= _manifest.keys() <= _required | _optional\nassert _manifest['architecture'] == 'xtensa-esp32s3' and _manifest['entry'] == 'app_main'\nassert _manifest['runtime_lifecycle'] == 'foreground'\nassert _manifest['requires'] == [{'capability':'ui.scene','api':1},{'capability':'bluetooth.serial','api':1}]\n"
+          assert 'from pathlib import Path' in s
+          s=s.replace('from pathlib import Path','from pathlib import Path\n'+check,1);p.write_text(s)
+          PY
+          git add Apps/obd_dashboard Apps/obd_dashboard.json scripts/build_obd_dashboard.py scripts/test_obd_dashboard.py
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Fix OBD native manifest admission and foreground catalog lifecycle (0.1.1)'
+          git push origin HEAD:feat/obd-dashboard
