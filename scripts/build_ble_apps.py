@@ -9,8 +9,9 @@ from pathlib import Path
 import shutil
 import subprocess
 from app_manifest import validate_manifest
+from ble_test_support import stage_sdk
 ROOT=Path(__file__).resolve().parents[1]
-IMPORTS={'risc_runtime_get_api','memcpy','memset','memcmp','strcmp','strlen','snprintf','malloc','free','strcpy'}
+IMPORTS={'risc_runtime_get_api','memchr','memcpy','memset','memcmp','strcmp','strlen','snprintf','malloc','free','strcpy'}
 EXPORTS={'app_main','app_module_init','app_module_fini'}
 def inventory():
     apps=json.loads((ROOT/'utilities-manifest.json').read_text())['ble_apps']
@@ -31,11 +32,12 @@ def build(system, *, paper=False, rotation=0, navigation=False, partial=False, r
     if not (system/'lib/PortableApps/include/PortableRadioSession.h').is_file():raise ValueError('Radio lifecycle hooks missing')
     cc=os.environ.get('NATIVE_APP_CC') or shutil.which('xtensa-esp32s3-elf-gcc') or str(Path.home()/'.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc')
     out=output or ROOT/'dist/ble-apps';out.mkdir(parents=True,exist_ok=True)
+    sdk=stage_sdk(system,out)
     catalog=out/'catalog.c';catalog.write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[1]={{.compatible=false}};\nconst unsigned portable_catalog_count=0;\n')
     mapping=out/'exports.map';mapping.write_text('{ global: app_main; app_module_init; app_module_fini; local: *; };\n')
     validator=out/'validate-elf'
     subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror','-I'+str(ROOT/'test/native_apps/stubs'),'-I'+str(ROOT/'lib/elf_loader/include'),str(ROOT/'lib/elf_loader/src/esp_elf_validate.c'),str(ROOT/'test/native_apps/validate_test.c'),'-o',str(validator)],check=True)
-    defines=['-DPORTABLE_ALARM_CLIENT','-DPORTABLE_RADIO_SESSION','-DPORTABLE_NOVA_UI','-DPORTABLE_APP_OWNS_TOUCH_CHROME','-DPORTABLE_RETURN_APP="'+return_app+'"','-DPORTABLE_DISPLAY_ROTATION='+str(rotation)]
+    defines=['-DPORTABLE_TEXT_INPUT_CLIENT','-DPORTABLE_APP_LAUNCH_GUARD','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_RADIO_SESSION','-DPORTABLE_NOVA_UI','-DPORTABLE_APP_OWNS_TOUCH_CHROME','-DPORTABLE_RETURN_APP="'+return_app+'"','-DPORTABLE_DISPLAY_ROTATION='+str(rotation)]
     if not partial:defines+=['-DPORTABLE_FORCE_FULL_FRAMES']
     if navigation:defines+=['-DPORTABLE_INPUT_NAVIGATION']
     quick=['quick_actions.c','quick_render.c','quick_session.c'] if quick_actions or not paper else []
@@ -45,7 +47,7 @@ def build(system, *, paper=False, rotation=0, navigation=False, partial=False, r
     rows=[]
     for app in inventory():
         name=app['id'];elf=out/(name+'.elf')
-        subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror',*defines,*['-I'+str(p) for p in (ROOT/'Apps',system/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include')],str(ROOT/app['source_path']),str(system/'lib/PortableApps/src/adapter.c'),str(catalog),*[str(system/'lib/PortableApps/src'/f) for f in quick],'-lgcc','-o',str(elf)],check=True)
+        subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror',*defines,*['-I'+str(p) for p in (ROOT/'Apps',system/'Apps',sdk,system/'lib/NativeApps/include')],str(ROOT/app['source_path']),str(system/'lib/PortableApps/src/adapter.c'),str(catalog),*[str(system/'lib/PortableApps/src'/f) for f in quick],'-lgcc','-o',str(elf)],check=True)
         symbols=subprocess.check_output([cc.removesuffix('gcc')+'nm','-D',str(elf)],text=True)
         imports={s.split()[-1] for s in symbols.splitlines() if ' U ' in ' '+s}
         exports={s.split()[-1] for s in symbols.splitlines() if len(s.split())>=3 and s.split()[-2] in ('T','D','B','R')}
@@ -55,6 +57,7 @@ def build(system, *, paper=False, rotation=0, navigation=False, partial=False, r
         subprocess.run([str(validator),str(elf)],check=True)
         side=json.loads((ROOT/app['manifest_path']).read_text())
         manifest={'type':'application','id':name,'version':side['version'],'architecture':'xtensa-esp32s3','file_name':elf.name,'entry':'app_main','requires':[{'capability':r['capability'],'api':int(r['api'][2:])} for r in side['requires']+side.get('optional',[])]}
+        if sum(r['capability']=='ui.text-input' and r['api']==1 for r in manifest['requires'])!=1:raise ValueError('Exactly one shared text service required')
         if paper:manifest['requires']=[r for r in manifest['requires'] if r['capability']!='net.wifi']
         if navigation:manifest['requires'].append({'capability':'input.navigation','api':1})
         elf.with_suffix('.json').write_text(json.dumps(manifest,indent=2)+'\n')

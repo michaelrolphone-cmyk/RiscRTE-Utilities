@@ -70,6 +70,15 @@ jobs:
           ref: 0fa8c576f547817b8124ed10686d80a6351bb634
           path: .dependencies/audio-runtime
           persist-credentials: false
+      - name: Exact Spectrum app-data Runtime source
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: c3d750d113dbc79af87daaad316ab1d63d57dd60
+          path: .dependencies/spectrum-runtime
+          persist-credentials: false
+      - name: Exercise Spectrum saves against the real Runtime backend
+        run: bash scripts/test_spectrum_app_data.sh .dependencies/spectrum-runtime
       - name: Exercise shared Audio Tools and lifecycle
         run: |
           python scripts/test_frequency_generator.py --system-apps .dependencies/audio-system-apps
@@ -78,15 +87,6 @@ jobs:
           python scripts/test_spectrum_renderer.py --system-apps .dependencies/audio-system-apps
           python scripts/test_spectrum_temporal_renderer.py --system-apps .dependencies/audio-system-apps
           python scripts/test_audio_service_lifecycle.py --system-apps .dependencies/audio-system-apps --runtime .dependencies/audio-runtime
-      - name: Exact Spectrum app-data Runtime source
-        uses: actions/checkout@v4
-        with:
-          repository: michaelrolphone-cmyk/RiscRTE
-          ref: da92aef5174b9279de1bad0ec05f7234ba587169
-          path: .dependencies/spectrum-runtime
-          persist-credentials: false
-      - name: Exercise Spectrum saves against the real Runtime backend
-        run: bash scripts/test_spectrum_app_data.sh .dependencies/spectrum-runtime
       - name: Install pinned public compiler
         run: |
           python -m pip install platformio==6.1.19

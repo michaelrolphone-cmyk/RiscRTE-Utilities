@@ -20,7 +20,8 @@ static const risc_driver_v2 *sensor_driver;
 #include <stdlib.h>
 #include <string.h>
 void app_main(void);int app_module_init(void);void app_module_fini(void);
-static unsigned ticks,polls,grants,frames,subs,presents;
+static unsigned ticks,polls,grants,frames,subs,presents,last_touch_at;
+static bool touch_poll_seen;
 static unsigned stop_poll=240;
 static unsigned radio_sends,radio_claims,radio_closes,radio_state,launches,reports,radio_control_calls;static bool radio_owned;
 static uint8_t command_ack[6];static bool ack_ready,advertising;
@@ -31,6 +32,9 @@ static uint16_t pixels[240*244];
 #endif
 static const char *directory;
 static struct {unsigned at;int x,y;} actions[256];static unsigned action_count;
+static risc_touch_event_v1 touch_events[64];
+static unsigned touch_head,touch_count;static uint64_t touch_sequence;
+static bool touch_down;static uint16_t touch_x,touch_y;
 static struct {char key[16];unsigned char bytes[64];uint32_t size;} cells[32];
 static void save_frame(void) {
  char path[1024];snprintf(path,sizeof(path),"%s/frame-%03u.ppm",directory,presents);
@@ -45,7 +49,7 @@ static void save_frame(void) {
 #endif
  assert(!fclose(f));
 }
-static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;if(getenv("BLE_COMPLETE")&&polls>950)assert(!radio_owned);return polls<stop_poll;}
+static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;if(getenv("BLE_COMPLETE")){/* The passive window is milliseconds, independent of input poll cadence. */if(ticks>19000)assert(!radio_owned);return ticks<20000;}return polls<stop_poll;}
 static void fake_yield(uint32_t n){ticks+=n;}
 static bool fake_diag(const char*s){fprintf(stderr,"%s\n",s);return true;}
 static bool fake_launch(const char*s){assert(!radio_owned);assert(!strcmp(s,PORTABLE_RETURN_APP));launches++;printf("launch=%s\n",s);stop_poll=polls;return true;}
@@ -71,17 +75,32 @@ static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v
  return true;}
 static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){(void)c;assert(t);s->state=RISC_DISPLAY_PRESENT_COMPLETE;return true;}
 static const risc_display_output_api_v1 display_api={.api_version=1,.struct_size=sizeof(display_api),.get_info=fake_info,.acquire=fake_frame,.release=fake_frame_release,.submit=fake_submit,.present_status=fake_present};
-static uint64_t fake_sub(void*c){(void)c;subs++;return 1;}
-static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n==1&&subs);subs--;return true;}
-static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);polls++;return true;}
-static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;(void)n;(void)e;return 0;}
+static uint64_t fake_sub(void*c){(void)c;assert(!subs);subs++;touch_head=touch_count=0;return 1;}
+static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n==1&&subs);subs--;touch_head=touch_count=0;return true;}
+/* Capture-only polls cannot consume scripted time. Emit an ordered raw edge
+ * whenever the authoritative snapshot changes, as the production reducer now
+ * requires; snapshot-only level changes are deliberately rejected by it. */
+static bool fake_touch_poll(void*c,size_t n){
+ (void)c;assert(n==1);
+ if(touch_poll_seen&&ticks==last_touch_at)return true;
+ touch_poll_seen=true;last_touch_at=ticks;polls++;
+ bool down=false;uint16_t x=touch_x,y=touch_y;
+ for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){down=true;x=(uint16_t)actions[i].x;y=(uint16_t)actions[i].y;}
+ if(down!=touch_down||(down&&(x!=touch_x||y!=touch_y))){
+  assert(subs&&touch_count<64);
+  unsigned kind=!touch_down?RISC_TOUCH_EVENT_DOWN:!down?RISC_TOUCH_EVENT_UP:RISC_TOUCH_EVENT_MOVE;
+  touch_events[(touch_head+touch_count++)%64]=(risc_touch_event_v1){.sequence=++touch_sequence,.timestamp_ms=ticks,.kind=kind,.id=1,.x=x,.y=y};
+ }
+ touch_down=down;touch_x=x;touch_y=y;return true;
+}
+static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;assert(n==1&&subs);if(!touch_count)return 0;*e=touch_events[touch_head];touch_head=(touch_head+1)%64;touch_count--;return 1;}
 static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;
 #ifdef BLE_PAPER
- *s=(risc_touch_snapshot_v1){.width=480,.height=800};
+ *s=(risc_touch_snapshot_v1){.width=480,.height=800,.sequence=touch_sequence,.timestamp_ms=ticks};
 #else
- *s=(risc_touch_snapshot_v1){.width=240,.height=240};
+ *s=(risc_touch_snapshot_v1){.width=240,.height=240,.sequence=touch_sequence,.timestamp_ms=ticks};
 #endif
-for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=actions[i].x,.y=actions[i].y};}
+ if(touch_down){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=touch_x,.y=touch_y};}
  return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
 static bool fake_battery(void*c,risc_battery_sample_v1*s){(void)c;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};return true;}
@@ -119,16 +138,16 @@ static const portable_bluetooth_host_v1 radio_api={{1,sizeof(radio_api),NULL,NUL
 static wifi_link_t wifi_status(void*c){(void)c;return WIFI_LINK_DOWN;}
 static bool wifi_disconnect(void*c){(void)c;return true;}
 static const wifi_api_v1 wifi_api={.api_version=1,.struct_size=sizeof(wifi_api),.status=wifi_status,.disconnect_checked=wifi_disconnect};
-static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)id;assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&kv_api;else if(!strcmp(n,RISC_BLUETOOTH_SENSORS_CAPABILITY)&&v==1){assert(id==0);g->api=sensor_driver->capability;}else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&radio_api;else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else return false;grants++;return true;}
-static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);g->api=NULL;grants--;return true;}
-static const risc_runtime_api_v1 runtime_api={1,sizeof(runtime_api),fake_health,fake_yield,fake_diag,fake_launch,fake_acquire,fake_release};
+static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)id;assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&kv_api;else if(!strcmp(n,RISC_BLUETOOTH_SENSORS_CAPABILITY)&&v==1){assert(id==0);g->api=sensor_driver->capability;}else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&radio_api;else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else return false;g->slot=grants+1;g->generation=1;grants++;return true;}
+static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};grants--;return true;}
+static const risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=fake_acquire,.release=fake_release};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&runtime_api:NULL;}
 static uint64_t sensor_now(void*c){(void)c;return ticks;}
-int main(int argc,char**argv){assert(argc>=2);directory=argv[1];if(getenv("BLE_COMPLETE"))stop_poll=1000;memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}uint8_t policy[]={0x51,1,3,0xa6};if(getenv("BLE_POLICY_OFF")){policy[2]=1;policy[3]=0xa4;}if(getenv("BLE_AIRPLANE")){policy[2]=4;policy[3]=0xa1;}assert(fake_put(NULL,"quick_radio",policy,4)==0);
+int main(int argc,char**argv){assert(argc>=2);directory=argv[1];memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}uint8_t policy[]={0x51,1,3,0xa6};if(getenv("BLE_POLICY_OFF")){policy[2]=1;policy[3]=0xa4;}if(getenv("BLE_AIRPLANE")){policy[2]=4;policy[3]=0xa1;}assert(fake_put(NULL,"quick_radio",policy,4)==0);
 risc_platform_clock_api_v1 clock={1,sizeof(clock),NULL,sensor_now,NULL};risc_provider_dependency_v1 deps[]={{"bluetooth.hci",1,&radio_api},{"platform.clock",1,&clock}};
 sensor_driver=t5_driver_get(2);assert(sensor_driver&&sensor_driver->start(deps,2));
 uint8_t named[]={6,2,3,4,5,6};assert(ble_alias_save(&kv_api,1,named,"Kitchen sensor"));
-assert(app_module_init()==0);app_main();app_module_fini();assert(!grants&&!frames&&!subs&&!radio_owned);if(getenv("BLE_RENDER_SCAN"))assert(radio_claims>=1&&radio_sends==5&&radio_closes==radio_claims);else assert(!radio_claims&&!radio_sends);
+assert(app_module_init()==0);app_main();app_module_fini();fprintf(stderr,"Scanner renderer: claims=%u sends=%u closes=%u frames=%u polls=%u tick=%u edges=%llu\n",radio_claims,radio_sends,radio_closes,presents,polls,ticks,(unsigned long long)touch_sequence);assert(!grants&&!frames&&!subs&&!radio_owned);if(getenv("BLE_RENDER_SCAN"))assert(radio_claims>=1&&radio_sends==5&&radio_closes==radio_claims);else assert(!radio_claims&&!radio_sends);
 if(getenv("BLE_RENDER_BACK"))assert(launches==1&&polls>=60);
 #ifdef BLE_PAPER
 if(getenv("BLE_ENABLE"))assert(radio_control_calls==1&&radio_state==1);else assert(!radio_control_calls);

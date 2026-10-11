@@ -44,9 +44,11 @@ scenes={
 }
 if a.paper:
  scenes['quick-controls']=([(3,110,732),(30,200,20),(31,200,100),(90,240,620),(91,240,560)],['ACTIVE','QUICK'])
- scenes['quick-edit']=([(3,348,732),(10,100,530),(20,405,345),(30,200,20),(31,200,100),(90,240,620),(91,240,560),(110,348,732)],['SAVED'])
+ # Exercise both a fast queued Save and the settled-panel control sequence.
+ scenes['quick-edit']=([(3,348,732),(10,100,530),(20,405,345),(30,200,20),(31,200,100),(90,240,620),(91,240,560),(110,348,732)],['SAVED','QUEUED_SAVE'])
+ scenes['quick-edit-settled']=(scenes['quick-edit'][0][:-1]+[(350,348,732)],['SAVED'])
  def paper_actions(scene,actions):
-  if scene in ('quick-controls','quick-edit'):return actions
+  if scene in ('quick-controls','quick-edit','quick-edit-settled'):return actions
   result=[]
   for n,x,y in actions:
    if x==20 and y==20:px,py=60,(50 if scene in ('back-top','back-top-active') else 88)
@@ -101,11 +103,12 @@ for san in (False,True):
   # its bytes match; checkout timestamps must not determine host compilation.
   subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,*['-I'+str(i) for i in [system/'Apps',ROOT/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include']],*extra,*map(str,sources),*(['-lstdc++'] if a.runtime else []),'-o',str(exe)],check=True)
   for scene,(actions,checks) in scenes.items():
-   if name=='ble_touchpad' and scene in ('keys','nested-back','edit-save','edit-home','edit-cancel','save-retry','quick-edit'):continue
+   if name=='ble_touchpad' and scene in ('keys','nested-back','edit-save','edit-home','edit-cancel','save-retry','quick-edit','quick-edit-settled'):continue
    if name=='ble_buttons' and scene in ('left-tap','right-tap','mouse-reconnect','transport-reconnect','tap-drag','scroll-x','scroll-y','scroll-free'):continue
    folder=out/scene;folder.mkdir(exist_ok=True)
    for f in folder.glob('frame-*.*'):f.unlink()
    path=folder/'actions.txt';path.write_text(''.join(f'{n} {x} {y}\n' for n,x,y in actions));env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0',**{'HID_RENDER_'+c:'1' for c in checks})
+   if scene in ('quick-edit','quick-edit-settled'):env['HID_RENDER_STOP_POLLS']='450'
    subprocess.run([str(exe),str(folder),str(path)],check=True,env=env,timeout=30)
    frames=sorted(folder.glob('frame-*.*'));assert frames,scene
    for frame in frames:
