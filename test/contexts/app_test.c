@@ -12,6 +12,8 @@ static cr_store bank;
 static uint8_t stored[CR_FILE_BYTES];static uint64_t revision=1;
 static bool fail_write,learning,ready,fail_storage,terminal_mode;
 static unsigned phase,app_acquires,app_releases,kv_writes,learn_saves;
+static unsigned native_exit_mode,app_launches;
+static bool native_exit_pending;
 static uint8_t preferences[4];static unsigned preferences_size;
 static const char *folder,*device;
 const t5_app_manifest_t portable_catalog[]={{.file_name="calculator.elf",.display_name="CALCULATOR",.compatible=true}};
@@ -53,6 +55,8 @@ static bool app_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabil
 }
 static bool app_release(risc_runtime_capability_v1*g){assert(native_alive&&g->api);app_releases++;return true;}
 static bool health(risc_runtime_health_v1*q){q->uptime_ms=(uint32_t)ms;return true;}
+static bool app_exit_requested(void){return native_exit_pending;}
+static bool app_request_launch(const char*name){(void)name;app_launches++;return true;}
 static bool app_retain(void){native_alive=false;return true;}
 static bool diagnostic(const char*s){fprintf(stderr,"app: %s\n",s);return true;}
 extern bool contexts_test_target(uint32_t,int,int*,int*);
@@ -69,6 +73,13 @@ static void tap(unsigned action,int value){
 static void back_input(void){nav_pressed=RISC_NAV_BACK;}
 static void app_yield(uint32_t delay){
  ms+=delay;assert(phase<100);session=cs_session;
+ if(native_exit_pending){allow_complete=true;return;}
+ if(native_exit_mode&&((native_exit_mode<3&&phase==0)||(native_exit_mode==3&&phase==25))){
+  if(native_exit_mode==2){allow_complete=false;begin_frame();assert(presenting);}
+  if(native_exit_mode==3){assert(cu_page==CU_NAME&&cu_unsaved());}
+  /* A queued workflow launch must lose to the persistent host exit. */
+  strcpy(cs_launch,"calculator.elf");native_exit_pending=true;phase=99;return;
+ }
  if(!cs_session)return;
  /* Finish only completed raster transfers, never discard pending user input. */
  if(event_at!=event_count||nav_pressed)return;
@@ -125,14 +136,18 @@ static void app_yield(uint32_t delay){
  default:assert(0);
  }
 }
-static const risc_runtime_api_v1 app_runtime={.api_version=1,.struct_size=sizeof(app_runtime),.yield_ms=app_yield,.diagnostic=diagnostic,.acquire=app_acquire,.release=app_release,.health=health,.retain_invocation=app_retain};
+static const risc_runtime_api_v1 app_runtime={.api_version=1,.struct_size=sizeof(app_runtime),.yield_ms=app_yield,.diagnostic=diagnostic,.acquire=app_acquire,.release=app_release,.health=health,.retain_invocation=app_retain,.request_launch=app_request_launch,.exit_requested=app_exit_requested};
 const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){return native_alive&&v==1?&app_runtime:NULL;}
 int main(int argc,char**argv){
  assert(argc==4);device=argv[1];folder=argv[2];fail_storage=!strcmp(argv[3],"storage");terminal_mode=!strcmp(argv[3],"retained");
+ native_exit_mode=!strcmp(argv[3],"exit-home")?1:!strcmp(argv[3],"exit-busy")?2:!strcmp(argv[3],"exit-keyboard")?3:0;
  if(!strcmp(device,"paper")){w=800;h=480;format=1;prof=(risc_scene_profile_v1){1,sizeof(prof),1,3,88,20,0,65535,0,270,0,0};}
  startup();assert(api->close(NULL,session)==0);expected_intent=RISC_DISPLAY_PRESENT_LOW_LATENCY;
  cr_init(&bank);bank.generation=1;bank.items[0]=(cr_item){.kind=CR_PLACE,.name="HOME"};bank.items[1]=(cr_item){.kind=CR_EVENT,.name="DOORBELL"};bank.items[2]=(cr_item){.kind=CR_BATTERY,.name="LOW BATTERY",.arg0=20};strcpy(bank.rules[0].name,"HOME");bank.rules[0].item=0;assert(cr_encode(&bank,stored,sizeof(stored)));
  app_main();
  if(terminal_mode){assert(!native_alive&&app_releases<app_acquires);puts("Contexts real launch: terminal presentation loss fences cleanup PASS");return 0;}
- assert(app_acquires==app_releases&&!held&&!presenting&&!subscribed);assert(phase==(fail_storage?99:47));assert(driver->quiesce());driver->stop();printf("Contexts actual app_main, renderer, touch flows, pending refresh, training, save retry %s PASS\n",device);
+ assert(app_acquires==app_releases&&!held&&!presenting&&!subscribed);
+ if(native_exit_mode){assert(native_exit_pending&&phase==99&&!app_launches&&!cs_launch[0]);assert(driver->quiesce());driver->stop();printf("Contexts native exit: orderly cleanup, no queued launch, mode %u %s PASS\n",native_exit_mode,device);return 0;}
+ assert(phase==(fail_storage?99:47));assert(driver->quiesce());driver->stop();printf("Contexts actual app_main, renderer, touch flows, pending refresh, training, save retry %s PASS\n",device);
 }
+

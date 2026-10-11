@@ -5,6 +5,7 @@
 #include "RiscCivilClockV1.h"
 #include "SceneKeyboardV1.h"
 #include "RiscRuntimeV1.h"
+#include "RiscRuntimeHostControlV1.h"
 #if defined(PORTABLE_NOVA_UI) || defined(PORTABLE_CONTEXTS_PAPER)
 #error "Contexts uses ui.scene. Build with scripts/build_contexts_scene.py; do not link the portable display adapter."
 #endif
@@ -37,6 +38,12 @@ static const char *ctx_message;
 static uint16_t cs_active;
 static char cs_launch[33];
 static contexts_workflow_v1 cs_launch_report;
+/* Native exit is persistent and owned by the host. Normal cleanup may run,
+ * but editor state, shared keyboard, or a queued launch cannot defer it. */
+static bool cs_host_exit(void){
+ if(!risc_runtime_exit_requested_v1(ctx_runtime))return false;
+ ctx_exit=true;cs_launch[0]=0;return true;
+}
 static void ctx_note(const char*s){ctx_message=s;ctx_dirty=true;}
 static void cs_retain(void){if(!cs_terminal){cs_terminal=true;if(ctx_runtime&&ctx_runtime->retain_invocation)(void)ctx_runtime->retain_invocation();}}
 static bool cs_alive(void){if(cs_terminal)return false;if(!risc_runtime_get_api(1)){cs_terminal=true;return false;}return true;}
@@ -175,7 +182,9 @@ __attribute__((visibility("default"))) void app_main(void){
  cs_declare();if(!cs_open_scene(NULL)){if(ctx_runtime->diagnostic&&cs_alive())ctx_runtime->diagnostic("Contexts could not open NOVA components; update scene-host to 0.3.0");cs_cleanup();return;}
  unsigned ticks=0;
  while(!ctx_exit&&cs_alive()){
+  if(cs_host_exit())break;
   risc_scene_event_v1 e={.struct_size=sizeof(e)};int rc=cs_scene->next(cs_scene->context,cs_session,&e);if(!cs_alive())return;
+  if(cs_host_exit())break;
   if(rc!=RISC_SCENE_OK&&rc!=RISC_SCENE_IDLE){if(rc==RISC_SCENE_RETAINED)cs_retain();break;}
   if(rc==RISC_SCENE_OK){
    if(e.kind==RISC_SCENE_CONTROLS_EVENT&&e.document_revision==cs_document.revision&&cs_resident.enabled){if(!cs_checkpoint(RISC_RESIDENT_CHECKPOINT_CONTROLS))break;continue;}
@@ -189,7 +198,7 @@ __attribute__((visibility("default"))) void app_main(void){
   if(cs_launch[0])break;
   ctx_runtime->yield_ms(10);
  }
- if(cs_launch[0]&&cs_alive()){
+ if(cs_launch[0]&&cs_alive()&&!cs_host_exit()){
   if(!portable_contexts_pause(&cs_client)||!cs_close_scene()){cs_retain();return;}
   bool launched=ctx_runtime->request_launch&&ctx_runtime->request_launch(cs_launch);
   if(!cs_alive())return;
@@ -199,3 +208,4 @@ __attribute__((visibility("default"))) void app_main(void){
  }
  cs_cleanup();
 }
+

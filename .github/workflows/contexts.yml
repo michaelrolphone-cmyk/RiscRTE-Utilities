@@ -2,7 +2,7 @@ name: Contexts service and editor
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, fix/native-crown-exit-reconstructed]
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,12 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 6d56ab826f223e7621a0574d934bd80247c9da47
+          ref: 0cefe7538a9ce531a81bd0928c164a7f142edfaf
           path: .dependencies/system
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: f541fdfcff26359fd2ca08689c3ad63c1f5f97e2
+          ref: 0906ae66ba0b8dcf5b839846d11d3e0c21f82ae2
           path: .dependencies/runtime
           persist-credentials: false
       - name: Verify explicit RF-only contract compatibility
@@ -55,7 +55,7 @@ jobs:
           python3 scripts/build_contexts_scene.py --runtime .dependencies/runtime --system-apps .dependencies/system --target x4 --output dist/contexts-x4
       - uses: actions/upload-artifact@v4
         with:
-          name: contexts-scene-${{ github.sha }}
+          name: contexts-scene-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             build/contexts-scene/
             dist/contexts-watch/
