@@ -110,5 +110,13 @@ class AudioInventory(unittest.TestCase):
         self.assertRegex(profile['system_apps_commit'],r'^[0-9a-f]{40}$')
         for field in ('spectrum_manifest_sha256','spectrum_policy_sha256'):
             self.assertRegex(profile[field],r'^[0-9a-f]{64}$')
-        self.assertEqual(dependency['api_header_sha256'],hashlib.sha256((ROOT/'Apps/RiscAppDataV1.h').read_bytes()).hexdigest())
+        legacy=(ROOT/'tests/fixtures/spectrum-appdata-v1-legacy.h').read_bytes()
+        self.assertEqual(dependency['api_header_sha256'],hashlib.sha256(legacy).hexdigest())
+        # Current consumers add named capability/status constants only; preserve
+        # every original declaration and table member from the pinned ABI.
+        import re
+        normalize=lambda text: re.sub(r'\s+', '', re.sub(r'/\*.*?\*/','',text,flags=re.S))
+        current=(ROOT/'Apps/RiscAppDataV1.h').read_text()
+        current=re.sub(r'^#define RISC_(SHARED_DATA_CAPABILITY|APP_DATA_BUSY).*$', '',current,flags=re.M)
+        self.assertEqual(normalize(current),normalize(legacy.decode()))
         self.assertEqual(dependency['preserved_key_value_namespaces'],{'spectrum_api2':7,'shared_preferences_api1':1})
