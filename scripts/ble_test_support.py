@@ -11,7 +11,7 @@ def stage_sdk(system, output):
     for folder in (system / 'lib/PortableApps/include', system / 'sdk/app'):
         for source in folder.glob('*.h'):
             shutil.copyfile(source, include / source.name)
-    for name in ('RiscBluetoothSensorsV1.h', 'RiscTelemetryV1.h'):
+    for name in ('PortableBluetoothHost.h', 'RiscBluetoothSensorsV1.h', 'RiscTelemetryV1.h'):
         source = ROOT / 'lib/Bluetooth/include' / name
         if name == 'RiscTelemetryV1.h':
             assert source.read_bytes() == (include / name).read_bytes(), 'Telemetry contract drift'
