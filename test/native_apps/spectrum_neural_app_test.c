@@ -11,17 +11,17 @@ static int32_t neural_stat(void*c,const char*n,uint32_t*s,uint64_t*v){
  neural_guard();*s=0;*v=0;neural_reads++;
  if(neural_read_error)return RISC_APP_DATA_IO;
  if(!neural_size)return RISC_APP_DATA_NOT_FOUND;
- *s=neural_size;*v=file_revision;return RISC_APP_DATA_OK;
+ *s=neural_size;*v=file_revisions[2];return RISC_APP_DATA_OK;
 }
 static int32_t neural_read(void*c,const char*n,uint64_t expected,void*out,uint32_t cap,uint32_t*s,uint64_t*v){
  if(!neural_name(n))return file_read(c,n,expected,out,cap,s,v);
- neural_guard();assert(expected==file_revision&&cap>=neural_size);neural_reads++;memcpy(out,neural_disk,neural_size);*s=neural_size;*v=file_revision;return RISC_APP_DATA_OK;
+ neural_guard();assert(expected==file_revisions[2]&&cap>=neural_size);neural_reads++;memcpy(out,neural_disk,neural_size);*s=neural_size;*v=file_revisions[2];return RISC_APP_DATA_OK;
 }
 static int32_t neural_replace(void*c,const char*n,uint64_t expected,const void*in,uint32_t size){
  if(!neural_name(n))return file_replace(c,n,expected,in,size);
- neural_guard();neural_writes++;assert(size==SN_RECORD_SIZE&&expected==(neural_size?file_revision:0));
+ neural_guard();neural_writes++;assert(size==SN_RECORD_SIZE&&expected==(neural_size?file_revisions[2]:0));
  if(neural_error){if(neural_error==RISC_APP_DATA_RETAINED)file_retained=true;return neural_error;}
- memcpy(neural_disk,in,size);neural_size=size;file_revision++;return neural_unknown?RISC_APP_DATA_COMMIT_UNKNOWN:RISC_APP_DATA_OK;
+ memcpy(neural_disk,in,size);neural_size=size;file_revisions[2]=++file_revision;return neural_unknown?RISC_APP_DATA_COMMIT_UNKNOWN:RISC_APP_DATA_OK;
 }
 static void neural_fresh(void){
  fresh();file_api.stat=neural_stat;file_api.read=neural_read;file_api.replace=neural_replace;
@@ -31,7 +31,7 @@ static void neural_fresh(void){
   for(unsigned j=0;j<3;j++)l->examples[j]=sn_fixture_example(i,j,ST_POSITIVE);
   l->examples[3]=sn_fixture_example(2,3,ST_NEGATIVE);l->examples[4]=sn_fixture_example(2,4,ST_NEGATIVE);
  }
- for(unsigned b=0;b<2;b++){seeded.generation[b]=1;event_sizes[b]=(uint32_t)st_bank_encode(&seeded,b,event_disk[b],sizeof(event_disk[b]));assert(event_sizes[b]);}
+ for(unsigned b=0;b<2;b++){seeded.generation[b]=1;event_sizes[b]=(uint32_t)st_bank_encode(&seeded,b,event_disk[b],sizeof(event_disk[b]));assert(event_sizes[b]);file_revisions[b]=++file_revision;}
  memcpy(saved_banks,event_disk,sizeof(saved_banks));
 }
 static void finish_training(void){
