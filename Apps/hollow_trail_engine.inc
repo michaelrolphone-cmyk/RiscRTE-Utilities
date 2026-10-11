@@ -46,7 +46,7 @@ static uint16_t ht_dirty_top,ht_dirty_height;
 /* Two focus maps cover alternating camera positions at the AI sampling grid. */
 #define HT_SIMD_TABLE_BYTES (4u*6u*16u + 3u*16u)
 #define HT_MEMORY (HT_SIMD_TABLE_BYTES + HT_RECON_PIXELS * 4u + HT_PIXELS * 6u + HT_LAYERS * HT_TILE_SLOTS * HT_TILE_PIXELS * 2u + HT_MASK_PIXELS + HT_SCENE_PIXELS + HT_RECON_PIXELS)
-#define HT_NATIVE_MEMORY (HT_NATIVE_PIXELS * 2u)
+#define HT_NATIVE_MEMORY HT_NATIVE_PIXELS
 #define HT_GOAL 3200
 #define HT_STEP_MS 32u /* Fixed physics clock; scene direction varies world speed. */
 
@@ -175,10 +175,14 @@ static uint8_t *ht_raw, *ht_near, *ht_wide, *ht_temp, *ht_scene, *ht_scene_low, 
 static uint8_t *ht_cached_near[HT_LAYERS][HT_TILE_SLOTS], *ht_cached_wide[HT_LAYERS][HT_TILE_SLOTS];
 static int ht_cache_key[HT_LAYERS][HT_TILE_SLOTS];
 static bool ht_cache_valid[HT_LAYERS][HT_TILE_SLOTS];
-/* Depth 2 is owned by dynamic terrain, leaving its first near/wide pair free
- * for one complete forest backdrop (no allocation or memory-budget growth). */
+/* Depth 2 is never populated/composited by the tile scheduler. Low-resolution
+ * rendering uses its first pair for a backdrop; native rendering uses the
+ * whole contiguous depth as raster B. These lifetimes are mutually exclusive. */
 #if 2*HT_TILE_PIXELS < HT_PIXELS
 #error Forest backdrop exceeds the reserved cache pair
+#endif
+#if HT_TILE_SLOTS*2*HT_TILE_PIXELS < HT_NATIVE_PIXELS
+#error Native scratch exceeds the reserved depth-2 cache
 #endif
 /* Composed chapters share the unused depth-2 cache pair; chapter is part of the key. */
 static bool ht_forest_frame_valid;
@@ -333,11 +337,17 @@ static void ht_bind(uint8_t *memory) {
     ht_focus_valid[0]=ht_focus_valid[1]=false;ht_focus_step[0]=ht_focus_step[1]=0;ht_focus_recent=0;
     memset(ht_cache_valid,0,sizeof(ht_cache_valid));
 }
-/* Optional extension owned by Hollow Trail's app allocation. Keeping it
- * outside HT_MEMORY preserves the existing cache/SIMD arena ABI and tests. */
+/* Native A is separate. Native B aliases the unused depth-2 tile bank,
+ * preserving every raster pixel without another half-megabyte allocation. */
 static void ht_bind_native(uint8_t *memory) {
     ht_native_a=memory+HT_MEMORY;
-    ht_native_b=ht_native_a+HT_NATIVE_PIXELS;
+    ht_native_b=ht_cached_near[2][0];
+}
+/* Any use of aliased native scratch invalidates the low-resolution backdrop,
+ * including cutscene dissolves. Returning to a low camera rebuilds it. */
+static uint8_t *ht_native_scratch(void) {
+    ht_forest_frame_valid=false;
+    return ht_native_b;
 }
 #define HT_SIGNAL_LOG_X 2170
 #define HT_SIGNAL_ROOM_LEFT 2065
@@ -1730,7 +1740,7 @@ static void ht_render_scene_from(const ht_game *source,bool character) {
         ht_reconstruct_low_scene();
     }
     uint8_t *output=ht_scene;
-    if(camera_pass)ht_scene=native_mode?ht_native_b:ht_temp;
+    if(camera_pass)ht_scene=native_mode?ht_native_scratch():ht_temp;
     if(!opaque) {
         if(native_mode) {
             uint8_t *native_target=ht_scene;
@@ -1765,7 +1775,7 @@ static void ht_render_scene_from(const ht_game *source,bool character) {
     ht_world_scale=256;
     ht_native_foreground_half_y=false;
     ht_scene=output;
-    if(camera_pass)ht_camera_into(native_mode?ht_native_b:ht_temp,&game,camera_mode);
+    if(camera_pass)ht_camera_into(native_mode?ht_native_scratch():ht_temp,&game,camera_mode);
     ht_vignette();
     ht_render_last.post=ht_render_now()-post_start;
 }

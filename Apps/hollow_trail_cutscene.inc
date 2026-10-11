@@ -707,7 +707,7 @@ static void ht_cutscene_draw_intro_arrival(const ht_cutscene_state *s,const ht_c
      * already are the live raster, so finishing cannot introduce a scene cut. */
     if(u<256) {
         ht_cutscene_draw_orchard_profile(s,cue);
-        uint8_t *saved=ht_native_active?ht_native_b:ht_near;
+        uint8_t *saved=ht_native_active?ht_native_scratch():ht_near;
         size_t pixels=ht_native_active?HT_NATIVE_PIXELS:HT_PIXELS;
         for(size_t i=0;i<pixels;i+=HT_W) {
             memcpy(saved+i,ht_scene+i,HT_W);ht_checkpoint();
@@ -732,7 +732,7 @@ static void ht_cutscene_draw_western(const ht_cutscene_state *s) {
     unsigned tick=ht_min((int)s->tick,HT_WESTERN_VISTA_TICKS);
     unsigned alpha=tick<96?tick*256u/96u:tick>544?(640u-tick)*256u/96u:256u;
     if(!alpha) { ht_render_scene_from(&ht_cutscene_anchor,true);return; }
-    uint8_t *saved=ht_native_active?ht_native_b:ht_near;
+    uint8_t *saved=ht_native_active?ht_native_scratch():ht_near;
     size_t pixels=ht_native_active?HT_NATIVE_PIXELS:HT_PIXELS;
     if(alpha<256u) {
         /* The ordinary camera may use native_b as scratch. Capture only after

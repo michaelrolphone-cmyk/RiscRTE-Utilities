@@ -6,10 +6,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
-/* Keep the existing scenery/SIMD arena layout. Native raster planes, journal
+/* Keep the existing scenery/SIMD arena layout. Native raster A, journal
  * and optional packed staging do not need to be adjacent to that arena.
  * Allocate largest-first, once per launch; never allocate while rendering. */
-enum { HT_MEM_SCENERY, HT_MEM_NATIVE_A, HT_MEM_NATIVE_B, HT_MEM_READER,
+enum { HT_MEM_SCENERY, HT_MEM_NATIVE_A, HT_MEM_READER,
        HT_MEM_STAGING, HT_MEM_BLOCKS };
 typedef struct {
     void *owned[HT_MEM_BLOCKS];
@@ -27,9 +27,9 @@ static void ht_startup_memory_close(ht_startup_memory *memory, void (*release)(v
 static bool ht_startup_memory_open(ht_startup_memory *memory,
                                   void *(*allocate)(size_t), void (*release)(void *),
                                   void (*log_message)(const char *)) {
-    const size_t sizes[HT_MEM_BLOCKS]={HT_MEMORY,HT_NATIVE_PIXELS,HT_NATIVE_PIXELS,
+    const size_t sizes[HT_MEM_BLOCKS]={HT_MEMORY,HT_NATIVE_PIXELS,
                                      HT_PACKED_BYTES,HT_PACKED_BYTES};
-    const char *const names[HT_MEM_BLOCKS]={"scenery", "native A", "native B", "journal", "staging"};
+    const char *const names[HT_MEM_BLOCKS]={"scenery", "native A", "journal", "staging"};
     for(unsigned i=0;i<HT_MEM_BLOCKS;++i) if(memory->owned[i]) return false;
     for(unsigned i=0;i<HT_MEM_BLOCKS;++i) {
         /* Preserve SIMD/packed-row alignment even with an unaligned allocator. */

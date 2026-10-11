@@ -757,7 +757,7 @@ __attribute__((visibility("default"))) void canvas_original_main(void) {
     ht_pad_owned=ht_input_rearm=ht_pad_fault=false; debug_select=debug_jump=false; ht_pad_source=-1; ht_pad_device=0;
     ht_acquire_pad(); ht_acquire_reader(); ht_bind(arena);
     ht_native_a=buffers.data[HT_MEM_NATIVE_A];
-    ht_native_b=buffers.data[HT_MEM_NATIVE_B];
+    ht_native_b=ht_cached_near[2][0];
     ht_render_clock=app->millis;
     if(!ht_start_video(video,&surface)) {
         ht_log("Hollow Trail: video start failed"); goto cleanup;
@@ -838,7 +838,7 @@ __attribute__((visibility("default"))) void canvas_original_main(void) {
     memset(&ht_perf,0,sizeof(ht_perf));ht_perf.start=app->millis();
     if(video->frame_counter) ht_perf.scan_start=video->frame_counter();
     ht_fps_reset(&ht_fps,ht_perf.start);
-    ht_log("Hollow Trail 1.2.1: draw the mill desk into the window light");
+    ht_log("Hollow Trail 1.2.2: draw the mill desk into the window light");
     ht_log(HT_HAS(app,t5_app_api_v1,poll_nowait)?
         "Hollow Trail input: no-wait updates; scheduler yield every 32ms":
         "Hollow Trail input: legacy yielding poll (firmware lacks poll_nowait)");

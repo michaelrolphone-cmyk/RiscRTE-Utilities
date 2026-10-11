@@ -16,6 +16,11 @@
 #include "../../Apps/hollow_trail.c"
 #endif
 #include "../../lib/CanvasApp/entry.c"
+#ifdef CANVAS_TEST_BUDGET
+#include "allocation_budget.h"
+#endif
+static bool allocation_failed;
+static char allocation_error[128];
 static unsigned ms,submits,releases,steps,acquired,freed,mode,phase,phase_at;
 static bool hold_test,held_invocation,finished,subscribed,pressed,changed,did_shade,did_saved,did_move,notes_seen;
 static uint8_t *pixels,*captured;static size_t pixels_size;static uint64_t queued;static unsigned ready_at,physical_w,physical_h;
@@ -50,7 +55,7 @@ static void schedule(void){
 static bool health(risc_runtime_health_v1 *h){h->uptime_ms=ms;return !held_invocation;}
 static bool monotonic(uint32_t *out){*out=ms;return !held_invocation;}
 static void yield_ms(uint32_t n){ms+=(n?n:1)*(CANVAS_KIND==2?8:1);if(queued)assert(hash(pixels,pixels_size)==frame_hash);if(!held_invocation)schedule();}
-static bool diagnostic(const char *s){fprintf(stderr,"%s\n",s);return true;}
+static bool diagnostic(const char *s){if(strstr(s,"PSRAM allocation failed")){allocation_failed=true;snprintf(allocation_error,sizeof(allocation_error),"%s",s);}fprintf(stderr,"%s\n",s);return true;}
 static bool retain(void){held_invocation=true;return true;}
 static bool get_info(void *c,risc_display_info_v1 *i){(void)c;*i=(risc_display_info_v1){.api_version=1,.struct_size=sizeof(*i),.width=physical_w,.height=physical_h,.supported_formats=RISC_DISPLAY_FORMAT_BIT(mode?1:5),.flags=RISC_DISPLAY_INFO_ASYNC_PRESENT| (mode?RISC_DISPLAY_INFO_RETAINS_IMAGE:0)};return true;}
 static bool frame_get(void *c,uint32_t f,risc_display_surface_v1 *s){(void)c;if(queued)return false;assert(f==(mode?1u:5u));*s=(risc_display_surface_v1){1,pixels,physical_w,physical_h,(physical_w*(mode?1:16)+7)/8,pixels_size,f};return true;}
@@ -93,7 +98,18 @@ int main(int argc,char **argv){
 #endif
  snap.width=mode?480:240;snap.height=mode?800:240;
  pixels_size=(size_t)((physical_w*(mode?1:16)+7)/8)*physical_h;pixels=calloc(1,pixels_size);captured=calloc(1,pixels_size);assert(pixels&&captured);
- app_main();assert(finished&&submits>=3);
+ app_main();
+#ifdef CANVAS_TEST_BUDGET
+ if(getenv("CANVAS_EXPECT_MEMORY_FAILURE")){
+  assert(allocation_failed&&strstr(allocation_error,getenv("CANVAS_EXPECT_MEMORY_FAILURE")));
+  assert(!finished&&releases==acquired&&!subscribed&&!queued);
+  assert(!canvas_test_live_bytes());free(pixels);free(captured);
+  puts("bounded allocator reproduces clean startup failure PASS");return 0;
+ }
+ assert(hold_test || !canvas_test_live_bytes());
+ printf("app allocation peak=%zu limit=%s\n",canvas_test_peak_bytes(),getenv("CANVAS_ALLOC_LIMIT"));
+#endif
+ assert(finished&&submits>=3);
  if(hold_test)assert(held_invocation&&releases==0);else assert(!held_invocation&&releases==acquired&&!subscribed&&!queued);
 #if CANVAS_KIND==1
  assert(changed&&did_shade&&did_saved);if(sd_test)assert(sd_opens&&sd_opens==sd_closes&&!sd_open);
