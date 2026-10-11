@@ -20,7 +20,8 @@ static const risc_driver_v2 *sensor_driver;
 #include <stdlib.h>
 #include <string.h>
 void app_main(void);int app_module_init(void);void app_module_fini(void);
-static unsigned ticks,polls,grants,frames,subs,presents;
+static unsigned ticks,polls,grants,frames,subs,presents,last_touch_at;
+static bool touch_poll_seen;
 static unsigned stop_poll=240;
 static unsigned radio_sends,radio_claims,radio_closes,radio_state,launches,reports,radio_control_calls;static bool radio_owned;
 static uint8_t command_ack[6];static bool ack_ready,advertising;
@@ -73,7 +74,9 @@ static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_pre
 static const risc_display_output_api_v1 display_api={.api_version=1,.struct_size=sizeof(display_api),.get_info=fake_info,.acquire=fake_frame,.release=fake_frame_release,.submit=fake_submit,.present_status=fake_present};
 static uint64_t fake_sub(void*c){(void)c;subs++;return 1;}
 static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n==1&&subs);subs--;return true;}
-static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);polls++;return true;}
+/* Raster capture polls share the current snapshot; only elapsed simulated time
+ * advances the gesture script. A down edge remains visible for its full tick. */
+static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);if(!touch_poll_seen||ticks!=last_touch_at){touch_poll_seen=true;last_touch_at=ticks;polls++;}return true;}
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;(void)n;(void)e;return 0;}
 static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;
 #ifdef BLE_PAPER
