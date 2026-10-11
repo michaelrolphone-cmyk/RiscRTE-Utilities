@@ -49,7 +49,7 @@ static void save_frame(void) {
 #endif
  assert(!fclose(f));
 }
-static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;if(getenv("BLE_COMPLETE")&&polls>950)assert(!radio_owned);return polls<stop_poll;}
+static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;if(getenv("BLE_COMPLETE")){/* The passive window is milliseconds, independent of input poll cadence. */if(ticks>19000)assert(!radio_owned);return ticks<20000;}return polls<stop_poll;}
 static void fake_yield(uint32_t n){ticks+=n;}
 static bool fake_diag(const char*s){fprintf(stderr,"%s\n",s);return true;}
 static bool fake_launch(const char*s){assert(!radio_owned);assert(!strcmp(s,PORTABLE_RETURN_APP));launches++;printf("launch=%s\n",s);stop_poll=polls;return true;}
@@ -143,7 +143,7 @@ static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&grants);*g
 static const risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=fake_acquire,.release=fake_release};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&runtime_api:NULL;}
 static uint64_t sensor_now(void*c){(void)c;return ticks;}
-int main(int argc,char**argv){assert(argc>=2);directory=argv[1];if(getenv("BLE_COMPLETE"))stop_poll=1000;memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}uint8_t policy[]={0x51,1,3,0xa6};if(getenv("BLE_POLICY_OFF")){policy[2]=1;policy[3]=0xa4;}if(getenv("BLE_AIRPLANE")){policy[2]=4;policy[3]=0xa1;}assert(fake_put(NULL,"quick_radio",policy,4)==0);
+int main(int argc,char**argv){assert(argc>=2);directory=argv[1];memset(pixels,0xa5,sizeof(pixels));if(argc>2){FILE*f=fopen(argv[2],"r");assert(f);while(action_count<256&&fscanf(f,"%u %d %d",&actions[action_count].at,&actions[action_count].x,&actions[action_count].y)==3)action_count++;fclose(f);}uint8_t policy[]={0x51,1,3,0xa6};if(getenv("BLE_POLICY_OFF")){policy[2]=1;policy[3]=0xa4;}if(getenv("BLE_AIRPLANE")){policy[2]=4;policy[3]=0xa1;}assert(fake_put(NULL,"quick_radio",policy,4)==0);
 risc_platform_clock_api_v1 clock={1,sizeof(clock),NULL,sensor_now,NULL};risc_provider_dependency_v1 deps[]={{"bluetooth.hci",1,&radio_api},{"platform.clock",1,&clock}};
 sensor_driver=t5_driver_get(2);assert(sensor_driver&&sensor_driver->start(deps,2));
 uint8_t named[]={6,2,3,4,5,6};assert(ble_alias_save(&kv_api,1,named,"Kitchen sensor"));
