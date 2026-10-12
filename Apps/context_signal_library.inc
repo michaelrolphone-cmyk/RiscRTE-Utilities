@@ -12,7 +12,7 @@ static void shared_target(int x,int y,int w,int h){
  if(shared_targets++==shared_focus)fill(x,y+5,2,h-10,NOVA_CYAN);
 }
 static void shared_pill(int x,int y,int w,int h,const char*name,bool on){pill(x,y,w,h,name,on);shared_target(x,y,w,h);}
-#ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
+#if defined(PORTABLE_SPECTRUM_SHARED_TEXT_INPUT) || defined(PORTABLE_RF_SHARED_TEXT_INPUT)
 /* Input geometry cannot depend on the last completed display frame. These
  * are the same existing targets, refreshed before every navigation event. */
 static unsigned shared_rows(unsigned slots[CF_PROFILES]);
@@ -38,7 +38,7 @@ static void shared_input_layout(void){
 }
 #endif
 static void shared_buttons(uint32_t buttons){
-#ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
+#if defined(PORTABLE_SPECTRUM_SHARED_TEXT_INPUT) || defined(PORTABLE_RF_SHARED_TEXT_INPUT)
  shared_input_layout();
 #endif
  if(!shared_targets)return;

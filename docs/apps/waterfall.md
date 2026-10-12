@@ -117,7 +117,7 @@ and launch before those guards. Physical navigation aliases are normalized to
 one action. X4 raw portrait touch uses the shared paper contact provider; it is
 not rotated a second time.
 
-X4 Home and QuickActions builds opt into the shared pre-launch guard. Pending
+Legacy X4 Home and QuickActions builds opt into the shared pre-launch guard. Pending
 windows, unsaved names and unconfirmed saves veto a handoff while leaving the
 RF UI interactive. Clean Home goes to the explicit default app; a refused
 launch can be retried. Opening/dismissing paper QuickActions preserves the
@@ -157,3 +157,14 @@ fortify overflow checks; GCC11/glibc2.35 and GCC14/glibc2.41 are covered.
 These are software checks; the new extended captures and X4 RF receive path
 still require physical qualification. The hardware-accepted Watch1.0.7 release
 retains its earlier app/provider bytes independently of this next increment.
+
+## Opt-in shared naming, 0.3.4
+
+The separately selected Watch/X4 profile replaces all four local name-entry
+routes with the shared `ui.text-input` host. Names remain limited to 16 printable
+ASCII characters; Done returns to the current editor and its existing Save or
+Train action. Back preserves the prior draft. Home closes the host, cancels uncommitted
+editor/capture/learning state and exits after normal cleanup without saving it.
+Already saved data and local Back behavior are unchanged.
+See [RF shared name entry](../RF_SHARED_TEXT_INPUT.md) for ownership, provenance,
+profile isolation, development builds and qualification limits.
