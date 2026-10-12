@@ -1,0 +1,28 @@
+name: Watch Scanner shared input
+on:
+  push:
+    branches: [fix/watch-scanner-shared-input-20261012]
+  pull_request:
+    paths:
+      - 'Apps/ble_scanner.c'
+      - 'tests/ble_app_test.c'
+      - '.github/workflows/watch-scanner-shared-input.yml'
+permissions:
+  contents: read
+jobs:
+  scanner:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 9c0ad2faa4b3aa73daf1c92cc343e0f83c2a5af3
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python scripts/test_ble_scanner.py --system-apps .dependencies/system

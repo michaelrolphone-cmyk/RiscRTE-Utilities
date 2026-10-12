@@ -31,11 +31,13 @@ p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--system-apps', type=Path, required=True)
 p.add_argument('--presentation', choices=PINS, default='watch')
 p.add_argument('--system-source', help='Explicit immutable integration adapter SHA')
+p.add_argument('--runtime-sdk', type=Path, help='Canonical native Runtime app SDK required by shared text input')
 p.add_argument('--output', type=Path)
 p.add_argument('--storage-instance', type=int, default=0)
 p.add_argument('--app-data-instance', type=int, default=3)
 p.add_argument('--home-app', help='Explicit physical Home destination, e.g. default.elf')
 p.add_argument('--quick-actions', action='store_true', help='Shared paper QuickActions; no radio control selection')
+p.add_argument('--shared-text-input', action='store_true', help='Opt in to shared ui.text-input for the four bounded RF name editors')
 a = p.parse_args()
 system = a.system_apps.resolve()
 pin = a.system_source or PINS[a.presentation]
@@ -47,11 +49,28 @@ if not 0 <= a.storage_instance < 2**32 or not 0 <= a.app_data_instance < 2**32:
     raise ValueError('Storage instances must fit uint32')
 if (a.home_app or a.quick_actions) and a.presentation != 'paper':
     p.error('Home and QuickActions here use the exact paper adapter; Watch uses its product builder')
+if a.shared_text_input and (not a.runtime_sdk or not (a.runtime_sdk / 'RiscRealtimeV1.h').is_file()):
+    p.error('Shared RF naming requires --runtime-sdk with the canonical native Runtime app headers')
+if a.shared_text_input and not (system / 'lib/PortableApps/include/PortableTextInputClient.h').is_file():
+    p.error('Shared RF naming requires an explicit System source with PortableTextInputClient')
 validate_manifest(ROOT / 'Apps/waterfall.c', 'waterfall.elf')
 core = Path(os.environ.get('PLATFORMIO_CORE_DIR', str(Path.home() / '.platformio')))
 cc = os.environ.get('NATIVE_APP_CC') or shutil.which('xtensa-esp32s3-elf-gcc') or str(core / 'packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc')
 out = (a.output or ROOT / ('dist/waterfall-' + a.presentation)).resolve()
 out.mkdir(parents=True, exist_ok=True)
+include_dirs = [ROOT / 'Apps', system / 'lib/PortableApps/include', system / 'lib/NativeApps/include']
+sdk_hashes = {}
+if a.runtime_sdk:
+    # One materialized header identity prevents duplicate #pragma-once types
+    # when the canonical Runtime and portable policy headers include each other.
+    sdk = out / 'sdk/include'
+    sdk.mkdir(parents=True, exist_ok=True)
+    for directory in (a.runtime_sdk.resolve(), system / 'lib/PortableApps/include'):
+        for header in directory.glob('*.h'):
+            shutil.copyfile(header, sdk / header.name)
+    shutil.copytree(system / 'lib/PortableApps/time', sdk.parent / 'time', dirs_exist_ok=True)
+    include_dirs.insert(1, sdk)
+    sdk_hashes = {header.name: hashlib.sha256(header.read_bytes()).hexdigest() for header in sorted(sdk.glob('*.h'))}
 quick = None
 quick_sources = []
 quick_flags = []
@@ -72,6 +91,12 @@ defines = ['PORTABLE_FORCE_FULL_FRAMES', 'PORTABLE_APP_OWNS_TOUCH_CHROME',
            'RF_RETURN_APP="springboard.elf"',
            'RF_STORAGE_INSTANCE=' + str(a.storage_instance),
            'RF_APP_DATA_INSTANCE=' + str(a.app_data_instance)]
+if a.shared_text_input:
+    defines += ['PORTABLE_RF_SHARED_TEXT_INPUT', 'PORTABLE_TEXT_INPUT_CLIENT',
+                'PORTABLE_APP_LAUNCH_GUARD', 'PORTABLE_APP_HOME_GUARD', 'PORTABLE_CHECKED_STORAGE_RUNTIME',
+                'PORTABLE_NATIVE_CUSTODY_FENCE', 'PORTABLE_ALARM_TERMINAL_RETENTION']
+    if not a.home_app:
+        defines.append('PORTABLE_HOME_APP="springboard.elf"')
 if a.presentation == 'paper':
     defines += ['PORTABLE_DISPLAY_ROTATION=90', 'PORTABLE_INPUT_NAVIGATION']
 elf = out / 'waterfall.elf'
@@ -80,7 +105,7 @@ run([cc, '-std=c11', '-Os', '-fPIC', '-mtext-section-literals', '-mlongcalls',
      '-nostartfiles', '-shared', '-Wl,--no-relax', '-Wl,--hash-style=sysv',
      '-Wl,--version-script=' + str(out / 'exports.map'), '-Wall', '-Wextra', '-Werror',
      *['-D' + d for d in defines], *quick_flags,
-     *['-I' + str(i) for i in [ROOT / 'Apps', system / 'lib/PortableApps/include', system / 'lib/NativeApps/include']],
+     *['-I' + str(i) for i in include_dirs],
      ROOT / 'Apps/waterfall.c', system / 'lib/PortableApps/src/adapter.c', out / 'catalog.c',
      system / 'lib/NativeApps/src/SingleFloatDivisionCompat.c', *quick_sources, '-lgcc', '-o', elf])
 normalize(elf)
@@ -96,7 +121,8 @@ run([os.environ.get('CC', 'cc'), '-std=c11', '-Wall', '-Wextra', '-Werror',
      system / 'lib/elf_loader/src/esp_elf_validate.c', system / 'test/native_apps/validate_test.c', '-o', validator])
 run([validator, elf])
 m = json.loads((ROOT / 'Apps/waterfall.json').read_text())
-manifest = dict(type='application', id='waterfall', version=m['version'], architecture='xtensa-esp32s3',
+version = '0.3.4' if a.shared_text_input else m['version']
+manifest = dict(type='application', id='waterfall', version=version, architecture='xtensa-esp32s3',
                 file_name='waterfall.elf', entry='app_main',
                 requires=[dict(capability=q['capability'], api=int(q['api'][2:])) for q in m['requires']])
 # API2 owns private RF records; API1 independently reads shared radio policy.
@@ -105,12 +131,15 @@ manifest = dict(type='application', id='waterfall', version=m['version'], archit
 manifest['requires'] += [dict(capability='storage.key-value', api=1), dict(capability='board.battery', api=1)]
 if a.presentation == 'paper':
     manifest['requires'].append(dict(capability='input.navigation', api=1))
+if a.shared_text_input:
+    manifest['requires'].append(dict(capability='ui.text-input', api=1))
 if quick:
     quick.requirements(a, manifest['requires'])
 (out / 'waterfall.json').write_text(json.dumps(manifest, indent=2) + '\n')
 record = dict(schema=1, source_revision=git(ROOT, 'rev-parse', 'HEAD'),
               source_dirty=bool(git(ROOT, 'status', '--porcelain')), system_source=pin,
-              presentation=a.presentation, defines=defines + [d.removeprefix('-D') for d in quick_flags],
+              runtime_sdk=str(a.runtime_sdk.resolve()) if a.runtime_sdk else None, runtime_sdk_headers=sdk_hashes,
+              presentation=a.presentation, version=version, shared_text_input=a.shared_text_input, defines=defines + [d.removeprefix('-D') for d in quick_flags],
               home_app=a.home_app, quick_actions=a.quick_actions, quick_radios=False,
               sha256=hashlib.sha256(elf.read_bytes()).hexdigest(),
               bytes=elf.stat().st_size, imports=sorted(imports), exports=sorted(exports), target_validation='passed',
@@ -121,4 +150,4 @@ record = dict(schema=1, source_revision=git(ROOT, 'rev-parse', 'HEAD'),
 for name in ['LICENSE-FontAwesome.txt', 'LICENSE-Orbitron.txt', 'LICENSE-Rajdhani.txt', 'SOURCES.json']:
     (out / name).write_bytes((system / 'lib/PortableApps/fonts' / name).read_bytes())
 (out / 'LICENSE-Utilities.txt').write_bytes((ROOT / 'LICENSE').read_bytes())
-print('Built Waterfall', m['version'], a.presentation, record['bytes'], record['sha256'])
+print('Built Waterfall', version, a.presentation, record['bytes'], record['sha256'])

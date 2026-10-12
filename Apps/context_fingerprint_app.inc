@@ -108,7 +108,7 @@ static void cfa_load(void){
     if(!rc&&size<=sizeof(cfa_bytes)&&revision)rc=event_files.api->read(event_files.api->context,"context-fingerprints.cfp",revision,cfa_bytes,sizeof(cfa_bytes),&actual,&current);
     else if(!rc)rc=RISC_APP_DATA_INVALID;
     if(!rc&&(actual!=size||current!=revision||!cf_decode_source(&cfa_read_bank,cfa_source(),cfa_bytes,actual)))rc=RISC_APP_DATA_INVALID;
-    if(rc==RISC_APP_DATA_RETAINED)event_files.retained=true;
+    if(rc==RISC_APP_DATA_RETAINED){event_files.retained=true;cfa_failed=true;return;}
     if(!rc){cfa_bank=cfa_read_bank;cfa_loaded=true;cfa_revision=revision;cfa_shared_names();}else{cfa_failed=true;notify("FINGERPRINTS UNREAD / RETRY");}
 }
 static bool cfa_filter_select(unsigned mode,const char*name){

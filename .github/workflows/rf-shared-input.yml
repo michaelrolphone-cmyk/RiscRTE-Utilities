@@ -1,0 +1,45 @@
+name: RF shared input safety
+on:
+  push:
+    branches: [work/rf-shared-input-20261012]
+  pull_request:
+    paths:
+      - 'Apps/waterfall.c'
+      - 'Apps/rf_application.inc'
+      - 'Apps/context_signal_library.inc'
+      - 'Apps/rf_app_data_scope.h'
+      - 'Apps/rf_temporal_app.inc'
+      - 'Apps/context_fingerprint_app.inc'
+      - 'test/native_apps/rf_shared_input_safety_test.c'
+      - 'test/native_apps/rf_app_data_scope_test.c'
+      - 'scripts/test_rf_shared_input_safety.py'
+      - '.github/workflows/rf-shared-input.yml'
+permissions:
+  contents: read
+jobs:
+  safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 7fb13b09b4dac275a8111b224784f8a472f39264
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Utilities
+          ref: 82d17d0d902d427938af95aae0e976c8f78041ed
+          path: .dependencies/baseline
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Shared-client lifecycle, distinct Home, storage scope and opt-out parity
+        run: python scripts/test_rf_shared_input_safety.py --system-apps .dependencies/system --baseline-utilities .dependencies/baseline
+      - name: Source manifest and inventory contracts
+        run: python -m unittest discover -s tests -v

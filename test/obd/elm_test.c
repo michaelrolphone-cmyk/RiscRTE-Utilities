@@ -32,7 +32,7 @@ int main(void){
  reading(&c,OBD_MAP,"7E8 03 41 0B 64\r>");assert(c.samples[OBD_MAP].milli==100000);
  reading(&c,OBD_LONG_TRIM,"7E8 03 41 07 80\r>");assert(c.samples[OBD_LONG_TRIM].milli==0);
  reading(&c,OBD_OIL,"7E8 03 41 5C 8C\r>");assert(c.samples[OBD_OIL].milli==100000);
- char v[32],u[32];reading(&c,OBD_SPEED,"7E8 03 41 0D 64\r>");obd_format(&c,OBD_SPEED,now,1,v,sizeof(v),u,sizeof(u));assert(!strcmp(v,"62")&&!strcmp(u,"mph"));
+ char v[32],u[32];reading(&c,OBD_SPEED,"7E8 03 41 0D 64\r>");obd_format(&c,OBD_SPEED,now,1,v,sizeof(v),u,sizeof(u));assert(!strcmp(v,"62")&&!strcmp(u,"MPH"));
  reading(&c,OBD_COOLANT,"7E8 03 41 05 82\r>");obd_format(&c,OBD_COOLANT,now,1,v,sizeof(v),u,sizeof(u));assert(!strcmp(v,"194"));
  reading(&c,OBD_RPM,"010C\r7E8 04 41 0D 1A F8\r>");assert(!c.samples[OBD_RPM].valid&&c.bad_lines);
  reading(&c,OBD_RPM,"7E8 07 41 0C 1A F8\r>");assert(!c.samples[OBD_RPM].valid);
@@ -48,4 +48,5 @@ int main(void){
  init(&c,6);c.mask[0]=0x00100000; c.mask[1]=c.mask[2]=0;c.stage=10;c.state=OBD_DISCOVERING;c.prepared=0;for(unsigned k=0;k<200;k++){now+=1000;assert(obd_next(&c,now,&out));assert(!strcmp(out,"010C\r"));obd_sent(&c,now);reply(&c,"7E8 04 41 0C 1A F8\r>");}assert(c.samples[OBD_RPM].supported&&!c.samples[OBD_SPEED].supported);
  obd_stop(&c,"disconnected");assert(!obd_fresh(&c,OBD_RPM,now));
  puts("ELM init/fragmentation/multi-ECU/header/protocol/16-PID math/units/malformed/timeout-wrap/stale/read-only schedule PASS");
+ return 0;
 }

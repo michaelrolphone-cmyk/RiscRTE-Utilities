@@ -151,7 +151,7 @@
     {
       "id": "audio_spectrum",
       "display_name": "Audio Spectrum",
-      "version": "0.5.1",
+      "version": "0.5.4",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/audio_spectrum.c",
@@ -209,7 +209,7 @@
     {
       "id": "lora_messages",
       "display_name": "LoRa Messages",
-      "version": "0.1.2",
+      "version": "0.1.14",
       "origin": "original",
       "runtime_profile": "portable-riscrte-v1",
       "source_path": "Apps/lora_messages.c",

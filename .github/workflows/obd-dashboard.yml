@@ -1,7 +1,7 @@
 name: OBD dashboard
 on:
   push:
-    branches: [feat/obd-dashboard]
+    branches: [feat/obd-dashboard, feat/x4-obd-reconnect-021, audit/obd-test-readiness-20261012]
     paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/build_obd_dashboard.py', 'scripts/test_obd_dashboard.py', 'test/obd/**', '.github/workflows/obd-dashboard.yml']
   pull_request:
     paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/build_obd_dashboard.py', 'scripts/test_obd_dashboard.py', 'test/obd/**', '.github/workflows/obd-dashboard.yml']
@@ -11,7 +11,7 @@ permissions:
 jobs:
   dashboard:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,39 +20,49 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: 7071f0c25e223f24670bed409a5f8b6f291c8042
+          ref: 1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70
           path: Runtime
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: dea97a70cdcc657c5d2b2730ca2b62715949a10a
+          ref: f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165
           path: System
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-Drivers
-          ref: 8ec572af94ee6e844b1685d8d050471cd58cad87
+          ref: 3a1b31c6d2cc90d7f082dd13d20ff7df77bd127c
           path: Drivers
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Test protocol and actual native app with the shared scene
+      - name: Generate shared telemetry typography from existing sources
+        run: |
+          set -euo pipefail
+          python -m pip install Pillow==12.3.0
+          python System/scripts/generate_telemetry_fonts.py
+          echo '2d7501e42d6223ebbc191817715431182c435fea944a1a02166a0748a577eaf1  System/Services/scene_host/fonts/telemetry.inc' | sha256sum --check
+          git -C System diff --exit-code
+      - name: Test protocol, persistence and actual native app with the shared scene
         run: |
           set -euo pipefail
           mkdir -p evidence
           python Utilities/scripts/test_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/plain 2>&1 | tee evidence/host.log
           python Utilities/scripts/test_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/sanitized --sanitize 2>&1 | tee evidence/sanitized.log
-      - name: Compile ESP32-S3 app and check ABI/imports/stack frames
+      - name: Compile ESP32-S3 app and compare with the current-runtime executable
         run: |
           set -euo pipefail
           python -m pip install platformio==6.1.19
           pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
           python Utilities/scripts/build_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/target | tee evidence/target.log
+          git -C Utilities rev-parse HEAD > evidence/source-commit.txt
+          git -C System rev-parse HEAD > evidence/scene-source-commit.txt
+          tar -czf evidence/obd-source.tar.gz Utilities/Apps/obd_dashboard Utilities/Apps/obd_dashboard.json Utilities/scripts/build_obd_dashboard.py Utilities/scripts/test_obd_dashboard.py Utilities/test/obd
       - uses: actions/upload-artifact@v4
         with:
-          name: obd-dashboard-010
+          name: obd-dashboard-022
           path: |
             build/target/obd_dashboard.elf
             build/target/obd_dashboard.json

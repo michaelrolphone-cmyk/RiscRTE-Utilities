@@ -8,6 +8,8 @@ int main(int argc,char **argv){
  if(!strncmp(test,"name-",5)){
   name_editor();
   if(!strcmp(test,"name-cancel")){text_result.state=RISC_TEXT_ENTRY_CANCELLED;name_step();assert(!uat.submits&&!grants);}
+  else if(!strcmp(test,"name-home")){text_result.state=RISC_TEXT_ENTRY_CANCELLED;text_result.flags=RISC_TEXT_ENTRY_HOME_CANCEL;name_step();assert(name_home_return&&!naming&&!uat.submits&&!uat.commits&&!grants&&!portable_app_before_launch("x"));}
+  else if(!strcmp(test,"name-home-retained")){uat.release_bad=true;text_result.state=RISC_TEXT_ENTRY_CANCELLED;text_result.flags=RISC_TEXT_ENTRY_HOME_CANCEL;name_step();assert(name_home_return&&uncertain&&name_preference.grant.api&&grants==1&&!uat.submits&&!portable_app_before_launch("x"));}
   else if(!strcmp(test,"name-repair")){text_result.state=RISC_TEXT_ENTRY_CANCELLED;name_step();uint8_t bad[40];memset(bad,0xa5,sizeof(bad));uat_store("bs2313233343536",bad,40);begin_name();assert(naming&&!text_initial[0]);text_accept("Repaired");assert(uat.commits==1&&uat.intent[10]==1&&!memcmp(uat.intent+44,bad,40)&&!strcmp(aliases[0],"Repaired")&&!grants);}
   else if(!strcmp(test,"name-stale")){uat.revision++;text_accept("Draft");assert(!uat.commits&&name_save_failed&&!grants);}
   else if(!strcmp(test,"name-busy")){uat.submit_error=RISC_ATOMIC_BUSY;text_accept("Draft");assert(uat.submits==1&&!uat.commits&&!grants&&name_save_failed);}

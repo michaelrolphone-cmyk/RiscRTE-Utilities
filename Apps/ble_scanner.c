@@ -11,8 +11,14 @@
 #include "ble_scan_model.h"
 #include "PaperPresentation.h"
 #include "PortableBluetoothControl.h"
+#ifdef BLE_SCANNER_COMPACT_COLOR_ONLY
+/* The Watch target has only its 240x240 RGB565 panel. Do not retain the
+ * unrelated portrait renderer in this explicitly selected product profile. */
+static const paper_presentation *const paper=NULL;
+#else
 __attribute__((weak)) const paper_presentation *paper_presentation_get(void){return NULL;}
 static const paper_presentation *paper;
+#endif
 static bool paper_enable_needed;
 #include <stdio.h>
 #ifndef PORTABLE_APP_OWNS_TOUCH_CHROME
@@ -35,7 +41,7 @@ static const char *message;
 static unsigned detail_index;
 static portable_text_client name_client;
 static risc_text_entry_state_v1 name_state;
-static bool name_closing;
+static bool name_closing,name_home_return;
 static unsigned name_draft_index;
 static uint32_t copied_at;
 static bool naming,name_save_failed;
@@ -72,7 +78,7 @@ bool portable_app_before_launch(const char *destination){
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
   &&!name_preference.grant.api&&!radio_preference.grant.api
 #endif
-  &&!naming&&!name_client.active&&!name_client.acquired&&!name_client.suspended&&!name_client.retained;
+  &&!naming&&!name_home_return&&!name_client.active&&!name_client.acquired&&!name_client.suspended&&!name_client.retained;
 }
 bool portable_radio_suspend(void){
  if(uncertain||name_client.retained)return false;
@@ -251,6 +257,7 @@ static void name_step(void){
  if(rc==RISC_TEXT_ENTRY_AGAIN)return;
  if(rc!=RISC_TEXT_ENTRY_OK||name_client.retained){name_retain();return;}
  naming=name_closing=false;dirty=true;
+ name_home_return=(name_state.flags&RISC_TEXT_ENTRY_HOME_CANCEL)!=0;
  if(name_state.state==RISC_TEXT_ENTRY_ACCEPTED){
   unsigned n=0;while(n<sizeof(name_state.text)&&name_state.text[n]){
    unsigned char c=(unsigned char)name_state.text[n];if(c<32||c>126)break;n++;
@@ -381,18 +388,23 @@ void app_main(void){
  utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!app->touch_contact||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
+#ifndef BLE_SCANNER_COMPACT_COLOR_ONLY
  paper=paper_presentation_get();
+#endif
  if((!paper&&(app->screen_width()!=240||app->screen_height()!=240))||(paper&&(!app->fill_rect||!app->draw_icon)))return;
  paper_enable_needed=false;bp_down=false;
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
  bp_release_seen=false;
 #endif
  scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=restore_failed=naming=false;selected=scroll=detail_scroll=detail_index=0;memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));dirty=true;message="Tap Scan to discover";
- name_client=(portable_text_client){0};name_state=(risc_text_entry_state_v1){0};name_closing=name_save_failed=false;name_draft_index=0;
+ name_client=(portable_text_client){0};name_state=(risc_text_entry_state_v1){0};name_closing=name_save_failed=name_home_return=false;name_draft_index=0;
  contact_down=contact_list=contact_moved=false;contact_y=0;
  app->set_back_exits_app(false);uint32_t rendered=0;
  for(;;){
   if(name_client.retained)return;
+  /* Home belongs to the caller after the shared modal has completely closed.
+   * A clean app return lets Runtime restore its configured default. */
+  if(name_home_return)break;
   if(naming){name_step();if(name_client.retained)return;if(naming)runtime->yield_ms(20);continue;}
   normalize_results();
   /* Retry the latest owed frame without waiting for another scan refresh. */

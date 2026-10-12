@@ -15,7 +15,7 @@ def exact(repo,pin):
  if actual not in allowed or subprocess.check_output(['git','-C',str(repo),'status','--porcelain','--untracked-files=no'],text=True).strip():raise ValueError('Clean exact source required: '+str(repo)+' @ '+pin)
  return actual
 
-BLE='name-cancel name-repair name-stale name-busy name-copy name-tombstone name-delayed name-collect-error name-dirty-submit name-release-error name-bad-receipt name-exit name-cancel-pending name-cancel-race name-cancel-error name-same radio-success radio-airplane radio-rollback radio-missing-rollback radio-submit-fail radio-uncertain radio-revoked-before-hardware radio-stale-rollback radio-cancel-race radio-restore-fail'.split()
+BLE='name-cancel name-home name-home-retained name-repair name-stale name-busy name-copy name-tombstone name-delayed name-collect-error name-dirty-submit name-release-error name-bad-receipt name-exit name-cancel-pending name-cancel-race name-cancel-error name-same radio-success radio-airplane radio-rollback radio-missing-rollback radio-submit-fail radio-uncertain radio-revoked-before-hardware radio-stale-rollback radio-cancel-race radio-restore-fail'.split()
 BATTERY='toggle same pause-failed busy delayed exit cancel-pending cancel-race collect-error release-error'.split()
 CONTEXTS='enable sources timing busy delayed exit retained automatic-noop automatic-order automatic-low automatic-mask automatic-partial automatic-retained'.split()
 def main():

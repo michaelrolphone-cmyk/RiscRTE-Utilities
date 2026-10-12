@@ -8,7 +8,11 @@
 #include "rf_signature_store.h"
 #include "rf_temporal_files.h"
 #include "rf_neural_store.h"
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+#include "PortableTextInputClient.h"
+#else
 #include "PortableWatchKeyboard.h"
+#endif
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -123,7 +127,16 @@ static uint32_t history_times[PLOT_W];
 static uint32_t rendered,recorded_transform,sample_rate,painted;
 static int controls_scroll,controls_touch_y,controls_touch_scroll;
 static bool contact_controls;
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+static unsigned view,page,list_scroll;
+static portable_text_client text_client;
+static risc_text_entry_state_v1 text_state;
+static bool text_active,text_closing,text_home,home_exit_requested,home_refusal_pending;
+bool portable_app_before_home(void);
+static unsigned text_return_page;
+#else
 static unsigned view,page,list_scroll,key_page,key_choice;
+#endif
 static int edit_slot,undo_slot,drag_origin,pill_x,pill_y,pill_w,pill_h;
 static uint32_t cursor_hz;
 static const char *message,*store_message,*toast_message;
@@ -245,7 +258,11 @@ static bool rf_timed_running;
 static risc_radio_iq_format_v1 rf_timed_format;
 static risc_radio_iq_envelope_v1 rf_envelope[256];
 static uint64_t rf_fft_stamp;
-static bool rf_services_safe(void){return !rf_bulk||(!uncertain&&!temporal_retained());}
+static bool rf_services_safe(void){return !rf_bulk||(!uncertain&&!temporal_retained()
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+ &&!text_client.retained
+#endif
+ );}
 static void rf_radio_suspended(void){
  if(!rf_bulk)return;
 #ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
@@ -259,6 +276,9 @@ static void rf_radio_suspended(void){
 bool portable_rf_services_safe(void){return rf_services_safe();}
 bool portable_rf_capture_active(void){return capture_requested&&running&&owned&&!uncertain;}
 bool portable_rf_suspend(void){
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+ if(text_client.retained)return false;
+#endif
  bool was_running=running;running=false;input_waiting=false;signature_suspend();temporal_suspend();dirty=true;contact_down=contact_plot=false;
  if(!portable_radio_suspend()){uncertain=true;return false;}uncertain=owned=rf_timed_running=false;if(was_running)message="STOPPED / RF OFF";return true;
 }
@@ -585,6 +605,7 @@ static void draw_popup(void){
  pill(28,173,59,26,"CANCEL",false);if(edit_slot>=0)pill(91,173,59,26,"DELETE",false);pill(edit_slot>=0?154:126,173,edit_slot>=0?59:87,26,"SAVE",true);
  center(1,10,207,220,"TAP NAME TO TYPE / 16 CHAR MAX",NOVA_CAP);
 }
+#ifndef PORTABLE_RF_SHARED_TEXT_INPUT
 static void draw_keyboard(void){
  text(1,18,15,40,"<",NOVA_CYAN);text(1,45,15,176,"LABEL NAME",NOVA_CAP);fill(18,40,204,1,NOVA_DIM);
  text(1,18,46,204,editing.name,NOVA_CYAN);
@@ -597,8 +618,12 @@ static void draw_keyboard(void){
  }
  char status[40];snprintf(status,sizeof(status),"%u / 16 CHARACTERS",(unsigned)strlen(editing.name));text(1,18,211,204,toast_message?toast_message:status,NOVA_CAP);
 }
+#endif
 static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return ui_height-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}
 static void draw(void){
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+ if(text_active||text_client.retained)return;
+#endif
  if(!utility_frame_begin(app))return;
 if(paper&&paper->begin)paper->begin();else {
 #ifdef PORTABLE_NOVA_UI
@@ -607,13 +632,20 @@ if(paper&&paper->begin)paper->begin();else {
  app->clear();
 #endif
  }
- if(page==PAGE_RECEIVER)draw_receiver();else if(page>=PAGE_SHARED)draw_shared();else if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();else if(page==PAGE_KEYBOARD)draw_keyboard();else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error||input_waiting){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
+ if(page==PAGE_RECEIVER)draw_receiver();else if(page>=PAGE_SHARED)draw_shared();else if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();
+#ifndef PORTABLE_RF_SHARED_TEXT_INPUT
+ else if(page==PAGE_KEYBOARD)draw_keyboard();
+#endif
+ else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error||input_waiting){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
  if(toast_message&&page!=PAGE_KEYBOARD){int y=toast_top();round_rect(14,y,212,28,14,NOVA_DIM);round_rect(15,y+1,210,26,13,0);text(1,23,y+5,undo_slot>=0?145:194,toast_message,NOVA_TEXT);if(undo_slot>=0)text(1,174,y+5,45,"UNDO",NOVA_CYAN);}
  app->present(false);painted=app->millis();dirty=false;
 }
 
+#ifndef PORTABLE_RF_SHARED_TEXT_INPUT
 static char keyboard_before[17];
+#endif
 static void set_page(unsigned next){if(next==PAGE_CONTROLS&&page!=PAGE_CONTROLS)controls_scroll=0;page=next;urgent_draw=true;contact_down=contact_plot=contact_controls=false;if(app->struct_size>=offsetof(t5_app_api_v1,set_back_exits_app)+sizeof(app->set_back_exits_app)&&app->set_back_exits_app)app->set_back_exits_app(false);dirty=true;}
+#ifndef PORTABLE_RF_SHARED_TEXT_INPUT
 static void keyboard_begin(void){
  memcpy(keyboard_before,editing.name,sizeof(keyboard_before));key_page=PWK_INITIAL_PAGE;key_choice=0;toast_message=NULL;set_page(PAGE_KEYBOARD);
 }
@@ -627,6 +659,39 @@ static void keyboard_activate(unsigned key){
  else if(key==PWK_DONE){if(shared_keyboard){shared_keyboard_done();return;}key_choice=0;set_page(event_keyboard?PAGE_EVENT_LABEL:signature_keyboard?PAGE_SIGNATURE_EDIT:PAGE_LABEL);}
  dirty=true;
 }
+#else
+/* Only the copied name is edited. Done returns to the existing app editor;
+ * its Save/Train actions retain sole authority to change saved records. */
+static void keyboard_begin(void){
+ if(text_active||text_client.retained)return;
+ text_return_page=page;shared_keyboard=page==PAGE_SHARED_EDIT;
+ text_state=(risc_text_entry_state_v1){.struct_size=sizeof(text_state)};
+ text_closing=text_home=false;
+ const char *caption=shared_keyboard?"SIGNAL NAME":page==PAGE_EVENT_LABEL?"EVENT NAME":page==PAGE_SIGNATURE_EDIT?"SIGNATURE NAME":"LABEL NAME";
+ int rc=portable_text_client_begin(&text_client,runtime,caption,editing.name,sizeof(editing.name));
+ if(rc!=RISC_TEXT_ENTRY_OK){shared_keyboard=false;if(!text_client.retained)notify("TEXT INPUT UNAVAILABLE / RETRY");return;}
+ text_active=true;toast_message=NULL;set_page(PAGE_KEYBOARD);
+}
+static void text_step(void){
+ if(!text_active||text_client.retained)return;
+ if(!text_closing){
+  int rc=portable_text_client_poll(&text_client,&text_state);
+  if(rc==RISC_TEXT_ENTRY_AGAIN||rc==RISC_TEXT_ENTRY_RETAINED||text_client.retained)return;
+  if(rc!=RISC_TEXT_ENTRY_OK){text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify("TEXT INPUT UNAVAILABLE / RETRY");}
+  else if(text_state.state==RISC_TEXT_ENTRY_EDITING)return;
+  text_closing=true;
+ }
+ int rc=portable_text_client_close(&text_client);
+ if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+ text_active=text_closing=false;text_home=(text_state.flags&RISC_TEXT_ENTRY_HOME_CANCEL)!=0;
+ if(text_state.state==RISC_TEXT_ENTRY_ACCEPTED){
+  memset(editing.name,0,sizeof(editing.name));
+  memcpy(editing.name,text_state.text,strlen(text_state.text));
+  if(shared_keyboard)shared_keyboard_done();else set_page(text_return_page);
+ }else{shared_keyboard=false;set_page(text_return_page);}
+ memset(&text_state,0,sizeof(text_state));
+}
+#endif
 static void save_label(void){
  unsigned start=0,end=(unsigned)strlen(editing.name);while(start<end&&editing.name[start]==' ')start++;while(end>start&&editing.name[end-1]==' ')end--;if(start)for(unsigned i=0;i<end-start;i++)editing.name[i]=editing.name[start+i];editing.name[end-start]=0;
  if(!rf_label_valid(&editing)){notify("ENTER A LABEL NAME");return;}
@@ -686,6 +751,9 @@ static void normalize_input(t5_app_input_t *input){
  }
 }
 static bool process_contact(void){
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+ if(text_active||text_client.retained)return false;
+#endif
  char caption[40];cursor_layout(caption);
  t5_app_contact_t contact={0};
  if(paper&&paper->contact){
@@ -707,12 +775,19 @@ static bool process_contact(void){
 /* Shared Home/QuickActions calls this before queuing a different app. A normal
  * edit veto is not a failed radio cleanup and must keep this UI interactive. */
 bool portable_app_before_launch(const char *destination){
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+ if(text_active||text_client.active||text_client.acquired||text_client.suspended||text_client.retained)return false;
+#endif
  if(cfa_learning_kind){notify("SAVE OR CANCEL LEARNING");set_page(PAGE_SHARED_CAPTURE);return false;}
  (void)destination;
  if(!rf_bulk||!portable_radio_services_safe())return false;
  stop();if(!signature_exit_ready()||!temporal_exit_ready())return false;
  persist();if(pending_save){set_page(PAGE_CONTROLS);controls_scroll=CONTROLS_MAX_SCROLL;notify("RETRY STORAGE OR DISCARD");return false;}
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+ bool draft=false;
+#else
  bool draft=page==PAGE_KEYBOARD&&strcmp(editing.name,keyboard_before);
+#endif
  if(page==PAGE_EVENT_LABEL||(page==PAGE_KEYBOARD&&event_keyboard)){
   const rt_label *saved=event_edit_slot>=0?&event_library.labels[event_edit_slot]:NULL;
   draft|=saved&&saved->present?(strcmp(editing.name,saved->name)||event_edit_shift!=saved->shift_limit):editing.name[0]!=0;
@@ -733,7 +808,33 @@ static bool request_root_exit(void){if(cfa_learning_kind){notify("SAVE OR CANCEL
 #endif
  return true;
 }
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+static bool request_text_home(void){
+ /* Physical/header Home keeps its deployed destination, distinct from the
+  * app's nested Back/root-return route on the resident paper profile. */
+#ifdef PORTABLE_HOME_APP
+ const char *destination=PORTABLE_HOME_APP;
+#elif defined(RF_RETURN_APP)
+ const char *destination=RF_RETURN_APP;
+#else
+ const char *destination=NULL;
+#endif
+ if(!portable_app_before_home())return false;
+ bool needs_launch=destination!=NULL;
+#ifdef PORTABLE_RESIDENT_SHELL_CLIENT
+ /* The resident adapter resumes the existing Home host when this child ends. */
+ if(destination&&!strcmp(destination,"default.elf"))needs_launch=false;
+#endif
+ if(needs_launch&&(!runtime->request_launch||!runtime->request_launch(destination))){home_exit_requested=false;message="EXIT FAILED / RETRY";notify(message);return false;}
+ return true;
+}
+#endif
 static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested){
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+ /* One coalesced touch/navigation event cannot activate a second action after
+  * crown input transfers ownership to the shared host. */
+ if(text_active||text_client.retained)return false;
+#endif
  char caption[40];cursor_layout(caption);
  if(x<0||y<0||x>=240||y>=(ui_stretched()?240:ui_height))return false;
  if(page==PAGE_RECEIVER){receiver_tap(x,y);return false;}
@@ -741,7 +842,9 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(page>=PAGE_SHARED){shared_tap(x,y);return false;}
  if(page==PAGE_EVENTS||page==PAGE_EVENT_LABEL||page==PAGE_EVENT_CAPTURE||page==PAGE_EVENT_EXAMPLES){event_tap(x,y,toggle_requested);return false;}
  if(page==PAGE_SIGNATURES||page==PAGE_SIGNATURE_EDIT){signature_tap(x,y,toggle_requested);return false;}
+#ifndef PORTABLE_RF_SHARED_TEXT_INPUT
  if(page==PAGE_KEYBOARD){if(hit(x,y,8,4,48,36)){keyboard_cancel();return false;}int key=portable_watch_key_hit(x,y);if(key>=0){key_choice=(unsigned)key;keyboard_activate((unsigned)key);}return false;}
+#endif
  if(page==PAGE_LABEL){if(hit(x,y,31,104,178,32)){keyboard_begin();}else if(y>=140&&y<166&&x>=28&&x<216){editing.color=(uint8_t)clamp_int((x-28)/23,0,7);dirty=true;}else if(y>=169&&y<203){if(x>=24&&x<89)set_page(PAGE_MAIN);else if(edit_slot>=0&&x>=89&&x<152)delete_label(edit_slot);else if(x>=(edit_slot>=0?152:122)&&x<218)save_label();}return false;}
  if(page==PAGE_CONTROLS){if(y>=21&&y<45){receiver_scroll=0;set_page(PAGE_RECEIVER);return false;}if(hit(x,y,79,ui_height-39,82,32)){set_page(PAGE_MAIN);return false;}if(y<CONTROLS_TOP||y>=CONTROLS_BOTTOM)return false;unsigned position=(unsigned)(y-CONTROLS_TOP+controls_scroll),setting=position/CONTROLS_ROW_HEIGHT+1;int row_y=(int)(position%CONTROLS_ROW_HEIGHT);if(setting>CONTROLS_COUNT||row_y<4||row_y>=44)return false;if(controls_segment(setting)){if(x>=110&&x<165)settings_change(setting,0,0);else if(x>=171&&x<232)settings_change(setting,0,1);}else if(setting==11||setting==12||setting==13){if(setting==11&&pending_save&&x>=171&&x<232)discard_pending_storage();else if(x>=110&&x<232)settings_change(setting,0,0);}else if(x>=90&&x<122)settings_change(setting,-1,0);else if(x>=200&&x<232)settings_change(setting,1,0);return false;}
  if(!started){if(hit(x,y,68,102,104,48))*toggle_requested=true;else if(hit(x,y,72,196,98,38)){list_scroll=0;set_page(PAGE_CONTROLS);}else if(hit(x,y,6,4,50,34))return request_root_exit();return false;}
@@ -757,6 +860,40 @@ static bool rf_bulk_create(void){
 }
 #include "context_signal_library.inc"
 
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+/* Home is an explicit cancellation, distinct from local Back and an ordinary
+ * app launch. Do not save pending edits as an incidental consequence of exit. */
+bool portable_app_before_home(void){
+ if(text_active||text_client.active||text_client.acquired||text_client.suspended||text_client.retained)return false;
+ if(!rf_bulk||!portable_radio_services_safe()||event_data_scope.retained)return false;
+ capture_requested=false;
+ if(!portable_rf_suspend())return false;
+ signature_goal=0;signature_capture_slot=-1;memset(&signature_capture,0,sizeof(signature_capture));
+ event_armed=false;rt_segment_reset(&event_training);
+ cfa_learning_kind=cfa_learning_samples=0;cfa_learning_saved=false;
+ shared_keyboard=false;shared_name[0]=0;editing=(rf_label){0};
+ /* These are local retry/checkpoint intentions, not live storage operations.
+  * Saved bytes stay authoritative, including a prior uncertain commit that
+  * completed with clean custody. Never rewrite them as part of Home exit. */
+ pending_save=0;signature_pending=0;event_files.pending=-1;
+ cfa_changed=false;event_neural_checkpoint=false;
+ home_exit_requested=home_refusal_pending=true;set_page(PAGE_MAIN);return true;
+}
+#endif
+
+/* Startup diagnostics contain stage names and timings only, never saved labels,
+ * model bytes, or sampled RF data. Mark each potentially blocking storage or
+ * service call without yielding or changing the startup service order. */
+static uint32_t rf_startup_begin(const char *stage){
+ uint32_t began=app->millis();
+ if(runtime->diagnostic){char line[112];snprintf(line,sizeof(line),"SDR startup stage=%s phase=begin",stage);waterfall_log(line);}
+ return began;
+}
+static void rf_startup_end(const char *stage,uint32_t began){
+ if(runtime->diagnostic){char line[112];snprintf(line,sizeof(line),"SDR startup stage=%s phase=end elapsed_ms=%lu",stage,(unsigned long)(app->millis()-began));waterfall_log(line);}
+}
+#define RF_STARTUP_STEP(stage, operation) do { uint32_t began=rf_startup_begin(stage);operation;rf_startup_end(stage,began); } while(0)
+
 void app_main(void){
  utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);waterfall_api=app;waterfall_runtime=runtime;
@@ -770,11 +907,60 @@ void app_main(void){
 #ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
  capture_retry_reset();capture_ok_count=capture_fault_count=0;
 #endif
- pending_save=load_errors=0;storage_discard_confirm=false;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / RF OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
- waterfall_log("SDR app enter");restore();signature_restore();signature_mode=prefs.background_mode;manual_room=prefs.manual_room;event_restore();cfa_restore();if(temporal_retained())retain();configure_dsp();build_palette();set_page(PAGE_MAIN);toggle();if(store_message)notify(store_message);
+ pending_save=load_errors=0;storage_discard_confirm=false;page=PAGE_MAIN;
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+ view=list_scroll=0;
+ text_client=(portable_text_client){0};text_state=(risc_text_entry_state_v1){0};text_active=text_closing=text_home=home_exit_requested=home_refusal_pending=shared_keyboard=false;text_return_page=PAGE_MAIN;
+#else
+ view=list_scroll=key_page=key_choice=0;
+#endif
+ edit_slot=undo_slot=-1;message="READY / RF OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
+ waterfall_log("SDR app enter");
+ RF_STARTUP_STEP("preferences",restore());
+ RF_STARTUP_STEP("signatures",signature_restore());
+ signature_mode=prefs.background_mode;manual_room=prefs.manual_room;
+ RF_STARTUP_STEP("events",event_restore();if(temporal_retained())retain());
+ RF_STARTUP_STEP("fingerprints",cfa_restore();if(temporal_retained())retain());
+ RF_STARTUP_STEP("dsp",configure_dsp());
+ build_palette();set_page(PAGE_MAIN);
+ RF_STARTUP_STEP("receiver",toggle());
+ if(store_message)notify(store_message);
+ waterfall_log("SDR startup ready");
  for(;;){
   if(waterfall_uncertain){waterfall_drain();uncertain=owned=running=false;}
   if(temporal_retained())retain();
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+  if(text_client.retained)return;
+  if(home_refusal_pending){
+   /* A refused Home must never checkpoint another service or later save the
+    * cancelled draft. Pause locally and mark records unread until the user
+    * explicitly retries storage; a fresh Home remains immediately available. */
+   home_refusal_pending=false;started=false;
+   prefs=rf_preferences_default();memset(labels,0,sizeof(labels));
+   load_errors=(uint16_t)((1u<<(RF_LABEL_MAX+1u))-1u);store_message="SAVED DATA UNREAD / RETRY";
+   memset(signatures,0,sizeof(signatures));memset(signature_means,0,sizeof(signature_means));
+   signature_errors=255;signature_mode=0;manual_room=-1;rf_room_reset(&room_tracker);
+   memset(&event_library,0,sizeof(event_library));event_library.identity=prefs.identity;
+   rt_files_init(&event_files,event_files.api);memset(&event_neural,0,sizeof(event_neural));
+   rt_segment_reset(&event_segment);memset(&event_match,0,sizeof(event_match));event_match.selected=-1;
+   memset(&cfa_bank,0,sizeof(cfa_bank));cfa_loaded=false;cfa_failed=true;
+   cfa_room.slot=cfa_event.slot=-1;cfa_manual_name[0]=0;
+   configure_dsp();build_palette();set_page(PAGE_MAIN);notify("EXIT FAILED / RETRY HOME");
+  }
+  if(text_active){
+   text_step();
+   if(text_client.retained)return;
+   if(temporal_retained())retain();
+   if(text_home){text_home=false;if(request_text_home())break;}
+   /* Shared presentation never gates receive/analysis. Preserve the current
+    * foreground capture policy while logical input or frame close is pending. */
+   if(text_active){if(running)capture();if(running){temporal_tick();cfa_apply();}if(!temporal_retained())event_neural_tick();}
+   if(text_client.retained)return;
+   if(temporal_retained())retain();
+   if(text_active)runtime->yield_ms(running?1:10);
+   continue;
+  }
+#endif
   normalize_monitor();
   uint32_t now=app->millis();if(dirty&&(!running||urgent_draw||(uint32_t)(now-painted)>=(paper?900u:100u))){draw();if(!utility_frame_pending)urgent_draw=false;}
   t5_app_input_t input={0};
@@ -782,14 +968,28 @@ void app_main(void){
 #ifdef PORTABLE_ALARM_CLIENT
    if(portable_app_sleep_retained())return;
 #endif
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+   if(home_exit_requested)break;
+#endif
    if(!signature_exit_ready()||!temporal_exit_ready())continue;
    break;
   }
   if(waterfall_uncertain)continue;
   if(temporal_retained())retain();
   normalize_input(&input);
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+  if(input.exit_requested){if(portable_app_before_home())break;continue;}
+  if(home_exit_requested){home_exit_requested=false;continue;}
+#else
   if(input.exit_requested){if(cfa_learning_kind){notify("SAVE OR CANCEL LEARNING");set_page(PAGE_SHARED_CAPTURE);continue;}stop();if(signature_exit_ready()&&temporal_exit_ready())break;continue;}
-  if(input.buttons&T5_APP_BUTTON_BACK){if(shared_back())continue;if(page==PAGE_KEYBOARD)keyboard_cancel();else if(page==PAGE_EVENT_CAPTURE){if(event_armed||event_training.ready)notify("SAVE OR CANCEL THE WINDOW");else set_page(PAGE_EVENT_LABEL);}else if(page==PAGE_EVENT_EXAMPLES)set_page(PAGE_EVENT_LABEL);else if(page==PAGE_EVENT_LABEL)set_page(PAGE_EVENTS);else if(page==PAGE_EVENTS||page==PAGE_SIGNATURES||page==PAGE_RECEIVER)set_page(PAGE_CONTROLS);else if(page==PAGE_SIGNATURE_EDIT)set_page(PAGE_SIGNATURES);else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else if(request_root_exit())break;continue;}
+#endif
+  if(input.buttons&T5_APP_BUTTON_BACK){if(shared_back())continue;
+#ifndef PORTABLE_RF_SHARED_TEXT_INPUT
+   if(page==PAGE_KEYBOARD)keyboard_cancel();else
+#endif
+   if(page==PAGE_EVENT_CAPTURE){if(event_armed||event_training.ready)notify("SAVE OR CANCEL THE WINDOW");else set_page(PAGE_EVENT_LABEL);}else if(page==PAGE_EVENT_EXAMPLES)set_page(PAGE_EVENT_LABEL);else if(page==PAGE_EVENT_LABEL)set_page(PAGE_EVENTS);else if(page==PAGE_EVENTS||page==PAGE_SIGNATURES||page==PAGE_RECEIVER)set_page(PAGE_CONTROLS);else if(page==PAGE_SIGNATURE_EDIT)set_page(PAGE_SIGNATURES);else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else if(request_root_exit())break;
+  continue;
+  }
   now=app->millis();if(event_slot>=0&&(uint32_t)(now-last_event_at)>2000u){event_slot=-1;dirty=true;}if(toast_message&&(int32_t)(now-toast_until)>=0){toast_message=NULL;undo_slot=-1;dirty=true;}
   normalize_monitor();
   bool consumed=process_contact(),toggle_requested=false,freeze_requested=false;
@@ -799,11 +999,23 @@ void app_main(void){
   else if(page==PAGE_CONTROLS){if(buttons&(T5_APP_BUTTON_UP|T5_APP_BUTTON_LEFT))controls_move(controls_scroll-CONTROLS_ROW_HEIGHT);else if(buttons&(T5_APP_BUTTON_DOWN|T5_APP_BUTTON_RIGHT))controls_move(controls_scroll+CONTROLS_ROW_HEIGHT);}
   else if(page==PAGE_RECEIVER){if(buttons&(T5_APP_BUTTON_UP|T5_APP_BUTTON_LEFT)){if(receiver_scroll)receiver_scroll--;dirty=true;}else if(buttons&(T5_APP_BUTTON_DOWN|T5_APP_BUTTON_RIGHT)){if(receiver_scroll+3<RF_RECEIVER_ROWS)receiver_scroll++;dirty=true;}}
   else if(page==PAGE_LABEL&&(buttons&T5_APP_BUTTON_CONFIRM))save_label();
+#ifndef PORTABLE_RF_SHARED_TEXT_INPUT
   else if(page==PAGE_KEYBOARD){if(buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))key_choice=key_choice?key_choice-1:PWK_COUNT-1;else if(buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))key_choice=(key_choice+1)%PWK_COUNT;else if(buttons&T5_APP_BUTTON_CONFIRM)keyboard_activate(key_choice);if(buttons)dirty=true;}
+#endif
   if(input.tapped&&!consumed&&tap_action(ui_unx(input.touch_x),ui_uny(input.touch_y),&toggle_requested,&freeze_requested))break;
   if(temporal_retained())retain();
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+  if(text_client.retained)return;
+#endif
   if(freeze_requested)freeze();else if(toggle_requested)toggle();if(running)capture();if(running){temporal_tick();cfa_apply();}
   if(!input.buttons&&!input.tapped&&!contact_down&&!consumed)event_neural_tick();
  }
- stop();persist();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;waterfall_release(&waterfall_grant,&radio_acquired);waterfall_radio=NULL;if(store_acquired&&!runtime->release(&store_grant))retain();store_acquired=false;storage=NULL;waterfall_release(&waterfall_preferences,&preferences_acquired);preferences=NULL;if(rf_bulk_allocated)app->psram_free(rf_bulk);rf_bulk=NULL;waterfall_log("SDR app exit");
+ stop();
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+ if(!home_exit_requested)persist();
+#else
+ persist();
+#endif
+ if(event_data_scope.retained)retain();
+ event_files.api=NULL;waterfall_release(&waterfall_grant,&radio_acquired);waterfall_radio=NULL;if(store_acquired&&!runtime->release(&store_grant))retain();store_acquired=false;storage=NULL;waterfall_release(&waterfall_preferences,&preferences_acquired);preferences=NULL;if(rf_bulk_allocated)app->psram_free(rf_bulk);rf_bulk=NULL;waterfall_log("SDR app exit");
 }

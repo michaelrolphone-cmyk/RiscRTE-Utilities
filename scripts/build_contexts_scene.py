@@ -14,9 +14,12 @@ def stage(runtime,system,output):
  shutil.copyfile(system/'lib/PortableApps/include/RiscKeyValueV1.h',include/'RiscKeyValueV1.h')
  shutil.copytree(system/'lib/PortableApps/time',include.parent/'time',dirs_exist_ok=True)
  shutil.copyfile(ROOT/'Apps/alarm_writer.h',include/'alarm_writer.h')
+ # Shared text entry's optional ABI belongs to the selected System host.
+ text_api=system/'sdk/app/RiscTextEntryV1.h'
+ if text_api.exists():shutil.copyfile(text_api,include/'RiscTextEntryV1.h')
  return include
 
-def run(runtime,system,output,catalog=None,target="watch",face_header=None):
+def run(runtime,system,output,catalog=None,target="watch",face_header=None,shared_input=False):
  if output.exists():raise FileExistsError('Choose a new output directory')
  output.mkdir(parents=True)
  builder=load('scene_build',system/'scripts/scene_build.py')
@@ -28,8 +31,12 @@ def run(runtime,system,output,catalog=None,target="watch",face_header=None):
   cat=output/'catalog.c';cat.write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[]={'+(','.join('{'+','.join('.'+k+'='+json.dumps(v) for k,v in row.items() if k in allowed and isinstance(v,str))+',.compatible=true}' for row in rows) if rows else '{.compatible=false}')+'};\nconst unsigned portable_catalog_count='+str(len(rows))+';\n')
   manifest=json.loads((ROOT/'Apps/contexts-scene.json').read_text())
   flags=[]
+  if shared_input:
+   flags+=['-DPORTABLE_CONTEXTS_SHARED_TEXT_INPUT']
+   manifest['version']='0.4.4'
+   manifest['requires'].append({'capability':'ui.text-input','api':1})
   if target=='x4':
-   flags=['-DCONTEXTS_ALARM_API=2','-DCONTEXTS_SETTING_MASK=0x274u','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_CONTEXTS_SOURCE_MASK=CONTEXTS_RADIO']
+   flags+=['-DCONTEXTS_ALARM_API=2','-DCONTEXTS_SETTING_MASK=0x274u','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_CONTEXTS_SOURCE_MASK=CONTEXTS_RADIO']
    next(r for r in manifest['requires'] if r['capability']=='alarm.service')['api']=2
    clock=next(r for r in manifest['requires'] if r['capability']=='rtc.clock')
    clock.update(capability='runtime.realtime',api=1)
@@ -43,5 +50,6 @@ def run(runtime,system,output,catalog=None,target="watch",face_header=None):
 if __name__=='__main__':
  p=argparse.ArgumentParser(description=__doc__)
  for name in ('runtime','system-apps','output'):p.add_argument('--'+name,type=Path,required=True)
+ p.add_argument('--shared-text-input',action='store_true')
  p.add_argument('--catalog',type=Path);p.add_argument('--target',choices=('watch','x4'),default='watch');p.add_argument('--face-header',type=Path)
- a=p.parse_args();run(a.runtime.resolve(),a.system_apps.resolve(),a.output.resolve(),a.catalog,a.target,a.face_header)
+ a=p.parse_args();run(a.runtime.resolve(),a.system_apps.resolve(),a.output.resolve(),a.catalog,a.target,a.face_header,a.shared_text_input)

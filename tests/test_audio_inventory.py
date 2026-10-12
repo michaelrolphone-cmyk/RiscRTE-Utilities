@@ -70,7 +70,7 @@ class AudioInventory(unittest.TestCase):
     def test_spectrum_declares_alarm_and_input(self):
         side=json.loads((ROOT/'Apps/audio_spectrum.json').read_text())
         self.assertEqual(side['category'],['Audio Tools'])
-        self.assertEqual(side['version'],'0.5.1')
+        self.assertEqual(side['version'],'0.5.4')
         self.assertEqual(side['requires'][-2]['api'],'>=2')
         self.assertEqual(side['requires'][-1],{'capability':'storage.app-data','api':'>=1'})
         self.assertEqual(side['min_firmware_version'],'0.1.32')
@@ -80,6 +80,9 @@ class AudioInventory(unittest.TestCase):
     def test_watch_spectrum_product_controls(self):
         code=(ROOT/'Apps/audio_spectrum.c').read_text()
         self.assertIn('PortableWatchKeyboard.h',code)
+        self.assertIn('#ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT',code)
+        self.assertIn('PortableTextInputClient.h',code)
+        self.assertIn('sizeof(editing.name)',code)
         self.assertNotIn('PortableNovaKeyboard.h',code)
         self.assertNotIn('portable_nova_key_character',code)
         self.assertNotIn('demo_pcm',code)

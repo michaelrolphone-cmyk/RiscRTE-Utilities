@@ -26,8 +26,9 @@ def main():
   default=['-DCONTEXTS_ALARM_API=2','-DCONTEXTS_SETTING_MASK=0x274u','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_CONTEXTS_SOURCE_MASK=CONTEXTS_RADIO'] if name=='contexts' else flags(name,paper_transitions=True)
   if name=='ble_scanner':default+=['-DPORTABLE_TEXT_INPUT_CLIENT']
   if name=='battery':default+=['-DPORTABLE_BLE_BROADCAST','-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF','-DPORTABLE_PAPER_PREFERENCES']
-  for mode,repo in [('atomic',ROOT),('default',ROOT),('baseline',baseline)]:
-   defines=default+(['-D'+d for d in PROFILE['defines']] if mode=='atomic' else [])
+  for mode,repo in ([('atomic',ROOT),('default',ROOT),('baseline',baseline)]+([('atomic-shared',ROOT)] if name=='contexts' else [])):
+   defines=default+(['-D'+d for d in PROFILE['defines']] if mode in ('atomic','atomic-shared') else [])
+   if mode=='atomic-shared':defines+=['-DPORTABLE_CONTEXTS_SHARED_TEXT_INPUT']
    includes=['-I'+str(x) for x in [inc,a.system_apps/'lib/NativeApps/include',repo/'Apps',repo/'lib/Bluetooth/include',a.system_apps/'Apps']]
    src=[repo/'Apps/contexts.c'] if name=='contexts' else sources(name,a.system_apps,repo=repo)
    elf=a.output/(name+'-'+mode+'.elf');run([a.xtensa_cc,*common,*defines,*includes,*src,catalog,'-lgcc','-o',elf]);run([validator,elf])

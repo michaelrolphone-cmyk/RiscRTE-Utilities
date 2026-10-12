@@ -29,7 +29,7 @@ static int32_t text_open(void*c,const risc_text_entry_request_v1*q,uint64_t*t){
 }
 static int32_t text_poll(void*c,uint64_t t,risc_text_entry_state_v1*s){(void)c;assert(text_suspended&&text_live&&t==17);*s=text_result;return RISC_TEXT_ENTRY_OK;}
 static int32_t text_close(void*c,uint64_t t){(void)c;assert(text_suspended&&text_live&&t==17);text_closes++;if(text_close_bad)return RISC_TEXT_ENTRY_RETAINED;if(text_close_again){text_close_again--;return RISC_TEXT_ENTRY_AGAIN;}text_live=false;return RISC_TEXT_ENTRY_OK;}
-static const risc_text_entry_api_v1 text_api={1,sizeof(text_api),NULL,text_open,text_poll,text_close};
+static const risc_text_entry_api_v1_home_reason text_api={{1,sizeof(text_api),NULL,text_open,text_poll,text_close},RISC_TEXT_ENTRY_HOME_REASON_TAG,RISC_TEXT_ENTRY_HOME_REASON_VERSION};
 #ifndef BLE_RENDER
 static void text_accept(const char*s){assert(naming&&strlen(s)<sizeof(editing));strcpy(text_result.text,s);text_result.state=RISC_TEXT_ENTRY_ACCEPTED;name_step();}
 #endif
@@ -204,7 +204,8 @@ int main(void){
  begin_name();name_write_bad=true;text_accept("Failed");assert(!naming&&name_save_failed&&!strcmp(aliases[2],"Kitchen")&&!strcmp(editing,"Failed"));name_write_bad=false;
  begin_name();assert(!strcmp(text_initial,"Failed"));text_accept("");assert(!naming&&!aliases[2][0]);memset(aliases,0,sizeof(aliases));load_alias(2);assert(!aliases[2][0]);
  begin_name();text_close_again=1;text_accept("Retry close");assert(naming&&name_closing&&text_live&&grants==1&&!aliases[2][0]);name_step();assert(!naming&&!strcmp(aliases[2],"Retry close")&&!grants);
- begin_name();text_result.state=RISC_TEXT_ENTRY_CANCELLED;name_step();assert(!naming&&!strcmp(aliases[2],"Retry close")&&!grants);
+ begin_name();text_result.state=RISC_TEXT_ENTRY_CANCELLED;name_step();assert(!naming&&!name_home_return&&!strcmp(aliases[2],"Retry close")&&!grants);
+ begin_name();text_result.state=RISC_TEXT_ENTRY_CANCELLED;text_result.flags=RISC_TEXT_ENTRY_HOME_CANCEL;text_close_again=1;name_step();assert(naming&&!name_home_return&&text_live&&grants==1);name_step();assert(!naming&&name_home_return&&!text_live&&!text_suspended&&!grants&&!strcmp(aliases[2],"Retry close")&&!portable_app_before_launch("springboard.elf"));name_home_return=false;
  text_available=false;begin_name();assert(!naming&&!grants&&!strcmp(message,"Text input unavailable"));text_available=true;
  detail=false;sensors=true;scan.devices[1].bthome=false;assert(indexes(list)==2);
  reset();start_scan();for(unsigned i=0;i<5;i++)pump();provider_count=2;provider_devices[0]=(ble_device){.address={1},.address_type=1};provider_devices[1]=(ble_device){.address={2},.address_type=1};
