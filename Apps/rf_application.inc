@@ -757,6 +757,19 @@ static bool rf_bulk_create(void){
 }
 #include "context_signal_library.inc"
 
+/* Startup diagnostics contain stage names and timings only, never saved labels,
+ * model bytes, or sampled RF data. Mark each potentially blocking storage or
+ * service call without yielding or changing the startup service order. */
+static uint32_t rf_startup_begin(const char *stage){
+ uint32_t began=app->millis();
+ if(runtime->diagnostic){char line[112];snprintf(line,sizeof(line),"SDR startup stage=%s phase=begin",stage);waterfall_log(line);}
+ return began;
+}
+static void rf_startup_end(const char *stage,uint32_t began){
+ if(runtime->diagnostic){char line[112];snprintf(line,sizeof(line),"SDR startup stage=%s phase=end elapsed_ms=%lu",stage,(unsigned long)(app->millis()-began));waterfall_log(line);}
+}
+#define RF_STARTUP_STEP(stage, operation) do { uint32_t began=rf_startup_begin(stage);operation;rf_startup_end(stage,began); } while(0)
+
 void app_main(void){
  utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);waterfall_api=app;waterfall_runtime=runtime;
@@ -771,7 +784,17 @@ void app_main(void){
  capture_retry_reset();capture_ok_count=capture_fault_count=0;
 #endif
  pending_save=load_errors=0;storage_discard_confirm=false;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message="READY / RF OFF";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;
- waterfall_log("SDR app enter");restore();signature_restore();signature_mode=prefs.background_mode;manual_room=prefs.manual_room;event_restore();cfa_restore();if(temporal_retained())retain();configure_dsp();build_palette();set_page(PAGE_MAIN);toggle();if(store_message)notify(store_message);
+ waterfall_log("SDR app enter");
+ RF_STARTUP_STEP("preferences",restore());
+ RF_STARTUP_STEP("signatures",signature_restore());
+ signature_mode=prefs.background_mode;manual_room=prefs.manual_room;
+ RF_STARTUP_STEP("events",event_restore();if(temporal_retained())retain());
+ RF_STARTUP_STEP("fingerprints",cfa_restore();if(temporal_retained())retain());
+ RF_STARTUP_STEP("dsp",configure_dsp());
+ build_palette();set_page(PAGE_MAIN);
+ RF_STARTUP_STEP("receiver",toggle());
+ if(store_message)notify(store_message);
+ waterfall_log("SDR startup ready");
  for(;;){
   if(waterfall_uncertain){waterfall_drain();uncertain=owned=running=false;}
   if(temporal_retained())retain();
@@ -805,5 +828,5 @@ void app_main(void){
   if(freeze_requested)freeze();else if(toggle_requested)toggle();if(running)capture();if(running){temporal_tick();cfa_apply();}
   if(!input.buttons&&!input.tapped&&!contact_down&&!consumed)event_neural_tick();
  }
- stop();persist();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;waterfall_release(&waterfall_grant,&radio_acquired);waterfall_radio=NULL;if(store_acquired&&!runtime->release(&store_grant))retain();store_acquired=false;storage=NULL;waterfall_release(&waterfall_preferences,&preferences_acquired);preferences=NULL;if(rf_bulk_allocated)app->psram_free(rf_bulk);rf_bulk=NULL;waterfall_log("SDR app exit");
+ stop();persist();if(event_data_scope.retained)retain();event_files.api=NULL;waterfall_release(&waterfall_grant,&radio_acquired);waterfall_radio=NULL;if(store_acquired&&!runtime->release(&store_grant))retain();store_acquired=false;storage=NULL;waterfall_release(&waterfall_preferences,&preferences_acquired);preferences=NULL;if(rf_bulk_allocated)app->psram_free(rf_bulk);rf_bulk=NULL;waterfall_log("SDR app exit");
 }
