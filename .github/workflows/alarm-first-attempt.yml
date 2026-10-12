@@ -1,0 +1,45 @@
+name: Alarm first-attempt profiles
+on:
+  push:
+    branches: [fix/first-attempt-time-alarm-20261012]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  first-attempt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 57e549ef5a1c727e8a24658e572f402e006fe82d
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70
+          path: .dependencies/runtime
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: First boot, RTC edit, BUSY, Points and sleep regressions
+        run: python scripts/test_alarm_first_attempt.py --runtime .dependencies/runtime --system-apps .dependencies/system
+      - name: Install pinned public compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Target ABI and Runtime loader
+        env:
+          NATIVE_APP_CC: /home/runner/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc
+        run: python scripts/build_alarm_first_attempt.py --runtime .dependencies/runtime --system-apps .dependencies/system
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alarm-first-attempt-${{ github.sha }}
+          path: dist/alarm-first-attempt/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,6 +1,12 @@
 /* Ordinary singleton ELF. All policy/persistence/UI-facing state belongs here;
  * Runtime only resolves opaque dependencies. No poll callback, task or ISR. */
 #include "AlarmRecords.h"
+#ifdef ALARM_CLOCK_CHANGE_CONTROL
+#include "AlarmClockChangeV1.h"
+#if defined(ALARM_SERVICE_TAGGED_V2) || defined(POINTS_CATALOG_SERVICE) || defined(ALARM_NATIVE_UTC)
+#error "Clock-change v1 suffix is selected only for the legacy Watch profile"
+#endif
+#endif
 #ifdef ALARM_SERVICE_TAGGED_V2
 #include "AlarmServiceV2.h"
 #endif
@@ -106,17 +112,29 @@ static bool sleep_ticket_valid;
 static alarm_sleep_v1 sleep_ticket;
 static bool active, dismiss, haptic_uncertain, audio_uncertain, cleanup_failed;
 static bool persistence_pending, foreground_failed;
+#ifdef ALARM_STORAGE_BUSY_RETRY
+#if !defined(ALARM_SERVICE_TAGGED_V2) || !defined(POINTS_CATALOG_SERVICE)
+#error "Busy deferral profile requires the tagged catalog alarm service"
+#endif
+static bool storage_busy;
+#endif
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
 static int32_t storage_get(void *context,const char *key,void *data,uint32_t size,uint32_t *used) {
     if(custody_retained)return RISC_BOUND_KEY_VALUE_CONTEXT;
     int32_t result=kv->get(context,key,data,size,used);
     if(result==RISC_BOUND_KEY_VALUE_CONTEXT)custody_retained=true;
+#ifdef ALARM_STORAGE_BUSY_RETRY
+    if(result==RISC_BOUND_KEY_VALUE_BUSY)storage_busy=true;
+#endif
     return result;
 }
 static int32_t storage_put(void *context,const char *key,const void *data,uint32_t size) {
     if(custody_retained)return RISC_BOUND_KEY_VALUE_CONTEXT;
     int32_t result=kv->put(context,key,data,size);
     if(result==RISC_BOUND_KEY_VALUE_CONTEXT)custody_retained=true;
+#ifdef ALARM_STORAGE_BUSY_RETRY
+    if(result==RISC_BOUND_KEY_VALUE_BUSY)storage_busy=true;
+#endif
     return result;
 }
 #else
@@ -209,6 +227,11 @@ static void update_view(void) {
 #endif
 }
 static int32_t fail(int32_t e) {
+#ifdef ALARM_STORAGE_BUSY_RETRY
+    /* Typed BUSY proves no I/O began. Stay at this cooperative phase; never
+     * reinterpret unavailable, IO, corruption or retained custody as BUSY. */
+    if(e==ALARM_STORAGE && storage_busy && !custody_retained)return ALARM_PENDING;
+#endif
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
     if(custody_retained)e=ALARM_RETAINED;
 #endif
@@ -466,6 +489,9 @@ static int32_t do_step(void) {
     if(custody_retained)return ALARM_RETAINED;
 #endif
     if(foreground_failed)return error?error:ALARM_FOREGROUND;
+#ifdef ALARM_STORAGE_BUSY_RETRY
+    storage_busy=false;
+#endif
     uint64_t now=now_ms();
     if(active&&(phase==ACTIVATE_RTC||phase==START_AUDIO||phase==START_HAPTIC||phase==PLAYING)&&
        (dismiss||now-alert_started>=alert_limit_ms))begin_cleanup();
@@ -479,6 +505,9 @@ static int32_t do_step(void) {
 #endif
        phase==START_HAPTIC||phase==PLAYING)) {
         bool muted=false;int32_t result=read_dnd(&muted);
+#ifdef ALARM_STORAGE_BUSY_RETRY
+        if(storage_busy && !custody_retained)return ALARM_PENDING;
+#endif
 #ifdef POINTS_CATALOG_SERVICE
         if(custody_retained)return fail(ALARM_RETAINED);
 #endif
@@ -573,6 +602,9 @@ static int32_t do_step(void) {
 #ifdef POINTS_CATALOG_SERVICE
             points_desired.state=desired.state;
             int32_t result=points_catalog_ledger_write(&ledger_store,app_data,&points_desired);
+#ifdef ALARM_STORAGE_BUSY_RETRY
+            if(result==RISC_APP_DATA_BUSY)return ALARM_PENDING;
+#endif
             if(!catalog_storage_result(result)&&(!ledger_store.uncertain||custody_retained))return fail(ALARM_STORAGE);
             phase=VERIFY_OCC;break;
 #else
@@ -583,7 +615,11 @@ static int32_t do_step(void) {
 #endif
         uint8_t b[ALARM_RECORD_SIZE];alarm_occurrence_encode(&desired,b);
         /* Even IO may have persisted. Always verify before deciding next action. */
-        (void)storage_put(kv->context,occ_keys[selected],b,sizeof(b));phase=VERIFY_OCC;break;
+        (void)storage_put(kv->context,occ_keys[selected],b,sizeof(b));
+#ifdef ALARM_STORAGE_BUSY_RETRY
+        if(storage_busy && !custody_retained)return ALARM_PENDING;
+#endif
+        phase=VERIFY_OCC;break;
     }
     case VERIFY_OCC: {
 #ifdef POINTS_IN_TIME_SERVICE
@@ -674,7 +710,13 @@ static int32_t do_step(void) {
     }
 #ifdef POINTS_CATALOG_SERVICE
     case CATALOG_PREFLIGHT:
-        if(selected==2&&!catalog_current_unchanged()){if(phase==BLOCKED)return error;active=false;begin_reconcile();break;}
+        if(selected==2&&!catalog_current_unchanged()) {
+#ifdef ALARM_STORAGE_BUSY_RETRY
+            if(storage_busy && !custody_retained)return ALARM_PENDING;
+#endif
+            if(phase==BLOCKED)return error;
+            active=false;begin_reconcile();break;
+        }
         phase=START_AUDIO;break;
 #endif
     case START_AUDIO: {
@@ -686,7 +728,13 @@ static int32_t do_step(void) {
 #ifdef POINTS_IN_TIME_SERVICE
         if(selected==2) {
 #ifdef POINTS_CATALOG_SERVICE
-            if(!catalog_token_unchanged()){if(phase==BLOCKED)return error;active=false;begin_reconcile();break;}
+            if(!catalog_token_unchanged()) {
+#ifdef ALARM_STORAGE_BUSY_RETRY
+                if(storage_busy && !custody_retained)return ALARM_PENDING;
+#endif
+                if(phase==BLOCKED)return error;
+                active=false;begin_reconcile();break;
+            }
 #else
             uint8_t expected[POINTS_RECORD_SIZE],actual[POINTS_RECORD_SIZE];uint32_t n=0;
             points_config_encode(&points_configured,expected);
@@ -860,6 +908,28 @@ static int32_t refresh(void *c) {
     else refreshed=true;
     return ALARM_PENDING;
 }
+#ifdef ALARM_CLOCK_CHANGE_CONTROL
+static int32_t clock_changed(void *c,uint32_t verified) {
+    (void)c;
+    if(!started)return ALARM_INVALID;
+    if(in_call)return ALARM_BUSY;
+    /* An admitted editor call supersedes every prior successful sleep plan,
+     * including when verification of its already-attempted RTC write fails. */
+    sleep_ticket_valid=false;
+    if(active || dismiss || persistence_pending || haptic_uncertain || audio_uncertain ||
+       foreground_failed || (error && error!=ALARM_RTC))return ALARM_BUSY;
+    in_call=true;
+    twatch_rtc_time_v1 t;uint32_t current;
+    int32_t result=ALARM_RTC;
+    if(rtc->read(rtc->context,&t) && t.weekday<=6 &&
+       alarm_calendar_seconds(t.year,t.month,t.day,t.hour,t.minute,t.second,&current) &&
+       current>=verified && current-verified<=1) {
+        seconds=previous_seconds=current;sample_ms=previous_ms=now_ms();anchored=true;
+        sleep_ticket_valid=false;begin_reconcile();result=ALARM_PENDING;
+    }
+    update_view();in_call=false;return result;
+}
+#endif
 static int32_t acknowledge(void *c,const alarm_token_v1 *value) {
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
     if(custody_retained)return ALARM_RETAINED;
@@ -891,7 +961,9 @@ static int32_t prepare_sleep_internal(alarm_sleep_v1 *out) {
     if(active||haptic_uncertain||audio_uncertain||phase==BLOCKED)return error?error:ALARM_PENDING;
     if(!sleep_waiting){sleep_snapshot=view.snapshot;sleep_waiting=true;begin_reconcile();return ALARM_PENDING;}
     if(phase!=IDLE||view.snapshot==sleep_snapshot)return ALARM_PENDING;
+#ifndef POINTS_CATALOG_SERVICE
     if(now_ms()-sample_ms>100){begin_reconcile();return ALARM_PENDING;}
+#endif
     uint32_t deadline=0;
     for(unsigned i=0;i<2;i++)if(config[i].enabled&&config[i].deadline>seconds&&
         (!alarm_same_occurrence(&occurrences[i],&config[i])||occurrences[i].state==ALARM_OCC_PENDING)) {
@@ -916,6 +988,28 @@ static int32_t prepare_sleep_internal(alarm_sleep_v1 *out) {
         }
 #endif
     }
+#endif
+#ifdef POINTS_CATALOG_SERVICE
+    /* A storage-sized catalog may take more than 100 ms to evaluate. Resample
+     * after all scans instead of repeatedly discarding the same valid work.
+     * A deadline crossed during the scan requires reconciliation, never sleep.
+     * Keep the normal monotonic/RTC agreement check and terminal fence. */
+    uint32_t current;
+#ifdef ALARM_NATIVE_UTC
+    int32_t read_result=read_utc(&current);if(read_result!=ALARM_OK)return fail(read_result);
+#else
+    twatch_rtc_time_v1 t;
+    if(!rtc->read(rtc->context,&t)||t.weekday>6||
+       !alarm_calendar_seconds(t.year,t.month,t.day,t.hour,t.minute,t.second,&current))return fail(ALARM_RTC);
+#endif
+    uint64_t at=now_ms();
+    if(!anchored||at<previous_ms||at-previous_ms>UINT32_MAX)return fail(ALARM_RTC);
+    uint32_t elapsed=(uint32_t)(at-previous_ms)/1000;
+    uint64_t delta=current>=previous_seconds?current-previous_seconds:UINT64_MAX;
+    if(delta==UINT64_MAX||(delta>elapsed?delta-elapsed:elapsed-delta)>2)return fail(ALARM_RTC);
+    seconds=previous_seconds=current;sample_ms=previous_ms=at;
+    if(deadline&&deadline<=current){begin_reconcile();return ALARM_PENDING;}
+    update_view();
 #endif
     *out=(alarm_sleep_v1){sizeof(*out),view.snapshot,seconds,deadline};
     sleep_ticket=*out;sleep_ticket_valid=true;sleep_waiting=false;return ALARM_OK;
@@ -1138,7 +1232,13 @@ static const alarm_service_descriptor_v2 api={
 #define SERVICE_API ALARM_SERVICE_API_V2
 #else
 #define SERVICE_API ALARM_SERVICE_API_V1
+#ifdef ALARM_CLOCK_CHANGE_CONTROL
+static const alarm_clock_change_v1 api={
+    {{1,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},resume_sleep},
+    ALARM_CLOCK_CHANGE_TAG,ALARM_CLOCK_CHANGE_VERSION,clock_changed};
+#else
 static const alarm_service_sleep_v1 api={{1,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},resume_sleep};
+#endif
 #endif
 static const risc_driver_v2 driver={2,sizeof(driver),"alarm-service",ALARM_SERVICE_CAPABILITY,SERVICE_API,&api,start,stop,quiesce};
 __attribute__((visibility("default"))) const risc_driver_v2 *t5_driver_get(uint32_t abi) {return abi==2?&driver:NULL;}
