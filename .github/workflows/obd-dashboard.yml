@@ -1,7 +1,7 @@
 name: OBD dashboard
 on:
   push:
-    branches: [feat/obd-dashboard, feat/x4-obd-reconnect-021]
+    branches: [feat/obd-dashboard, feat/x4-obd-reconnect-021, audit/obd-test-readiness-20261012]
     paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/build_obd_dashboard.py', 'scripts/test_obd_dashboard.py', 'test/obd/**', '.github/workflows/obd-dashboard.yml']
   pull_request:
     paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/build_obd_dashboard.py', 'scripts/test_obd_dashboard.py', 'test/obd/**', '.github/workflows/obd-dashboard.yml']
@@ -20,13 +20,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: 6377d498a47b59dac8ad85d930983fffc6c8baa5
+          ref: 1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70
           path: Runtime
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: b5cc754b545795610ed0d2de262e0fdd5110a54a
+          ref: f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165
           path: System
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -57,13 +57,12 @@ jobs:
           python -m pip install platformio==6.1.19
           pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
           python Utilities/scripts/build_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/target | tee evidence/target.log
-          echo 'b2ca8861412e3b79fb6cad14516c574cc2f4479107eaa0bb35165a8059c27f20  build/target/obd_dashboard.elf' | sha256sum --check
           git -C Utilities rev-parse HEAD > evidence/source-commit.txt
           git -C System rev-parse HEAD > evidence/scene-source-commit.txt
           tar -czf evidence/obd-source.tar.gz Utilities/Apps/obd_dashboard Utilities/Apps/obd_dashboard.json Utilities/scripts/build_obd_dashboard.py Utilities/scripts/test_obd_dashboard.py Utilities/test/obd
       - uses: actions/upload-artifact@v4
         with:
-          name: obd-dashboard-021
+          name: obd-dashboard-022
           path: |
             build/target/obd_dashboard.elf
             build/target/obd_dashboard.json

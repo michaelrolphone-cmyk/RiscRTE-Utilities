@@ -135,3 +135,9 @@ ELM Electronics, ELM327DSJ (2016): Mode 04 reset/positive response (p.35), VIN
 https://www.elmelectronics.com/wp-content/uploads/2016/07/ELM327DS.pdf
 Generic PID definitions cross-checked with the published CSS Electronics table:
 https://www.csselectronics.com/pages/obd2-pid-table-on-board-diagnostics-j1979
+
+## 0.2.2 readiness audit
+
+See [audit and reproduction](../../docs/obd-readiness/AUDIT.md). Late RX is checked
+against the request deadline before decoding; the existing UI and features are
+preserved. Hardware compatibility remains unverified.

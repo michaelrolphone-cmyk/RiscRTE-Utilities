@@ -155,6 +155,9 @@ static void finish(obd_client *c,uint32_t now){
 }
 void obd_receive(obd_client *c,const uint8_t *b,size_t n,uint32_t now){
  if(!c||!b)return;
+ /* The app drains RX before its periodic tick. Enforce the request deadline
+  * here too, so a delayed prompt cannot revive an already expired command. */
+ obd_tick(c,now);
  for(size_t i=0;i<n;i++){
   if(!c->waiting)continue;
   if(++c->received>2048){fault(c,"ELM reply overflow; reconnect");return;}

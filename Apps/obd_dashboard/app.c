@@ -211,7 +211,7 @@ __attribute__((visibility("default"))) void app_main(void){
  found=a->rt->acquire("storage.volume",1,0,&a->grants[a->acquired]);if(!authority(a))return;
  if(found){const risc_storage_volume_api_v1*b=a->grants[a->acquired].api;a->acquired++;a->volume=risc_storage_volume_extension(b);a->fs=risc_storage_volume_fs(b);if(!storage_api_valid(a->volume,a->fs)){a->volume=NULL;a->fs=NULL;}}
  ui_ready:
- if(a->rt->diagnostic)a->rt->diagnostic("OBD/dashboard version=0.2.0 transport=BLE clear=confirmed-only");if(!authority(a))return;
+ if(a->rt->diagnostic)a->rt->diagnostic("OBD/dashboard version=0.2.2 transport=BLE clear=confirmed-only");if(!authority(a))return;
  if(!a->rt->monotonic_ms(&a->now)||!authority(a))goto cleanup;
  db_init(&a->data,a->now);if(!load_settings(a))goto cleanup;a->imperial=a->data.cfg.imperial!=0;
  if(!publish(a,true))goto cleanup;
