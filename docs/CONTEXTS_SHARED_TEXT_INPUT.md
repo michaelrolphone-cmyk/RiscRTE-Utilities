@@ -1,8 +1,11 @@
 # Contexts shared text input
 
-Working lifecycle successor: complete product qualification is pending.
-The required System source is `f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165`. The frozen 0.4.3 receipts remain historical evidence;
-the lifecycle gap below is not yet cleared for a delivery candidate.
+The 0.4.4 lifecycle successor is qualified on both complete product cohorts.
+Its compiled Utilities source is `d068784cb5d581f1e81b5021f5d96d2917e03ec3`;
+the required System source is `f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165`.
+The frozen 0.4.3 receipts remain historical evidence of the earlier modal
+checkpoint omission. The correction below is qualified separately; delivery
+remains held until 2026-10-12 23:30 UTC. No hardware test or flash is claimed.
 
 The selected Watch and X4 build is the existing scene-based Contexts application.
 This change only transfers its text editor to the installed `ui.text-input@1`
@@ -145,3 +148,24 @@ stack inspection, selected sources and the remaining verification limits.
 The product delivery hold is 2026-10-12 23:30 UTC. Source publication is not binary
 delivery or flashing. Full-initial images erase internal saved data if flashed;
 no such flash is part of this change.
+
+## Qualified lifecycle receipts
+
+The exact public source passed 788 launched-app scenarios across Watch and X4,
+normal and ASan/UBSan, and 152 predecessor nonkeyboard frame/storage comparisons.
+Inventory/build tests, capture/learning regressions and source CI passed.
+The backend fence passed 1,516 fault probes and 12 byte-identical default-path
+object checks, including Xtensa O1/O2/Os. Product review verified all 93 actual
+compiled dependencies and both complete normal/sanitized cohorts.
+
+Watch retains exactly two free SPIFFS blocks, the required minimum. X4 retains
+126 blocks and preserves all 96 prior SD files, adding only its new immutable
+Contexts ELF/manifest pair. Every unrelated store, shared-host, font and native
+component byte is inherited unchanged from the qualified Lists union.
+
+- [Watch recipe and qualification receipts](https://github.com/michaelrolphone-cmyk/RiscRTE-T-Watch-S3/tree/6fa635176ee93475067aa3cfda4f22c1d1c8db68/docs/contexts-input-lifecycle)
+- [X4 recipe and qualification receipts](https://github.com/michaelrolphone-cmyk/RiskRTE-XTEINK-X4-PRO/tree/a6db3372fae6f9fd1d2760c813660a17f24a5a7c/minimal/docs/contexts-input-lifecycle)
+
+These documentation-only receipt heads do not change the compiled recipe pins
+recorded in the receipts. Any later product overlay must preserve the reserve
+and requalify the complete union.

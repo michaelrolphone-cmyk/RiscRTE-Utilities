@@ -1,0 +1,39 @@
+{
+  "schema": "contexts.lifecycle-source-qualification.v1",
+  "application": "Contexts",
+  "version": "0.4.4",
+  "compiled_utilities_commit": "d068784cb5d581f1e81b5021f5d96d2917e03ec3",
+  "system_commit": "f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165",
+  "app_scenarios": 788,
+  "normal_and_sanitized": true,
+  "nonkeyboard_frame_storage_comparisons": 152,
+  "inventory_tests": 86,
+  "backend_fault_probes": 1516,
+  "default_object_identity_checks": 12,
+  "compiled_dependencies_verified": 93,
+  "source_ci_passed": true,
+  "pipeline_regressions_passed": true,
+  "both_complete_cohorts_passed": true,
+  "both_exact_compiled_recipe_ci_passed": true,
+  "devices": {
+    "watch": {
+      "compiled_recipe": "702225651ba4af28ca3a785eb68fd96f54109b2b",
+      "receipt_head": "6fa635176ee93475067aa3cfda4f22c1d1c8db68",
+      "free_spiffs_blocks": 2
+    },
+    "x4": {
+      "compiled_recipe": "bb5919fef91cc27eb34570c9ffd45c904bc32bb7",
+      "receipt_head": "a6db3372fae6f9fd1d2760c813660a17f24a5a7c",
+      "free_spiffs_blocks": 126,
+      "old_sd_files_preserved": 96
+    }
+  },
+  "minimum_free_blocks": 2,
+  "hardware_verified": false,
+  "target_instructions_executed": false,
+  "delivered": false,
+  "flashed": false,
+  "hold_until_utc": "2026-10-12T23:30:00Z",
+  "no_sd_settings_changes_consumed": true,
+  "documentation_only_no_compiled_input_changes": true
+}
