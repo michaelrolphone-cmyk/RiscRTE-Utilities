@@ -35,7 +35,14 @@ static int32_t file_stat(void*c,const char*n,uint32_t*size,uint64_t*rev){(void)c
 static int32_t file_read(void*c,const char*n,uint64_t rev,void*p,uint32_t cap,uint32_t*sz,uint64_t*actual){(void)c;assert(!strcmp(n,"context-rules.ctx")&&rev==revision&&cap>=sizeof(stored));memcpy(p,stored,sizeof(stored));*sz=sizeof(stored);*actual=revision;return 0;}
 static int32_t file_replace(void*c,const char*n,uint64_t rev,const void*p,uint32_t size){(void)c;assert(!strcmp(n,"context-rules.ctx")&&rev==revision&&size==sizeof(stored));if(fail_write)return RISC_APP_DATA_IO;memcpy(stored,p,size);revision++;return 0;}
 static const risc_app_data_v1 files={1,sizeof(files),NULL,file_stat,file_read,file_replace};
-static int32_t pref_get(void*c,const char*n,void*p,uint32_t cap,uint32_t*size){(void)c;*size=0;if(strcmp(n,"contexts_on")||!preferences_size)return RISC_KEY_VALUE_NOT_FOUND;assert(cap>=preferences_size);memcpy(p,preferences,preferences_size);*size=preferences_size;return 0;}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "../../tests/utility_atomic_transport.h"
+#endif
+static int32_t pref_get(void*c,const char*n,void*p,uint32_t cap,uint32_t*size){(void)c;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ return uat_read(c,n,p,cap,size);
+#endif
+ *size=0;if(strcmp(n,"contexts_on")||!preferences_size)return RISC_KEY_VALUE_NOT_FOUND;assert(cap>=preferences_size);memcpy(p,preferences,preferences_size);*size=preferences_size;return 0;}
 static int32_t pref_put(void*c,const char*n,const void*p,uint32_t size){(void)c;assert(!strcmp(n,"contexts_on")&&size<=4);memcpy(preferences,p,size);preferences_size=size;kv_writes++;return 0;}
 static const risc_key_value_v1 prefs={1,sizeof(prefs),NULL,pref_get,pref_put};
 static bool svc_pause(void*c){(void)c;assert(native_alive);text_test_backend_after("backend-pause");return true;}
@@ -62,6 +69,9 @@ static bool fp(void*c,uint32_t op,void*p){(void)c;assert(native_alive);
 }
 static const contexts_fingerprint_service_v1 service={.base={.api_version=1,.struct_size=sizeof(service),.step=svc_step,.pause=svc_pause,.status=svc_status,.request_export=svc_mask,.begin_export=svc_mask,.export_record=svc_record,.finish_export=svc_finish,.label=svc_label,.claim_preset=svc_claim,.preset_result=svc_result,.capture_audio=svc_pause},.fingerprint_abi=0x31504643u,.fingerprint=fp};
 static bool app_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)v;(void)id;assert(native_alive);
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(!strcmp(n,RISC_KEY_VALUE_ATOMIC_CAPABILITY)){g->api=&uat_api;g->slot=++app_acquires;g->generation=1;return true;}
+#endif
  const void*p=!strcmp(n,RISC_SCENE_CAPABILITY)?api:!strcmp(n,CONTEXTS_SERVICE_CAPABILITY)?(const void*)&service:!strcmp(n,RISC_SHARED_DATA_CAPABILITY)?(const void*)&files:!strcmp(n,RISC_KEY_VALUE_CAPABILITY)?(const void*)&prefs:NULL;
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
  if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY))return text_test_acquire(g);
@@ -70,6 +80,9 @@ static bool app_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabil
  g->api=p;g->slot=++app_acquires;g->generation=1;if(p==&service)text_test_backend_after("backend-reacquire");return true;
 }
 static bool app_release(risc_runtime_capability_v1*g){assert(native_alive&&g->api);bool backend=g->api==&service;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(g->api==&uat_api){uat.release_count++;if(uat.release_bad)return false;}
+#endif
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
  if(text_test_is_grant(g))return text_test_release(g);
 #endif
@@ -82,6 +95,7 @@ static bool app_exit_requested(void){
  return native_exit_pending;
 #endif
 }
+
 static bool app_request_launch(const char*name){(void)name;app_launches++;return true;}
 static bool app_retain(void){native_alive=false;return true;}
 static bool diagnostic(const char*s){fprintf(stderr,"app: %s\n",s);return true;}
@@ -114,6 +128,9 @@ static int32_t app_checkpoint(uint64_t invocation,const risc_resident_request_v1
 }
 static bool app_shell(risc_resident_client_v1*q){*q=(risc_resident_client_v1){.api_version=1,.struct_size=sizeof(*q),.invocation=99,.role=RISC_RESIDENT_ROLE_FOREGROUND,.checkpoint=app_checkpoint};return true;}
 static void app_yield(uint32_t delay){
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(uat.direct){uat.yields++;return;}
+#endif
  ms+=delay;assert(phase<100);session=cs_session;
  if(native_exit_pending){allow_complete=true;return;}
  if(native_exit_mode&&((native_exit_mode<3&&phase==0)||(native_exit_mode==3&&phase==25)||(native_exit_mode==4&&phase==12)||(native_exit_mode==5&&phase==13))){
@@ -208,7 +225,11 @@ const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){return native_alive&&
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
 #include "shared_input_fixture.inc"
 #endif
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+int legacy_contexts_controller_fixture(int argc,char**argv){
+#else
 int main(int argc,char**argv){
+#endif
  assert(argc==4);device=argv[1];folder=argv[2];fail_storage=!strcmp(argv[3],"storage");terminal_mode=!strcmp(argv[3],"retained");learning_mode=!strcmp(argv[3],"no-input")?1:!strcmp(argv[3],"delayed")?2:!strcmp(argv[3],"save-failure")?3:!strcmp(argv[3],"event-no-input")?4:0;
  native_exit_mode=!strcmp(argv[3],"exit-home")?1:!strcmp(argv[3],"exit-busy")?2:!strcmp(argv[3],"exit-keyboard")?3:!strcmp(argv[3],"exit-learning")?4:!strcmp(argv[3],"exit-saving")?5:0;
 
@@ -226,7 +247,7 @@ int main(int argc,char**argv){
  if(terminal_mode){assert(!native_alive&&app_releases<app_acquires);puts("Contexts real launch: terminal presentation loss fences cleanup PASS");return 0;}
  assert(app_acquires==app_releases&&!held&&!presenting&&!subscribed);
  if(native_exit_mode){assert(native_exit_pending&&phase==99&&!app_launches&&!cs_launch[0]);if(native_exit_mode>=4)assert(!learn_saves);assert(driver->quiesce());driver->stop();printf("Contexts native exit: orderly cleanup, no queued launch, mode %u %s PASS\n",native_exit_mode,device);return 0;}
- assert(phase==(fail_storage?99:47));assert(driver->quiesce());driver->stop();printf("Contexts actual app_main, renderer, touch flows, pending refresh, training, save retry %s PASS\n",device);
+ assert(phase==(fail_storage?99:47));assert(driver->quiesce());driver->stop();printf("Contexts actual app_main, renderer, touch flows, pending refresh, training, save retry %s PASS\n",device);return 0;
 
 }
 

@@ -1,5 +1,5 @@
-/* Read-only NOVA power screens. The PMIC owns charging; this app never changes
- * policy, clears IRQs, writes preferences or keeps the display awake. */
+/* NOVA power screens. The PMIC owns charging. The separate, explicit BLE
+ * broadcast control is the only preference writer in this app. */
 #include "T5AppApi.h"
 #include "utility_frame.h"
 #include "PortableNovaUi.h"
@@ -14,6 +14,23 @@
 #include "PortableBroadcastClient.h"
 static bool power_broadcast,power_broadcast_error,power_broadcast_requested;
 static telemetry_broadcast_status_v1 power_broadcast_state;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "utility_preference_atomic.h"
+static utility_preference_atomic power_preference;
+static bool power_preference_alive(void *unused){(void)unused;return !portable_adapter_retained();}
+static void power_preference_retain(void *unused){(void)unused;portable_adapter_retain();}
+static bool power_broadcast_save(bool enabled){
+ const risc_runtime_api_v1 *rt=risc_runtime_get_api(1);
+ int rc=utility_preference_begin(&power_preference,rt,"ble_broadcast",power_preference_alive,power_preference_retain,NULL);
+ if(rc==PORTABLE_PREFERENCE_READY){
+  if(!portable_broadcast_stop())rc=portable_adapter_retained()?RISC_ATOMIC_RETAINED:RISC_ATOMIC_IO;
+  else {uint8_t b[]={0x62,1,enabled?1:0,(uint8_t)((enabled?1:0)^0xa5u)};rc=utility_preference_submit(&power_preference,b,sizeof(b));}
+ }
+ return utility_preference_finish(&power_preference,rc)==RISC_ATOMIC_OK;
+}
+#else
+#define power_broadcast_save portable_broadcast_enable
+#endif
 #endif
 #ifdef PORTABLE_RETURN_APP
 #error Power details require nested Back via BATTERY_RETURN_APP
@@ -343,7 +360,7 @@ void app_main(void) {
 #endif
           ))) {
             if(!power_broadcast_error)power_broadcast_requested=!power_broadcast_state.enabled;
-            power_broadcast_error=!portable_broadcast_enable(power_broadcast_requested);
+            power_broadcast_error=!power_broadcast_save(power_broadcast_requested);
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
             if(portable_adapter_retained())return;
 #endif

@@ -32,7 +32,7 @@ static int ble_alias_load(const risc_key_value_v1*kv,uint8_t type,const uint8_t 
  if(rc==RISC_KEY_VALUE_NOT_FOUND){out[0]=0;return 0;}
  return rc==RISC_KEY_VALUE_OK&&ble_alias_decode(type,address,b,n,out)?1:-1;
 }
-static bool ble_alias_save(const risc_key_value_v1*kv,uint8_t type,const uint8_t address[6],const char*name){
+static inline bool ble_alias_save(const risc_key_value_v1*kv,uint8_t type,const uint8_t address[6],const char*name){
  if(!kv||kv->api_version!=1||kv->struct_size<sizeof(*kv)||!kv->get||!kv->put)return false;
  char key[16],check[BLE_ALIAS_MAX+1];uint8_t b[40];if(!ble_alias_encode(type,address,name,b))return false;
  ble_alias_key(type,address,key);int32_t rc=kv->put(kv->context,key,b,sizeof(b));
