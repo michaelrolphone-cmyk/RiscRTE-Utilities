@@ -58,9 +58,29 @@ static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_pre
 static const risc_display_output_api_v1 display_api={.api_version=1,.struct_size=sizeof(display_api),.get_info=fake_info,.acquire=fake_frame,.release=fake_frame_release,.submit=fake_submit,.present_status=fake_present};
 static uint64_t fake_sub(void*c){(void)c;subs++;return 1;}
 static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n==1&&subs);subs--;return true;}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+/* Current shared touch reducer requires ordered edges and matching snapshots;
+ * this opt-in fixture never fabricates an old snapshot-only tap. */
+static risc_touch_event_v1 atomic_touch_event;
+static bool atomic_touch_down,atomic_touch_queued;
+static uint64_t atomic_touch_sequence;
+static unsigned atomic_touch_x,atomic_touch_y;
+static bool fake_touch_poll(void*c,size_t n){
+ (void)c;assert(n==1&&!atomic_touch_queued);polls++;bool down=false;unsigned x=atomic_touch_x,y=atomic_touch_y;
+ for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){down=true;x=(unsigned)actions[i].x;y=(unsigned)actions[i].y;
+  if(paper_profile&&getenv("TEST_PAPER_FLIP")){x=479-x;y=799-y;}}
+ if(down!=atomic_touch_down){atomic_touch_event=(risc_touch_event_v1){.sequence=++atomic_touch_sequence,.timestamp_ms=ticks,.kind=down?RISC_TOUCH_EVENT_DOWN:RISC_TOUCH_EVENT_UP,.id=1,.x=x,.y=y};atomic_touch_queued=true;}
+ atomic_touch_down=down;atomic_touch_x=x;atomic_touch_y=y;return true;
+}
+static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;(void)n;if(!atomic_touch_queued)return 0;*e=atomic_touch_event;atomic_touch_queued=false;return 1;}
+#else
 static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);polls++;return true;}
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;(void)n;(void)e;return 0;}
+#endif
 static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;*s=(risc_touch_snapshot_v1){.width=paper_profile?480:240,.height=paper_profile?800:240};if(raw_home_at&&polls==raw_home_at)s->buttons=RISC_TOUCH_BUTTON_PRIMARY;for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=actions[i].x,.y=actions[i].y};if(cancel_contact){s->contact_count=2;s->contacts[1]=s->contacts[0];s->contacts[1].id=2;}}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ s->sequence=atomic_touch_sequence;s->timestamp_ms=ticks;
+#endif
 #ifdef PORTABLE_PAPER_TRANSITIONS
  if(polls==motion_multi_at&&s->contact_count){s->contact_count=2;s->contacts[1]=s->contacts[0];s->contacts[1].id=2;}
  if(polls==motion_replace_at&&s->contact_count)s->contacts[0].id=2;

@@ -1,0 +1,277 @@
+{
+  "repository_sha": "1c593d985bd08c4433da23f4e65e5d1141fdb8cf",
+  "working_tree_dirty": false,
+  "hardware_verified": false,
+  "runs": [
+    {
+      "sanitized": false,
+      "case": 0,
+      "result": "Battery paper broadcast case=0 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 1,
+      "result": "Battery paper broadcast case=1 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 2,
+      "result": "Battery paper broadcast case=2 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 3,
+      "result": "Battery paper broadcast case=3 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 4,
+      "result": "Battery paper broadcast case=4 peak-live=7 publish=1 close=1 retained=1 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 5,
+      "result": "Battery paper broadcast case=5 peak-live=0 publish=0 close=0 retained=1 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 6,
+      "result": "Battery paper broadcast case=6 peak-live=1 publish=0 close=0 retained=1 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 7,
+      "result": "Battery paper broadcast case=7 peak-live=1 publish=0 close=0 retained=1 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 8,
+      "result": "Battery paper broadcast case=8 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 9,
+      "result": "Battery paper broadcast case=9 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 10,
+      "result": "Battery paper broadcast case=10 peak-live=7 publish=2 close=2 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 11,
+      "result": "Battery paper broadcast case=11 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 12,
+      "result": "Battery paper broadcast case=12 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 0,
+      "flipped": true,
+      "result": "Battery paper broadcast case=0 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 1,
+      "flipped": true,
+      "result": "Battery paper broadcast case=1 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 2,
+      "flipped": true,
+      "result": "Battery paper broadcast case=2 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 3,
+      "flipped": true,
+      "result": "Battery paper broadcast case=3 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 10,
+      "flipped": true,
+      "result": "Battery paper broadcast case=10 peak-live=7 publish=2 close=2 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 11,
+      "flipped": true,
+      "result": "Battery paper broadcast case=11 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": false,
+      "case": 12,
+      "flipped": true,
+      "result": "Battery paper broadcast case=12 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 0,
+      "result": "Battery paper broadcast case=0 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 1,
+      "result": "Battery paper broadcast case=1 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 2,
+      "result": "Battery paper broadcast case=2 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 3,
+      "result": "Battery paper broadcast case=3 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 4,
+      "result": "Battery paper broadcast case=4 peak-live=7 publish=1 close=1 retained=1 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 5,
+      "result": "Battery paper broadcast case=5 peak-live=0 publish=0 close=0 retained=1 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 6,
+      "result": "Battery paper broadcast case=6 peak-live=1 publish=0 close=0 retained=1 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 7,
+      "result": "Battery paper broadcast case=7 peak-live=1 publish=0 close=0 retained=1 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 8,
+      "result": "Battery paper broadcast case=8 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 9,
+      "result": "Battery paper broadcast case=9 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 10,
+      "result": "Battery paper broadcast case=10 peak-live=7 publish=2 close=2 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 11,
+      "result": "Battery paper broadcast case=11 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 12,
+      "result": "Battery paper broadcast case=12 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 0,
+      "flipped": true,
+      "result": "Battery paper broadcast case=0 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 1,
+      "flipped": true,
+      "result": "Battery paper broadcast case=1 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 2,
+      "flipped": true,
+      "result": "Battery paper broadcast case=2 peak-live=7 publish=0 close=0 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 3,
+      "flipped": true,
+      "result": "Battery paper broadcast case=3 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 10,
+      "flipped": true,
+      "result": "Battery paper broadcast case=10 peak-live=7 publish=2 close=2 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 11,
+      "flipped": true,
+      "result": "Battery paper broadcast case=11 peak-live=7 publish=1 close=1 retained=0 PASS"
+    },
+    {
+      "sanitized": true,
+      "case": 12,
+      "flipped": true,
+      "result": "Battery paper broadcast case=12 peak-live=7 publish=0 close=0 retained=0 PASS"
+    }
+  ],
+  "defines": [
+    "-DPORTABLE_NOVA_UI",
+    "-DPORTABLE_ALARM_CLIENT",
+    "-DPORTABLE_DISPLAY_ROTATION=90",
+    "-DPORTABLE_INPUT_NAVIGATION",
+    "-DPORTABLE_HOME_APP=\"default.elf\"",
+    "-DPORTABLE_QUICK_ACTIONS",
+    "-DPORTABLE_PAPER_UTILITIES",
+    "-DPORTABLE_POWER_STATUS",
+    "-DBATTERY_RETURN_APP=\"springboard.elf\"",
+    "-DPORTABLE_STAGE_LOGS",
+    "-DALARM_SERVICE_TAGGED_V2",
+    "-DPORTABLE_NATIVE_CUSTODY_FENCE",
+    "-DPORTABLE_NATIVE_TIME_TOOLBAR",
+    "-DPORTABLE_PAPER_TRANSITIONS",
+    "-DPORTABLE_BLE_BROADCAST",
+    "-DPORTABLE_BLE_BROADCAST_DEFAULT_OFF",
+    "-DPORTABLE_PAPER_PREFERENCES",
+    "-DPORTABLE_UTILITIES_ATOMIC_PREFERENCES",
+    "-DPORTABLE_UTILITIES_TARGET_X4",
+    "-DPORTABLE_BROADCAST_RESULT_ONLY"
+  ],
+  "sources": {
+    "/workspace/shared/x4-utilities-atomic-intents-20261012/Apps/battery.c": "7cda56add5ce749138d86cd135e9f6b02042bd81f358b0d9a194aa593165d9c2",
+    "/workspace/shared/x4-system-utility-broadcast-result-20261012/lib/PortableApps/src/adapter.c": "c97d47aa0f1971a4a19755bb8c3d05cab38f05b9d99b99e744a5755b9b91ec1f",
+    "/workspace/shared/x4-system-utility-broadcast-result-20261012/lib/PortableApps/src/quick_actions.c": "5eb885a4940edceefc1d96b8cce977bdfaf7dfaf46a0efca6bf5ea382262f7d8",
+    "/workspace/shared/x4-system-utility-broadcast-result-20261012/lib/PortableApps/src/quick_render.c": "d5b02fc2fd6a9eb2e9b2ccfc9848cb786fb2cf9da613d0514eb529c3375337dc",
+    "/workspace/shared/x4-system-utility-broadcast-result-20261012/lib/PortableApps/src/quick_session.c": "2ad92a09a6ebc818fd0e39e4220d8e64c5f6f67509750d65a46394694e9092c9",
+    "/workspace/shared/x4-system-utility-broadcast-result-20261012/lib/PortableApps/src/PortableNativeTimeSource.c": "a53ea9fd489493dfc459c7b18e739da388013849be6639a3e0f62fa353d5be10",
+    "/workspace/shared/x4-system-utility-broadcast-result-20261012/lib/PortableApps/src/PortableRealtimeClient.c": "a8115817eb490bb51f3e338fde4dce2542cb82dceefe476beae21a91c14ceade",
+    "/workspace/shared/x4-system-utility-broadcast-result-20261012/lib/PortableApps/src/PortableTimeZone.c": "28c0fecf7a4d83bde07d2b72cb591122cf3c49c3219c8344b97b82a90625c5e7",
+    "/workspace/shared/x4-system-utility-broadcast-result-20261012/lib/PortableApps/src/PortableTimeZoneCatalog.c": "29d4c86037f7554c94a4404d5e39e28091430a1f9c23b5e35224aed3df826f20",
+    "/workspace/shared/x4-system-utility-broadcast-result-20261012/lib/PortableApps/src/PortableTimeZonePreference.c": "b54e455d587ba2ecda8f59dd899b59b767214aee807b92d79d18c5e9d30b6bb7",
+    "/workspace/shared/x4-utilities-atomic-intents-20261012/Services/telemetry_broadcast/service.c": "633aa1f4f4f65e1497a83b0566a952108e982152081a11dda2f667f65da3ca56"
+  },
+  "target": {
+    "sha256": "b0485f6912a91ea2ca4ac816fb128048b01c418cc8b17d96ee027eeb294c8892",
+    "bytes": 245116,
+    "imports": [
+      "free",
+      "malloc",
+      "memcmp",
+      "memcpy",
+      "memset",
+      "risc_runtime_get_api",
+      "snprintf",
+      "strcmp",
+      "strcpy",
+      "strlen"
+    ],
+    "exports": [
+      "app_main",
+      "app_module_fini",
+      "app_module_init"
+    ]
+  }
+}
