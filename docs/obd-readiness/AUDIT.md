@@ -47,7 +47,8 @@ channel selection, unavailable optional diagnostics, and the absent-peer
 three-attempt reconnect limit. Existing cleanup/custody, pause/resume, persistence,
 alerts, graphs, diagnostic reads and confirmed-clear regressions are retained.
 
-All 87 existing checkpoint UI frame bytes are unchanged by the five app fixes.
+All 87 existing checkpoint artifacts are byte-identical after the five app fixes:
+82 screen frames plus five settings/log data files.
 The manual-channel correction is separately checked with full-length 128-bit
 UUIDs, distinct visible RX handle prefixes and a real-scene second-channel tap.
 The BLE provider passes 11 actual NimBLE HCI/ATT fixture cases normally and under
