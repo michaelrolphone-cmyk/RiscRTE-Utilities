@@ -40,7 +40,8 @@ typedef struct {
  char toast[40];uint32_t toast_token;
  unsigned acquired,screen,tab,first,seen_clear_status;
  uint64_t session,token,sequence;
- uint32_t revision,now,last_paint,next_view,policy_at;
+ uint32_t revision,now,last_paint,next_view,policy_at,send_blocked_at;
+ bool send_blocked;
  bool dirty,done,retained,imperial,elm_started,view_settled,upgrade_required,reload_required;
  char notice[80],peer_name[40];
  obd_client elm;
@@ -72,7 +73,7 @@ static bool read_status(obd_app*);
 static bool stop_link(obd_app*a,const char*why){
  if(!authority(a))return retain_app(a);
  if(!log_close(a))return false;
- char reason[80];copy(reason,sizeof(reason),why);obd_stop(&a->elm,reason);a->elm_started=false;a->stable_tracking=false;
+ char reason[80];copy(reason,sizeof(reason),why);obd_stop(&a->elm,reason);a->elm_started=false;a->stable_tracking=false;a->send_blocked=false;
  if(a->token){
   for(unsigned i=0;i<3;i++){
    bool closed=a->ble->close(a->ble->context,a->token);if(!authority(a))return retain_app(a);
@@ -189,9 +190,15 @@ static bool service_link(obd_app*a){
   a->elm.poll_mask=db_poll_mask(&a->data,a->screen==DETAIL?(int)a->selected_metric:-1);
   if(a->screen==INFO)a->elm.poll_mask|=(1u<<OBD_STANDARD)|(1u<<OBD_DISTANCE_CLEAR)|(1u<<OBD_DISTANCE_MIL)|(1u<<OBD_RUNTIME);
   const char*command;size_t n=obd_next(&a->elm,a->now,&command);
-  if(n){int32_t sent=a->ble->write(a->ble->context,a->token,(const uint8_t*)command,(uint32_t)n);if(!authority(a))return retain_app(a);
-   if(sent==(int32_t)n)obd_sent(&a->elm,a->now);
+  if(n){
+   if(a->send_blocked&&(uint32_t)(a->now-a->send_blocked_at)>=5000){
+    if(stop_link(a,"Serial transmit timed out"))notice(a,"Serial transmit timed out. Reconnect the adapter.");return !a->retained;
+   }
+   int32_t sent=a->ble->write(a->ble->context,a->token,(const uint8_t*)command,(uint32_t)n);if(!authority(a))return retain_app(a);
+   if(sent==(int32_t)n){a->send_blocked=false;obd_sent(&a->elm,a->now);}
+   else if(sent==0){if(!a->send_blocked){a->send_blocked=true;a->send_blocked_at=a->now;}}
    else if(sent!=0){if(stop_link(a,"Serial send failed"))notice(a,"Serial send failed");return !a->retained;}}
+  else if(!a->elm.prepared)a->send_blocked=false;
  }
  return true;
 }

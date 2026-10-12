@@ -91,7 +91,7 @@ static bool payload(obd_client *c,const char *s,unsigned len,uint32_t *ecu,uint3
  if((*kind==11&&*ecu>0x7ff)||(*kind==29&&*ecu>0x1fffffff))return false;
  unsigned n=(len-head)/2;if(n>12)return false;uint8_t b[12]={0};for(unsigned i=0;i<n;i++)b[i]=(uint8_t)number(s+head+i*2,2);
  unsigned start=0;
- if(can){if(n<3||b[0]<2||b[0]>7||(unsigned)b[0]+1>n)return false;start=1;n=b[0];}
+ if(can){if(n<3||n>8||b[0]<2||b[0]>7||(unsigned)b[0]+1>n)return false;start=1;n=b[0];}
  else { /* ELM checks the link-layer checksum; keep at most one trailer. */
   if(n<2||n>7)return false;
  }
@@ -118,7 +118,11 @@ static void line(obd_client *c){
  uint32_t ecu,kind;uint8_t b[12]={0};unsigned size;
  if(!payload(c,compact,k,&ecu,&kind,b,&size)){c->bad_lines++;return;}
  if(c->have_ecu&&(ecu!=c->ecu||kind!=c->ecu_kind))return;
- if(size>=3&&b[0]==0x7f&&b[1]==1){if(b[2]!=0x78)c->negative=true;return;}
+ if(size>=3&&b[0]==0x7f&&b[1]==1){
+  /* Functional discovery can receive rejections from unrelated ECUs. Only
+   * a positive support reply selects an ECU; later rejections stay bound to it. */
+  if(b[2]!=0x78&&c->have_ecu)c->negative=true;return;
+ }
  unsigned pid=c->metric>=0?obd_specs[c->metric].pid:c->stage==6?0:c->stage==8?32:64;
  unsigned bytes=c->metric>=0?obd_specs[c->metric].bytes:4;
  if(size<bytes+2||b[0]!=0x41||b[1]!=pid){c->bad_lines++;return;}

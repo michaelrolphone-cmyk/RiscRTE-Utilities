@@ -18,4 +18,22 @@ static void late_reply(void){
  assert(c.state==OBD_FAULT&&!c.samples[OBD_RPM].valid);
  puts("Receive-before-tick late setup/PID replies and clock wrap rejected PASS");
 }
-int main(void){late_reply();return 0;}
+static void discovery_and_frames(void){
+ obd_client c;const char*q;now=100;obd_init(&c,now);
+ command(&c,"ATZ\r","ELM327 v1.5\r>");
+ command(&c,"ATE0\r","OK\r>");command(&c,"ATL0\r","OK\r>");
+ command(&c,"ATS1\r","OK\r>");command(&c,"ATH1\r","OK\r>");command(&c,"ATSP0\r","OK\r>");
+ /* Broadcast discovery must select a positive ECU, not reject it because a
+  * different module reports that it cannot answer Mode 01. */
+ command(&c,"0100\r","7E9 03 7F 01 11\r7E8 06 41 00 00 10 00 00\r>");
+ assert(c.state!=OBD_FAULT&&c.have_ecu&&c.ecu==0x7e8);
+ command(&c,"ATDPN\r","A6\r>");now+=200;assert(obd_next(&c,now,&q));
+ assert(c.state==OBD_LIVE&&!strcmp(q,"010C\r"));
+ assert(c.samples[OBD_RPM].supported&&!c.samples[OBD_SPEED].supported);
+ reading(&c,OBD_RPM,"7E8 04 41 0C 1A F8 00 00 00 00\r>");
+ assert(!c.samples[OBD_RPM].valid); /* Nine CAN bytes are never a frame. */
+ reading(&c,OBD_RPM,"7E8 04 41 0C 1A F8 00 00 00\r>");
+ assert(c.samples[OBD_RPM].valid&&c.samples[OBD_RPM].milli==1726000);
+ puts("Mixed ECU discovery, no-continuation mask and CAN frame bounds PASS");
+}
+int main(void){late_reply();discovery_and_frames();return 0;}

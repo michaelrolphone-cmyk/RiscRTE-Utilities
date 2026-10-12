@@ -201,7 +201,7 @@ static void declare(obd_app*a){
   for(unsigned i=0;i<8&&a->first+i<count;i++){
    if(a->screen==PEERS){risc_serial_peer_v1*p=&a->peer_rows[i];p->struct_size=sizeof(*p);if(!a->ble->peer(a->ble->context,a->token,a->first+i,p)||!authority(a))break;
     char text[72];snprintf(text,sizeof(text),"%02X:%02X:%02X:%02X:%02X:%02X / %d dBm",p->address[5],p->address[4],p->address[3],p->address[2],p->address[1],p->address[0],p->rssi);risc_scene_node_v1*n=node(a,RISC_COMPONENT_ROW,p->name[0]?p->name:"UNNAMED BLE DEVICE",text,ACT_PEER+i);if(!p->connectable)n->flags|=RISC_SCENE_DISABLED;}
-   else{risc_serial_channel_v1*p=&a->channel_rows[i];p->struct_size=sizeof(*p);if(!a->ble->channel(a->ble->context,a->token,a->first+i,p)||!authority(a))break;row(a,p->service,p->tx_uuid,ACT_CHANNEL+i);}
+   else{risc_serial_channel_v1*p=&a->channel_rows[i];p->struct_size=sizeof(*p);if(!a->ble->channel(a->ble->context,a->token,a->first+i,p)||!authority(a))break;char text[72];snprintf(text,sizeof(text),"TX %04X %.24s / RX %04X %.24s",p->tx_handle,p->tx_uuid,p->rx_handle,p->rx_uuid);row(a,p->service,text,ACT_CHANNEL+i);}
   }
   if(!count&&a->status.state==RISC_SERIAL_SCAN_DONE)node(a,RISC_COMPONENT_EMPTY,"NO BLE DEVICES","Try again near the adapter; close other OBD apps.",0);
   if(a->first)row(a,"PREVIOUS","",ACT_PREVIOUS);if(a->first+8<count)row(a,"MORE","",ACT_MORE);

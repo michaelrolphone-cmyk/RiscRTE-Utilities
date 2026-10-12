@@ -16,7 +16,7 @@ static uint32_t step_at;
 static const char *frames;
 static bool missing_radio,close_failure,lost_in_read,test_reopen,stationary,overheat,force_link_drop;
 static unsigned clear_writes,reconnects;
-static unsigned radio_opens;
+static unsigned radio_opens,write_attempts;
 static uint32_t radio_opened_at;
 static bool late_peer_seen;
 static bool radio_reload;
@@ -24,21 +24,23 @@ static uint32_t reload_seen_at;
 static risc_scene_telemetry_api_v1 legacy_scene;
 #include "storage_fixture.inc"
 int telemetry_test_target(unsigned,int,int*,int*);
-static bool late_reconnect(void){return (scenario==12||scenario==13)&&radio_opens>1;}
+static bool late_reconnect(void){return (scenario==12||scenario==13||scenario==22)&&radio_opens>1;}
 static bool bopen(void*ctx,uint64_t*out){(void)ctx;assert(!radio_token&&!radio_reload);radio_token=44;*out=44;radio_state=RISC_SERIAL_SCANNING;response_at=response_size=0;radio_opens++;radio_opened_at=(uint32_t)ms;return true;}
 static bool bpoll(void*ctx,uint64_t t,uint32_t n){(void)ctx;assert(native_alive&&t==44&&radio_token&&n<=16);radio_polls++;
  if(force_link_drop){radio_state=RISC_SERIAL_DISCONNECTED;force_link_drop=false;if(scenario==15){radio_reload=true;close_failure=true;}}
  if(late_reconnect()&&radio_state==RISC_SERIAL_SCANNING&&(uint32_t)(ms-radio_opened_at)>=8000){radio_state=RISC_SERIAL_SCAN_DONE;late_peer_seen=true;}
- if(radio_state==RISC_SERIAL_CONNECTING)radio_state=RISC_SERIAL_CHANNELS;
+ if(radio_state==RISC_SERIAL_CONNECTING&&scenario!=18)radio_state=RISC_SERIAL_CHANNELS;
  else if(radio_state==RISC_SERIAL_SUBSCRIBING)radio_state=RISC_SERIAL_READY;return true;}
-static bool bstatus(void*ctx,uint64_t t,risc_serial_status_v1*s){(void)ctx;assert(native_alive&&t==radio_token);*s=(risc_serial_status_v1){.struct_size=sizeof(*s),.state=radio_state,.flags=radio_reload?RISC_SERIAL_RELOAD_REQUIRED:0,.peer_count=late_reconnect()&&radio_state==RISC_SERIAL_SCANNING?0:1,.channel_count=1,.rx_bytes=radio_rx,.tx_bytes=radio_tx,.generation=1};strcpy(s->message,radio_reload?"Host stop unconfirmed; reload required":"Fixture BLE adapter");return true;}
+static bool bstatus(void*ctx,uint64_t t,risc_serial_status_v1*s){(void)ctx;assert(native_alive&&t==radio_token);*s=(risc_serial_status_v1){.struct_size=sizeof(*s),.state=radio_state,.flags=radio_reload?RISC_SERIAL_RELOAD_REQUIRED:0,.peer_count=(scenario==22&&radio_opens>1)||(late_reconnect()&&radio_state==RISC_SERIAL_SCANNING)?0:1,.channel_count=1,.rx_bytes=radio_rx,.tx_bytes=radio_tx,.generation=1};strcpy(s->message,radio_reload?"Host stop unconfirmed; reload required":"Fixture BLE adapter");return true;}
 static bool bpeer(void*ctx,uint64_t t,uint32_t i,risc_serial_peer_v1*p){(void)ctx;assert(native_alive&&t==44&&i==0);*p=(risc_serial_peer_v1){.struct_size=sizeof(*p),.address={1,2,3,4,5,6},.connectable=1,.rssi=-48,.name="OBDII"};return true;}
 static bool bconnect(void*ctx,uint64_t t,const risc_serial_peer_v1*p){(void)ctx;assert(native_alive&&t==44&&p->address[0]==1);if(late_reconnect()){assert(late_peer_seen&&radio_state==RISC_SERIAL_SCAN_DONE);assert((int32_t)(app.now-app.reconnect_at)>=0);}
  reconnects++;if(scenario==13&&radio_opens>1){radio_state=RISC_SERIAL_FAULT;return false;}radio_state=RISC_SERIAL_CONNECTING;return true;}
-static bool bchannel(void*ctx,uint64_t t,uint32_t i,risc_serial_channel_v1*c){(void)ctx;assert(native_alive&&t==44&&i==0);*c=(risc_serial_channel_v1){.struct_size=sizeof(*c),.flags=RISC_SERIAL_KNOWN_UART,.tx_handle=0x12,.rx_handle=0x15,.service="fff0",.tx_uuid="fff2",.rx_uuid="fff1"};return true;}
+static bool bchannel(void*ctx,uint64_t t,uint32_t i,risc_serial_channel_v1*c){(void)ctx;assert(native_alive&&t==44&&i==0);*c=(risc_serial_channel_v1){.struct_size=sizeof(*c),.flags=scenario==20?0:RISC_SERIAL_KNOWN_UART,.tx_handle=0x12,.rx_handle=0x15,.service="fff0",.tx_uuid="fff2",.rx_uuid="fff1"};return true;}
 static bool bselect(void*ctx,uint64_t t,uint32_t i){(void)ctx;assert(native_alive&&t==44&&i==0);radio_state=RISC_SERIAL_SUBSCRIBING;return true;}
 static int32_t bwrite(void*ctx,uint64_t t,const uint8_t*b,uint32_t n){
  (void)ctx;assert(native_alive&&t==44&&radio_token&&n<=20&&radio_state==RISC_SERIAL_READY);assert(response_at==response_size);
+ write_attempts++;if(scenario==16||scenario==19||(scenario==23&&write_attempts<6))return 0;
+ if(scenario==24)return (int32_t)n-1; /* Persistent provider backpressure before ATZ. */
  char q[21];memcpy(q,b,n);q[n]=0;radio_tx+=n;response_at=0;
  if(!strcmp(q,"ATZ\r"))strcpy(response,"ELM327 v1.5\r>");
  else if(!strcmp(q,"ATDPN\r"))strcpy(response,"A6\r>");
@@ -63,6 +65,7 @@ static int32_t bwrite(void*ctx,uint64_t t,const uint8_t*b,uint32_t n){
   }
   char data[32];strcpy(data,response);snprintf(response,sizeof(response),"7E8 %02X 41 %02X %s\r>",bytes+2,pid,data);
  }
+ if(scenario==21&&(!strcmp(q,"0902\r")||!strcmp(q,"ATRV\r")||!strcmp(q,"03\r")||!strcmp(q,"07\r")||!strcmp(q,"0A\r")))strcpy(response,"NO DATA\r>");
  if(scenario==1&&q[0]=='0'&&q[2]=='0'&&q[3]=='0')response[0]=0; /* ECU search timeout */
  response_size=strlen(response);return (int32_t)n;
 }
@@ -99,6 +102,7 @@ static void yield_rt(uint32_t delay){
  if(test_reopen){assert(app.data.cfg.imperial==1&&app.data.cfg.update_ms==2000&&app.data.cfg.dash_count==7);capture("restored-settings");app.done=true;return;}
  if(step==0&&app.screen==INTRO){capture("intro");click(ACT_SCAN,0);return;}
  if(missing_radio){if(app.screen==NOTICE){capture("missing-provider");app.done=true;}return;}
+ if(step==1&&app.screen==PEERS&&scenario==17){capture("home-during-scan");nav_pressed=RISC_NAV_HOME;step++;return;}
  if(step==1&&app.screen==PEERS){capture("devices");click(ACT_PEER,0);return;}
  if(step==2&&app.screen==SELECTED){capture("selected");click(ACT_CONNECT,0);return;}
  if(scenario==1){if(app.screen==NOTICE){assert(!radio_token&&close_count);capture("ecu-timeout");app.done=true;}return;}
@@ -107,6 +111,28 @@ static void yield_rt(uint32_t delay){
  if(scenario==5){
   if(step==3&&app.elm.state==OBD_LIVE){event_at=0;event_count=3;events[0]=(risc_touch_event_v1){++seq,ms,1,0,240,1};events[1]=(risc_touch_event_v1){++seq,ms+20,2,0,240,200};events[2]=(risc_touch_event_v1){++seq,ms+40,3,0,240,220};step++;step_at=(uint32_t)ms;}
   else if(step==4&&app.screen==INTRO){assert(shared_calls&&live_polls&&!radio_token);capture("shared-return");app.done=true;}return;
+ }
+ if(scenario>=17){
+  if((scenario==18||scenario==19)&&step==3){
+   assert(radio_token&&!radio_tx);capture(scenario==18?"home-during-connect":"home-during-backpressure");nav_pressed=RISC_NAV_HOME;step++;return;
+  }
+  if(scenario==20&&app.screen==CHANNELS){capture("manual-vendor-channel");click(ACT_CHANNEL,0);return;}
+  if(scenario==24){if(app.screen==NOTICE){assert(!radio_token&&close_count==1&&!radio_tx);capture("partial-write-rejected");app.done=true;}return;}
+  if(scenario==22){
+   if(step==3&&app.elm.state==OBD_LIVE&&obd_fresh(&app.elm,OBD_RPM,app.now)){force_link_drop=true;step++;return;}
+   if(step==4&&app.screen==NOTICE){assert(!radio_token&&!app.reconnecting&&radio_opens==4&&reconnects==1&&close_count==4);capture("reconnect-limit");app.done=true;}return;
+  }
+  if((scenario==20||scenario==21||scenario==23)&&app.screen==DASHBOARD&&obd_fresh(&app.elm,OBD_RPM,app.now)&&obd_fresh(&app.elm,OBD_VOLTS,app.now)){
+   if(scenario==20)assert(step==4);
+   if(scenario==21)assert(app.elm.vin_status==OBD_DIAG_UNAVAILABLE&&app.elm.codes[0].status==OBD_DIAG_UNAVAILABLE);
+   if(scenario==23)assert(write_attempts>5&&!app.send_blocked);
+   capture(scenario==21?"live-without-optional-diagnostics":scenario==23?"transient-backpressure-recovered":"manual-channel-live");app.done=true;
+  }
+  return;
+ }
+ if(scenario==16&&step==3){
+  if(ms-step_at>=7000){assert(app.screen==NOTICE&&!radio_token&&close_count==1&&!radio_tx);capture("transmit-backpressure-timeout");app.done=true;}
+  return;
  }
  if(app.screen==CONNECTING){capture("connecting");return;}
  if(scenario>=6){
@@ -220,6 +246,7 @@ int main(int argc,char**argv){
  if(scenario==15){assert(app.reload_required&&retains==1&&!released_count&&radio_token&&app.token&&close_count==3&&radio_opens==1);puts("reload-required failed close retains invocation and BLE custody PASS");return 0;}
  if(scenario==3){assert(!native_alive&&!released_count&&app.retained);puts("native custody lost during serial read: no cleanup I/O PASS");return 0;}
  assert(native_alive&&!radio_token&&!presenting&&!held&&!subscribed&&grant_count==released_count);
+ if(scenario==17||scenario==18||scenario==19)assert(close_count==1&&!radio_tx);
  if(scenario==13)assert(late_peer_seen&&radio_opens==2&&reconnects==2&&close_count==2&&app.status.state==RISC_SERIAL_OFF);
  if(scenario==14)assert(step==5&&app.reload_required&&reload_seen_at&&(uint32_t)(ms-reload_seen_at)>=6000&&radio_opens==1&&close_count==1);
  for(unsigned i=1;i<8;i++)assert(!sf_handles[i]);

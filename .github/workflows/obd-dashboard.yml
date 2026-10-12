@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-Drivers
-          ref: 8ec572af94ee6e844b1685d8d050471cd58cad87
+          ref: 3a1b31c6d2cc90d7f082dd13d20ff7df77bd127c
           path: Drivers
           persist-credentials: false
       - uses: actions/setup-python@v5
