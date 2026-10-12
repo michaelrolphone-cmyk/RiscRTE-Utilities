@@ -63,7 +63,30 @@ bool portable_contexts_training(bool on){
  if(on){risc_runtime_health_v1 h={.struct_size=sizeof(h)};if(!ctx_runtime->health(&h))return false;cs_learning_at=h.uptime_ms;cs_learning_draw_at=h.uptime_ms;}
  return true;
 }
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "utility_preference_atomic.h"
+static utility_preference_atomic ctx_preference;
+static bool ctx_preference_alive(void *unused){(void)unused;return cs_alive();}
+static void ctx_preference_retain(void *unused){(void)unused;cs_retain();}
+static int ctx_preference_begin(const char *key){return utility_preference_begin(&ctx_preference,ctx_runtime,key,ctx_preference_alive,ctx_preference_retain,NULL);}
+static bool ctx_preference_save(const void *value,uint32_t size){
+ int rc=utility_preference_submit(&ctx_preference,value,size);
+ return utility_preference_finish(&ctx_preference,rc)==RISC_ATOMIC_OK;
+}
+bool portable_contexts_enable(bool on){
+ int rc=ctx_preference_begin("contexts_on");
+ if(rc!=PORTABLE_PREFERENCE_READY){(void)utility_preference_finish(&ctx_preference,rc);return false;}
+ if(!cs_backend_open()||!portable_contexts_pause(&cs_client)||!portable_contexts_release_storage(&cs_client)){
+  (void)utility_preference_finish(&ctx_preference,cs_alive()?RISC_ATOMIC_IO:RISC_ATOMIC_RETAINED);return false;
+ }
+ const uint8_t b[]={'C',1,on?1:0,(uint8_t)((on?1:0)^0xa5u)};
+ bool ok=ctx_preference_save(b,sizeof(b));
+ if(cs_alive()){cs_client.loaded=false;cs_client.save_failed=!ok;cs_client.settings_valid=false;}
+ return ok;
+}
+#else
 bool portable_contexts_enable(bool on){return cs_backend_open()&&portable_contexts_set_enabled(&cs_client,on);}
+#endif
 bool portable_contexts_rules_read(cr_store*out){return cs_backend_open()&&portable_context_rules_read(&cs_client,out);}
 bool portable_contexts_rules_save(const cr_store*in){return cs_backend_open()&&portable_context_rules_save(&cs_client,in);}
 bool portable_contexts_models_save(void){return cs_backend_open()&&portable_fp_checkpoint(&cs_client,false)&&!cs_client.fingerprint_error;}
@@ -81,7 +104,7 @@ const char*portable_contexts_face_name(unsigned id){
  (void)id;return NULL;
 #endif
 }
-static bool cs_face_save(const risc_key_value_v1*kv,unsigned id){
+static inline bool cs_face_save(const risc_key_value_v1*kv,unsigned id){
  if(id>=portable_contexts_face_count()||id>255)return false;
  uint8_t wanted[]={0x46,1,(uint8_t)id,(uint8_t)(id^0xa5u)},actual[4];uint32_t size=0;
  int32_t rc=kv->put(kv->context,"watch_face",wanted,4);return (rc==0||rc==RISC_KEY_VALUE_IO)&&!kv->get(kv->context,"watch_face",actual,4,&size)&&size==4&&!memcmp(wanted,actual,4);
@@ -97,12 +120,21 @@ static bool ctx_read_status(void){
 static void ctx_fingerprint_setting(bool timing){
  if(!ctx_fp_valid)return;
  if(!timing&&!(cs_source_mask&(1u<<ctx_model_source))){ctx_note("SOURCE UNAVAILABLE");return;}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ int rc=ctx_preference_begin(timing?"context_timing":"context_sources");
+ if(rc!=PORTABLE_PREFERENCE_READY){(void)utility_preference_finish(&ctx_preference,rc);ctx_note("SAVE UNCONFIRMED / RETRY");return;}
+ if(!portable_contexts_pause(&cs_client)){cs_retain();return;}
+ uint8_t value=timing?!ctx_fp.temporal_only:(uint8_t)(ctx_fp.sources^(1u<<ctx_model_source));
+ bool ok=ctx_preference_save(&value,1);
+#else
  if(!portable_contexts_pause(&cs_client)){cs_retain();return;}
  uint8_t value=timing?!ctx_fp.temporal_only:(uint8_t)(ctx_fp.sources^(1u<<ctx_model_source));risc_runtime_capability_v1 g={.struct_size=sizeof(g)};
  bool ok=ctx_runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);
  if(ok&&!pqa_preferences_valid(g.api))ok=false;
  if(ok){const risc_key_value_v1*kv=g.api;const char*key=timing?"context_timing":"context_sources";uint8_t got=255;uint32_t size=0;int32_t rc=kv->put(kv->context,key,&value,1);ok=(rc==0||rc==RISC_KEY_VALUE_IO)&&!kv->get(kv->context,key,&got,1,&size)&&size==1&&got==value;}
  if(!cs_release(&g))return;
+#endif
+ if(!cs_alive())return;
  if(ok){cs_client.loaded=false;if(timing)ctx_fp.temporal_only=value;else ctx_fp.sources=value;contexts_fingerprint_config_v1 cfg={.struct_size=sizeof(cfg),.sources=ctx_fp.sources,.temporal_only=ctx_fp.temporal_only};const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(ctx_service);ok=f->fingerprint(f->base.context,CONTEXTS_FP_CONFIG,&cfg);}
  ctx_note(ok?"SAVED / FRESH SAMPLES REQUIRED":"SAVE UNCONFIRMED / RETRY");
 }
@@ -148,6 +180,12 @@ static bool cs_finish_learning(void){
  cu_action(CU_ROW_SAVE);return cs_alive();
 }
 static bool cs_rules_tick(void){
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ /* Activation gate: preserve rule state without consuming a transition or
+  * classifying automatic legacy writes as USER edits. Home/foreground rule
+  * origin semantics must be qualified before this profile can be selected. */
+ return cs_alive();
+#else
  if(!cs_client.rules_available)return true;
  const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(ctx_service);contexts_evaluate_v1 q={.struct_size=sizeof(q)};q.observation.enabled=cs_client.settings_valid&&ctx_enabled;
  const risc_civil_clock_api_v1*civil=cs_civil_grant.api;
@@ -177,6 +215,7 @@ static bool cs_rules_tick(void){
   a.claim=false;a.result=ok?CR_RAN:CR_FAILED;if(!f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&a))return false;
  }
  return cs_alive();
+#endif
 }
 static bool cs_close_scene(void){
  if(!cs_alive())return false;

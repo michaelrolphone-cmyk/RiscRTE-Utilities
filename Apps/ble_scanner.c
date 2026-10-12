@@ -41,6 +41,14 @@ static uint32_t copied_at;
 static bool naming,name_save_failed;
 static char aliases[BLE_MAX_DEVICES][BLE_ALIAS_MAX+1],editing[BLE_ALIAS_MAX+1];
 static int8_t alias_state[BLE_MAX_DEVICES]; /* 0 unloaded, 1 valid, -1 failed */
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "utility_preference_atomic.h"
+static utility_preference_atomic name_preference,radio_preference;
+static uint8_t name_draft_type,name_draft_address[6];
+static bool ble_preference_alive(void *unused){(void)unused;return !uncertain&&!name_client.retained;}
+static void ble_preference_retain(void *unused){(void)unused;uncertain=true;name_client.retained=true;(void)portable_text_client_retain(&name_client);}
+static bool name_preference_close(void){return utility_preference_cancel(&name_preference)!=RISC_ATOMIC_RETAINED;}
+#endif
 static unsigned indexes(unsigned out[BLE_MAX_DEVICES]);
 static void normalize_results(void);
 static unsigned visible_rows(void){return paper?(unsigned)(app->screen_height()-256)/88u:3u;}
@@ -60,7 +68,11 @@ static void name_retain(void){uncertain=true;name_client.retained=true;}
 bool portable_radio_services_safe(void){return !uncertain;}
 bool portable_app_before_launch(const char *destination){
  (void)destination;
- return !uncertain&&!naming&&!name_client.active&&!name_client.acquired&&!name_client.suspended&&!name_client.retained;
+ return !uncertain
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  &&!name_preference.grant.api&&!radio_preference.grant.api
+#endif
+  &&!naming&&!name_client.active&&!name_client.acquired&&!name_client.suspended&&!name_client.retained;
 }
 bool portable_radio_suspend(void){
  if(uncertain||name_client.retained)return false;
@@ -142,18 +154,35 @@ static unsigned indexes(unsigned out[BLE_MAX_DEVICES]){
 static void begin_name(void){
  if(detail_index>=scan.count||naming)return;
  stop();
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ char key[16];ble_device *d=&scan.devices[detail_index];ble_alias_key(d->address_type,d->address,key);
+ int opened=utility_preference_begin(&name_preference,runtime,key,ble_preference_alive,ble_preference_retain,NULL);
+ if(opened!=PORTABLE_PREFERENCE_READY){(void)utility_preference_finish(&name_preference,opened);message="Name settings unavailable";dirty=true;return;}
+ name_draft_type=d->address_type;memcpy(name_draft_address,d->address,6);
+ char prior[BLE_ALIAS_MAX+1]={0};
+ if(name_preference.edit.present&&!ble_alias_decode(d->address_type,d->address,name_preference.edit.expected,name_preference.edit.expected_size,prior)){
+  (void)name_preference_close();message="Saved name unreadable";dirty=true;return;
+ }
+ if(!name_save_failed||name_draft_index!=detail_index)memcpy(editing,prior,sizeof(editing));
+#else
  if(!name_save_failed||name_draft_index!=detail_index)memcpy(editing,aliases[detail_index],sizeof(editing));
+#endif
  name_draft_index=detail_index;name_closing=false;
  name_state=(risc_text_entry_state_v1){.struct_size=sizeof(name_state)};
  int32_t rc=portable_text_client_begin(&name_client,runtime,"Sensor name",editing,sizeof(editing));
  if(rc==RISC_TEXT_ENTRY_RETAINED||name_client.retained){name_retain();return;}
- if(rc!=RISC_TEXT_ENTRY_OK){message="Text input unavailable";detail_scroll=0;dirty=true;return;}
+ if(rc!=RISC_TEXT_ENTRY_OK){
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  (void)name_preference_close();
+#endif
+  message="Text input unavailable";detail_scroll=0;dirty=true;return;}
  naming=true;
 }
 static bool name_storage_live(void){
  if(portable_text_client_live(&name_client))return true;
  name_retain();return false;
 }
+#ifndef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
 static int32_t name_storage_get(void *context,const char *key,void *data,uint32_t capacity,uint32_t *size){
  if(!name_storage_live())return RISC_KEY_VALUE_CONTEXT;
  const risc_key_value_v1 *source=context;
@@ -169,6 +198,7 @@ static int32_t name_storage_put(void *context,const char *key,const void *data,u
 static void name_storage_retain(void){
  (void)portable_text_client_retain(&name_client);name_retain();
 }
+#endif
 static void save_name(void){
  /* The service token and grant have closed and the app presenter is restored
   * before any domain storage access. Guard every KV boundary independently:
@@ -177,6 +207,13 @@ static void save_name(void){
  unsigned start=0,end=(unsigned)strlen(editing);while(start<end&&editing[start]==' ')start++;while(end>start&&editing[end-1]==' ')end--;
  for(unsigned i=0;i<end-start;i++)editing[i]=editing[start+i];
  editing[end-start]=0;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ uint8_t bytes[40];
+ bool encoded=ble_alias_encode(name_draft_type,name_draft_address,editing,bytes);
+ int rc=encoded?utility_preference_submit(&name_preference,bytes,sizeof(bytes)):RISC_ATOMIC_INVALID;
+ rc=utility_preference_finish(&name_preference,rc);bool ok=rc==RISC_ATOMIC_OK;
+ if(rc==RISC_ATOMIC_RETAINED)return;
+#else
  risc_runtime_capability_v1 g={.struct_size=sizeof(g)};bool ok=false;
  bool got=runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);
  if(!name_storage_live())return;
@@ -193,6 +230,7 @@ static void save_name(void){
   if(!name_storage_live())return;
   if(!closed||released.struct_size!=sizeof(released)||released.api||released.slot||released.generation){name_storage_retain();return;}
  }else if(g.api||g.slot||g.generation){name_storage_retain();return;}
+#endif
  if(!ok){message="Name save unconfirmed";name_save_failed=true;detail_scroll=0;dirty=true;return;}
  memcpy(aliases[detail_index],editing,sizeof(editing));alias_state[detail_index]=1;name_save_failed=false;message=editing[0]?"Sensor name saved":"Sensor name cleared";
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);for(unsigned i=0;i<n;i++)if(list[i]==detail_index){selected=i;break;}
@@ -216,9 +254,17 @@ static void name_step(void){
   unsigned n=0;while(n<sizeof(name_state.text)&&name_state.text[n]){
    unsigned char c=(unsigned char)name_state.text[n];if(c<32||c>126)break;n++;
   }
-  if(n>=sizeof(editing)||name_state.text[n]){message="Invalid sensor name";return;}
+  if(n>=sizeof(editing)||name_state.text[n]){
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+   (void)name_preference_close();
+#endif
+   message="Invalid sensor name";return;}
   memset(editing,0,sizeof(editing));memcpy(editing,name_state.text,n);save_name();
- }else{name_save_failed=false;message="Name cancelled";}
+ }else{
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  if(!name_preference_close())return;
+#endif
+  name_save_failed=false;message="Name cancelled";}
 }
 static void address(const ble_device*d,char out[32]){snprintf(out,32,"%02X:%02X:%02X:%02X:%02X:%02X",d->address[5],d->address[4],d->address[3],d->address[2],d->address[1],d->address[0]);}
 static unsigned detail_count(void);

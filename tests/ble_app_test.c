@@ -55,16 +55,42 @@ static bool poll_host(void*c,uint64_t t,uint32_t n){(void)c;assert(t==1&&n==6);s
 static bool host_status(void*c,risc_ble_sensor_status_v1*out){(void)c;*out=(risc_ble_sensor_status_v1){.struct_size=sizeof(*out),.state=provider_phase,.count=provider_count,.restore_failed=provider_restore};if(send_bad)strcpy(out->error,"Send failed");return true;}
 static bool host_device(void*c,uint32_t i,ble_device*out){(void)c;if(i>=provider_count)return false;*out=provider_devices[i];return true;}
 static risc_bluetooth_sensors_v1 fake_host={1,sizeof(fake_host),NULL,claim,poll_host,host_status,host_device,close_host};
-static int32_t get(void*c,const char*k,void*data,uint32_t cap,uint32_t*n){uint8_t*v=data;(void)c;if(!strcmp(k,"quick_radio")){assert(cap==4);v[0]=0x51;v[1]=1;v[2]=policy;v[3]=(uint8_t)(policy^0xa5);*n=4;return 0;}assert(cap==40);if(!name_present||strcmp(k,name_key_saved))return -1;memcpy(data,name_record,40);*n=40;return 0;}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "utility_atomic_transport.h"
+#endif
+static int32_t get(void*c,const char*k,void*data,uint32_t cap,uint32_t*n){uint8_t*v=data;(void)c;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ return uat_read(c,k,data,cap,n);
+#endif
+ if(!strcmp(k,"quick_radio")){assert(cap==4);v[0]=0x51;v[1]=1;v[2]=policy;v[3]=(uint8_t)(policy^0xa5);*n=4;return 0;}assert(cap==40);if(!name_present||strcmp(k,name_key_saved))return -1;memcpy(data,name_record,40);*n=40;return 0;}
 static int32_t put(void*c,const char*k,const void*v,uint32_t n){(void)c;if(!strcmp(k,"quick_radio")){assert(allow_write&&n==4);writes++;if(write_bad)return RISC_KEY_VALUE_IO;policy=((const uint8_t*)v)[2];return RISC_KEY_VALUE_OK;}assert(n==40&&!text_live&&!text_suspended&&text_releases==text_opens&&text_resumes==text_opens);if(name_write_bad)return -5;strcpy(name_key_saved,k);memcpy(name_record,v,40);name_present=true;return 0;}
 static risc_key_value_v1 kv={1,sizeof(kv),NULL,get,put};
-static bool acquire(const char*n,uint32_t v,uint64_t inst,risc_runtime_capability_v1*g){assert(v==1);if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)){assert(inst==0);if(!text_available)return false;g->api=&text_api;}else if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(inst==1);g->api=&kv;}else if(!strcmp(n,"bluetooth.hci")){assert(inst==16);g->api=&control;}else{assert(!strcmp(n,RISC_BLUETOOTH_SENSORS_CAPABILITY)&&inst==0);g->api=&fake_host;}grants++;g->slot=grants;g->generation=1;return true;}
-static bool release(risc_runtime_capability_v1*g){assert(g->api&&grants);if(release_bad)return false;if(g->api==&text_api){assert(!text_live&&text_suspended);text_releases++;}grants--;*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;}
+static bool acquire(const char*n,uint32_t v,uint64_t inst,risc_runtime_capability_v1*g){assert(v==1);
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(!strcmp(n,RISC_KEY_VALUE_ATOMIC_CAPABILITY)){assert(inst==1);g->api=&uat_api;grants++;g->slot=grants;g->generation=1;return true;}
+#endif
+ if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)){assert(inst==0);if(!text_available)return false;g->api=&text_api;}else if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)){assert(inst==1);g->api=&kv;}else if(!strcmp(n,"bluetooth.hci")){assert(inst==16);g->api=&control;}else{assert(!strcmp(n,RISC_BLUETOOTH_SENSORS_CAPABILITY)&&inst==0);g->api=&fake_host;}grants++;g->slot=grants;g->generation=1;return true;}
+static bool release(risc_runtime_capability_v1*g){assert(g->api&&grants);if(release_bad)return false;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(g->api==&uat_api){uat.release_count++;if(uat.release_bad)return false;}
+#endif
+ if(g->api==&text_api){assert(!text_live&&text_suspended);text_releases++;}grants--;*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;}
 static bool launch(const char*s){assert(!strcmp(s,"springboard.elf")&&!token&&!acquired);launches++;return true;}
 static bool diagnostic(const char*s){assert(s);return true;}
-static void yield(uint32_t ms){(void)ms;longjmp(retention,1);}
+static void yield(uint32_t ms){(void)ms;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(uat.token&&!uncertain){uat.yields++;return;}
+#endif
+ longjmp(retention,1);}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+static bool atomic_exit(void){return uat.exit_pending;}
+#endif
 static const t5_app_api_v1 fake_app={.abi_version=1,.struct_size=sizeof(fake_app),.screen_width=screen,.screen_height=screen,.millis=millis,.poll=poll_input,.present=present,.set_back_exits_app=back,.touch_contact=contact};
-static const risc_runtime_api_v1 fake_rt={.api_version=1,.struct_size=sizeof(fake_rt),.acquire=acquire,.release=release,.request_launch=launch,.diagnostic=diagnostic,.yield_ms=yield};
+static const risc_runtime_api_v1 fake_rt={.api_version=1,.struct_size=sizeof(fake_rt),.acquire=acquire,.release=release,.request_launch=launch,.diagnostic=diagnostic,.yield_ms=yield
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+,.exit_requested=atomic_exit
+#endif
+};
 const t5_app_api_v1*t5_app_get_api(uint32_t v){assert(v==1);return &fake_app;}
 const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){assert(v==1);return &fake_rt;}
 bool portable_app_sleep_retained(void){return false;}
@@ -96,7 +122,11 @@ static void snapshot(const char *name){
  for(unsigned i=0;i<240*240;i++){uint16_t v=pixels[i];uint8_t rgb[]={(uint8_t)((v>>11)*255/31),(uint8_t)(((v>>5)&63)*255/63),(uint8_t)((v&31)*255/31)};assert(fwrite(rgb,1,3,f)==3);}fclose(f);
 }
 #endif
-static void reset(void){name_client=(portable_text_client){0};name_state=(risc_text_entry_state_v1){0};name_closing=false;name_draft_index=0;text_suspended=text_retained=text_live=text_close_bad=false;text_available=true;text_opens=text_closes=text_releases=text_resumes=text_close_again=0;paper=NULL;paper_enable_needed=false;allow_write=write_bad=enable_bad=status_bad=rollback_bad=false;controls=writes=0;enabled=0;app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=naming=name_save_failed=false;selected=scroll=detail_scroll=detail_index=0;memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=launches=0;back_enabled=true;provider_count=provider_polls=0;provider_phase=BLE_IDLE;provider_restore=false;name_present=name_write_bad=false;}
+static void reset(void){
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ name_preference=(utility_preference_atomic){0};radio_preference=(utility_preference_atomic){0};uat_reset();
+#endif
+name_client=(portable_text_client){0};name_state=(risc_text_entry_state_v1){0};name_closing=false;name_draft_index=0;text_suspended=text_retained=text_live=text_close_bad=false;text_available=true;text_opens=text_closes=text_releases=text_resumes=text_close_again=0;paper=NULL;paper_enable_needed=false;allow_write=write_bad=enable_bad=status_bad=rollback_bad=false;controls=writes=0;enabled=0;app=&fake_app;runtime=&fake_rt;scan=(ble_scan){0};grant=(risc_runtime_capability_v1){0};host=NULL;token=0;acquired=uncertain=detail=sensors=naming=name_save_failed=false;selected=scroll=detail_scroll=detail_index=0;memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));dirty=true;message=NULL;grants=claims=closes=sends=0;close_bad=send_bad=release_bad=claim_bad=false;restore_result=1;tick=0;policy=3;queued_size=0;input_mode=input_step=launches=0;back_enabled=true;provider_count=provider_polls=0;provider_phase=BLE_IDLE;provider_restore=false;name_present=name_write_bad=false;}
 #ifndef BLE_RENDER
 static springboard_contact paper_contact;
 static int32_t paper_width(void){return 480;}
@@ -188,7 +218,7 @@ int main(void){
  reset();scan.count=1;detail=true;begin_name();text_close_bad=true;text_accept("Uncommitted");assert(uncertain&&name_client.retained&&text_retained&&text_live&&grants==1&&!name_present&&!portable_app_before_launch("springboard.elf"));
  reset();scan.count=1;detail=true;begin_name();release_bad=true;text_accept("Uncommitted");assert(uncertain&&name_client.retained&&text_retained&&!text_live&&text_suspended&&grants==1&&!name_present&&!portable_app_before_launch("springboard.elf"));
  reset();
- puts("BLE real app: policy, results/details/scroll, stop/retry, no implicit RF and retained cleanup passed");
+ puts("BLE real app: policy, results/details/scroll, stop/retry, no implicit RF and retained cleanup passed");return 0;
 }
 
 #endif
