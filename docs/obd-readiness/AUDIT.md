@@ -27,7 +27,8 @@ Dependency pins:
    partial writes fail closed, without appending or repeating a command suffix.
 5. Ambiguous manual channel rows. Rows sharing service/TX UUIDs were identical
    even when RX characteristics differed. Existing rows now show bounded TX/RX
-   handles and UUID text; screen structure and controls are unchanged.
+   handles first, followed by UUID text, so long 128-bit UUIDs cannot clip the
+   distinguishing RX handle. Screen structure and controls are unchanged.
 6. Required provider correction. BLE serial 0.1.1 separates RX subscription mode
    from TX properties. A transmitter's Extended Properties bit no longer causes
    an indication-only receiver to be subscribed as notifications.
@@ -47,7 +48,8 @@ three-attempt reconnect limit. Existing cleanup/custody, pause/resume, persisten
 alerts, graphs, diagnostic reads and confirmed-clear regressions are retained.
 
 All 87 existing checkpoint UI frame bytes are unchanged by the five app fixes.
-The manual-channel text correction is separately checked for distinct RX rows.
+The manual-channel correction is separately checked with full-length 128-bit
+UUIDs, distinct visible RX handle prefixes and a real-scene second-channel tap.
 The BLE provider passes 11 actual NimBLE HCI/ATT fixture cases normally and under
 ASan/UBSan, including notifications, indications, authentication refusal,
 write acknowledgement timeout, overflow and ten close/reopen cycles.

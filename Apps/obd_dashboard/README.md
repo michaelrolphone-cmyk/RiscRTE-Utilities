@@ -1,4 +1,4 @@
-# OBD Dashboard 0.2.0 — NOVA-7 X4
+# OBD Dashboard 0.2.2 — NOVA-7 X4
 
 Implements the owner's `obd-dashboard.html` design as a native intent-driven app.
 Reference SHA-256: `9ca9bf25f1b4bd6bc4c3ccf7eebf5a463747e94314d06b5cb4dea3f314a26770`. The HTML's simulated-car controls, example VIN,

@@ -14,7 +14,7 @@ static bool bstatus(void*c,uint64_t t,risc_serial_status_v1*s){(void)c;assert(ow
 static bool bpeer(void*c,uint64_t t,uint32_t i,risc_serial_peer_v1*p){(void)c;assert(owned&&t==77&&!i);radio_calls++;*p=(risc_serial_peer_v1){.struct_size=sizeof(*p),.address={1,2,3,4,5,6},.connectable=1};return true;}
 static bool bconnect(void*c,uint64_t t,const risc_serial_peer_v1*p){(void)c;assert(owned&&t==77&&p->address[0]==1);radio_calls++;radio_state=RISC_SERIAL_DISCONNECTED;return false;}
 static bool bclose(void*c,uint64_t t){(void)c;assert(owned&&t==radio_token);radio_calls++;closes++;if(close_failure)return false;radio_token=0;radio_state=RISC_SERIAL_OFF;return true;}
-static bool bchannel(void*c,uint64_t t,uint32_t i,risc_serial_channel_v1*p){(void)c;assert(owned&&t==77&&i<2);*p=(risc_serial_channel_v1){.struct_size=sizeof(*p),.tx_handle=0x12,.rx_handle=(uint16_t)(0x15+i*3),.service="vendor-service",.tx_uuid="vendor-write"};snprintf(p->rx_uuid,sizeof(p->rx_uuid),"vendor-notify-%u",i);return true;}
+static bool bchannel(void*c,uint64_t t,uint32_t i,risc_serial_channel_v1*p){(void)c;assert(owned&&t==77&&i<2);*p=(risc_serial_channel_v1){.struct_size=sizeof(*p),.tx_handle=0x12,.rx_handle=(uint16_t)(0x15+i*3),.service="6e400001-b5a3-f393-e0a9-e50e24dcca9e",.tx_uuid="6e400002-b5a3-f393-e0a9-e50e24dcca9e"};snprintf(p->rx_uuid,sizeof(p->rx_uuid),"12345678-1234-1234-1234-123456789%03u",i);return true;}
 static const risc_bluetooth_serial_v1 ble={.api_version=1,.struct_size=sizeof(ble),.open=bopen,.poll=bpoll,.status=bstatus,.peer=bpeer,.connect=bconnect,.close=bclose,.channel=bchannel};
 static void init_app(obd_app*a){memset(a,0,sizeof(*a));owned=true;open_failure=close_failure=reload_on_close=false;opens=closes=retains=radio_calls=0;radio_token=0;radio_state=0;a->rt=&runtime;a->ble=&ble;a->have_peer=a->reconnecting=true;a->selected_peer=(risc_serial_peer_v1){.struct_size=sizeof(a->selected_peer),.address={1,2,3,4,5,6}};db_init(&a->data,0);}
 int main(int argc,char**argv){
@@ -26,6 +26,7 @@ int main(int argc,char**argv){
   for(unsigned i=0;i<a.candidate.node_count;i++){const risc_scene_node_v1*n=&a.candidate.nodes[i];if(n->action==ACT_CHANNEL)n0=n;if(n->action==ACT_CHANNEL+1)n1=n;}
   assert(n0&&n1);printf("Channel 0 visible: [%s] [%s]; RX: %s\nChannel 1 visible: [%s] [%s]; RX: %s\n",n0->label,n0->text,a.channel_rows[0].rx_uuid,n1->label,n1->text,a.channel_rows[1].rx_uuid);fflush(stdout);
   assert(strcmp(n0->label,n1->label)||strcmp(n0->text,n1->text));
+  assert(!strncmp(n0->text,"TX 0012 / RX 0015",17));assert(!strncmp(n1->text,"TX 0012 / RX 0018",17));
   return 0;
  }
 
