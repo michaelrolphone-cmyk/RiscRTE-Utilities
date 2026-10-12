@@ -33,7 +33,10 @@ issuing scripted user events after accepted launch, including final frame drain.
   each normal and ASan/UBSan. Optional Contexts is absent in this fixture.
 - `test_rf_startup_contexts.py`: real Contexts RF service and production custody
   fragments with modeled Runtime exclusivity; startup and later RF/Contexts
-  checkpoints, initially unopened and preopened, normal and ASan/UBSan.
+  checkpoints, initially unopened and preopened, plus retained fingerprint cleanup with no
+  subsequent timing/service call, normal and ASan/UBSan. Seeded fingerprint
+  slots and event files also survive real dirty Contexts rename/checkpoint saves;
+  saved event bytes remain identical.
 - `test_rf_app_data_scope.py`: exact bytes/revisions, clean unavailable/malformed
   interfaces, stale and uncertain writes, failed release/acquisition and terminal
   no-I/O behavior, normal and ASan/UBSan.

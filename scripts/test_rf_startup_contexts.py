@@ -27,8 +27,17 @@ for san in [False,True]:
   record.append(command);subprocess.run(command,check=True);objs.append(str(obj))
  exe=out/('rf-startup'+tag);command=common+objs+['-Wl,--gc-sections','-lm','-o',str(exe)]
  record.append(command);subprocess.run(command,check=True)
+ for mode in ['', 'checkpoint-first','retained-load']:
+  run=subprocess.run([str(exe)]+([mode] if mode else []),capture_output=True,text=True,env={**os.environ,'ASAN_OPTIONS':'detect_leaks=0','UBSAN_OPTIONS':'halt_on_error=1'},timeout=15)
+  (out/((mode or 'startup')+tag+'.log')).write_text(run.stdout+run.stderr)
+  print(run.stdout+run.stderr);run.check_returncode()
+ # Seeded files plus a real dirty Contexts rename/checkpoint exercise saved-data preservation.
+ source=U/'test/native_apps/rf_startup_dirty_checkpoint_test.c';obj=out/('dirty-checkpoint'+tag+'.o')
+ command=common+flags+['-c',str(source),'-o',str(obj)];record.append(command);subprocess.run(command,check=True)
+ exe=out/('dirty-checkpoint'+tag);command=common+[str(obj),*objs[1:]]+['-Wl,--gc-sections','-lm','-o',str(exe)]
+ record.append(command);subprocess.run(command,check=True)
  for mode in ['', 'checkpoint-first']:
   run=subprocess.run([str(exe)]+([mode] if mode else []),capture_output=True,text=True,env={**os.environ,'ASAN_OPTIONS':'detect_leaks=0','UBSAN_OPTIONS':'halt_on_error=1'},timeout=15)
-  (out/(('checkpoint-first' if mode else 'startup')+tag+'.log')).write_text(run.stdout+run.stderr)
+  (out/('dirty-checkpoint-'+(mode or 'startup')+tag+'.log')).write_text(run.stdout+run.stderr)
   print(run.stdout+run.stderr);run.check_returncode()
-(out/'evidence.json').write_text(json.dumps({'hardware_verified':False,'commands':record,'runs':4},indent=2)+'\n')
+(out/'evidence.json').write_text(json.dumps({'hardware_verified':False,'commands':record,'runs':10},indent=2)+'\n')
