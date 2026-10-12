@@ -30,7 +30,14 @@ CHECKPOINT = ('checkpoint-idle','checkpoint-presenting','checkpoint-input-busy',
               'checkpoint-resume-retained','checkpoint-resume-invalid','checkpoint-policy-exit','checkpoint-policy-busy',
               'checkpoint-policy-retained','checkpoint-policy-size','checkpoint-policy-denied','checkpoint-policy-config','checkpoint-policy-redraw','checkpoint-paused-touch','checkpoint-policy-touch','checkpoint-policy-usb','checkpoint-resume-touch','checkpoint-policy-nav-home','checkpoint-policy-nav-back',
               'loss-checkpoint-enable','loss-checkpoint-snapshot','loss-checkpoint-pause','loss-checkpoint-policy','loss-checkpoint-resume',
-              'home-checkpoint-pause','home-checkpoint-policy','home-checkpoint-resume')
+              'home-checkpoint-pause','home-checkpoint-policy','home-checkpoint-resume',
+              'home-checkpoint-enable','home-checkpoint-snapshot','home-checkpoint-poll',
+              'checkpoint-poll-exit','checkpoint-poll-retained','checkpoint-poll-size','loss-checkpoint-poll',
+              'checkpoint-layer','checkpoint-caps','checkpoint-held-usb',
+              'checkpoint-backend-fingerprint-retained','checkpoint-backend-rules-retained',
+              'checkpoint-no-marker','checkpoint-unknown-poll-flags','checkpoint-sleep-admission','checkpoint-continuity-violation',
+              'loss-checkpoint-backend-pause','loss-checkpoint-backend-release','loss-checkpoint-backend-reacquire',
+              'home-checkpoint-backend-pause','home-checkpoint-backend-release','home-checkpoint-backend-reacquire')
 
 
 

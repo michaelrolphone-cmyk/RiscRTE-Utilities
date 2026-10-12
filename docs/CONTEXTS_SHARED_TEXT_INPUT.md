@@ -1,7 +1,7 @@
 # Contexts shared text input
 
-Working lifecycle successor: the final published System pin and complete product
-qualification are pending. The frozen 0.4.3 receipts remain historical evidence;
+Working lifecycle successor: complete product qualification is pending.
+The required System source is `f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165`. The frozen 0.4.3 receipts remain historical evidence;
 the lifecycle gap below is not yet cleared for a delivery candidate.
 
 The selected Watch and X4 build is the existing scene-based Contexts application.
@@ -46,16 +46,29 @@ analysis pipeline or the frozen predecessor receipts.
 Resident polling retains the original 50 × 10 ms cadence and the existing
 foreground-learning/save-state idle/policy inhibits. Presentation or held input
 only suppresses resident handoff: ordinary input and logical UI state continue
-advancing every loop. After an explicit settled policy request, the host releases display custody
-while retaining draft/layer/caps and same-session passive input/navigation. Contexts pauses and
-closes its backend before dispatch, reopens it afterward, then resumes the host
-with redraw as the old close/open path did. Routine policy sampling retains
-passive input queues and navigation claims; only an actual native sleep/focus transition requests the
-historical wake-input neutralization. The shared resident bridge maps that reply
-without changing the predecessor scene helper. New activity before pause returns
-BUSY and invalidates the stale local request; a fresh POLL reports that activity
-before another policy dispatch. Home and runtime loss are checked at each
-handoff boundary. A missing lifecycle suffix closes cleanly to Retry/Cancel.
+advancing every loop. The selected Watch has no native resident shell; this
+path is exercised there by host fixtures without adding one to the product.
+
+Only the exact successful POLL reply `POLICY_REQUEST | INPUT_CONTINUITY`
+promises that the next POLICY will not borrow focus or attempt sleep. That
+routine path releases display custody while retaining draft/layer/caps and
+bounded passive input/navigation. The native owner latches its no-sleep promise
+through deadline or preference changes. Every absent, legacy or unknown marker
+instead fully detaches input before dispatch, preserving the existing touch-power
+subscriber guard and predecessor wake neutralization. The selected X4 Home
+component is rebuilt with this reason-bound promise; Watch Clock is unchanged.
+This is a compatible reply-bit contract, not a native ABI layout change.
+
+Contexts pauses and closes its backend before POLICY, reopens it afterward,
+then resumes the host with redraw. New activity before pause returns BUSY and
+invalidates the stale local request; a fresh POLL reports that activity before
+another dispatch. Home is checked around enable, snapshot, pause, dispatch,
+backend handoff and resume. The opt-in `PORTABLE_CONTEXTS_LIVE` fence is enabled
+only for shared-input Contexts and stops nested backend callbacks after runtime
+loss. It does not change capture/learning algorithms or persistence schemas.
+A retained backend app-data load preserves its outstanding grant and retains
+the invocation instead of entering ordinary release cleanup. A missing
+lifecycle suffix closes cleanly to Retry/Cancel.
 
 Original scene keyboards already suppressed the top-edge shared-controls
 gesture. Existing nonkeyboard controls handling is retained.
@@ -77,8 +90,9 @@ gesture. Existing nonkeyboard controls handling is retained.
   the editor, and exits through normal Contexts cleanup. Native Home is checked
   before input, after host polling, during resume and before acceptance. Pending
   text closure is drained; uncertain custody is retained, never abandoned.
-- Runtime liveness and terminal retention fence subsequent provider callbacks,
-  including loss inside the native-exit query itself.
+- Text ownership and backend checkpoint open/load, pause/save and close use
+  runtime-liveness fences, including loss inside the native-exit query. Other
+  capture, preference and rule-save paths retain their existing behavior.
 - Input polling is independent of display state. A pending e-ink frame may
   delay final close/commit, but cannot gate logical typing or cancellation.
   The Contexts service/capture cadence continues during the shared editor.
@@ -111,8 +125,8 @@ store composition, and complete-cohort admission. The device repositories hold
 the selected product recipes and receipts. The lifecycle successor requires
 the backward-compatible opt-in checkpoint suffix in text host 0.1.7; its exact
 published System commit is recorded in the selected product build receipts.
-Existing scene-host fonts, native images and unrelated app/provider bytes are
-retained; the common opt-in scene/text checkpoint changes are separately qualified by
+Existing scene-host fonts and unrelated app/provider bytes are retained;
+X4 Home changes only for the required no-sleep policy promise, and the common opt-in scene/text checkpoint changes are separately qualified by
 System tests.
 No paused SD-settings changes are dependencies of this work.
 
@@ -120,7 +134,9 @@ No paused SD-settings changes are dependencies of this work.
 production scene and text hosts, and faults the transport/lifecycle boundaries.
 It exercises modal policy on all five editors, activity/input races, pending
 frames, learning inhibits, missing suffixes, busy/exit/retained policy replies,
-and Home/liveness loss during enable, snapshot, pause, dispatch and resume.
+and Home/liveness loss during enable, snapshot, pause, dispatch, backend
+pause/release/reacquire and resume. It verifies both exact-marker continuity and
+legacy/unknown-marker full detach before modeled power admission.
 Run the same scenarios with `--sanitize`. Transport fixtures do not establish
 physical hardware behavior. Target structural validation and cohort admission
 do not execute Xtensa instructions. Device receipts separately state packing,

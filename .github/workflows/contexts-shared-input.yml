@@ -1,7 +1,7 @@
 name: Contexts shared input
 on:
   push:
-    branches: [work/contexts-shared-input-20261012]
+    branches: [work/contexts-shared-input-20261012, work/contexts-input-lifecycle-20261012]
   pull_request:
     paths:
       - 'Apps/contexts*'
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 7fb13b09b4dac275a8111b224784f8a472f39264
+          ref: f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165
           path: .dependencies/system
           persist-credentials: false
       - uses: actions/checkout@v4

@@ -20,6 +20,7 @@ static bool cs_terminal;
 static void cs_retain(void);
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
 static bool cs_alive(void);
+#define PORTABLE_CONTEXTS_LIVE() cs_alive()
 #endif
 #define PORTABLE_CONTEXTS_CUSTODY_SAFE() (!cs_terminal)
 #define PORTABLE_CONTEXTS_CLEANUP_FAILURE() cs_retain()
@@ -63,7 +64,15 @@ static bool cs_alive(void){if(cs_terminal)return false;if(!risc_runtime_get_api(
 static bool cs_release(risc_runtime_capability_v1*g){if(!cs_alive())return false;if(g->api&&!ctx_runtime->release(g)){cs_retain();return false;}memset(g,0,sizeof(*g));return cs_alive();}
 static bool cs_backend_open(void){
  if(cs_client.api)return true;
- if(!portable_contexts_open(&cs_client,ctx_runtime)){if(cs_client.grant.api&&!portable_contexts_close(&cs_client))cs_retain();ctx_service=NULL;return false;}
+ if(!portable_contexts_open(&cs_client,ctx_runtime)){
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+  /* Failed load may retain app-data custody while Runtime remains live.
+   * Never wipe that grant through ordinary backend-close failure cleanup. */
+  if(cs_client.fingerprint_store.api){cs_retain();ctx_service=NULL;return false;}
+#endif
+  if(cs_client.grant.api&&!portable_contexts_close(&cs_client))cs_retain();
+  ctx_service=NULL;return false;
+ }
  ctx_service=cs_client.api;if(!contexts_fingerprint_api(ctx_service)){ctx_note("TEMPORAL CONTEXTS SERVICE REQUIRED");return false;}
  return true;
 }

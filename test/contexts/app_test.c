@@ -14,6 +14,9 @@ const risc_runtime_api_v1*risc_runtime_get_api(uint32_t);
 #include "SceneKeyboardV1.h"
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
 #include "shared_input_fixture.h"
+#else
+#define text_test_backend_after(site) ((void)0)
+#define text_test_backend_storage_result(name) 0
 #endif
 static cr_store bank;
 static uint8_t stored[CR_FILE_BYTES];static uint64_t revision=1;
@@ -28,14 +31,14 @@ static uint8_t preferences[4];static unsigned preferences_size;
 static const char *folder,*device;
 const t5_app_manifest_t portable_catalog[]={{.file_name="calculator.elf",.display_name="CALCULATOR",.compatible=true}};
 const unsigned portable_catalog_count=1;
-static int32_t file_stat(void*c,const char*n,uint32_t*size,uint64_t*rev){(void)c;*size=0;*rev=0;if(fail_storage)return RISC_APP_DATA_IO;if(strcmp(n,"context-rules.ctx"))return RISC_APP_DATA_NOT_FOUND;*size=sizeof(stored);*rev=revision;return 0;}
+static int32_t file_stat(void*c,const char*n,uint32_t*size,uint64_t*rev){(void)c;*size=0;*rev=0;int32_t fault=text_test_backend_storage_result(n);if(fault)return fault;if(fail_storage)return RISC_APP_DATA_IO;if(strcmp(n,"context-rules.ctx"))return RISC_APP_DATA_NOT_FOUND;*size=sizeof(stored);*rev=revision;return 0;}
 static int32_t file_read(void*c,const char*n,uint64_t rev,void*p,uint32_t cap,uint32_t*sz,uint64_t*actual){(void)c;assert(!strcmp(n,"context-rules.ctx")&&rev==revision&&cap>=sizeof(stored));memcpy(p,stored,sizeof(stored));*sz=sizeof(stored);*actual=revision;return 0;}
 static int32_t file_replace(void*c,const char*n,uint64_t rev,const void*p,uint32_t size){(void)c;assert(!strcmp(n,"context-rules.ctx")&&rev==revision&&size==sizeof(stored));if(fail_write)return RISC_APP_DATA_IO;memcpy(stored,p,size);revision++;return 0;}
 static const risc_app_data_v1 files={1,sizeof(files),NULL,file_stat,file_read,file_replace};
 static int32_t pref_get(void*c,const char*n,void*p,uint32_t cap,uint32_t*size){(void)c;*size=0;if(strcmp(n,"contexts_on")||!preferences_size)return RISC_KEY_VALUE_NOT_FOUND;assert(cap>=preferences_size);memcpy(p,preferences,preferences_size);*size=preferences_size;return 0;}
 static int32_t pref_put(void*c,const char*n,const void*p,uint32_t size){(void)c;assert(!strcmp(n,"contexts_on")&&size<=4);memcpy(preferences,p,size);preferences_size=size;kv_writes++;return 0;}
 static const risc_key_value_v1 prefs={1,sizeof(prefs),NULL,pref_get,pref_put};
-static bool svc_pause(void*c){(void)c;return true;}
+static bool svc_pause(void*c){(void)c;assert(native_alive);text_test_backend_after("backend-pause");return true;}
 static bool svc_step(void*c,const contexts_policy_v1*p){(void)c;service_steps++;assert(p->enabled==((preferences_size&&preferences[2])||cs_client.foreground_learning));return true;}
 static bool svc_status(void*c,contexts_status_v1*q){(void)c;*q=(contexts_status_v1){.struct_size=sizeof(*q),.audio={.model_state=format==1?CONTEXTS_MODEL_UNAVAILABLE:CONTEXTS_MODEL_READY},.radio={.model_state=CONTEXTS_MODEL_READY}};return true;}
 static bool svc_mask(void*c,uint32_t s){(void)c;(void)s;return true;}
@@ -64,13 +67,13 @@ static bool app_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabil
  if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY))return text_test_acquire(g);
 #endif
  if(!p)return false;
- g->api=p;g->slot=++app_acquires;g->generation=1;return true;
+ g->api=p;g->slot=++app_acquires;g->generation=1;if(p==&service)text_test_backend_after("backend-reacquire");return true;
 }
-static bool app_release(risc_runtime_capability_v1*g){assert(native_alive&&g->api);
+static bool app_release(risc_runtime_capability_v1*g){assert(native_alive&&g->api);bool backend=g->api==&service;
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
  if(text_test_is_grant(g))return text_test_release(g);
 #endif
- app_releases++;*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;}
+ app_releases++;*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};if(backend)text_test_backend_after("backend-release");return true;}
 static bool health(risc_runtime_health_v1*q){assert(native_alive);q->uptime_ms=(uint32_t)ms;return true;}
 static bool app_exit_requested(void){
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
