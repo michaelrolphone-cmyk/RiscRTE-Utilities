@@ -1,7 +1,7 @@
 {
   "type": "application",
   "id": "obd-dashboard",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "display_name": "OBD Dashboard",
   "file_name": "obd_dashboard.elf",
   "icon": "solid:f7c0",

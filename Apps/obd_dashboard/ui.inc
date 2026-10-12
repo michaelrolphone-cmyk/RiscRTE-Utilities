@@ -179,7 +179,15 @@ static void declare(obd_app*a){
  if(a->upgrade_required){
   a->candidate.flags=RISC_COMPONENTS_DOCUMENT|RISC_COMPONENTS_ROOT_HEADER;
   title(a,"UPDATE FIRMWARE","TELEMETRY SCENE PROVIDER REQUIRED");
-  node(a,RISC_COMPONENT_EMPTY,"PROVIDER UPDATE NEEDED","Install the paired firmware for OBD Dashboard 0.2.0.",0);
+  node(a,RISC_COMPONENT_EMPTY,"PROVIDER UPDATE NEEDED","Install the paired firmware for OBD Dashboard 0.2.1.",0);
+  button(a,"CLOSE",ACT_EXIT,true);return;
+ }
+ if(a->reload_required){
+  a->candidate.flags|=RISC_COMPONENTS_ROOT_HEADER;
+  title(a,"RESTART REQUIRED","BLUETOOTH PROVIDER RELOAD REQUIRED");
+  risc_scene_node_v1*n=node(a,RISC_COMPONENT_EMPTY,"BLUETOOTH STOPPED",a->status.message,0);
+  a->candidate.details[n->id-1].symbol=RISC_SYMBOL_WARNING;
+  node(a,RISC_SCENE_TEXT_NODE,"RESTART DEVICE","Close OBD, then restart the device before reconnecting.",0);
   button(a,"CLOSE",ACT_EXIT,true);return;
  }
  if(a->screen==INTRO){

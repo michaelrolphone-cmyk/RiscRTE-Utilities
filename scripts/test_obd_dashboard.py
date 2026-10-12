@@ -23,7 +23,7 @@ def run(runtime,system,drivers,out,sanitize):
  exe=out/'math-test';subprocess.run([cc,*flags,'-D__udivdi3=obd_unsigned_divide','-D__divdi3=obd_signed_divide',str(ROOT/'Apps/obd_dashboard/math.c'),str(ROOT/'test/obd/math_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
  exe=out/'elm-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/diagnostics_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
  exe=out/'app-test';subprocess.run([cc,*flags,str(system/'test/scene/telemetry_probe.c'),str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/app_test.c'),'-o',str(exe)],check=True)
- for scenario in range(12):
+ for scenario in range(16):
   frames=out/'frames'/str(scenario);frames.mkdir(parents=True,exist_ok=True)
   subprocess.run([str(exe),str(scenario),str(frames)],env=env,check=True,timeout=60)
 if __name__=='__main__':

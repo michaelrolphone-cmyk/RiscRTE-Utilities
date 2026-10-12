@@ -41,7 +41,7 @@ typedef struct {
  unsigned acquired,screen,tab,first,seen_clear_status;
  uint64_t session,token,sequence;
  uint32_t revision,now,last_paint,next_view,policy_at;
- bool dirty,done,retained,imperial,elm_started,view_settled,upgrade_required;
+ bool dirty,done,retained,imperial,elm_started,view_settled,upgrade_required,reload_required;
  char notice[80],peer_name[40];
  obd_client elm;
  risc_serial_status_v1 status;
@@ -68,6 +68,7 @@ static void segments(obd_app*a,const char*choices,unsigned value,unsigned maximu
  copy(a->candidate.details[n->id-1].choices,sizeof(a->candidate.details[0].choices),choices);
 }
 #include "storage.inc"
+static bool read_status(obd_app*);
 static bool stop_link(obd_app*a,const char*why){
  if(!authority(a))return retain_app(a);
  if(!log_close(a))return false;
@@ -75,7 +76,7 @@ static bool stop_link(obd_app*a,const char*why){
  if(a->token){
   for(unsigned i=0;i<3;i++){
    bool closed=a->ble->close(a->ble->context,a->token);if(!authority(a))return retain_app(a);
-   if(closed){a->token=0;break;}a->rt->yield_ms(10);if(!authority(a))return retain_app(a);
+   if(closed){a->token=0;if(!read_status(a))return retain_app(a);break;}a->rt->yield_ms(10);if(!authority(a))return retain_app(a);
   }
   if(a->token)return retain_app(a);
  }
@@ -91,11 +92,15 @@ static bool close_scene(obd_app*a){
 }
 static bool read_status(obd_app*a){
  a->status.struct_size=sizeof(a->status);bool ok=a->ble->status(a->ble->context,a->token,&a->status);
- if(!authority(a))return retain_app(a);return ok;
+ if(!authority(a))return retain_app(a);
+ if(ok&&(a->status.flags&RISC_SERIAL_RELOAD_REQUIRED)){a->reload_required=true;a->reconnecting=false;a->dirty=true;}
+ return ok;
 }
 static void start_scan(obd_app*a){
+ if(a->reload_required){a->dirty=true;return;}
  if(!a->ble){notice(a,"Install firmware with bluetooth.serial provider");return;}
  if(!stop_link(a,"Starting new scan"))return;
+ if(a->reload_required)return;
  bool ok=a->ble->open(a->ble->context,&a->token);if(!authority(a)){retain_app(a);return;}
  if(!ok){char error[80]="Bluetooth unavailable. Stop SDR/HID/Scanner.";if(read_status(a))copy(error,sizeof(error),a->status.message);
   if(stop_link(a,error))notice(a,error);return;}
@@ -127,7 +132,7 @@ static bool shared(obd_app*a,unsigned reason){
  if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_BUSY)return false;show(a,INTRO);return publish(a,true);
 }
 static bool service_link(obd_app*a){
- if(a->reconnecting&&!a->token&&(int32_t)(a->now-a->reconnect_at)>=0){
+ if(a->reconnecting&&!a->reload_required&&!a->token&&(int32_t)(a->now-a->reconnect_at)>=0){
   if(a->reconnect_attempts>=3){a->reconnecting=false;notice(a,"Reconnect stopped after 3 tries. Search again.");return true;}
   a->reconnect_attempts++;a->reconnect_at=a->now+5000;
   bool opened=a->ble->open(a->ble->context,&a->token);if(!authority(a))return retain_app(a);
@@ -136,17 +141,19 @@ static bool service_link(obd_app*a){
  if(!a->token)return true;uint32_t before=a->status.state;
  bool ok=a->ble->poll(a->ble->context,a->token,4);if(!authority(a))return retain_app(a);
  if(!read_status(a))return retain_app(a);
- if(!ok||a->status.state==RISC_SERIAL_FAULT||a->status.state==RISC_SERIAL_DISCONNECTED){
+ if(!ok||a->reload_required||a->status.state==RISC_SERIAL_FAULT||a->status.state==RISC_SERIAL_DISCONNECTED){
   char error[80];copy(error,sizeof(error),a->status.message);bool retry=a->have_peer&&(a->reconnecting||a->elm_started);
   if(!stop_link(a,error))return false;
-  if(retry){a->reconnecting=true;a->reconnect_at=a->now+3000;show(a,DASHBOARD);}else notice(a,error);return true;
+  if(retry&&!a->reload_required){a->reconnecting=true;a->reconnect_at=a->now+3000;show(a,DASHBOARD);}else notice(a,error);return true;
  }
  if(before!=a->status.state)a->dirty=true;
  if(a->reconnecting&&(a->status.state==RISC_SERIAL_SCANNING||a->status.state==RISC_SERIAL_SCAN_DONE)){
   for(unsigned i=0;i<a->status.peer_count;i++){
    risc_serial_peer_v1 p={.struct_size=sizeof(p)};bool found=a->ble->peer(a->ble->context,a->token,i,&p);if(!authority(a))return retain_app(a);
    if(found&&p.address_type==a->selected_peer.address_type&&!memcmp(p.address,a->selected_peer.address,6)){
-    bool connected=a->ble->connect(a->ble->context,a->token,&p);if(!authority(a))return retain_app(a);if(!connected){if(!stop_link(a,"Reconnect failed"))return false;}break;
+    bool connected=a->ble->connect(a->ble->context,a->token,&p);if(!authority(a))return retain_app(a);if(!connected){if(!stop_link(a,"Reconnect failed"))return false;}
+    /* The status snapshot belongs to the scan; do not expire a new connection. */
+    return true;
    }
   }
   if(a->status.state==RISC_SERIAL_SCAN_DONE&&(int32_t)(a->now-a->reconnect_at)>=0){if(!stop_link(a,"Adapter not seen"))return false;}
@@ -219,7 +226,9 @@ __attribute__((visibility("default"))) void app_main(void){
   if(rc==RISC_SCENE_OK&&valid_event(a,&event)){
    if(event.kind==RISC_SCENE_SUSPEND_EVENT){a->done=true;break;}
    if(event.kind==RISC_SCENE_CONTROLS_EVENT){if(a->resident.enabled&&!shared(a,RISC_RESIDENT_CHECKPOINT_CONTROLS))break;}
-   else if(a->upgrade_required)a->done=true;else action(a,event.action,event.value);
+   else if(a->upgrade_required)a->done=true;
+   else if(a->reload_required){if(event.action==ACT_EXIT||event.action==ACT_BACK)a->done=true;}
+   else action(a,event.action,event.value);
   }
   if(a->done||!authority(a))break;
   risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;
