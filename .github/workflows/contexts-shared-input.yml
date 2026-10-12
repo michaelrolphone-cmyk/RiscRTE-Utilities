@@ -55,7 +55,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Image evidence dependency
-        run: python -m pip install Pillow==11.3.0
+        run: python -m pip install Pillow==12.3.0
       - name: Exact predecessor parity and shared input, normal and ASan/UBSan
         run: >-
           python scripts/test_contexts_shared_input.py
