@@ -1,0 +1,31 @@
+{
+  "local_source": "e30bc46e5bfbb69651188a1685c90aeffbe3b060",
+  "published_source": "b0b32919a12d7fd12326091f2c6eb0bcfad5b4ad",
+  "source_tree": "1c99fefe32286cc0b1c6c60d8187a244b633b2d4",
+  "system_public_source": "677fdd5278ce32f37318a37289ba4d0494a85df9",
+  "hardware_tested": false,
+  "product_activated": false,
+  "receipts": [
+    {
+      "path": "/workspace/shared/x4-settings-contexts-union-evidence-20261012/contexts-combined-frozen/results.json",
+      "sha256": "b6e9a0a1d8894b750b9556c913d4b500d9daa4d6c95e89daca20113792c8080f",
+      "compressed": "receipts/x4-settings-contexts-union-20261012/contexts-combined-frozen-results.json.gz"
+    },
+    {
+      "path": "/workspace/shared/x4-settings-contexts-union-evidence-20261012/utilities-atomic-frozen-normal/receipt.json",
+      "sha256": "e86eeca20dd38c84536a97ae67254ec50d49c7b44c303b54e657c881ad2445a0",
+      "compressed": "receipts/x4-settings-contexts-union-20261012/utilities-atomic-frozen-normal-receipt.json.gz"
+    },
+    {
+      "path": "/workspace/shared/x4-settings-contexts-union-evidence-20261012/utilities-atomic-frozen-sanitized/receipt.json",
+      "sha256": "979e23a0a81158c0603b1334eab5b4234a0d00bb9f4bb61d4a136cefc36242f8",
+      "compressed": "receipts/x4-settings-contexts-union-20261012/utilities-atomic-frozen-sanitized-receipt.json.gz"
+    },
+    {
+      "path": "/workspace/shared/x4-settings-contexts-union-evidence-20261012/target-utilities-frozen/receipt.json",
+      "sha256": "1e2bd7edd4416c3e0f0bbbe2d196ce30dd5ab80bfd2a4cd3141fb3c3c10b7567",
+      "compressed": "receipts/x4-settings-contexts-union-20261012/target-utilities-frozen-receipt.json.gz"
+    }
+  ],
+  "qualification": "394 Contexts combined shared-input/atomic cases,51 actual Utilities atomic controller cases in each normal and ASan/UBSan mode,10 target ELFs including Contexts combined; all default-off target bytes match the qualified source baseline. Exact selected production component recipes are separately reconstructed by the final candidate composer."
+}
