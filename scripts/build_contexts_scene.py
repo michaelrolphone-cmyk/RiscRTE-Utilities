@@ -33,7 +33,7 @@ def run(runtime,system,output,catalog=None,target="watch",face_header=None,share
   flags=[]
   if shared_input:
    flags+=['-DPORTABLE_CONTEXTS_SHARED_TEXT_INPUT']
-   manifest['version']='0.4.3'
+   manifest['version']='0.4.4'
    manifest['requires'].append({'capability':'ui.text-input','api':1})
   if target=='x4':
    flags+=['-DCONTEXTS_ALARM_API=2','-DCONTEXTS_SETTING_MASK=0x274u','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_CONTEXTS_SOURCE_MASK=CONTEXTS_RADIO']

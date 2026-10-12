@@ -99,7 +99,11 @@ static void tap(unsigned action,int value){
 }
 static void back_input(void){nav_pressed=RISC_NAV_BACK;}
 static int32_t app_checkpoint(uint64_t invocation,const risc_resident_request_v1*q,risc_resident_reply_v1*r){
- assert(invocation==99&&q->reason==RISC_RESIDENT_CHECKPOINT_POLL);r->flags=0;resident_polls++;
+ assert(invocation==99);
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+ int32_t result=0;if(text_test_checkpoint(q,r,&result))return result;
+#endif
+ assert(q->reason==RISC_RESIDENT_CHECKPOINT_POLL);r->flags=0;resident_polls++;
  bool work=cs_client.foreground_learning||((cu_page==CU_LEARN||(cu_page==CU_CANCEL&&cu_return==CU_LEARN))&&(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning_saved));
  if(work){assert((q->flags&(RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY))==(RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY));inhibited_polls++;}
  else normal_polls++;

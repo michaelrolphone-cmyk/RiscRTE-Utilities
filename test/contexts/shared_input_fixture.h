@@ -12,3 +12,5 @@ static bool text_test_finish(void);
 
 static bool text_test_exit_requested(void);
 extern bool contexts_test_header(bool,int*,int*);
+
+static bool text_test_checkpoint(const risc_resident_request_v1*,risc_resident_reply_v1*,int32_t*);

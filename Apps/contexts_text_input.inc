@@ -1,7 +1,9 @@
 /* Contexts owns its controller; the shared host alone owns text/key state.
  * Never accept a draft before close, capability release and scene resumption. */
-#include "PortableTextInputClient.h"
+#include "PortableTextInputResidentCheckpoint.h"
 static portable_text_client cs_text;
+static portable_text_checkpoint_client cs_text_checkpoint;
+static bool cs_text_unavailable;
 static risc_scene_navigation_v1 cs_text_navigation;
 static char cs_text_accepted[33];
 static unsigned cs_text_outcome;
@@ -11,6 +13,7 @@ static bool cs_text_busy(void){
 }
 static void cs_text_reset(void){
  cs_text=(portable_text_client){0};
+ cs_text_checkpoint=(portable_text_checkpoint_client){0};cs_text_unavailable=false;
  cs_text_navigation=(risc_scene_navigation_v1){.struct_size=sizeof(cs_text_navigation)};
  memset(cs_text_accepted,0,sizeof(cs_text_accepted));cs_text_outcome=0;cs_text_retry=false;
 }
@@ -43,17 +46,77 @@ int portable_text_adapter_resume(void){
  if(!cs_open_scene(&cs_text_navigation)){cs_retain();return RISC_TEXT_ENTRY_RETAINED;}
  ctx_dirty=true;return RISC_TEXT_ENTRY_OK;
 }
+/* Mirror the ordinary scene checkpoint: the backend releases its own custody,
+ * while the host releases display custody and preserves bounded passive
+ * input/navigation for routine same-session policy sampling. */
+static bool cs_text_policy(void){
+ if(!cs_alive()||cs_host_exit())return false;
+ int rc=portable_text_checkpoint_pause(&cs_text,&cs_text_checkpoint);
+ if(rc==RISC_TEXT_ENTRY_BUSY){
+  /* New activity invalidates the old policy request. Only a fresh resident
+   * POLL carrying that activity may request another policy handoff. */
+  cs_resident.policy=false;return true;
+ }
+ if(rc==RISC_TEXT_ENTRY_AGAIN)return true;
+ if(rc!=RISC_TEXT_ENTRY_OK||!cs_alive()||cs_host_exit())return false;
+ bool training=cs_client.foreground_learning;
+ if(!portable_contexts_pause(&cs_client)||!portable_contexts_close(&cs_client)){cs_retain();return false;}
+ ctx_service=NULL;
+ if(!cs_alive()||cs_host_exit())return false;
+ uint32_t resume_flags=0;
+ rc=portable_text_resident_policy(&cs_resident,&resume_flags);
+ if(!cs_alive())return false;
+ if(rc==RISC_RESIDENT_RETAINED){cs_retain();return false;}
+ if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_BUSY)return false;
+ if(cs_host_exit()||!cs_alive())return false;
+ if(!cs_backend_open())return false;
+ cs_client.foreground_learning=training;ctx_dirty=true;
+ if(!cs_alive()||cs_host_exit())return false;
+ /* Repaint as before. Only an actual native sleep/focus transition may
+  * neutralize passive input; routine policy sampling preserves queued taps. */
+ rc=portable_text_checkpoint_resume(&cs_text,&cs_text_checkpoint,resume_flags);
+ if(rc!=RISC_TEXT_ENTRY_OK||!cs_alive()||cs_host_exit())return false;
+ return true;
+}
+static bool cs_text_resident_step(void){
+ if(!cs_resident.enabled||!cs_text.active||cs_text.closing||!cs_text_checkpoint.enabled)return true;
+ if(cs_text_checkpoint.pausing)return cs_text_policy();
+ risc_text_entry_checkpoint_state_v1 state={.struct_size=sizeof(state)};
+ int rc=portable_text_checkpoint_snapshot(&cs_text,&cs_text_checkpoint,&state);
+ if(rc==RISC_TEXT_ENTRY_BUSY)return true;
+ if(rc!=RISC_TEXT_ENTRY_OK||!cs_alive()||cs_host_exit())return false;
+ uint32_t flags=0;
+ if(state.flags&RISC_TEXT_ENTRY_CHECKPOINT_PRESENTING)flags|=RISC_SCENE_PRESENTING;
+ if(state.flags&RISC_TEXT_ENTRY_CHECKPOINT_INPUT_BUSY)flags|=RISC_SCENE_INPUT_BUSY;
+ if(state.flags&RISC_TEXT_ENTRY_CHECKPOINT_ACTIVITY)flags|=RISC_SCENE_ACTIVITY;
+ bool working=cs_client.foreground_learning||((cu_page==CU_LEARN||(cu_page==CU_CANCEL&&cu_return==CU_LEARN))&&(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning_saved));
+ uint32_t work=working?RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY:0;
+ rc=risc_scene_resident_poll_work_v1(&cs_resident,flags,work);
+ if(!cs_alive())return false;
+ if(rc==RISC_RESIDENT_RETAINED){cs_retain();return false;}
+ if(rc==RISC_RESIDENT_EXIT||cs_host_exit())return false;
+ if(cs_resident.policy&&!working&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY)))return cs_text_policy();
+ return cs_alive();
+}
 static bool cs_text_step(void){
  if(!cs_alive())return false;
  if(!cs_text_busy()){
   if(cu_page!=CU_NAME||cs_text_retry)return true;
   memset(cs_text_accepted,0,sizeof(cs_text_accepted));cs_text_outcome=0;
+  cs_text_checkpoint=(portable_text_checkpoint_client){0};cs_text_unavailable=false;
   int rc=portable_text_client_begin(&cs_text,ctx_runtime,
       cu_name_reason==4?"MESSAGE":"NAME",cu_name,cu_name_reason==4?33u:17u);
   if(rc==RISC_TEXT_ENTRY_RETAINED||!cs_alive())return false;
+  if(rc==RISC_TEXT_ENTRY_OK&&cs_resident.enabled){
+   rc=portable_text_checkpoint_enable(&cs_text,&cs_text_checkpoint);
+   if(rc==RISC_TEXT_ENTRY_RETAINED||!cs_alive())return false;
+   if(rc!=RISC_TEXT_ENTRY_OK){cs_text_unavailable=true;cs_text.closing=true;}
+  }
   if(rc!=RISC_TEXT_ENTRY_OK){cs_text_retry=true;cu_note("TEXT INPUT UNAVAILABLE / RETRY");}
+  if(cs_host_exit()||!cs_alive())return false;
   return true;
  }
+ if(cs_text_checkpoint.pausing&&!cs_text.closing)return cs_text_policy();
  if(!cs_text.closing){
   risc_text_entry_state_v1 state={.struct_size=sizeof(state)};
   int rc=portable_text_client_poll(&cs_text,&state);
@@ -73,7 +136,7 @@ static bool cs_text_step(void){
  if(rc!=RISC_TEXT_ENTRY_OK||!cs_alive())return false;
  bool exiting=ctx_exit||cs_host_exit();
  if(!cs_alive())return false;
- if(!exiting){
+ if(!exiting&&!cs_text_unavailable){
   if(cs_text_outcome==RISC_TEXT_ENTRY_ACCEPTED){
    memcpy(cu_name,cs_text_accepted,sizeof(cu_name));cu_name_done();
    /* Empty/invalid text and persistence errors retain the existing retry path. */
@@ -81,6 +144,7 @@ static bool cs_text_step(void){
   }else{cu_back();cs_text_retry=false;}
  }
  memset(cs_text_accepted,0,sizeof(cs_text_accepted));cs_text_outcome=0;
+ cs_text_checkpoint=(portable_text_checkpoint_client){0};cs_text_unavailable=false;
  return cs_alive();
 }
 static bool cs_text_cleanup(void){

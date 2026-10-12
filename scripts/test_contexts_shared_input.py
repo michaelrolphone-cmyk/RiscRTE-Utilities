@@ -23,6 +23,15 @@ FAULT = ('missing','old-host','open-unavailable','open-busy','open-retained','op
          'close-retained','close-error','release-fail','release-dirty','resume-fault',
          'loss-acquire','loss-open','loss-poll','loss-close','loss-release','loss-attention','loss-resume','loss-post-resume',
          'home-close','home-release','home-resume','home-post-resume')
+CHECKPOINT = ('checkpoint-idle','checkpoint-presenting','checkpoint-input-busy','checkpoint-inhibit',
+              'checkpoint-missing','checkpoint-enable-unavailable','checkpoint-enable-retained','checkpoint-enable-invalid',
+              'checkpoint-snapshot-retained','checkpoint-snapshot-flags','checkpoint-snapshot-size','checkpoint-snapshot-paused',
+              'checkpoint-pause-retained','checkpoint-pause-invalid','checkpoint-pause-again','checkpoint-activity-race','checkpoint-touch-race',
+              'checkpoint-resume-retained','checkpoint-resume-invalid','checkpoint-policy-exit','checkpoint-policy-busy',
+              'checkpoint-policy-retained','checkpoint-policy-size','checkpoint-policy-denied','checkpoint-policy-config','checkpoint-policy-redraw','checkpoint-paused-touch','checkpoint-policy-touch','checkpoint-policy-usb','checkpoint-resume-touch','checkpoint-policy-nav-home','checkpoint-policy-nav-back',
+              'loss-checkpoint-enable','loss-checkpoint-snapshot','loss-checkpoint-pause','loss-checkpoint-policy','loss-checkpoint-resume',
+              'home-checkpoint-pause','home-checkpoint-policy','home-checkpoint-resume')
+
 
 
 def build(runtime, system, tmp, profile, shared, sanitized, baseline=None):
@@ -115,7 +124,8 @@ def run(args):
                     cases = list(LEGACY) if not args.only else []
                     if shared:
                         cases += [f'text-{reason}-{mode}' for reason in range(5) for mode in EDIT]
-                        cases += [f'text-2-{mode}' for mode in FAULT]
+                        cases += [f'text-2-{mode}' for mode in FAULT+CHECKPOINT]
+                        cases += [f'text-{reason}-{mode}' for reason in (0,1,3,4) for mode in ('checkpoint-idle','home-checkpoint-resume')]
                         cases += ['text-2-retry','text-2-reopen','text-2-prior-edit-cancel','text-0-learn-save']
                         cases += [f'text-{reason}-explicit-save' for reason in (2,3,4)]
                         if args.only:

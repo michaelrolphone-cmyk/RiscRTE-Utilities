@@ -213,6 +213,13 @@ static bool cs_checkpoint(unsigned reason){
  if(!cs_backend_open())return false;
  cs_client.foreground_learning=training;ctx_dirty=true;return cs_open_scene(&nav);
 }
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+static bool cs_resident_step(void){
+ if(cs_text_busy())return cs_text_resident_step();
+ if(cs_resident.enabled){risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())return false;if(flags&RISC_SCENE_ACTIVITY)cs_resident.activity=true;bool working=cs_client.foreground_learning||((cu_page==CU_LEARN||(cu_page==CU_CANCEL&&cu_return==CU_LEARN))&&(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning_saved));uint32_t work=working?RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY:0;int result=risc_scene_resident_poll_work_v1(&cs_resident,flags,work);if(!cs_alive())return false;if(result==RISC_RESIDENT_RETAINED){cs_retain();return false;}if(result==RISC_RESIDENT_EXIT)return false;if(cs_resident.policy&&!working&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!cs_checkpoint(RISC_RESIDENT_CHECKPOINT_POLICY))return false;}
+ return cs_alive();
+}
+#endif
 static void cs_cleanup(void){
  if(!cs_alive())return;
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
@@ -250,7 +257,7 @@ __attribute__((visibility("default"))) void app_main(void){
    /* The text host advances logical input even while its display is pending.
     * Detection/capture keep their normal cadence without borrowing its scene. */
    if(cs_client.api&&!cs_service_tick())break;
-   if(++ticks>=50){ticks=0;if(cs_client.api&&!cs_rules_tick())break;}
+   if(++ticks>=50){ticks=0;if(cs_client.api&&!cs_rules_tick())break;if(!cs_resident_step())break;}
    if(!cs_text_busy()&&cs_session&&ctx_dirty){
     cs_declare();int updated=cs_components->update(cs_scene->context,cs_session,&cs_document);
     if(!cs_alive())return;
@@ -269,7 +276,11 @@ __attribute__((visibility("default"))) void app_main(void){
   if(cs_client.api){if(!cs_service_tick())break;}
   if(!cs_finish_learning())break;
   if(++ticks>=50){ticks=0;if(cs_client.api&&!cs_rules_tick())break;
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+   if(!cs_resident_step())break;
+#else
    if(cs_resident.enabled){risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())break;if(flags&RISC_SCENE_ACTIVITY)cs_resident.activity=true;bool working=cs_client.foreground_learning||((cu_page==CU_LEARN||(cu_page==CU_CANCEL&&cu_return==CU_LEARN))&&(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning_saved));uint32_t work=working?RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY:0;int result=risc_scene_resident_poll_work_v1(&cs_resident,flags,work);if(!cs_alive())return;if(result==RISC_RESIDENT_RETAINED){cs_retain();break;}if(result==RISC_RESIDENT_EXIT)break;if(cs_resident.policy&&!working&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!cs_checkpoint(RISC_RESIDENT_CHECKPOINT_POLICY))break;}
+#endif
   }
   if(ctx_dirty){cs_declare();rc=cs_components->update(cs_scene->context,cs_session,&cs_document);if(!cs_alive())return;if(rc){if(rc==RISC_SCENE_RETAINED)cs_retain();break;}ctx_dirty=false;}
   if(cs_launch[0])break;

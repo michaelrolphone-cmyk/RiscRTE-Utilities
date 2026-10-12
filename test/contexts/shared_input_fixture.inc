@@ -2,7 +2,11 @@
  * execute its shipping implementation, backed by the real scene host above. */
 static const risc_driver_v2 *text_driver;
 static const risc_text_entry_api_v1 *text_real;
-static risc_text_entry_api_v1_home_reason text_api;
+static risc_text_entry_api_v1_checkpoint text_api;
+static const risc_text_entry_api_v1_checkpoint *text_checkpoint_real;
+static unsigned text_checkpoint_polls,text_checkpoint_policies,text_checkpoint_pauses,text_checkpoint_resumes,text_checkpoint_wait,text_checkpoint_busy;
+static unsigned text_checkpoint_activity_after_busy,text_checkpoint_inhibited;
+static bool text_checkpoint_waiting,text_checkpoint_race,text_checkpoint_policy_input;
 static risc_text_entry_api_v1 text_old;
 static bool text_attention_pending;
 static bool text_active,text_granted,text_closing,text_custom,text_frozen,text_usb_connected,text_usb_subscribed;
@@ -71,6 +75,93 @@ static int32_t text_close(void*c,uint64_t s){
  if(text_fault("close-retained"))return RISC_TEXT_ENTRY_RETAINED;
  if(text_fault("close-error"))return RISC_TEXT_ENTRY_INVALID;
  int rc=text_real->close(text_real->context,s);if(rc==RISC_TEXT_ENTRY_AGAIN)text_close_again++;if(!rc){text_active=false;text_token=0;}return rc;
+}
+static bool text_checkpoint_case(void){return text_custom&&strstr(text_mode,"checkpoint");}
+static int32_t text_checkpoint_enable(void*c,uint64_t token){
+ (void)c;text_boundary("checkpoint-enable");if(!native_alive)return RISC_TEXT_ENTRY_RETAINED;
+ if(tm("checkpoint-enable-unavailable"))return RISC_TEXT_ENTRY_UNAVAILABLE;
+ if(tm("checkpoint-enable-retained"))return RISC_TEXT_ENTRY_RETAINED;
+ if(tm("checkpoint-enable-invalid"))return RISC_TEXT_ENTRY_INVALID;
+ return text_checkpoint_real->checkpoint_enable(text_real->context,token);
+}
+static int32_t text_checkpoint_snapshot(void*c,uint64_t token,risc_text_entry_checkpoint_state_v1*out){
+ (void)c;text_boundary("checkpoint-snapshot");if(!native_alive)return RISC_TEXT_ENTRY_RETAINED;
+ if(tm("checkpoint-snapshot-retained"))return RISC_TEXT_ENTRY_RETAINED;
+ int rc=text_checkpoint_real->checkpoint_snapshot(text_real->context,token,out);
+ if(!rc){
+  if(tm("checkpoint-snapshot-flags"))out->flags|=128;
+  if(tm("checkpoint-snapshot-size"))out->struct_size=0;
+  if(tm("checkpoint-snapshot-paused"))out->flags|=RISC_TEXT_ENTRY_CHECKPOINT_PAUSED;
+  if(tm("checkpoint-input-busy")&&text_checkpoint_wait<150)out->flags|=RISC_TEXT_ENTRY_CHECKPOINT_INPUT_BUSY;
+ }
+ return rc;
+}
+static void text_checkpoint_queue_input(void){
+ if(text_checkpoint_policy_input)return;
+ text_checkpoint_policy_input=true;
+ if(text_usb_connected)text_hardware('B');
+ else{int x,y;assert(contexts_test_target(1,'B',&x,&y));touch_tap((unsigned)x,(unsigned)y);}
+ strcat(text_expected,"B");
+}
+static int32_t text_checkpoint_pause(void*c,uint64_t token){
+ (void)c;text_checkpoint_pauses++;text_boundary("checkpoint-pause");if(!native_alive)return RISC_TEXT_ENTRY_RETAINED;
+ if(tm("checkpoint-pause-retained"))return RISC_TEXT_ENTRY_RETAINED;
+ if(tm("checkpoint-pause-invalid"))return RISC_TEXT_ENTRY_INVALID;
+ if(tm("checkpoint-pause-again")&&text_checkpoint_pauses==1)return RISC_TEXT_ENTRY_AGAIN;
+ if((tm("checkpoint-activity-race")||tm("checkpoint-touch-race"))&&!text_checkpoint_race){
+  text_checkpoint_race=true;if(tm("checkpoint-touch-race")){int x,y;assert(contexts_test_target(1,'B',&x,&y));touch_tap((unsigned)x,(unsigned)y);}else text_hardware('B');strcat(text_expected,"B");
+ }
+ int rc=text_checkpoint_real->pause(text_real->context,token);
+ if(rc==RISC_TEXT_ENTRY_BUSY)text_checkpoint_busy++;
+ if(!rc&&tm("checkpoint-paused-touch"))text_checkpoint_queue_input();
+ if(!rc&&tm("home-checkpoint-pause"))native_exit_pending=true;
+ return rc;
+}
+static int32_t text_checkpoint_resume(void*c,uint64_t token,uint32_t flags){
+ (void)c;text_checkpoint_resumes++;assert(flags==(RISC_TEXT_ENTRY_RESUME_REDRAW|(tm("checkpoint-policy-redraw")?RISC_TEXT_ENTRY_RESUME_FOCUS_CHANGED:0)));
+ text_boundary("checkpoint-resume");if(!native_alive)return RISC_TEXT_ENTRY_RETAINED;
+ if(tm("checkpoint-resume-retained"))return RISC_TEXT_ENTRY_RETAINED;
+ if(tm("checkpoint-resume-invalid"))return RISC_TEXT_ENTRY_INVALID;
+ if(tm("checkpoint-resume-touch"))text_checkpoint_queue_input();
+ int rc=text_checkpoint_real->resume(text_real->context,token,flags);
+ if(!rc&&tm("home-checkpoint-resume"))native_exit_pending=true;
+ return rc;
+}
+static bool text_test_checkpoint(const risc_resident_request_v1*q,risc_resident_reply_v1*r,int32_t*out){
+ if(!text_checkpoint_case()||!text_active)return false;
+ *r=(risc_resident_reply_v1){sizeof(*r),0};*out=RISC_RESIDENT_OK;
+ assert(!memcmp(stored,text_stored_before,sizeof(stored))&&!strcmp(cu_name,text_initial));
+ if(q->reason==RISC_RESIDENT_CHECKPOINT_POLL){
+  text_checkpoint_polls++;resident_polls++;
+  if(q->flags&RISC_RESIDENT_POLL_INHIBIT_IDLE){
+   assert(q->flags&RISC_RESIDENT_POLL_INHIBIT_POLICY);text_checkpoint_inhibited++;return true;
+  }
+  assert(!(q->flags&RISC_RESIDENT_POLL_INHIBIT_POLICY));
+  if(q->flags&RISC_RESIDENT_POLL_ACTIVITY){
+   if(text_checkpoint_busy)text_checkpoint_activity_after_busy++;
+  }else r->flags=RISC_RESIDENT_REPLY_POLICY_REQUEST;
+  return true;
+ }
+ assert(q->reason==RISC_RESIDENT_CHECKPOINT_POLICY);text_checkpoint_policies++;
+ /* No resident borrowing until both host and backend custody are relinquished. */
+ assert(cs_text_checkpoint.paused&&!held&&!presenting);
+ /* Routine policy releases display, preserving passive queues/navigation. */
+ assert(subscribed&&text_usb_subscribed);
+ assert(!cs_session&&!cs_client.api&&!ctx_service);
+ if(text_checkpoint_race)assert(text_checkpoint_activity_after_busy);
+ if(tm("checkpoint-policy-touch")||tm("checkpoint-policy-usb"))text_checkpoint_queue_input();
+ text_boundary("checkpoint-policy");if(!native_alive){*out=RISC_RESIDENT_RETAINED;return true;}
+ if(tm("home-checkpoint-policy"))native_exit_pending=true;
+ if(tm("checkpoint-policy-nav-home"))nav_pressed=RISC_NAV_HOME;
+ if(tm("checkpoint-policy-nav-back"))nav_pressed=RISC_NAV_BACK;
+ if(tm("checkpoint-policy-exit"))*out=RISC_RESIDENT_EXIT;
+ if(tm("checkpoint-policy-denied"))*out=RISC_RESIDENT_DENIED;
+ if(tm("checkpoint-policy-size"))r->struct_size=0;
+ if(tm("checkpoint-policy-busy"))*out=RISC_RESIDENT_BUSY;
+ if(tm("checkpoint-policy-retained"))*out=RISC_RESIDENT_RETAINED;
+ if(tm("checkpoint-policy-config"))r->flags=RISC_RESIDENT_REPLY_CONFIGURATION_CHANGED;
+ if(tm("checkpoint-policy-redraw"))r->flags=RISC_RESIDENT_REPLY_REDRAW;
+ return true;
 }
 static bool text_test_acquire(risc_runtime_capability_v1*g){
  assert(!text_granted);text_boundary("acquire");if(!native_alive)return false;
@@ -151,13 +242,34 @@ static bool text_test_yield(void){
  }
  if(text_stage<10){if(cs_session&&event_at==event_count&&!nav_pressed)text_route();return true;}
  if(text_active){
-  if(text_closing){assert(++text_wait<1000);if(text_wait==12){allow_complete=true;busy_acquires=0;}return true;}
+  if(cs_text_checkpoint.pausing||cs_text_checkpoint.paused){assert(++text_wait<1000);return true;}
+  if(text_closing||cs_text.closing){assert(++text_wait<1000);if(text_wait==12){allow_complete=true;busy_acquires=0;}return true;}
   if(event_at!=event_count||nav_pressed||text_key_at!=text_key_count)return true;
   if(!text_action){text_prepare_input();if(tm("delayed"))presentation_delay=500;if(!strncmp(text_mode,"frozen",6)){allow_complete=false;text_frozen=true;}text_action=1;return true;}
   if((tm("delayed")||!strncmp(text_mode,"frozen",6))&&!text_wait){if(!presenting)return true;text_wait=1;}
   if(tm("empty")&&text_action<=strlen(text_initial)){text_key(RISC_SCENE_KEY_BACKSPACE);text_action++;return true;}
   unsigned at=text_action-1;
   if(text_input[at]){text_key((unsigned char)text_input[at]);text_action++;return true;}
+  if(text_checkpoint_case()){
+   if(!text_checkpoint_waiting){
+    text_checkpoint_waiting=true;
+    if(tm("checkpoint-presenting"))allow_complete=false;
+    if(tm("checkpoint-inhibit"))cs_client.foreground_learning=true;
+   }
+   if(tm("checkpoint-presenting")&&!text_checkpoint_wait&&!presenting){assert(++text_wait<1000);return true;}
+   text_checkpoint_wait++;
+   if(tm("checkpoint-presenting")&&text_checkpoint_wait==80){text_key('B');strcat(text_expected,"B");}
+   if(tm("checkpoint-presenting")&&text_checkpoint_wait==100){if(!presenting||strcmp(text_observed.text,text_expected))fprintf(stderr,"frozen typing presenting=%d actual=%s expected=%s polls=%u wait=%u event=%u/%u\n",presenting,text_observed.text,text_expected,text_polls,text_checkpoint_wait,event_at,event_count);assert(presenting&&!strcmp(text_observed.text,text_expected));}
+   if((tm("checkpoint-presenting")||tm("checkpoint-input-busy"))&&text_checkpoint_wait<150){assert(!text_checkpoint_polls&&!text_checkpoint_policies);return true;}
+   if(tm("checkpoint-presenting"))allow_complete=true;
+   if(text_checkpoint_wait<400||text_checkpoint_polls<2||(!tm("checkpoint-inhibit")&&text_checkpoint_policies<2)){
+    if(text_checkpoint_wait>=2000)fprintf(stderr,"checkpoint timeout mode=%s polls=%u policies=%u pauses=%u resumes=%u busy=%u activity=%u\n",text_mode,text_checkpoint_polls,text_checkpoint_policies,text_checkpoint_pauses,text_checkpoint_resumes,text_checkpoint_busy,text_checkpoint_activity_after_busy);
+    assert(text_checkpoint_wait<2000);return true;
+   }
+   assert(text_checkpoint_polls>=2);
+   if(tm("checkpoint-inhibit")){assert(text_checkpoint_inhibited>=2&&!text_checkpoint_policies);cs_client.foreground_learning=false;}
+   else assert(text_checkpoint_policies>=2&&text_checkpoint_resumes>=2);
+  }
   if(tm("home")||tm("frozen-home"))nav_pressed=RISC_NAV_HOME;
   else if(tm("header-home"))text_header(true);
   else if((tm("cancel")||tm("frozen-back")||tm("prior-edit-cancel"))||(tm("reopen")&&text_cycles==1))nav_pressed=RISC_NAV_BACK;
@@ -181,11 +293,11 @@ static bool text_test_yield(void){
  }
  if(event_at!=event_count||nav_pressed)return true;
  assert(!text_granted);assert(text_releases==text_opens||tm("missing")||tm("old-host"));
- if(tm("missing")||tm("old-host")||tm("open-unavailable")||tm("open-busy")||tm("empty")){
+ if(tm("missing")||tm("old-host")||tm("open-unavailable")||tm("open-busy")||tm("empty")||tm("checkpoint-missing")||tm("checkpoint-enable-unavailable")){
   assert(cu_page==CU_NAME&&!memcmp(&cu_store,&text_before,sizeof(cu_store)));
   assert(ctx_message&&ctx_message[0]);back_input();text_stage=40;return true;
  }else{
-  bool cancel=tm("cancel")||tm("frozen-back")||tm("prior-edit-cancel")||tm("header-back")||(tm("reopen")&&text_cycles==1);
+  bool cancel=tm("checkpoint-policy-nav-back")||tm("cancel")||tm("frozen-back")||tm("prior-edit-cancel")||tm("header-back")||(tm("reopen")&&text_cycles==1);
   if(cancel){assert(!strcmp(cu_name,text_initial));assert(!memcmp(&cu_store,&text_before,sizeof(cu_store)));}
   else{
    if(strcmp(cu_name,text_expected))fprintf(stderr,"name actual=%s expected=%s observed=%s stage=%u action=%u opens=%u polls=%u page=%u\n",cu_name,text_expected,text_observed.text,text_stage,text_action,text_opens,text_polls,cu_page);
@@ -206,20 +318,25 @@ static void text_test_setup(const char*mode){
  text_custom=!strncmp(mode,"text-",5);text_mode=text_custom?mode+7:"legacy";
  if(text_custom){assert(mode[5]>='0'&&mode[5]<='4'&&mode[6]=='-');text_reason=(unsigned)(mode[5]-'0');}
  text_driver=contexts_text_driver_get(2);assert(text_driver);text_real=text_driver->capability;
- text_api=(risc_text_entry_api_v1_home_reason){{1,sizeof(text_api),NULL,text_open,text_poll,text_close},RISC_TEXT_ENTRY_HOME_REASON_TAG,RISC_TEXT_ENTRY_HOME_REASON_VERSION};
+ text_api=*(const risc_text_entry_api_v1_checkpoint*)text_real;
+ *(risc_text_entry_api_v1*)&text_api=(risc_text_entry_api_v1){1,sizeof(text_api),NULL,text_open,text_poll,text_close};
+ text_checkpoint_real=risc_text_entry_checkpoint(text_real);assert(text_checkpoint_real);
+ text_api.checkpoint_enable=text_checkpoint_enable;text_api.checkpoint_snapshot=text_checkpoint_snapshot;
+ text_api.pause=text_checkpoint_pause;text_api.resume=text_checkpoint_resume;
+ if(tm("checkpoint-missing"))text_api.checkpoint_tag=0;
  text_old=(risc_text_entry_api_v1){1,sizeof(text_old),NULL,NULL,text_poll,text_close};
- text_usb_connected=text_custom&&tm("hardware");
+ text_usb_connected=text_custom&&(tm("hardware")||tm("checkpoint-activity-race")||tm("checkpoint-policy-usb"));
  risc_provider_dependency_v1 deps[]={{RISC_SCENE_CAPABILITY,1,api},{"usb.hid.keyboard",1,&text_usb}};assert(text_driver->start(deps,2));
  if(text_custom&&(tm("missing")||tm("old-host")))text_before=bank;
 }
 static bool text_test_finish(void){
  if(!text_custom){if(native_alive){assert(text_driver->quiesce());text_driver->stop();}return false;}
- bool terminal=!strncmp(text_mode,"loss-",5)||strstr(text_mode,"retained")||!strncmp(text_mode,"poll-",5)||tm("open-token")||tm("acquire-dirty")||!strncmp(text_mode,"close-",6)||!strncmp(text_mode,"release-",8)||tm("resume-fault");
+ bool terminal=!strncmp(text_mode,"loss-",5)||strstr(text_mode,"retained")||!strncmp(text_mode,"poll-",5)||tm("open-token")||tm("acquire-dirty")||!strncmp(text_mode,"close-",6)||!strncmp(text_mode,"release-",8)||tm("resume-fault")||tm("checkpoint-policy-size")||tm("checkpoint-enable-invalid")||tm("checkpoint-snapshot-flags")||tm("checkpoint-snapshot-size")||tm("checkpoint-snapshot-paused")||tm("checkpoint-pause-invalid")||tm("checkpoint-resume-invalid");
  if(terminal){assert(!native_alive&&cs_terminal&&!app_launches&&!profile_renames&&!learn_saves);assert(revision==1);}
  else{
   assert(native_alive&&!text_active&&!text_granted&&!held&&!presenting&&!subscribed&&!text_usb_subscribed);assert(app_acquires==app_releases&&!app_launches);
   assert(text_driver->quiesce());text_driver->stop();assert(driver->quiesce());driver->stop();
-  bool home=tm("home")||tm("frozen-home")||tm("header-home")||tm("native-home")||!strncmp(text_mode,"home-",5);
+  bool home=tm("home")||tm("frozen-home")||tm("header-home")||tm("native-home")||!strncmp(text_mode,"home-",5)||tm("checkpoint-policy-exit")||tm("checkpoint-policy-denied")||tm("checkpoint-policy-nav-home");
   assert(home?ctx_exit:text_stage==30);
   if(home){assert(!strcmp(cu_name,text_initial)&&!profile_renames&&!learn_saves&&revision==1&&!cs_launch[0]);}
   if(!strncmp(text_mode,"frozen",6)){assert(text_poll_frozen>10&&text_close_again>=10);assert(text_observed.state==(tm("frozen")?RISC_TEXT_ENTRY_ACCEPTED:RISC_TEXT_ENTRY_CANCELLED));assert(!strcmp(text_observed.text,text_expected));}
@@ -227,6 +344,16 @@ static bool text_test_finish(void){
   if(text_opens&&text_polls>3)assert(service_steps>text_open_steps);
   if(tm("reopen"))assert(text_opens==3&&text_releases==3&&!strcmp(cu_name,"HOMEAC"));
   if(tm("retry"))assert(text_opens==2&&text_releases==2);
+  if(text_checkpoint_case()&&!home&&!tm("checkpoint-missing")&&!tm("checkpoint-enable-unavailable")){
+   assert(text_checkpoint_polls>=2);
+   if(tm("checkpoint-inhibit"))assert(text_checkpoint_inhibited>=2&&!text_checkpoint_policies);
+   else if(tm("checkpoint-policy-nav-back"))assert(text_checkpoint_policies>=1&&text_checkpoint_resumes>=1);
+   else assert(text_checkpoint_policies>=2&&text_checkpoint_resumes>=2);
+   if(tm("checkpoint-activity-race")||tm("checkpoint-touch-race"))assert(text_checkpoint_busy&&text_checkpoint_activity_after_busy);
+   if(tm("checkpoint-pause-again"))assert(text_checkpoint_pauses>text_checkpoint_policies);
+   if(tm("checkpoint-paused-touch")||tm("checkpoint-policy-touch")||tm("checkpoint-policy-usb")||tm("checkpoint-resume-touch"))assert(text_checkpoint_policy_input);
+  }
  }
+ if(text_checkpoint_case())printf("checkpoint polls=%u policies=%u pauses=%u resumes=%u activity_after_busy=%u inhibited=%u\n",text_checkpoint_polls,text_checkpoint_policies,text_checkpoint_pauses,text_checkpoint_resumes,text_checkpoint_activity_after_busy,text_checkpoint_inhibited);
  printf("Contexts shared text %s reason=%u %s PASS (opens=%u polls=%u close_again=%u releases=%u)\n",text_mode,text_reason,device,text_opens,text_polls,text_close_again,text_releases);return true;
 }

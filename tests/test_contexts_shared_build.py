@@ -43,7 +43,7 @@ class ContextsSharedBuild(unittest.TestCase):
         self.assertEqual(selected['defines'][0], '-DPORTABLE_CONTEXTS_SHARED_TEXT_INPUT')
         self.assertEqual(selected['defines'][1], '-include')
         self.assertTrue(selected['defines'][2].endswith('/ContextsFaces.h'))
-        self.assertEqual(selected['manifest']['version'], '0.4.3')
+        self.assertEqual(selected['manifest']['version'], '0.4.4')
         self.assertIn({'capability': 'ui.text-input', 'api': 1},
                       selected['manifest']['requires'])
         self.assertIn('calculator.elf', selected['catalog'])
