@@ -9,6 +9,13 @@
 #else
 #define PORTABLE_HOME_APP "springboard.elf"
 #endif
+/* This controller-only fixture has no Contexts adapter. The common clock
+ * helper's optional liveness boundary is neutral here, as in the predecessor. */
+#ifndef PORTABLE_CONTEXTS_CLIENT
+#define PORTABLE_CONTEXTS_LIVE() true
+#define PORTABLE_CONTEXTS_CHECK_LIVE() do{}while(0)
+#define portable_contexts_callback(value) (value)
+#endif
 #include "../../Apps/waterfall.c"
 #include <assert.h>
 #include <stdlib.h>

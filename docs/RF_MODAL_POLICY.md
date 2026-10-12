@@ -1,0 +1,9 @@
+# RF Waterfall modal policy
+
+RF 0.3.5 opts into the same adapter modal-policy bridge as Timecard. Shared plain-text input retains its draft-only name contract for frequency labels, signatures, temporal events and shared Contexts signals. Existing Save/Train and Home cleanup retain their authority.
+
+The previous shared editor preserved app-owned RF capture, transforms, temporal processing, fingerprint application and training, but stopped the adapter poll that had serviced power and background policy. The correction uses shared-host settled checkpoints, preserving continuous capture throughout entry and close-AGAIN. Active RF capture intentionally inhibits idle sleep. Watch battery sampling remains active, and an idle editor with RF stopped can sleep after fully detaching input. Watch's foreground BLE and radio-session Contexts exclusions remain in force; no previously forbidden advertising or RF background capture is enabled.
+
+The helper brackets host polling with eligible capture checkpoints and advances allowed background model work at settled scene boundaries. Routine checks preserve input only with an explicit no-sleep promise. Possible sleep fully detaches first. Pending pause mode is latched, BUSY requires fresh polling, and retained resume is terminal with no repeated policy dispatch. Unsupported checkpoint hosts close cleanly and retain the existing name for retry.
+
+Focused tests run the real RF app, PortableApps adapter, text host and scene host against deterministic providers. They cover stopped-radio sleep and resident POLL/POLICY, active capture and analysis, battery sampling, background progression, retained resume, unavailable checkpoints, and Done/Cancel draft preservation. Original four-editor workflows, explicit Save/Train, Home, delayed/failed presentation, cleanup and non-keyboard render parity remain in the full RF suite. Physical RF, sleep and input hardware are not simulated.

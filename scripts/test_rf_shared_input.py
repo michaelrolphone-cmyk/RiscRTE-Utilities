@@ -244,6 +244,10 @@ def run(args):
             if record.get('schema'):
                 extra=[token for i,x in enumerate(defines) if x=='-include' for token in ['-include',defines[i+1]]]
                 for i,x in enumerate(extra):
+                    if x=='-include' and Path(extra[i+1]).name=='watch-rf-presentation.h':
+                        presentation=output/target/'rf-presentation.h'
+                        presentation.write_text('#include "'+str(system/'Apps/PaperPresentation.h')+'"\n#define RF_PRESENTATION_H\n')
+                        extra[i+1]=str(presentation)
                     if x=='-include':evidence['sources'][extra[i+1]]=digest(extra[i+1])
             else:
                 alarm=output/target/'alarm-profile.h';alarm.write_text('#include "AlarmServiceV1.h"\n')
@@ -256,6 +260,15 @@ def run(args):
             'omitted_target_options':['Xtensa machine/linker options','-flto; native tests use -O1 -g'],'raster':[480,800] if target=='x4' else [240,240],
             'scene_profile':{'display_rotation':270 if target=='x4' else 0,'touch_rotation':0,'paper':target=='x4','source':str(host_system/'Services/scene_profile/profile.c')}}
         selected=scenarios(target)
+        if 'PORTABLE_TEXT_INPUT_POLICY' in args.extra_define:
+            begin=setup(0)+tap(120,120)+key('Q',target)
+            for suffix,end in [('done',key('\x03',target)+check()),('cancel',nav('back','text')+check())]:
+                selected['policy-stopped-'+suffix]=(begin+[(65000,'text','idle',0,0)]+end,{'RF_POLICY_PROBE':'1','RF_POLICY_STOPPED':'1','RF_EXPECT_DRAFT':'Q' if suffix=='done' else '','RF_EXPECT_KV_WRITES':'0','RF_EXPECT_DATA_WRITES':'0'})
+            selected['policy-active']=(begin+[(65000,'text','idle',0,0)]+key('\x03',target)+check(),{'RF_POLICY_PROBE':'1','RF_EXPECT_DRAFT':'Q','RF_EXPECT_PROGRESS':'1'})
+            selected['policy-unavailable']=(setup(0,1)+tap(120,120)+check(2),{'RF_POLICY_UNAVAILABLE':'1','RF_EXPECT_DRAFT':'Seed','RF_EXPECT_OPENS':'1'})
+            if target=='x4':
+                selected['policy-continuity']=(begin+[(65000,'text','idle',0,0)]+key('\x03',target)+check(),{'RF_POLICY_PROBE':'1','RF_POLICY_STOPPED':'1','RF_POLICY_CONTINUITY':'1','RF_EXPECT_DRAFT':'Q'})
+                selected['policy-retained']=(begin,{'RF_POLICY_PROBE':'1','RF_POLICY_STOPPED':'1'})
         if args.scenario:
             unknown=set(args.scenario)-set(selected)
             if unknown:raise ValueError('Unknown scenario: '+', '.join(unknown))

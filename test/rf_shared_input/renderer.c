@@ -31,8 +31,15 @@
 void app_main(void); int app_module_init(void); void app_module_fini(void);
 const risc_driver_v2 *rf_scene_driver_get(uint32_t),*rf_text_driver_get(uint32_t),*rf_profile_driver_get(uint32_t);
 static const risc_driver_v2 *scene_driver,*text_driver,*profile_driver;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+#include "PortableResidentPolicyInput.h"
+static risc_text_entry_api_v1_checkpoint text_proxy;
+#else
 static risc_text_entry_api_v1_long text_proxy;
+#endif
+#define TEXT_PROXY_BASE (*(risc_text_entry_api_v1 *)(void *)&text_proxy)
 static const risc_text_entry_api_v1 *real_text;
+static unsigned policy_battery,policy_sleep,policy_background,policy_contexts,policy_polls,policy_dispatches,policy_resumes;
 static unsigned ticks,polls,grant_count,lease_count,subs,presents,app_frames,host_frames,host_session_frames;
 static unsigned text_attempts,text_grants,text_opens,text_closes,text_close_again,grant_serial,launches,fallback_backs,rf_store_reads,rf_store_acquires;
 static unsigned radio_captures,radio_host_captures,radio_suspends,resident_polls,resident_policies,kv_writes,data_writes,editor,capture_serial,unavailable_frames;
@@ -134,7 +141,7 @@ static bool fake_touch_poll(void*c,size_t n){IO();(void)c;assert(n==1||n==2);pol
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){IO();(void)c;assert(n==1&&subs);if(!touch_count)return 0;*e=touch_events[touch_head];touch_head=(touch_head+1)%64;touch_count--;return 1;}
 static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){IO();(void)c;*s=(risc_touch_snapshot_v1){.width=VIEW_WIDTH,.height=VIEW_HEIGHT,.sequence=touch_sequence,.timestamp_ms=ticks};if(touch_down){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=(uint16_t)touch_x,.y=(uint16_t)touch_y};}return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
-static bool fake_battery(void*c,risc_battery_sample_v1*s){IO();(void)c;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};return true;}
+static bool fake_battery(void*c,risc_battery_sample_v1*s){IO();(void)c;if(text_granted)policy_battery++;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};return true;}
 static const risc_battery_gauge_api_v1 battery_api={1,sizeof(battery_api),NULL,fake_battery};
 static bool fake_rtc(void*c,twatch_rtc_time_v1*s){IO();(void)c;*s=(twatch_rtc_time_v1){2026,10,12,1,14,0,0};return true;}
 static const twatch_rtc_api_v1 rtc_api={.api_version=2,.struct_size=sizeof(rtc_api),.read=fake_rtc};
@@ -153,7 +160,7 @@ static bool fake_reset(void*c){IO();(void)c;return true;}
 static const risc_input_navigation_api_v1 nav_api={1,sizeof(nav_api),NULL,fake_nav,fake_foreground,fake_reset};
 const risc_input_navigation_api_v1 *portable_input_navigation_open(const risc_runtime_api_v1*r){IO();(void)r;return &nav_api;}
 void portable_input_navigation_close(const risc_runtime_api_v1*r){IO();(void)r;}
-int portable_app_alarm_sleep(const risc_runtime_api_v1*r,const risc_display_output_api_v1*d,const risc_battery_gauge_api_v1*b,const alarm_service_v1*a){IO();(void)r;(void)d;(void)b;(void)a;assert(!"unexpected hardware sleep");return 0;}
+int portable_app_alarm_sleep(const risc_runtime_api_v1*r,const risc_display_output_api_v1*d,const risc_battery_gauge_api_v1*b,const alarm_service_v1*a){IO();(void)r;(void)d;(void)b;(void)a;assert(getenv("RF_POLICY_STOPPED")&&text_granted&&!subs&&!lease_count&&!pending_token);policy_sleep++;return 1;}
 int portable_app_sleep(const risc_runtime_api_v1*r,const risc_display_output_api_v1*d,const risc_battery_gauge_api_v1*b){return portable_app_alarm_sleep(r,d,b,NULL);}
 uint32_t portable_app_sleep_budget_ms(void){return 60000;}
 static bool fake_radio_suspend(void*c){IO();(void)c;radio_suspends++;radio_owned=false;return true;}
@@ -183,14 +190,14 @@ static wifi_link_t fake_wifi_status(void*c){IO();(void)c;return WIFI_LINK_DOWN;}
 static bool fake_wifi_disconnect(void*c){IO();(void)c;return true;}
 static const wifi_api_v1 wifi_api={.api_version=1,.struct_size=sizeof(wifi_api),.status=fake_wifi_status,.disconnect_checked=fake_wifi_disconnect};
 static bool fake_broadcast_pause(void*c){IO();(void)c;return true;}
-static bool fake_broadcast_step(void*c,bool allow,const telemetry_broadcast_policy_v1*p){IO();(void)c;(void)allow;(void)p;return true;}
+static bool fake_broadcast_step(void*c,bool allow,const telemetry_broadcast_policy_v1*p){IO();if(text_granted)policy_background++;(void)c;(void)allow;(void)p;return true;}
 static bool fake_broadcast_status(void*c,telemetry_broadcast_status_v1*s){IO();(void)c;*s=(telemetry_broadcast_status_v1){.struct_size=sizeof(*s),.state=TELEMETRY_BROADCAST_OFF};return true;}
 static int32_t fake_broadcast_enum(void*c,uint32_t i,risc_telemetry_field_v1*f){IO();(void)c;(void)i;(void)f;return 0;}
 static int32_t fake_broadcast_read(void*c,uint32_t i,int32_t*v){IO();(void)c;(void)i;(void)v;return 0;}
 static const telemetry_broadcast_v1 broadcast_api={1,sizeof(broadcast_api),NULL,fake_broadcast_step,fake_broadcast_pause,fake_broadcast_status,fake_broadcast_enum,fake_broadcast_read};
 /* Bounded base Contexts service: no background sensors, presets or exports.
  * The actual app-data-backed shared fingerprint pipeline remains in the app. */
-static bool ctx_step(void*c,const contexts_policy_v1*p){IO();(void)c;(void)p;return true;}
+static bool ctx_step(void*c,const contexts_policy_v1*p){IO();if(text_granted)policy_contexts++;(void)c;(void)p;return true;}
 static bool ctx_pause(void*c){IO();(void)c;return true;}
 static bool ctx_status(void*c,contexts_status_v1*s){IO();(void)c;*s=(contexts_status_v1){.struct_size=sizeof(*s),.state=CONTEXTS_PAUSED};return true;}
 static bool ctx_source(void*c,uint32_t s){IO();(void)c;(void)s;return true;}
@@ -205,7 +212,21 @@ static const risc_realtime_api_v1 time_api={1,sizeof(time_api),NULL,fake_time};
 #ifdef ALARM_SERVICE_TAGGED_V2
 static const alarm_service_descriptor_v2 alarm_v2={.base={2,sizeof(alarm_v2),NULL,fake_alarm_status,fake_alarm_step,fake_alarm_step,fake_alarm_ack,fake_alarm_prepare,fake_alarm_step},.tag=ALARM_SERVICE_DESCRIPTOR_TAG,.descriptor_version=1,.output_modes=ALARM_MODE_VISUAL};
 #endif
-static int32_t fake_checkpoint(uint64_t invocation,const risc_resident_request_v1*q,risc_resident_reply_v1*r){IO();assert(invocation==2&&q->struct_size==sizeof(*q)&&r->struct_size==sizeof(*r));assert(!text_granted&&!fixture_live());if(q->reason==RISC_RESIDENT_CHECKPOINT_POLL)resident_polls++;if(q->reason==RISC_RESIDENT_CHECKPOINT_POLICY)resident_policies++;return RISC_RESIDENT_OK;}
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static const risc_text_entry_api_v1_checkpoint *real_checkpoint;
+static int32_t proxy_enable(void*c,uint64_t t){if(getenv("RF_POLICY_UNAVAILABLE"))return RISC_TEXT_ENTRY_UNAVAILABLE;in_host_call=true;int r=real_checkpoint->checkpoint_enable(c,t);in_host_call=false;return r;}
+static int32_t proxy_snapshot(void*c,uint64_t t,risc_text_entry_checkpoint_state_v1*s){in_host_call=true;int r=real_checkpoint->checkpoint_snapshot(c,t,s);in_host_call=false;return r;}
+static int32_t proxy_pause(void*c,uint64_t t){in_host_call=true;int r=real_checkpoint->pause(c,t);in_host_call=false;return r;}
+static int32_t proxy_pause_focus(void*c,uint64_t t){in_host_call=true;int r=real_checkpoint->pause_for_focus_change(c,t);in_host_call=false;return r;}
+static int32_t proxy_resume(void*c,uint64_t t,uint32_t f){policy_resumes++;if(is_mode("policy-retained"))return RISC_TEXT_ENTRY_RETAINED;in_host_call=true;int r=real_checkpoint->resume(c,t,f);in_host_call=false;return r;}
+#endif
+static int32_t fake_checkpoint(uint64_t invocation,const risc_resident_request_v1*q,risc_resident_reply_v1*r){IO();assert(invocation==2&&q->struct_size==sizeof(*q)&&r->struct_size==sizeof(*r));assert(!fixture_live());
+#ifndef PORTABLE_TEXT_INPUT_POLICY
+assert(!text_granted);
+#endif
+if(q->reason==RISC_RESIDENT_CHECKPOINT_POLL){resident_polls++;if(text_granted){policy_polls++;if(getenv("RF_POLICY_PROBE")){r->flags=RISC_RESIDENT_REPLY_POLICY_REQUEST;if(getenv("RF_POLICY_CONTINUITY"))r->flags|=PORTABLE_RESIDENT_REPLY_INPUT_CONTINUITY;}}}
+ if(q->reason==RISC_RESIDENT_CHECKPOINT_POLICY){resident_policies++;if(text_granted){policy_dispatches++;assert(!lease_count&&!pending_token);if(!getenv("RF_POLICY_CONTINUITY"))assert(!subs);}}
+ return RISC_RESIDENT_OK;}
 static bool fake_resident(risc_resident_client_v1*out){IO();*out=(risc_resident_client_v1){.api_version=1,.struct_size=sizeof(*out),.invocation=2,.role=RISC_RESIDENT_ROLE_FOREGROUND,.checkpoint=fake_checkpoint};return true;}
 static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){IO();if((!strcmp(n,"storage.key-value")&&v==2&&id==RF_STORAGE_INSTANCE)||(!strcmp(n,"storage.app-data")&&id==RF_APP_DATA_INSTANCE))rf_store_acquires++;assert(g->struct_size==sizeof(*g));
  if(!strcmp(n,"runtime.realtime")&&v==1)g->api=&time_api;
@@ -213,7 +234,7 @@ static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabi
  else if(!strcmp(n,"alarm.service")&&v==2)g->api=&alarm_v2;
 #endif
  else if(!strcmp(n,CONTEXTS_SERVICE_CAPABILITY)&&v==1&&!getenv("RF_NO_CONTEXTS"))g->api=&contexts_api;else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&ble_api;else if(!strcmp(n,"telemetry.broadcast")&&v==1)g->api=&broadcast_api;else if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&legacy_kv_api;else if(!strcmp(n,"storage.key-value")&&v==2)g->api=&kv_api;else if(!strcmp(n,"radio.iq")&&v==1)g->api=&radio_api;else if(!strcmp(n,"storage.app-data")&&v==1)g->api=&app_data_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else if(!strcmp(n,"input.navigation")&&v==1)g->api=&nav_api;
- else if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)&&v==1){text_attempts++;if(is_mode("missing-host")||(is_mode("missing-reopen")&&text_opens)||(is_mode("missing-once")&&text_attempts==1))return false;text_proxy.base.base.base.base.struct_size=is_mode("old-host")?sizeof(risc_text_entry_api_v1)-1:real_text->struct_size;assert(!text_granted);text_granted=true;text_grants++;host_session_frames=host_frames;g->api=&text_proxy;if(is_mode("old-reopen")&&text_opens)text_proxy.base.base.base.base.struct_size=sizeof(risc_text_entry_api_v1)-1;}else return false;
+ else if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)&&v==1){text_attempts++;if(is_mode("missing-host")||(is_mode("missing-reopen")&&text_opens)||(is_mode("missing-once")&&text_attempts==1))return false;TEXT_PROXY_BASE.struct_size=is_mode("old-host")?sizeof(risc_text_entry_api_v1)-1:real_text->struct_size;assert(!text_granted);text_granted=true;text_grants++;host_session_frames=host_frames;g->api=&text_proxy;if(is_mode("old-reopen")&&text_opens)TEXT_PROXY_BASE.struct_size=sizeof(risc_text_entry_api_v1)-1;}else return false;
  g->slot=++grant_serial;g->generation=1;grant_count++;return true;
 }
 static bool fake_release(risc_runtime_capability_v1*g){IO();assert(g->api&&grant_count);if(g->api==&text_proxy){assert(text_driver->quiesce()&&!lease_count&&!pending_token);text_granted=false;}*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};grant_count--;return true;}
@@ -235,7 +256,7 @@ static void expect_num(const char *key,unsigned value){const char *s=getenv(key)
 /* Fixture navigation uses the same production editor entrypoints; every edit,
  * accept, cancel, reopen and commit is dispatched through real input afterward. */
 static void setup_editor(int which,int initial){
- assert(!text_granted);editor=(unsigned)which;
+ assert(!text_granted);editor=(unsigned)which;if(getenv("RF_POLICY_STOPPED"))stop();
  if(which==0)open_label(-1,2440000000u);
  else if(which==1)signature_open(-1,1);
  else if(which==2)event_open(0);
@@ -284,12 +305,16 @@ int main(int argc,char**argv){
  const char *delayed=getenv("RF_TEST_DELAY_MS");delay_ms=delayed?(unsigned)atoi(delayed):0;
  risc_platform_clock_api_v1 clock={1,sizeof(clock),NULL,clock_now,NULL};scene_driver=rf_scene_driver_get(2);text_driver=rf_text_driver_get(2);profile_driver=rf_profile_driver_get(2);assert(scene_driver&&text_driver&&profile_driver&&profile_driver->start(NULL,0));
  risc_provider_dependency_v1 scene_deps[]={{"display.output",1,&display_api},{"input.touch.raw",1,&touch_api},{"input.navigation",1,&nav_api},{"platform.clock",1,&clock},{"ui.presentation-profile",1,profile_driver->capability}};
- assert(scene_driver->start(scene_deps,5));risc_provider_dependency_v1 text_deps[]={{RISC_SCENE_CAPABILITY,1,scene_driver->capability}};assert(text_driver->start(text_deps,1));real_text=text_driver->capability;assert(real_text->struct_size>=sizeof(*real_text)&&real_text->struct_size<=sizeof(text_proxy));memcpy(&text_proxy,real_text,real_text->struct_size);text_proxy.base.base.base.base.open=proxy_open;text_proxy.base.base.base.base.poll=proxy_poll;text_proxy.base.base.base.base.close=proxy_close;if(is_mode("old-host"))text_proxy.base.base.base.base.struct_size=sizeof(risc_text_entry_api_v1)-1;
+ assert(scene_driver->start(scene_deps,5));risc_provider_dependency_v1 text_deps[]={{RISC_SCENE_CAPABILITY,1,scene_driver->capability}};assert(text_driver->start(text_deps,1));real_text=text_driver->capability;assert(real_text->struct_size>=sizeof(*real_text)&&real_text->struct_size<=sizeof(text_proxy));memcpy(&text_proxy,real_text,real_text->struct_size);TEXT_PROXY_BASE.open=proxy_open;TEXT_PROXY_BASE.poll=proxy_poll;TEXT_PROXY_BASE.close=proxy_close;if(is_mode("old-host"))TEXT_PROXY_BASE.struct_size=sizeof(risc_text_entry_api_v1)-1;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ real_checkpoint=risc_text_entry_checkpoint(real_text);assert(real_checkpoint);
+ text_proxy.checkpoint_enable=proxy_enable;text_proxy.checkpoint_snapshot=proxy_snapshot;text_proxy.pause=proxy_pause;text_proxy.pause_for_focus_change=proxy_pause_focus;text_proxy.resume=proxy_resume;
+#endif
  assert(app_module_init()==0);app_main();app_module_fini();
 #ifdef PORTABLE_RF_SHARED_TEXT_INPUT
  if(getenv("RF_EXPECT_HOME_EXIT")){assert(home_exit_requested&&!fallback_backs&&!capture_requested&&!running&&!signature_goal&&!event_armed&&!cfa_learning_kind&&!editing.name[0]&&!shared_name[0]);}
 #endif
- if(is_mode("retained")||!strncmp(mode,"loss-",5)){assert(native_retained&&portable_text_adapter_retained()&&!launches);assert(grant_count==retained_grants&&subs==retained_subs&&lease_count==retained_frames&&io_calls==retained_calls&&allocation_count==retained_allocations);assert(app_module_init()!=0&&io_calls==retained_calls);puts("PASS retained invocation: resources frozen, zero later I/O, reentry refused");return 0;}
+ if(is_mode("retained")||is_mode("policy-retained")||!strncmp(mode,"loss-",5)){assert(native_retained&&portable_text_adapter_retained()&&!launches);assert(grant_count==retained_grants&&subs==retained_subs&&lease_count==retained_frames&&io_calls==retained_calls&&allocation_count==retained_allocations);assert(app_module_init()!=0&&io_calls==retained_calls);puts("PASS retained invocation: resources frozen, zero later I/O, reentry refused");return 0;}
  assert(!grant_count&&!lease_count&&!subs&&!radio_owned&&!text_granted&&!pending_token);assert(action_cursor==action_count&&!touch_down&&!navigation_pressed);
  if(getenv("RF_EXPECT_NO_STORAGE_READS"))assert(saved_store_reads==rf_store_reads&&saved_store_acquires==rf_store_acquires);
  if(getenv("RF_EXPECT_PRESERVE_SAVED"))assert(saved_hash&&saved_hash==persistent_hash()&&saved_kv_writes==kv_writes&&saved_data_writes==data_writes);
@@ -306,7 +331,17 @@ int main(int argc,char**argv){
  if(getenv("RF_EXPECT_CLOSE_AGAIN"))assert(text_close_again>0);
  if(getenv("RF_EXPECT_CLOSE_PROGRESS")){assert(text_opens==1&&close_reads[0]>first_close_reads[0]&&close_analysis[0]>first_close_analysis[0]);printf("close-AGAIN RF %u -> %u, analysis %u -> %u\n",first_close_reads[0],close_reads[0],first_close_analysis[0],close_analysis[0]);}
  if(getenv("RF_NO_PRESENT"))assert(!host_frames&&unavailable_frames>0);
- assert(app_frames>0);if(text_opens&&!is_mode("unavailable-open")&&!getenv("RF_NO_PRESENT"))assert(host_frames>0);
+ if(getenv("RF_POLICY_PROBE")){
+#ifdef RF_TEST_PAPER
+  fprintf(stderr,"resident policy counts polls=%u dispatches=%u resumes=%u\n",policy_polls,policy_dispatches,policy_resumes);
+  if(getenv("RF_POLICY_STOPPED")){assert(policy_polls>=30&&policy_dispatches>=30&&policy_resumes==policy_dispatches);}else assert(!policy_polls&&!policy_dispatches&&radio_host_captures>500);
+#else
+  assert(policy_battery>=12&&policy_contexts>0&&policy_background>0);
+  if(getenv("RF_POLICY_STOPPED"))assert(policy_sleep==1&&!radio_host_captures);else assert(!policy_sleep&&radio_host_captures>500);
+#endif
+  printf("POLICY battery=%u sleep=%u background=%u contexts=%u poll=%u dispatch=%u resume=%u capture=%u\n",policy_battery,policy_sleep,policy_background,policy_contexts,policy_polls,policy_dispatches,policy_resumes,radio_host_captures);
+ }
+ assert(app_frames>0);if(text_opens&&!is_mode("unavailable-open")&&!getenv("RF_NO_PRESENT")&&!getenv("RF_POLICY_UNAVAILABLE"))assert(host_frames>0);
  assert(text_driver->quiesce());text_driver->stop();assert(scene_driver->quiesce());scene_driver->stop();assert(profile_driver->quiesce());profile_driver->stop();assert(!allocation_count);
  printf("PASS real RF app/adapter/shared hosts: mode=%s frames=%u app=%u host=%u input=%u/%u edges=%u ms=%u captures=%u host-captures=%u transforms=%u kv=%u data=%u close-again=%u; leases and stride guards clean\n",mode,presents,app_frames,host_frames,action_cursor,action_count,touch_edges,ticks,radio_captures,radio_host_captures,final_analysis,kv_writes,data_writes,text_close_again);return 0;
 }
