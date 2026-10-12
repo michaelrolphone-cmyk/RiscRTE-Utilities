@@ -9,9 +9,10 @@ def stage(runtime,system,out):
  for source in (ROOT/'lib/CanvasApp/include').glob('*.h'):
   if not source.name.startswith('Risc') or not (include/source.name).exists():shutil.copyfile(source,include/source.name)
  for name in ['RiscStorageVolumeV1.h','RiscAppDataV1.h','T5FileOpenApi.h']:shutil.copyfile(runtime/'sdk/app'/name,include/name)
+ if (runtime/'sdk/app/RiscFileOpenSourceV1.h').is_file():shutil.copyfile(runtime/'sdk/app/RiscFileOpenSourceV1.h',include/'RiscFileOpenSourceV1.h')
  return include
 
-def build(runtime,system,output,target):
+def build(runtime,system,output,target,source_handoff=False):
  sys.path.insert(0,str(system/'scripts'));import scene_build
  cc=scene_build.compiler_path();output.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory(prefix='canvas-sdk-') as temp:
@@ -21,8 +22,11 @@ def build(runtime,system,output,target):
    if target=='watch' and kind==2:continue
    m=json.loads((ROOT/'Apps'/f'{name}.json').read_text())
    if target=='watch':m['requires']=[r for r in m['requires'] if r['capability'] not in ['input.navigation','storage.volume','file.open']]
+   if source_handoff and kind==1:
+    m['version']='1.3.1';m['requires'].append({'capability':'file.open.source','api':1})
    sources=[ROOT/'Apps'/f'{name}.c',ROOT/'lib/CanvasApp/canvas.c',ROOT/'lib/CanvasApp/entry.c']
    defines=['-DCANVAS_KIND='+str(kind),'-Wno-misleading-indentation','-Wno-unused-function']
+   if source_handoff and kind==1:defines+=['-DCANVAS_FILE_SOURCE']
    receipt=scene_build.build(cc,include,output/name,m,sources,defines=defines)
    dependencies={}
    for source in sources:
@@ -39,4 +43,4 @@ def build(runtime,system,output,target):
 if __name__=='__main__':
  p=argparse.ArgumentParser(description=__doc__)
  for n in ['runtime','system-apps','output']:p.add_argument('--'+n,type=Path,required=True)
- p.add_argument('--target',choices=['x4','watch'],required=True);a=p.parse_args();build(a.runtime.resolve(),a.system_apps.resolve(),a.output.resolve(),a.target)
+ p.add_argument('--target',choices=['x4','watch'],required=True);p.add_argument('--source-handoff',action='store_true');a=p.parse_args();build(a.runtime.resolve(),a.system_apps.resolve(),a.output.resolve(),a.target,a.source_handoff)

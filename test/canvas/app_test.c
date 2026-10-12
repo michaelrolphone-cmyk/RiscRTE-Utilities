@@ -10,6 +10,13 @@
 #include "CanvasApp.h"
 #include "RiscStorageVolumeV1.h"
 #include "T5FileOpenApi.h"
+#ifdef CANVAS_FILE_SOURCE
+#include "RiscFileOpenSourceV1.h"
+static bool source_test,source_large,source_retain,source_error,source_busy,source_cancel,source_invalid,source_context,source_stl;
+static unsigned char source_binary[134];
+static uint64_t source_size,source_furthest,source_last;
+static unsigned source_reads,source_rewinds,source_requests;
+#endif
 #if CANVAS_KIND==1
 #include "../../Apps/model_viewer.c"
 #else
@@ -34,6 +41,9 @@ static void tap(unsigned x,unsigned y){event(1,x,y);event(3,x,y);}
 static void game_tap(unsigned x,unsigned y){/* Landscape logical input, portrait raw. */tap(physical_h-1-y,x);}
 static void schedule(void){
  if(finished)return;
+#ifdef CANVAS_FILE_SOURCE
+ if(source_test&&source_furthest<source_size){if(source_cancel&&source_requests>=10)snap.buttons=1;return;}
+#endif
  if(++steps>20000){fprintf(stderr,"test timeout phase %u frames %u ms %u\n",phase,submits,ms);abort();}
 #if CANVAS_KIND==1
  unsigned vw=canvas_width(),vh=canvas_height();
@@ -85,7 +95,30 @@ static bool sd_seek(void *c,uint32_t h,uint64_t n){assert(!c&&h==1&&sd_open&&n<=
 static risc_storage_volume_api_v1_ext sd_api={.base={.api_version=1,.struct_size=sizeof(sd_api),.refresh=sd_ready,.ready=sd_ready,.file_open_read=sd_open_read,.file_read=sd_read,.file_close=sd_close},.file_seek=sd_seek};
 static bool file_path(char *p,size_t n){snprintf(p,n,"/sd/triangle.obj");return true;}
 static const t5_file_open_api_v1 file_api={.api_version=1,.struct_size=sizeof(file_api),.source_path_get=file_path};
-static bool acquire_cap(const char *n,uint32_t v,uint64_t instance,risc_runtime_capability_v1 *g){assert(v==1&&!instance&&!held_invocation);const void *api=sd_test&&!strcmp(n,"storage.volume")?(const void*)&sd_api:sd_test&&!strcmp(n,"file.open")?(const void*)&file_api:!strcmp(n,"display.output")?(const void*)&display_api:!strcmp(n,"input.touch.raw")?(const void*)&touch_api:!strcmp(n,"input.navigation")&&mode?(const void*)&nav_api:!strcmp(n,"storage.app-data")?(const void*)&data_api:NULL;if(!api)return false;g->api=api;g->slot=++acquired;return true;}
+#ifdef CANVAS_FILE_SOURCE
+static int32_t selected_info(risc_file_open_source_info_v1 *out){
+ if(source_context)return RISC_FILE_SOURCE_CONTEXT;
+ assert(out&&out->struct_size==sizeof(*out));out->token=73;out->size=source_size;
+ strcpy(out->name,source_invalid?"../unsafe.obj":source_stl?"Original.STL":"Original.OBJ");return 0;
+}
+static int32_t selected_read(uint64_t token,uint64_t offset,void *out,uint32_t capacity,uint32_t *actual){
+ assert(token==73&&capacity<=4096&&offset<=source_size);*actual=0;source_requests++;
+ if(source_busy&&source_requests<=12)return RISC_FILE_SOURCE_BUSY;
+ if(source_retain)return RISC_FILE_SOURCE_RETAINED;
+ if(source_error)return RISC_FILE_SOURCE_IO;
+ if(offset<source_last)source_rewinds++;
+ source_last=offset;uint64_t n=source_size-offset;if(n>capacity)n=capacity;
+ if(!source_large&&n>7)n=7;
+ for(uint64_t i=0;i<n;i++){uint64_t at=offset+i;((unsigned char*)out)[i]=source_stl?source_binary[at]:at<sizeof(triangle)-1?(unsigned char)triangle[at]:((at-(sizeof(triangle)-1))%128==0?'#':(at-(sizeof(triangle)-1))%128==127?'\n':' ');}
+ *actual=(uint32_t)n;source_reads++;if(offset+n>source_furthest)source_furthest=offset+n;return 0;
+}
+static const risc_file_open_source_api_v1 selected_api={.api_version=1,.struct_size=sizeof(selected_api),.source_info=selected_info,.read_at=selected_read};
+#endif
+static bool acquire_cap(const char *n,uint32_t v,uint64_t instance,risc_runtime_capability_v1 *g){assert(v==1&&!instance&&!held_invocation);const void *api=sd_test&&!strcmp(n,"storage.volume")?(const void*)&sd_api:sd_test&&!strcmp(n,"file.open")?(const void*)&file_api:!strcmp(n,"display.output")?(const void*)&display_api:!strcmp(n,"input.touch.raw")?(const void*)&touch_api:!strcmp(n,"input.navigation")&&mode?(const void*)&nav_api:!strcmp(n,"storage.app-data")?(const void*)&data_api:NULL;
+#ifdef CANVAS_FILE_SOURCE
+if(source_test&&!strcmp(n,RISC_FILE_OPEN_SOURCE_CAPABILITY))api=&selected_api;
+#endif
+if(!api)return false;g->api=api;g->slot=++acquired;return true;}
 static bool release_cap(risc_runtime_capability_v1 *g){assert(!queued&&!held_invocation&&g->api);if(hold_test)return false;g->api=NULL;releases++;return true;}
 static const risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.health=health,.yield_ms=yield_ms,.diagnostic=diagnostic,.acquire=acquire_cap,.release=release_cap,.retain_invocation=retain,.monotonic_ms=monotonic};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1&&!held_invocation?&runtime_api:NULL;}
@@ -98,7 +131,22 @@ int main(int argc,char **argv){
 #endif
  snap.width=mode?480:240;snap.height=mode?800:240;
  pixels_size=(size_t)((physical_w*(mode?1:16)+7)/8)*physical_h;pixels=calloc(1,pixels_size);captured=calloc(1,pixels_size);assert(pixels&&captured);
+
+#ifdef CANVAS_FILE_SOURCE
+ source_test=argc>2&&!strncmp(argv[2],"source",6);
+ source_large=source_test&&!strcmp(argv[2],"source-large");source_retain=source_test&&!strcmp(argv[2],"source-retain");source_error=source_test&&!strcmp(argv[2],"source-error");source_invalid=source_test&&!strcmp(argv[2],"source-invalid");source_context=source_test&&!strcmp(argv[2],"source-context");source_busy=source_test&&(!strcmp(argv[2],"source-busy")||!strcmp(argv[2],"source-cancel"));source_cancel=source_test&&!strcmp(argv[2],"source-cancel");
+ source_stl=source_test&&!strcmp(argv[2],"source-stl");source_binary[80]=1;{float vertices[12]={0,0,1,0,0,0,2,0,0,0,2,0};memcpy(source_binary+84,vertices,sizeof(vertices));}
+ source_size=source_stl?sizeof(source_binary):source_large?UINT64_C(12)*1024*1024+123:sizeof(triangle)-1;if(source_context)source_furthest=source_size;
+#endif
  app_main();
+#ifdef CANVAS_FILE_SOURCE
+ if(source_test&&(source_retain||source_error||source_invalid||source_cancel)){
+  if(source_retain)assert(held_invocation&&!releases);
+  else assert(!held_invocation&&releases==acquired&&!subscribed&&!queued);
+  assert(!sd_opens);free(pixels);free(captured);puts("source receiver failure/cancel cleanup PASS");return 0;
+ }
+ if(source_test&&!source_context)assert(source_reads>1&&source_rewinds&&source_furthest==source_size&&!sd_opens);
+#endif
 #ifdef CANVAS_TEST_BUDGET
  if(getenv("CANVAS_EXPECT_MEMORY_FAILURE")){
   assert(allocation_failed&&strstr(allocation_error,getenv("CANVAS_EXPECT_MEMORY_FAILURE")));

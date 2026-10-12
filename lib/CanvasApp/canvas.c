@@ -8,6 +8,9 @@
 #include "T5VideoApi.h"
 #include "T5StorageApi.h"
 #include "T5FileOpenApi.h"
+#ifdef CANVAS_FILE_SOURCE
+#include "RiscFileOpenSourceV1.h"
+#endif
 #include "T5ProviderCapabilityApi.h"
 #include "T5MathApi.h"
 #include <stdlib.h>
@@ -24,6 +27,11 @@ static const risc_input_navigation_api_v1 *navigation;
 static const risc_storage_volume_api_v1 *volume;
 static const risc_app_data_v1 *data;
 static const t5_file_open_api_v1 *files;
+#ifdef CANVAS_FILE_SOURCE
+static const risc_file_open_source_api_v1 *source_files;
+static risc_file_open_source_info_v1 selected_source;
+static bool source_selected,source_stream;
+#endif
 static risc_display_info_v1 info;
 static risc_display_present_token_v1 tokens[4];
 static uint32_t token_at[4],frames;
@@ -228,7 +236,11 @@ static const char cube[]="v -1 -1 -1\nv 1 -1 -1\nv 1 1 -1\nv -1 1 -1\nv -1 -1 1\
 static const char *model_names[]={"CUBE","SAVED OBJ","SAVED STL"};
 unsigned canvas_model_count(void){return 3;}
 const char *canvas_model_name(unsigned i){return i<3?model_names[i]:"";}
-void canvas_model_select(unsigned i){selected=i<3?i:0;selected_path[0]=0;}
+void canvas_model_select(unsigned i){selected=i<3?i:0;selected_path[0]=0;
+#ifdef CANVAS_FILE_SOURCE
+ source_selected=false;
+#endif
+}
 bool canvas_model_source(char *out,size_t cap){
  if(selected_path[0])snprintf(out,cap,"%s",selected_path);
  else snprintf(out,cap,"%s",selected==0?"builtin.obj":selected==1?"model.obj":"model.stl");return true;
@@ -237,11 +249,20 @@ static bool source_path_get(char *out,size_t cap){return canvas_model_source(out
 const t5_file_open_api_v1 *t5_file_open_get_api(uint32_t v){static const t5_file_open_api_v1 a={.api_version=1,.struct_size=sizeof(a),.source_path_get=source_path_get};return v==1?&a:NULL;}
 static void stream_close(uint32_t h){
  if(!h||retained)return;
+#ifdef CANVAS_FILE_SOURCE
+ source_stream=false;
+#endif
  if(stream&&!volume->file_close(volume->context,stream,false)){canvas_retain("Canvas: model file close retained");return;}stream=0;
  free(model_bytes);model_bytes=NULL;model_size=model_offset=0;
 }
 static uint32_t stream_open(const char *path,size_t *size){
  *size=0;stream_close(1);if(retained)return 0;stream_size=stream_offset=0;
+#ifdef CANVAS_FILE_SOURCE
+ if(source_selected&&!strcmp(path,selected_path)){
+  if(!source_files||!selected_source.token||selected_source.size>SIZE_MAX)return 0;
+  source_stream=true;stream_size=selected_source.size;stream_offset=0;*size=(size_t)stream_size;return 1;
+ }
+#endif
  if(!strcmp(path,"builtin.obj")){model_size=sizeof(cube)-1;model_bytes=malloc(model_size);if(!model_bytes)return 0;memcpy(model_bytes,cube,model_size);*size=model_size;return 1;}
  if(path[0]!='/'&&data){
   uint32_t n=0;uint64_t rev=0,read_rev=0;int32_t rc=data->stat(data->context,path,&n,&rev);
@@ -260,11 +281,29 @@ static uint32_t stream_open(const char *path,size_t *size){
 }
 static size_t stream_read(uint32_t h,void *out,size_t n){
  if(!h||retained||exiting)return 0;
+#ifdef CANVAS_FILE_SOURCE
+ if(source_stream){
+  if(n>RISC_FILE_OPEN_SOURCE_IO_MAX)n=RISC_FILE_OPEN_SOURCE_IO_MAX;
+  uint32_t actual=0;int32_t rc;
+  do {
+   t5_app_input_t input={0};rt->yield_ms(1);
+   if(!poll_nowait(&input)||input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)){exiting=true;return 0;}
+   rc=source_files->read_at(selected_source.token,stream_offset,out,(uint32_t)n,&actual);
+  }while(rc==RISC_FILE_SOURCE_BUSY);
+  if(rc==RISC_FILE_SOURCE_RETAINED){canvas_retain("Canvas: selected source read retained");return 0;}
+  if(rc||actual>n||actual>stream_size-stream_offset){exiting=true;return 0;}
+  stream_offset+=actual;return actual;
+ }
+#endif
  if(model_bytes){if(n>model_size-model_offset)n=model_size-model_offset;memcpy(out,model_bytes+model_offset,n);model_offset+=(unsigned)n;return n;}
  if(!stream)return 0;if(n>RISC_STORAGE_VOLUME_IO_MAX)n=RISC_STORAGE_VOLUME_IO_MAX;size_t got=volume->file_read(volume->context,stream,out,n);if(got>n){exiting=true;return 0;}stream_offset+=got;return got;
 }
 static bool stream_seek(uint32_t h,size_t offset){
- if(!h||retained)return false;if(model_bytes){if(offset>model_size)return false;model_offset=(unsigned)offset;return true;}
+ if(!h||retained)return false;
+#ifdef CANVAS_FILE_SOURCE
+ if(source_stream){if(offset>stream_size)return false;stream_offset=offset;return true;}
+#endif
+ if(model_bytes){if(offset>model_size)return false;model_offset=(unsigned)offset;return true;}
  if(!stream||offset>stream_size||exiting)return false;
  if(volume->struct_size>=sizeof(risc_storage_volume_api_v1_ext)){
   const risc_storage_volume_api_v1_ext *e=(const void*)volume;if(e->file_seek){bool ok=e->file_seek(volume->context,stream,offset);if(ok)stream_offset=offset;return ok;}
@@ -298,6 +337,18 @@ bool canvas_open(unsigned app_kind){
   if(volume&&(!HAS(volume,risc_storage_volume_api_v1,file_close)||!volume->file_open_read||!volume->file_read||!volume->refresh||!volume->ready))goto bad;
   if(data&&(!HAS(data,risc_app_data_v1,read)||!data->stat))goto bad;
   selected=0;selected_path[0]=0;if(files&&HAS(files,t5_file_open_api_v1,source_path_get))(void)files->source_path_get(selected_path,sizeof(selected_path));
+#ifdef CANVAS_FILE_SOURCE
+  source_files=get(RISC_FILE_OPEN_SOURCE_CAPABILITY,1);source_selected=source_stream=false;memset(&selected_source,0,sizeof(selected_source));selected_source.struct_size=sizeof(selected_source);
+  if(source_files){
+   if(source_files->api_version!=1||source_files->struct_size<sizeof(*source_files)||!source_files->source_info||!source_files->read_at)goto bad;
+   int32_t rc=source_files->source_info(&selected_source);
+   if(rc==RISC_FILE_SOURCE_RETAINED){canvas_retain("Canvas: selected source admission retained");return false;}
+   if(!rc){
+    if(selected_source.struct_size!=sizeof(selected_source)||!selected_source.token||!memchr(selected_source.name,0,sizeof(selected_source.name))||!selected_source.name[0]||strchr(selected_source.name,'/')||strchr(selected_source.name,'\\')||selected_source.size>SIZE_MAX)goto bad;
+    snprintf(selected_path,sizeof(selected_path),"source:%s",selected_source.name);source_selected=true;
+   }else if(rc!=RISC_FILE_SOURCE_CONTEXT&&rc!=RISC_FILE_SOURCE_UNAVAILABLE)goto bad;
+  }
+#endif
  }
  started=true;return true;
  bad:canvas_close();return false;
