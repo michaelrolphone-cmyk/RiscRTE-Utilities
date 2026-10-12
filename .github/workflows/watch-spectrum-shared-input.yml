@@ -1,0 +1,48 @@
+name: Watch Spectrum shared input
+on:
+  push:
+    branches: [work/spectrum-shared-input-20261012]
+  pull_request:
+    paths:
+      - 'Apps/audio_spectrum.c'
+      - 'Apps/context_signal_library.inc'
+      - 'test/native_apps/spectrum_shared_input_safety_test.c'
+      - 'scripts/test_spectrum_shared_input_safety.py'
+      - '.github/workflows/watch-spectrum-shared-input.yml'
+permissions:
+  contents: read
+jobs:
+  spectrum:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 7fb13b09b4dac275a8111b224784f8a472f39264
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Utilities
+          ref: e85eff650e9f748ae162fb725fb6e14eb6df876a
+          path: .dependencies/baseline
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: fdc15395928a1fa8eee62a2823b3c8777dcf0fa0
+          path: .dependencies/legacy-system
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Source manifest and inventory contracts
+        run: python -m unittest discover -s tests -v
+      - name: Shared-client lifecycle and opt-out isolation
+        run: python scripts/test_spectrum_shared_input_safety.py --system-apps .dependencies/system --baseline-utilities .dependencies/baseline
+      - name: Existing complete Spectrum model and controller regressions
+        run: python scripts/test_audio_spectrum.py --system-apps .dependencies/legacy-system

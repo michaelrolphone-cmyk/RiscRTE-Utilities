@@ -1,4 +1,4 @@
-# Audio Spectrum 0.4.3 (development source)
+# Audio Spectrum 0.5.4 (shared Watch input)
 
 The NOVA-7 microphone analyzer provides a spectrum, horizontal-history waterfall,
 and saved frequency labels on the Watch's 240 × 240 display. The supplied design
@@ -250,3 +250,33 @@ classifier, explicit ambiguous-event presentation and unchanged sample formats.
 Room identity now uses its own slow raw-power tracker instead of the event
 learner's upward-protected floor. New quiet bands and old low-level bands also
 converge without integer averaging dead zones.
+
+## 0.5.4 selected Watch shared input
+
+The selected Watch build uses `PORTABLE_SPECTRUM_SHARED_TEXT_INPUT` together with
+`PORTABLE_TEXT_INPUT_CLIENT` to route frequency-label, signature, temporal-event,
+and shared room/event name editing through `ui.text-input@1`. The product recipe
+adds this capability to the existing full application manifest and policy. The
+generic six-requirement source sidecar remains suitable for opt-out builds; it
+does not independently select the Watch modal. Other apps, including Waterfall,
+retain their current input implementation.
+
+Each request has a 17-byte capacity: sixteen printable ASCII characters plus a
+terminator. Only a successfully closed, accepted session copies the new name to
+the local editor. Done returns to the existing editor, where Save or Train is
+still explicit. Back cancels the modal without changing the previous draft;
+Home cancels it and follows the existing pending-save/training exit guards.
+Failure to acquire the host leaves the same editor available for retry. Retained
+custody is terminal; no additional app/provider operations are attempted.
+
+While the host owns the display and input, the app continues its existing audio
+capture, complete-window analysis, temporal matching and neural work. The app
+does not paint or poll app input over a host session. Key delivery and completion
+are independent of frame completion. Shared signal-library crown targets are
+recomputed from the existing screen geometry before handling each input event;
+this opt-in change does not depend on a previously rendered frame or change
+layout, glyphs, fonts, record formats, capture settings or other-app behavior.
+
+Software fixtures qualify the production controller, portable adapter and shared
+scene/text hosts under the deployed Watch feature set. Physical microphone,
+touch, crown, PMU and on-device timing remain hardware qualification steps.

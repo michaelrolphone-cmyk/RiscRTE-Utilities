@@ -12,7 +12,35 @@ static void shared_target(int x,int y,int w,int h){
  if(shared_targets++==shared_focus)fill(x,y+5,2,h-10,NOVA_CYAN);
 }
 static void shared_pill(int x,int y,int w,int h,const char*name,bool on){pill(x,y,w,h,name,on);shared_target(x,y,w,h);}
+#ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
+/* Input geometry cannot depend on the last completed display frame. These
+ * are the same existing targets, refreshed before every navigation event. */
+static unsigned shared_rows(unsigned slots[CF_PROFILES]);
+static void shared_input_target(int x,int y,int w,int h){
+ if(shared_targets>=16)return;
+ shared_bounds[shared_targets].x=x;shared_bounds[shared_targets].y=y;
+ shared_bounds[shared_targets].w=w;shared_bounds[shared_targets++].h=h;
+}
+static void shared_input_layout(void){
+ shared_targets=0;
+ if(page==PAGE_SHARED){
+  shared_input_target(166,3,62,34);
+  int top=44;unsigned visible=3;
+  if(shared_kind==CF_ROOM){shared_input_target(12,44,68,34);shared_input_target(86,44,68,34);shared_input_target(160,44,68,34);top=86;visible=2;}
+  unsigned slots[CF_PROFILES],n=shared_rows(slots);if(shared_offset>=n)shared_offset=0;
+  for(unsigned row=0;row<visible&&shared_offset+row<n;row++)shared_input_target(12,top+(int)row*44,216,40);
+  shared_input_target(12,194,54,36);shared_input_target(72,194,96,36);shared_input_target(174,194,54,36);
+ }else if(page==PAGE_SHARED_EDIT){
+  shared_input_target(12,64,216,40);shared_input_target(12,116,216,38);
+  if(shared_kind==CF_ROOM&&shared_selected>=0)shared_input_target(12,160,216,34);
+  shared_input_target(72,200,96,34);
+ }else if(page==PAGE_SHARED_CAPTURE){shared_input_target(12,144,216,38);shared_input_target(72,196,96,36);}
+}
+#endif
 static void shared_buttons(uint32_t buttons){
+#ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
+ shared_input_layout();
+#endif
  if(!shared_targets)return;
  if(buttons&(T5_APP_BUTTON_UP|T5_APP_BUTTON_LEFT))shared_focus=shared_focus?shared_focus-1:shared_targets-1;
  else if(buttons&(T5_APP_BUTTON_DOWN|T5_APP_BUTTON_RIGHT))shared_focus=(shared_focus+1)%shared_targets;
