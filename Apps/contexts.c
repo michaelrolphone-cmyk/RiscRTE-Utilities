@@ -8,6 +8,9 @@
 #endif
 #include "RiscRuntimeV1.h"
 #include "RiscRuntimeHostControlV1.h"
+#if defined(PORTABLE_UTILITIES_ATOMIC_PREFERENCES) && (!defined(CONTEXTS_SETTING_MASK) || CONTEXTS_SETTING_MASK != 0x274u)
+#error "Atomic Contexts requires the existing X4 0x274 editor mask"
+#endif
 #if defined(PORTABLE_NOVA_UI) || defined(PORTABLE_CONTEXTS_PAPER)
 #error "Contexts uses ui.scene. Build with scripts/build_contexts_scene.py; do not link the portable display adapter."
 #endif
@@ -85,7 +88,32 @@ bool portable_contexts_training(bool on){
 }
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
 #include "utility_preference_atomic.h"
+#include "PortablePreferenceAutomatic.h"
 static utility_preference_atomic ctx_preference;
+static portable_preference_automatic ctx_automatic;
+static risc_runtime_capability_v1 ctx_automatic_grant;
+static bool ctx_automatic_guard(void *unused){(void)unused;return cs_alive()&&risc_runtime_get_api(1)==ctx_runtime;}
+static bool ctx_automatic_before(void *unused,bool write){(void)write;return ctx_automatic_guard(unused);}
+static bool ctx_automatic_wait(void *unused){(void)unused;ctx_runtime->yield_ms(5);return !ctx_automatic_guard(NULL)||cs_host_exit();}
+static bool ctx_automatic_open(void){
+ if(ctx_automatic_grant.api||ctx_automatic.operation.token||ctx_automatic.running||ctx_automatic.retained){cs_retain();return false;}
+ ctx_automatic_grant=(risc_runtime_capability_v1){.struct_size=sizeof(ctx_automatic_grant)};
+ bool opened=ctx_runtime->acquire(RISC_KEY_VALUE_ATOMIC_CAPABILITY,1,1,&ctx_automatic_grant);
+ if(!ctx_automatic_guard(NULL)){cs_retain();return false;}
+ if(!opened){if(ctx_automatic_grant.api||ctx_automatic_grant.slot||ctx_automatic_grant.generation)cs_retain();return false;}
+ if(ctx_automatic_grant.struct_size!=sizeof(ctx_automatic_grant)||!ctx_automatic_grant.api||!ctx_automatic_grant.slot||!ctx_automatic_grant.generation){cs_retain();return false;}
+ int rc=portable_preference_automatic_begin(&ctx_automatic,ctx_automatic_grant.api,PORTABLE_AUTOMATIC_CONTEXTS_EDITOR,ctx_automatic_guard,ctx_automatic_before,ctx_automatic_wait,NULL);
+ if(rc==RISC_ATOMIC_RETAINED||ctx_automatic.retained){cs_retain();return false;}
+ return rc==PORTABLE_PREFERENCE_READY;
+}
+static bool ctx_automatic_close(void){
+ if(!ctx_automatic_guard(NULL)||ctx_automatic.operation.token||ctx_automatic.running||ctx_automatic.retained){cs_retain();return false;}
+ if(ctx_automatic_grant.api){
+  risc_runtime_capability_v1 released=ctx_automatic_grant;bool closed=ctx_runtime->release(&released);
+  if(!ctx_automatic_guard(NULL)||!closed||released.struct_size!=sizeof(released)||released.api||released.slot||released.generation){cs_retain();return false;}
+ }
+ ctx_automatic_grant=(risc_runtime_capability_v1){0};return true;
+}
 static bool ctx_preference_alive(void *unused){(void)unused;return cs_alive();}
 static void ctx_preference_retain(void *unused){(void)unused;cs_retain();}
 static int ctx_preference_begin(const char *key){return utility_preference_begin(&ctx_preference,ctx_runtime,key,ctx_preference_alive,ctx_preference_retain,NULL);}
@@ -124,7 +152,7 @@ const char*portable_contexts_face_name(unsigned id){
  (void)id;return NULL;
 #endif
 }
-static inline bool cs_face_save(const risc_key_value_v1*kv,unsigned id){
+static bool cs_face_save(const risc_key_value_v1*kv,unsigned id){
  if(id>=portable_contexts_face_count()||id>255)return false;
  uint8_t wanted[]={0x46,1,(uint8_t)id,(uint8_t)(id^0xa5u)},actual[4];uint32_t size=0;
  int32_t rc=kv->put(kv->context,"watch_face",wanted,4);return (rc==0||rc==RISC_KEY_VALUE_IO)&&!kv->get(kv->context,"watch_face",actual,4,&size)&&size==4&&!memcmp(wanted,actual,4);
@@ -154,7 +182,9 @@ static void ctx_fingerprint_setting(bool timing){
  if(ok){const risc_key_value_v1*kv=g.api;const char*key=timing?"context_timing":"context_sources";uint8_t got=255;uint32_t size=0;int32_t rc=kv->put(kv->context,key,&value,1);ok=(rc==0||rc==RISC_KEY_VALUE_IO)&&!kv->get(kv->context,key,&got,1,&size)&&size==1&&got==value;}
  if(!cs_release(&g))return;
 #endif
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
  if(!cs_alive())return;
+#endif
  if(ok){cs_client.loaded=false;if(timing)ctx_fp.temporal_only=value;else ctx_fp.sources=value;contexts_fingerprint_config_v1 cfg={.struct_size=sizeof(cfg),.sources=ctx_fp.sources,.temporal_only=ctx_fp.temporal_only};const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(ctx_service);ok=f->fingerprint(f->base.context,CONTEXTS_FP_CONFIG,&cfg);}
  ctx_note(ok?"SAVED / FRESH SAMPLES REQUIRED":"SAVE UNCONFIRMED / RETRY");
 }
@@ -200,12 +230,6 @@ static bool cs_finish_learning(void){
  cu_action(CU_ROW_SAVE);return cs_alive();
 }
 static bool cs_rules_tick(void){
-#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
- /* Activation gate: preserve rule state without consuming a transition or
-  * classifying automatic legacy writes as USER edits. Home/foreground rule
-  * origin semantics must be qualified before this profile can be selected. */
- return cs_alive();
-#else
  if(!cs_client.rules_available)return true;
  const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(ctx_service);contexts_evaluate_v1 q={.struct_size=sizeof(q)};q.observation.enabled=cs_client.settings_valid&&ctx_enabled;
  const risc_civil_clock_api_v1*civil=cs_civil_grant.api;
@@ -218,11 +242,24 @@ static bool cs_rules_tick(void){
  if(cs_active!=q.result.active){cs_active=q.result.active;if(cu_page==CU_HOME)ctx_dirty=true;}
  if(q.result.changed){
   if(!portable_contexts_pause(&cs_client)){cs_retain();return false;}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  bool opened=ctx_automatic_open();const risc_key_value_v1 *settings=&ctx_automatic.view;uint16_t success=0;
+  if(!cs_alive())return false;
+  for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.changed&(1u<<field)){
+   if(opened&&pqa_preferences_valid(settings)&&cu_field_available(field)&&portable_context_setting(settings,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
+   if(ctx_automatic.retained||ctx_automatic.operation.token||ctx_automatic.running||!cs_alive()){cs_retain();return false;}
+  }
+  if(!ctx_automatic_close())return false;
+#else
   risc_runtime_capability_v1 g={.struct_size=sizeof(g)};bool opened=ctx_runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);uint16_t success=0;
   for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.changed&(1u<<field))if(opened&&pqa_preferences_valid(g.api)&&cu_field_available(field)&&portable_context_setting(g.api,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
   if(!cs_release(&g))return false;
+#endif
   for(unsigned i=0;i<CR_RULES;i++){bool changed=false,complete=true;for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.winners[field]==(int)i&&(q.result.changed&(1u<<field))){changed=true;complete&=!!(success&(1u<<field));}if(changed){contexts_workflow_v1 report={.struct_size=sizeof(report),.rule=i,.result=complete?CR_APPLIED:CR_PARTIAL};if(!f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&report))return false;}}
  }
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(cs_host_exit())return cs_alive();
+#endif
  /* Edits/training cannot be interrupted by a launch or modal workflow. The
   * service cursor remains pending until the foreground is ready to run it. */
  if(cu_unsaved()
@@ -239,7 +276,6 @@ static bool cs_rules_tick(void){
   a.claim=false;a.result=ok?CR_RAN:CR_FAILED;if(!f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&a))return false;
  }
  return cs_alive();
-#endif
 }
 static bool cs_close_scene(void){
  if(!cs_alive())return false;

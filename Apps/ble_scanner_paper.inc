@@ -84,7 +84,9 @@ static void paper_enable(void){
  if(rc==RISC_ATOMIC_UNCERTAIN){rc=RISC_ATOMIC_RETAINED;goto done;}
  if(rc!=RISC_ATOMIC_OK)goto done;
  bool enabled_ok=false;
- if(!risc_runtime_exit_requested_v1(runtime)){
+ bool exit_requested=risc_runtime_exit_requested_v1(runtime);
+ if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}
+ if(!exit_requested){
   enabled_ok=c->set_enabled(c->context,true);
   if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}
   if(enabled_ok){enabled_ok=c->status(c->context,&state)&&state==PORTABLE_BLUETOOTH_ON;if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}}

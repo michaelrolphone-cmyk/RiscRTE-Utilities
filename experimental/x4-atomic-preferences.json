@@ -3,15 +3,45 @@
   "enabled_by_default": false,
   "target": "x4",
   "utilities_base": "5c91c3517aa9f992e24fc453855701ec5a992355",
-  "system_sha": "034720472ac20da5417aa48296b6ab5ac22d77f9",
+  "system_sha": "472036f0c52e8fc88f0ccefb262e25734e6eda39",
   "runtime_sdk_sha": "1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70",
-  "defines": ["PORTABLE_UTILITIES_ATOMIC_PREFERENCES", "PORTABLE_UTILITIES_TARGET_X4"],
-  "additional_grant": {"capability": "storage.key-value.atomic", "api": 1, "instance_id": 1},
-  "writers": {"battery": ["ble_broadcast"], "ble_scanner": ["bs<type><12 lowercase hex digits>", "quick_radio"], "contexts": ["contexts_on", "context_sources", "context_timing"]},
+  "defines": [
+    "PORTABLE_UTILITIES_ATOMIC_PREFERENCES",
+    "PORTABLE_UTILITIES_TARGET_X4",
+    "PORTABLE_BROADCAST_RESULT_ONLY"
+  ],
+  "additional_grant": {
+    "capability": "storage.key-value.atomic",
+    "api": 1,
+    "instance_id": 1
+  },
+  "writers": {
+    "battery": [
+      "ble_broadcast"
+    ],
+    "ble_scanner": [
+      "bs<type><12 lowercase hex digits>",
+      "quick_radio"
+    ],
+    "contexts": [
+      "contexts_on",
+      "context_sources",
+      "context_timing"
+    ]
+  },
   "user_intent": "PFI0001",
   "radio_compensation_intent": "PFR0001",
-  "activation_gate": "Foreground Contexts automatic evaluation and workflows remain unqualified. The opt-in controller profile leaves the automatic path gated without consuming transitions; it must not be selected for product use.",
+  "activation_gate": "Default-off candidate only. Product namespace-1 selection, same-Core readers and native/SD authority resolution must be qualified by the integration owner before activation.",
   "product_selected": false,
   "watch_selected": false,
-  "hardware_qualified": false
+  "hardware_qualified": false,
+  "automatic_intent": "PFA0001 boundary 4: foreground Contexts editor",
+  "system_tree": "8fcb0e9c0216d2c16db5115da975e4f5f4132b95",
+  "system_local_equivalents": [
+    "758df40e72a265ea11cab187ef6410045b8ca26f"
+  ],
+  "previous_system_qualification_sha": "54b3061766e2bbc44e91512f5a8646a8777797ec",
+  "system_publication_pending": false,
+  "broadcast_result_base_published_sha": "8ab9d51ccff827eae3763b4ea1e0fe97cfb5cd8f",
+  "broadcast_result_base_tree": "703ef2b88097df9401bbeda0f23550f7292586b6"
 }

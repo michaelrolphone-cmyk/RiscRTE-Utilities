@@ -166,9 +166,10 @@ static void begin_name(void){
  if(opened!=PORTABLE_PREFERENCE_READY){(void)utility_preference_finish(&name_preference,opened);message="Name settings unavailable";dirty=true;return;}
  name_draft_type=d->address_type;memcpy(name_draft_address,d->address,6);
  char prior[BLE_ALIAS_MAX+1]={0};
- if(name_preference.edit.present&&!ble_alias_decode(d->address_type,d->address,name_preference.edit.expected,name_preference.edit.expected_size,prior)){
-  (void)name_preference_close();message="Saved name unreadable";dirty=true;return;
- }
+ /* Preserve the existing explicit repair action for unreadable aliases.
+  * The editor starts blank, but the intent still binds the exact captured raw
+  * prior bytes, rather than pretending corrupt data was absent. */
+ if(name_preference.edit.present&&!ble_alias_decode(d->address_type,d->address,name_preference.edit.expected,name_preference.edit.expected_size,prior))prior[0]=0;
  if(!name_save_failed||name_draft_index!=detail_index)memcpy(editing,prior,sizeof(editing));
 #else
  if(!name_save_failed||name_draft_index!=detail_index)memcpy(editing,aliases[detail_index],sizeof(editing));

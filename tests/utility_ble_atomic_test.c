@@ -8,6 +8,7 @@ int main(int argc,char **argv){
  if(!strncmp(test,"name-",5)){
   name_editor();
   if(!strcmp(test,"name-cancel")){text_result.state=RISC_TEXT_ENTRY_CANCELLED;name_step();assert(!uat.submits&&!grants);}
+  else if(!strcmp(test,"name-repair")){text_result.state=RISC_TEXT_ENTRY_CANCELLED;name_step();uint8_t bad[40];memset(bad,0xa5,sizeof(bad));uat_store("bs2313233343536",bad,40);begin_name();assert(naming&&!text_initial[0]);text_accept("Repaired");assert(uat.commits==1&&uat.intent[10]==1&&!memcmp(uat.intent+44,bad,40)&&!strcmp(aliases[0],"Repaired")&&!grants);}
   else if(!strcmp(test,"name-stale")){uat.revision++;text_accept("Draft");assert(!uat.commits&&name_save_failed&&!grants);}
   else if(!strcmp(test,"name-busy")){uat.submit_error=RISC_ATOMIC_BUSY;text_accept("Draft");assert(uat.submits==1&&!uat.commits&&!grants&&name_save_failed);}
   else if(!strcmp(test,"name-copy")){text_accept("  Kitchen  ");assert(uat.commits==1&&!strcmp(aliases[0],"Kitchen")&&!grants);memset(editing,'x',24);char name[25];int i=uat_find(name_preference.edit.key);assert(i>=0&&ble_alias_decode(2,(const uint8_t*)"123456",uat.records[i].value,40,name)&&!strcmp(name,"Kitchen"));uat_assert_user(name_preference.edit.key,uat.records[i].value,40,1);}
@@ -18,6 +19,9 @@ int main(int argc,char **argv){
   else if(!strcmp(test,"name-release-error")){uat.release_bad=true;text_accept("Retain");assert(uncertain&&!name_preference.edit.token&&name_preference.grant.api&&grants==1&&uat.commits==1);}
   else if(!strcmp(test,"name-bad-receipt")){uat.bad_receipt=true;text_accept("Retain");assert(uncertain&&name_preference.edit.token&&grants==1);}
   else if(!strcmp(test,"name-exit")){uat.exit_pending=true;text_accept("Discard");assert(!uat.submits&&!uat.commits&&!grants);}
+  else if(!strcmp(test,"name-cancel-pending")){uat.exit_on_submit=true;text_accept("Discard");assert(uat.cancels==1&&uat.collects==1&&!uat.commits&&!grants);}
+  else if(!strcmp(test,"name-cancel-race")){uat.exit_on_submit=uat.cancel_race=true;text_accept("Kept");assert(uat.cancels==1&&uat.commits==1&&!grants&&!strcmp(aliases[0],"Kept"));}
+  else if(!strcmp(test,"name-cancel-error")){uat.exit_on_submit=true;uat.cancel_error=RISC_ATOMIC_IO;text_accept("Retain");assert(uncertain&&name_preference.edit.token&&grants==1&&uat.cancels==1);}
   else if(!strcmp(test,"name-same")){text_accept("Same");begin_name();text_accept("Same");assert(uat.commits==2&&uat.user_intents==2&&!grants);}
   else assert(0);
  }else{
@@ -28,6 +32,9 @@ int main(int argc,char **argv){
   else if(!strcmp(test,"radio-missing-rollback")){uat.count=0;enable_bad=true;paper_enable();assert(uat.rollback_intents==1&&uat.intent[9]==RISC_ATOMIC_DELETE&&uat_find("quick_radio")<0&&!grants);}
   else if(!strcmp(test,"radio-submit-fail")){uat.submit_error=RISC_ATOMIC_IO;paper_enable();assert(!controls&&!uat.commits&&!grants);}
   else if(!strcmp(test,"radio-uncertain")){uat.receipt_error=RISC_ATOMIC_UNCERTAIN;paper_enable();assert(uncertain&&!controls&&grants==2&&!uat.rollback_intents);}
+  else if(!strcmp(test,"radio-revoked-before-hardware")){uat.revoke_on_exit_committed=true;paper_enable();assert(uncertain&&uat.commits==1&&!controls&&grants==2&&radio_control_grant.api);}
+  else if(!strcmp(test,"radio-stale-rollback")){uat.change_after_commit=true;enable_bad=true;paper_enable();assert(uncertain&&controls==1&&uat.user_intents==1&&!uat.rollback_intents&&grants==2&&radio_control_grant.api);}
+  else if(!strcmp(test,"radio-cancel-race")){uat.exit_on_submit=uat.cancel_race=true;paper_enable();assert(!uncertain&&!enabled&&controls==1&&uat.user_intents==1&&uat.rollback_intents==1&&!grants);}
   else if(!strcmp(test,"radio-restore-fail")){enable_bad=rollback_bad=true;paper_enable();assert(uncertain&&uat.rollback_intents==1&&grants==2);}
   else assert(0);
  }

@@ -26,7 +26,11 @@ static bool power_broadcast_save(bool enabled){
   if(!portable_broadcast_stop())rc=portable_adapter_retained()?RISC_ATOMIC_RETAINED:RISC_ATOMIC_IO;
   else {uint8_t b[]={0x62,1,enabled?1:0,(uint8_t)((enabled?1:0)^0xa5u)};rc=utility_preference_submit(&power_preference,b,sizeof(b));}
  }
- return utility_preference_finish(&power_preference,rc)==RISC_ATOMIC_OK;
+ rc=utility_preference_finish(&power_preference,rc);
+ if(rc==RISC_ATOMIC_RETAINED)return false;
+ /* Preserve the adapter's existing save_failed/paused policy after any
+  * checked terminal failure. The hook performs no key-value write. */
+ return portable_broadcast_preference_result(enabled,rc==RISC_ATOMIC_OK);
 }
 #else
 #define power_broadcast_save portable_broadcast_enable
@@ -364,7 +368,14 @@ void app_main(void) {
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
             if(portable_adapter_retained())return;
 #endif
-            (void)power_refresh();power_render();continue;
+            (void)power_refresh();
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+            /* The advertiser reloads policy on the next adapter tick. Keep the
+             * toggle aligned with this collected receipt in the meantime, so
+             * a second fast tap reverses the first rather than repeating it. */
+            if(!power_broadcast_error)power_broadcast_state.enabled=power_broadcast_requested;
+#endif
+            power_render();continue;
         }
 #endif
         if(input.tapped) {

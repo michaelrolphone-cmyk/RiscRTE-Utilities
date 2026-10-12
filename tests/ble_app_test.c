@@ -83,7 +83,7 @@ static void yield(uint32_t ms){(void)ms;
 #endif
  longjmp(retention,1);}
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
-static bool atomic_exit(void){return uat.exit_pending;}
+static bool atomic_exit(void){if(uat.commits&&uat.revoke_on_exit_committed)uat.revoked=true;return uat.exit_pending;}
 #endif
 static const t5_app_api_v1 fake_app={.abi_version=1,.struct_size=sizeof(fake_app),.screen_width=screen,.screen_height=screen,.millis=millis,.poll=poll_input,.present=present,.set_back_exits_app=back,.touch_contact=contact};
 static const risc_runtime_api_v1 fake_rt={.api_version=1,.struct_size=sizeof(fake_rt),.acquire=acquire,.release=release,.request_launch=launch,.diagnostic=diagnostic,.yield_ms=yield
@@ -92,7 +92,11 @@ static const risc_runtime_api_v1 fake_rt={.api_version=1,.struct_size=sizeof(fak
 #endif
 };
 const t5_app_api_v1*t5_app_get_api(uint32_t v){assert(v==1);return &fake_app;}
-const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){assert(v==1);return &fake_rt;}
+const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){assert(v==1);
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(uat.revoked)return NULL;
+#endif
+ return &fake_rt;}
 bool portable_app_sleep_retained(void){return false;}
 #ifndef BLE_RENDER
 void portable_nova_begin(void){drawn[0]=0;}

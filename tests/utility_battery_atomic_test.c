@@ -13,6 +13,7 @@ static const risc_runtime_api_v1 rt={.api_version=1,.struct_size=sizeof(rt),.acq
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t version){return version==1?&rt:NULL;}
 bool portable_adapter_retained(void){return retained;}
 void portable_adapter_retain(void){assert(!retained);retained=true;}
+bool portable_broadcast_preference_result(bool enabled,bool saved){(void)enabled;assert(!retained);return saved;}
 bool portable_broadcast_stop(void){assert(!retained);stops++;if(stop_retained)retained=true;return !stop_bad&&!stop_retained;}
 int main(int argc,char **argv){
  assert(argc==2);const char *test=argv[1];uat_reset();
@@ -22,6 +23,8 @@ int main(int argc,char **argv){
  else if(!strcmp(test,"busy")){uat.submit_error=RISC_ATOMIC_BUSY;assert(!power_broadcast_save(true)&&uat.submits==1&&!uat.commits);}
  else if(!strcmp(test,"delayed")){uat.pending_polls=3;assert(power_broadcast_save(true)&&uat.yields==3&&uat.commits==1);}
  else if(!strcmp(test,"exit")){uat.exit_pending=true;assert(!power_broadcast_save(true)&&!uat.submits&&!grants);}
+ else if(!strcmp(test,"cancel-pending")){uat.exit_on_submit=true;assert(!power_broadcast_save(true)&&uat.cancels==1&&!uat.commits&&!grants);}
+ else if(!strcmp(test,"cancel-race")){uat.exit_on_submit=uat.cancel_race=true;assert(power_broadcast_save(true)&&uat.cancels==1&&uat.commits==1&&!grants);}
  else if(!strcmp(test,"collect-error")){uat.collect_error=RISC_ATOMIC_IO;assert(!power_broadcast_save(true)&&retained&&grants==1&&power_preference.edit.token);}
  else if(!strcmp(test,"release-error")){uat.release_bad=true;assert(!power_broadcast_save(true)&&retained&&grants==1&&!power_preference.edit.token&&uat.commits==1);}
  else assert(0);

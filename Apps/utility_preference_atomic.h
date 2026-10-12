@@ -61,6 +61,7 @@ static inline int utility_preference_begin(utility_preference_atomic *s,const ri
 static inline int utility_preference_wait(utility_preference_atomic *s,bool cancel){
  int rc=s->edit.status;
  while(s->edit.token){
+  if(!utility_preference_guard(s))return utility_preference_result(s,RISC_ATOMIC_RETAINED);
   bool exit=cancel||risc_runtime_exit_requested_v1(s->runtime);
   if(!utility_preference_guard(s))return utility_preference_result(s,RISC_ATOMIC_RETAINED);
   rc=exit?portable_preference_atomic_cancel(&s->edit):portable_preference_atomic_collect(&s->edit);
@@ -79,6 +80,7 @@ static inline int utility_preference_cancel(utility_preference_atomic *s){
 static inline int utility_preference_submit(utility_preference_atomic *s,const void *value,uint32_t size){
  int rc=portable_preference_atomic_prepare(&s->edit,value,size);
  if(rc==PORTABLE_PREFERENCE_READY){
+  if(!utility_preference_guard(s))return utility_preference_result(s,RISC_ATOMIC_RETAINED);
   if(risc_runtime_exit_requested_v1(s->runtime))return utility_preference_cancel(s);
   rc=portable_preference_atomic_submit(&s->edit);
  }

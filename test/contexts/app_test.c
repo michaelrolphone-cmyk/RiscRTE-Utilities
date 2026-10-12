@@ -37,6 +37,7 @@ static int32_t file_replace(void*c,const char*n,uint64_t rev,const void*p,uint32
 static const risc_app_data_v1 files={1,sizeof(files),NULL,file_stat,file_read,file_replace};
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
 #include "../../tests/utility_atomic_transport.h"
+static cr_result automatic_result;static unsigned automatic_evaluations,automatic_reports;static unsigned automatic_report_status[CR_RULES];
 #endif
 static int32_t pref_get(void*c,const char*n,void*p,uint32_t cap,uint32_t*size){(void)c;
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
@@ -46,7 +47,13 @@ static int32_t pref_get(void*c,const char*n,void*p,uint32_t cap,uint32_t*size){(
 static int32_t pref_put(void*c,const char*n,const void*p,uint32_t size){(void)c;assert(!strcmp(n,"contexts_on")&&size<=4);memcpy(preferences,p,size);preferences_size=size;kv_writes++;return 0;}
 static const risc_key_value_v1 prefs={1,sizeof(prefs),NULL,pref_get,pref_put};
 static bool svc_pause(void*c){(void)c;assert(native_alive);text_test_backend_after("backend-pause");return true;}
-static bool svc_step(void*c,const contexts_policy_v1*p){(void)c;service_steps++;assert(p->enabled==((preferences_size&&preferences[2])||cs_client.foreground_learning));return true;}
+static bool svc_step(void*c,const contexts_policy_v1*p){(void)c;service_steps++;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ uint8_t b[4]={0};uint32_t n=0;int rc=uat_read(NULL,"contexts_on",b,sizeof(b),&n);assert(rc==RISC_ATOMIC_OK||rc==RISC_ATOMIC_NOT_FOUND);assert(p->enabled==((n==4&&b[2])||cs_client.foreground_learning));
+#else
+ assert(p->enabled==((preferences_size&&preferences[2])||cs_client.foreground_learning));
+#endif
+ return true;}
 static bool svc_status(void*c,contexts_status_v1*q){(void)c;*q=(contexts_status_v1){.struct_size=sizeof(*q),.audio={.model_state=format==1?CONTEXTS_MODEL_UNAVAILABLE:CONTEXTS_MODEL_READY},.radio={.model_state=CONTEXTS_MODEL_READY}};return true;}
 static bool svc_mask(void*c,uint32_t s){(void)c;(void)s;return true;}
 static bool svc_record(void*c,uint32_t s,uint32_t k,uint32_t i,const void*b,uint32_t n){(void)c;(void)s;(void)k;(void)i;(void)b;(void)n;return true;}
@@ -62,8 +69,18 @@ static bool fp(void*c,uint32_t op,void*p){(void)c;assert(native_alive);
  case CONTEXTS_FP_PROFILE:{contexts_profile_v1*q=p;if(q->operation==CONTEXTS_PROFILE_RENAME){assert(q->index<2);profile_renames++;memcpy(profile_names[q->index],q->new_name,17);}if(q->index<2){q->kind=q->index+1;q->samples[1]=3;q->sources=2;strcpy(q->name,profile_names[q->index]);}return true;}
  case CONTEXTS_FP_LOG:((contexts_log_v1*)p)->count=0;return false;
  case CONTEXTS_FP_LEARN:{contexts_learning_v1*q=p;if(q->operation==CONTEXTS_LEARN_BEGIN){learning=true;learn_started=(uint32_t)ms;}if(q->operation==CONTEXTS_LEARN_CANCEL)learning=false;if(q->operation==CONTEXTS_LEARN_SAVE){learning=false;learn_saves++;}q->state=ready?CONTEXTS_LEARN_READY:CONTEXTS_LEARN_RECORDING;q->progress=ready?100:forced_progress;q->samples=ready?3:1;q->sources=2;return true;}
- case CONTEXTS_FP_EVALUATE:((contexts_evaluate_v1*)p)->result=(cr_result){0};return true;
- case CONTEXTS_FP_WORKFLOW:((contexts_workflow_v1*)p)->available=false;return true;
+ case CONTEXTS_FP_EVALUATE:
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  ((contexts_evaluate_v1*)p)->result=automatic_result;automatic_evaluations++;
+#else
+  ((contexts_evaluate_v1*)p)->result=(cr_result){0};
+#endif
+  return true;
+ case CONTEXTS_FP_WORKFLOW:
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  {contexts_workflow_v1 *q=p;if(!q->claim&&q->result){assert(automatic_reports<CR_RULES);automatic_report_status[automatic_reports++]=q->result;}}
+#endif
+  ((contexts_workflow_v1*)p)->available=false;return true;
  default:assert(0);return false;
  }
 }
@@ -208,15 +225,33 @@ static void app_yield(uint32_t delay){
  case 35:assert(cu_page==CU_RULE);back_input();break;
  case 36:tap(CU_ROW_CONFIRM,-999);break;
  case 37:assert(cu_page==CU_HOME&&!cu_edit);tap(CU_ROW_AUTO,1);break;
- case 38:assert(ctx_enabled&&kv_writes==1);frame("auto-on");tap(CU_ROW_AUTO,0);break;
- case 39:assert(!ctx_enabled&&kv_writes==2);tap(CU_ROW_LIBRARY,-999);break;
+ case 38:
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  assert(ctx_enabled&&uat.user_intents==1&&!kv_writes);
+#else
+  assert(ctx_enabled&&kv_writes==1);
+#endif
+ frame("auto-on");tap(CU_ROW_AUTO,0);break;
+ case 39:
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  assert(!ctx_enabled&&uat.user_intents==2&&!kv_writes);
+#else
+  assert(!ctx_enabled&&kv_writes==2);
+#endif
+ tap(CU_ROW_LIBRARY,-999);break;
  case 40:tap(CS_TAB,1);break;
  case 41:frame("events");tap(CU_ROW_NEW,-999);break;
  case 42:assert(cu_page==CU_NEW);frame("new-event");tap(CU_ROW_ITEMS+3,-999);break;
  case 43:assert(cu_page==CU_INTRO&&!strcmp(cu_name,"KNOCK"));frame("event-intro");ready=false;tap(CU_ROW_START,-999);break;
  case 44:assert(cu_page==CU_LEARN&&cu_learning.kind==2&&!ctx_enabled);frame("event-learning");tap(CU_ROW_CANCEL,-999);break;
  case 45:assert(cu_page==CU_CANCEL);tap(CU_ROW_CONFIRM,-999);break;
- case 46:assert(cu_page==CU_HOME&&!learning&&kv_writes==((learning_mode==1||learning_mode==4)?0u:2u));nav_pressed=RISC_NAV_HOME;break;
+ case 46:
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  assert(cu_page==CU_HOME&&!learning&&!kv_writes&&uat.user_intents==((learning_mode==1||learning_mode==4)?0u:2u));
+#else
+  assert(cu_page==CU_HOME&&!learning&&kv_writes==((learning_mode==1||learning_mode==4)?0u:2u));
+#endif
+ nav_pressed=RISC_NAV_HOME;break;
  default:assert(0);
  }
 }
@@ -225,10 +260,13 @@ const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){return native_alive&&
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
 #include "shared_input_fixture.inc"
 #endif
-#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#ifdef UTILITY_CONTEXTS_DIRECT_TEST
 int legacy_contexts_controller_fixture(int argc,char**argv){
 #else
 int main(int argc,char**argv){
+#endif
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ uat_reset();uat.direct=false;
 #endif
  assert(argc==4);device=argv[1];folder=argv[2];fail_storage=!strcmp(argv[3],"storage");terminal_mode=!strcmp(argv[3],"retained");learning_mode=!strcmp(argv[3],"no-input")?1:!strcmp(argv[3],"delayed")?2:!strcmp(argv[3],"save-failure")?3:!strcmp(argv[3],"event-no-input")?4:0;
  native_exit_mode=!strcmp(argv[3],"exit-home")?1:!strcmp(argv[3],"exit-busy")?2:!strcmp(argv[3],"exit-keyboard")?3:!strcmp(argv[3],"exit-learning")?4:!strcmp(argv[3],"exit-saving")?5:0;
