@@ -14,6 +14,9 @@
 #error Shared LoRa input requires the app-local text presenter handoff
 #endif
 #include "PortableTextInputLongClient.h"
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+#include "PortableTextInputPolicy.h"
+#endif
 #else
 #include "PortableWatchKeyboard.h"
 #endif
@@ -33,6 +36,10 @@ static lm_model model;
 static unsigned picker_mask,picker_return_page,page,rf_page,rf_fields,edit_field,history_page,detail_offset,compose_offset,time_format;
 #ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
 static portable_text_client text_client;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static portable_text_checkpoint_client text_checkpoint;
+static bool text_policy_continuity;
+#endif
 static risc_text_entry_state_v1_long text_state;
 static bool text_active,text_closing,text_home;
 #else
@@ -239,9 +246,17 @@ static bool text_begin(void){
  if(text_active||text_client.retained)return false;
  text_state=(risc_text_entry_state_v1_long){.struct_size=sizeof(text_state)};
  text_closing=false;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ text_checkpoint=(portable_text_checkpoint_client){0};text_policy_continuity=false;
+#endif
  int rc=portable_text_client_begin_long(&text_client,runtime,edit_field<6?field_names[edit_field]:"COMPOSE MESSAGE",entry,edit_field<6?12:sizeof(entry));
  if(rc!=RISC_TEXT_ENTRY_OK){if(!text_client.retained)notify("Text input unavailable. Retry.");return false;}
- text_active=true;page=PAGE_KEYBOARD;return true;
+ text_active=true;page=PAGE_KEYBOARD;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ rc=portable_text_checkpoint_enable(&text_client,&text_checkpoint);
+ if(rc!=RISC_TEXT_ENTRY_OK&&!text_client.retained){text_closing=true;text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify("Text input unavailable. Retry.");}
+#endif
+ return true;
 }
 #endif
 static void edit(unsigned field){
@@ -283,18 +298,57 @@ static void key(unsigned k){
  dirty=true;
 }
 #else
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static void text_policy(void){
+ if(!text_checkpoint.pausing&&!text_checkpoint.paused){
+  risc_text_entry_checkpoint_state_v1 snapshot={.struct_size=sizeof(snapshot)};
+  int rc=portable_text_checkpoint_snapshot(&text_client,&text_checkpoint,&snapshot);
+  if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+  rc=portable_text_adapter_policy_prepare(snapshot.flags,&text_policy_continuity);
+  if(rc<0){(void)portable_text_client_retain(&text_client);return;}
+  if(!rc)return;
+ }
+ int rc=portable_text_checkpoint_pause_mode(&text_client,&text_checkpoint,text_policy_continuity);
+ if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+ uint32_t flags=0;int policy=portable_text_adapter_policy_apply(text_policy_continuity,&flags);
+ if(policy<0){(void)portable_text_client_retain(&text_client);return;}
+ if(text_client.retained)return;
+ if(policy>0){text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;return;}
+ (void)portable_text_checkpoint_resume(&text_client,&text_checkpoint,flags);
+}
+#endif
 static void text_step(void){
  if(!text_active||text_client.retained)return;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}
+ if(!text_closing&&(text_checkpoint.pausing||text_checkpoint.paused)){
+  int attention=portable_text_adapter_attention();
+  if(attention<0){(void)portable_text_client_retain(&text_client);return;}
+  if(!attention){text_policy();return;}
+  text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;
+ }
+#endif
  if(!text_closing){
   int rc=portable_text_client_poll_long(&text_client,&text_state);
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+  if(text_client.retained)return;
+  if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}
+#endif
   if(rc==RISC_TEXT_ENTRY_AGAIN)return;
   if(rc==RISC_TEXT_ENTRY_RETAINED||text_client.retained)return;
   if(rc!=RISC_TEXT_ENTRY_OK){text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify("Text input unavailable. Retry.");}
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+  else if(text_state.state==RISC_TEXT_ENTRY_EDITING){text_policy();return;}
+#else
   else if(text_state.state==RISC_TEXT_ENTRY_EDITING)return;
+#endif
   text_closing=true;
  }
  int rc=portable_text_client_close(&text_client);
  if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ text_checkpoint=(portable_text_checkpoint_client){0};
+#endif
  text_active=text_closing=false;dirty=true;
  text_home=(text_state.flags&RISC_TEXT_ENTRY_HOME_CANCEL)!=0;
  if(text_state.state==RISC_TEXT_ENTRY_ACCEPTED){

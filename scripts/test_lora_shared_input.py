@@ -151,14 +151,23 @@ def run(args):
                 'added_safety_defines': safety_flags, 'extra_defines': extra_flags, 'omitted_defines': [],
                 'native_toolchain': os.environ.get('CC', 'cc'),
                 'omitted_target_options': ['Xtensa architecture/linker options', '-flto (native qualification uses -O1 -g)'],
-                'physical_backends': ['display/delayed present', 'ordered raw touch', 'navigation/PMU', 'RTC', 'battery', 'KV', 'LoRa RF', 'alarm', 'BLE control/broadcast', 'Wi-Fi control'],
-                'unavailable_optional_backends': ['contexts'],
+                'physical_backends': ['display/delayed present', 'ordered raw touch', 'navigation/PMU', 'RTC', 'battery', 'KV', 'LoRa RF', 'alarm', 'BLE control/broadcast', 'Wi-Fi control', 'bounded base Contexts service'],
+                'unavailable_optional_backends': ['Contexts fingerprint suffix/background hardware'],
                 'leak_sanitizer': 'Unavailable in this executor: fatal ptrace/runtime error even for clean idle; ASan/UBSan run with detect_leaks=0. Fixture asserts zero live grants, frames, subscriptions and allocations on clean exit.',
                 'not_claimed': ['hardware deployment', 'actual over-air RF', 'PMU/sleep hardware', 'Runtime ELF-loader integration'],
-                'sources': {}, 'results': []}
+                'sources': {}, 'results': [], 'frame_hashes': {}}
     for path in [ROOT / 'Apps/lora_messages.c', ROOT / 'Apps/lora_messages_model.h', ROOT / 'test/native_apps/lora_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', system / 'Services/scene_host/host.c', system / 'Services/text_input/host.c', system / 'lib/PortableApps/include/PortableTextInputLongClient.h']:
         evidence['sources'][str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
     selected = scenarios()
+    if 'PORTABLE_TEXT_INPUT_POLICY' in args.extra_define:
+        begin=tap(100,103)+tap(55,210)+key('Q')
+        for suffix,end in [('done',key('\x03')+capture()),('cancel',nav('back','text')+capture()),('home',nav('home','text'))]:
+            selected['policy-stopped-'+suffix]=(begin+[(65000,'text','idle',0,0)]+end,{'LORA_POLICY_PROBE':'1','LORA_EXPECT_DRAFT':'Q' if suffix=='done' else '','LORA_EXPECT_SENDS':'0','LORA_EXPECT_HISTORY':'0'})
+        selected['policy-listen']=(tap(50,203)+begin+[(65000,'text','idle',0,0)]+key('\x03')+capture(),{'LORA_POLICY_PROBE':'1','LORA_POLICY_LISTEN':'1','LORA_EXPECT_DRAFT':'Q','LORA_EXPECT_SENDS':'0','LORA_EXPECT_HISTORY':'0'})
+        for name,env in [('policy-unavailable','LORA_POLICY_UNAVAILABLE'),('policy-missing-suffix','LORA_POLICY_MISSING_SUFFIX')]:
+            selected[name]=(tap(100,103)+tap(55,210)+capture(),{env:'1','LORA_EXPECT_DRAFT':'','LORA_EXPECT_OPENS':'1','LORA_EXPECT_SENDS':'0'})
+        selected['policy-retained']=(begin,{})
+        selected['policy-paused-home']=(begin,{'LORA_POLICY_PAUSED_HOME':'1','LORA_EXPECT_DRAFT':''})
     if args.scenario:
         selected = {k: v for k, v in selected.items() if k in args.scenario}
     for sanitized in ([False] if args.normal_only else [False, True]):
@@ -198,12 +207,20 @@ def run(args):
             for ppm in folder.glob('*.ppm'):
                 with Image.open(ppm) as im:
                     assert im.size == (240, 240)
+                    evidence['frame_hashes'][('sanitized/' if sanitized else 'normal/')+name+'/'+ppm.name]=hashlib.sha256(im.tobytes()).hexdigest()
                     if not sanitized and name in ('draft-done', 'rf-recover', 'rf-all', 'send-history', 'send-cancel', 'limit-240', 'rapid-pending', 'missing-host'):
                         im.save(ppm.with_suffix('.png'))
                 ppm.unlink()
             print('LoRa production shared input', 'ASan/UBSan' if sanitized else 'normal', name, 'PASS', flush=True)
         for obj in objects:
             obj.unlink()
+    for source,digest in evidence['sources'].items():
+        assert hashlib.sha256(Path(source).read_bytes()).hexdigest()==digest, ('source changed during qualification',source)
+    if not args.normal_only:
+        normal={k[7:]:v for k,v in evidence['frame_hashes'].items() if k.startswith('normal/')}
+        sanitized={k[10:]:v for k,v in evidence['frame_hashes'].items() if k.startswith('sanitized/')}
+        assert normal==sanitized, 'normal/sanitized pixels differ'
+        evidence['normal_sanitized_image_comparisons']=len(normal)
     (output / 'qualification.json').write_text(json.dumps(evidence, indent=2) + '\n')
     print('Evidence:', output / 'qualification.json')
 
