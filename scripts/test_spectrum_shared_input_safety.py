@@ -81,6 +81,11 @@ def main():
                 report['parity'].append({'source': source, 'defines': profile,
                                         'token_identical': True, 'sha256': digest(after)})
                 print(f'{source} opt-out preprocessing token-identical: {profile or ["plain"]}')
+        for source,profile in [('audio_spectrum.c',['PORTABLE_SPECTRUM_SHARED_TEXT_INPUT']),('waterfall.c',['PORTABLE_RF_SHARED_TEXT_INPUT','PORTABLE_TEXT_INPUT_POLICY'])]:
+            before=preprocess(baseline,system,source,profile)
+            after=preprocess(ROOT,system,source,profile)
+            assert before==after, (source,'unselected policy tokens changed')
+            report['parity'].append({'source':source,'defines':profile,'token_identical':True,'sha256':digest(after)})
     for source in ('Apps/audio_spectrum.c', 'Apps/context_signal_library.inc'):
         report.setdefault('production_sources', {})[source] = digest((ROOT / source).read_bytes())
     (output / 'evidence.json').write_text(json.dumps(report, indent=2) + '\n')

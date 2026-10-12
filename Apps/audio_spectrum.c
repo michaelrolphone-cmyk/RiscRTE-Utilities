@@ -11,6 +11,9 @@
 #include "spectrum_speech.h"
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
 #include "PortableTextInputClient.h"
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+#include "PortableTextInputPolicy.h"
+#endif
 #else
 #include "PortableWatchKeyboard.h"
 #endif
@@ -65,6 +68,10 @@ static bool contact_controls;
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
 static unsigned view,page,list_scroll;
 static portable_text_client text_client;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static portable_text_checkpoint_client text_checkpoint;
+static bool text_policy_continuity;
+#endif
 static risc_text_entry_state_v1 text_state;
 static bool text_active,text_closing,text_home;
 static unsigned text_return_page;
@@ -525,22 +532,68 @@ static void keyboard_begin(void){
  text_return_page=page;shared_keyboard=page==PAGE_SHARED_EDIT;
  text_state=(risc_text_entry_state_v1){.struct_size=sizeof(text_state)};
  text_closing=text_home=false;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ text_checkpoint=(portable_text_checkpoint_client){0};text_policy_continuity=false;
+#endif
  const char *caption=shared_keyboard?"SIGNAL NAME":page==PAGE_EVENT_LABEL?"EVENT NAME":page==PAGE_SIGNATURE_EDIT?"SIGNATURE NAME":"LABEL NAME";
  int rc=portable_text_client_begin(&text_client,runtime,caption,editing.name,sizeof(editing.name));
  if(rc!=RISC_TEXT_ENTRY_OK){shared_keyboard=false;if(!text_client.retained)notify("TEXT INPUT UNAVAILABLE / RETRY");return;}
  text_active=true;toast_message=NULL;set_page(PAGE_KEYBOARD);
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ rc=portable_text_checkpoint_enable(&text_client,&text_checkpoint);
+ if(rc!=RISC_TEXT_ENTRY_OK&&!text_client.retained){text_closing=true;text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify("TEXT INPUT UNAVAILABLE / RETRY");}
+#endif
 }
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static void text_policy(void){
+ if(!text_checkpoint.pausing&&!text_checkpoint.paused){
+  risc_text_entry_checkpoint_state_v1 snapshot={.struct_size=sizeof(snapshot)};
+  int rc=portable_text_checkpoint_snapshot(&text_client,&text_checkpoint,&snapshot);
+  if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+  rc=portable_text_adapter_policy_prepare(snapshot.flags,&text_policy_continuity);
+  if(rc<0){(void)portable_text_client_retain(&text_client);return;}
+  if(!rc)return;
+ }
+ int rc=portable_text_checkpoint_pause_mode(&text_client,&text_checkpoint,text_policy_continuity);
+ if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+ uint32_t flags=0;int policy=portable_text_adapter_policy_apply(text_policy_continuity,&flags);
+ if(policy<0){(void)portable_text_client_retain(&text_client);return;}
+ if(text_client.retained)return;
+ if(policy>0){text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;return;}
+ (void)portable_text_checkpoint_resume(&text_client,&text_checkpoint,flags);
+}
+#endif
 static void text_step(void){
  if(!text_active||text_client.retained)return;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}
+ if(!text_closing&&(text_checkpoint.pausing||text_checkpoint.paused)){
+  int attention=portable_text_adapter_attention();
+  if(attention<0){(void)portable_text_client_retain(&text_client);return;}
+  if(!attention){text_policy();return;}
+  text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;
+ }
+#endif
  if(!text_closing){
   int rc=portable_text_client_poll(&text_client,&text_state);
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+  if(text_client.retained)return;
+  if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}
+#endif
   if(rc==RISC_TEXT_ENTRY_AGAIN||rc==RISC_TEXT_ENTRY_RETAINED||text_client.retained)return;
   if(rc!=RISC_TEXT_ENTRY_OK){text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify("TEXT INPUT UNAVAILABLE / RETRY");}
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+  else if(text_state.state==RISC_TEXT_ENTRY_EDITING){text_policy();return;}
+#else
   else if(text_state.state==RISC_TEXT_ENTRY_EDITING)return;
+#endif
   text_closing=true;
  }
  int rc=portable_text_client_close(&text_client);
  if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ text_checkpoint=(portable_text_checkpoint_client){0};
+#endif
  text_active=text_closing=false;text_home=(text_state.flags&RISC_TEXT_ENTRY_HOME_CANCEL)!=0;
  if(text_state.state==RISC_TEXT_ENTRY_ACCEPTED){
   memset(editing.name,0,sizeof(editing.name));

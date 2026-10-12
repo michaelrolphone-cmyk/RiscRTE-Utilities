@@ -1,7 +1,7 @@
 name: Watch Spectrum shared input
 on:
   push:
-    branches: [work/spectrum-shared-input-20261012]
+    branches: [work/spectrum-shared-input-20261012, work/spectrum-input-policy-20261012]
   pull_request:
     paths:
       - 'Apps/audio_spectrum.c'
@@ -22,13 +22,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 7fb13b09b4dac275a8111b224784f8a472f39264
+          ref: fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0
           path: .dependencies/system
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-Utilities
-          ref: e85eff650e9f748ae162fb725fb6e14eb6df876a
+          ref: 52157660ec573cf4639ffe3eefcad5b7b3115c4e
           path: .dependencies/baseline
           persist-credentials: false
       - uses: actions/checkout@v4

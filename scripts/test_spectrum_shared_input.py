@@ -202,6 +202,15 @@ def run(args):
     for path in [ROOT / 'Apps/audio_spectrum.c', ROOT / 'Apps/context_signal_library.inc', ROOT / 'Apps/spectrum_signature_app.inc', ROOT / 'Apps/spectrum_temporal_app.inc', ROOT / 'Apps/context_fingerprint_app.inc', ROOT / 'test/native_apps/spectrum_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', system / 'Services/scene_host/host.c', system / 'Services/text_input/host.c', system / 'lib/PortableApps/include/PortableTextInputClient.h']:
         evidence['sources'][str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
     selected = scenarios()
+    if 'PORTABLE_TEXT_INPUT_POLICY' in args.extra_define:
+        begin=setup(0)+tap(120,120)+key('Q')
+        for suffix,end in [('done',key('\x03')+check()),('cancel',nav('back','text')+check()),('home',nav('home','text'))]:
+            selected['policy-stopped-'+suffix]=(begin+[(65000,'text','idle',0,0)]+end,{'SPECTRUM_POLICY_PROBE':'1','SPECTRUM_POLICY_STOPPED':'1','SPECTRUM_EXPECT_DRAFT':'Q' if suffix=='done' else '','SPECTRUM_EXPECT_KV_WRITES':'0','SPECTRUM_EXPECT_DATA_WRITES':'0'})
+        selected['policy-active']=(tap(120,120)+begin+[(65000,'text','idle',0,0)]+key('\x03')+check(),{'SPECTRUM_POLICY_PROBE':'1','SPECTRUM_EXPECT_DRAFT':'Q','SPECTRUM_EXPECT_PROGRESS':'1'})
+        selected['policy-unavailable']=(setup(0,1)+tap(120,120)+check(2),{'SPECTRUM_POLICY_UNAVAILABLE':'1','SPECTRUM_EXPECT_DRAFT':'Seed','SPECTRUM_EXPECT_OPENS':'1'})
+        selected['policy-retained']=(begin,{})
+        selected['policy-missing-suffix']=(setup(0,1)+tap(120,120)+check(2),{'SPECTRUM_POLICY_MISSING_SUFFIX':'1','SPECTRUM_EXPECT_DRAFT':'Seed','SPECTRUM_EXPECT_OPENS':'1'})
+        selected['policy-paused-home']=(begin,{'SPECTRUM_POLICY_PAUSED_HOME':'1','SPECTRUM_EXPECT_DRAFT':''})
     if args.scenario:
         selected = {k: v for k, v in selected.items() if k in args.scenario}
     for sanitized in ([False] if args.normal_only else [False, True]):

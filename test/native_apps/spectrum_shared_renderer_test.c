@@ -29,8 +29,15 @@
 void app_main(void); int app_module_init(void); void app_module_fini(void);
 const risc_driver_v2 *spectrum_scene_driver_get(uint32_t),*spectrum_text_driver_get(uint32_t),*spectrum_profile_driver_get(uint32_t);
 static const risc_driver_v2 *scene_driver,*text_driver,*profile_driver;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static risc_text_entry_api_v1_checkpoint text_proxy;
+#else
 static risc_text_entry_api_v1_long text_proxy;
-static const risc_text_entry_api_v1_long *real_text;
+#endif
+#define TEXT_PROXY_BASE (*(risc_text_entry_api_v1 *)(void *)&text_proxy)
+static const risc_text_entry_api_v1 *real_text;
+static bool policy_home_pending;
+static unsigned policy_battery,policy_sleep,policy_background,policy_contexts,policy_resumes;
 static unsigned ticks,polls,grant_count,lease_count,subs,presents,app_frames,host_frames,host_session_frames;
 static unsigned text_attempts,text_grants,text_opens,text_closes,text_close_again,grant_serial,launches;
 static unsigned mic_opens,mic_closes,mic_reads,mic_host_reads,mic_sample,kv_writes,data_writes,editor,capture_serial,unavailable_frames;
@@ -95,7 +102,7 @@ static bool fake_touch_poll(void*c,size_t n){IO();(void)c;assert(n==1||n==2);pol
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){IO();(void)c;assert(n==1&&subs);if(!touch_count)return 0;*e=touch_events[touch_head];touch_head=(touch_head+1)%64;touch_count--;return 1;}
 static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){IO();(void)c;*s=(risc_touch_snapshot_v1){.width=240,.height=240,.sequence=touch_sequence,.timestamp_ms=ticks};if(touch_down){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=(uint16_t)touch_x,.y=(uint16_t)touch_y};}return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
-static bool fake_battery(void*c,risc_battery_sample_v1*s){IO();(void)c;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};return true;}
+static bool fake_battery(void*c,risc_battery_sample_v1*s){IO();(void)c;if(text_granted)policy_battery++;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};return true;}
 static const risc_battery_gauge_api_v1 battery_api={1,sizeof(battery_api),NULL,fake_battery};
 static bool fake_rtc(void*c,twatch_rtc_time_v1*s){IO();(void)c;*s=(twatch_rtc_time_v1){2026,10,12,1,14,0,0};return true;}
 static const twatch_rtc_api_v1 rtc_api={.api_version=2,.struct_size=sizeof(rtc_api),.read=fake_rtc};
@@ -114,7 +121,7 @@ static bool fake_reset(void*c){IO();(void)c;return true;}
 static const risc_input_navigation_api_v1 nav_api={1,sizeof(nav_api),NULL,fake_nav,fake_foreground,fake_reset};
 const risc_input_navigation_api_v1 *portable_input_navigation_open(const risc_runtime_api_v1*r){IO();(void)r;return &nav_api;}
 void portable_input_navigation_close(const risc_runtime_api_v1*r){IO();(void)r;}
-int portable_app_alarm_sleep(const risc_runtime_api_v1*r,const risc_display_output_api_v1*d,const risc_battery_gauge_api_v1*b,const alarm_service_v1*a){IO();(void)r;(void)d;(void)b;(void)a;assert(!"unexpected hardware sleep");return 0;}
+int portable_app_alarm_sleep(const risc_runtime_api_v1*r,const risc_display_output_api_v1*d,const risc_battery_gauge_api_v1*b,const alarm_service_v1*a){IO();(void)r;(void)d;(void)b;(void)a;assert(getenv("SPECTRUM_POLICY_STOPPED")&&text_granted&&!subs&&!lease_count&&!pending_token&&!mic_owned);policy_sleep++;return 1;}
 int portable_app_sleep(const risc_runtime_api_v1*r,const risc_display_output_api_v1*d,const risc_battery_gauge_api_v1*b){return portable_app_alarm_sleep(r,d,b,NULL);}
 uint32_t portable_app_sleep_budget_ms(void){return 900000;}
 static bool fake_mic_open(void*c,uint32_t rate){IO();(void)c;assert(!mic_owned&&rate==16000);mic_owned=true;mic_opens++;return true;}
@@ -128,9 +135,17 @@ static int32_t test_stat(void*c,const char*n,uint32_t*z,uint64_t*r){IO();(void)c
 static int32_t test_read(void*c,const char*n,uint64_t expected,void*out,uint32_t cap,uint32_t*z,uint64_t*r){IO();(void)c;unsigned b=test_bank(n);*z=0;*r=0;if(expected!=test_revision[b])return RISC_APP_DATA_STALE;assert(cap>=test_sizes[b]);memcpy(out,test_disk[b],test_sizes[b]);*z=test_sizes[b];*r=test_revision[b];return 0;}
 static int32_t test_replace(void*c,const char*n,uint64_t expected,const void*in,uint32_t z){IO();(void)c;assert(!mic_owned&&!text_granted);unsigned b=test_bank(n);assert(expected==(test_sizes[b]?test_revision[b]:0)&&z<=sizeof(test_disk[b]));memcpy(test_disk[b],in,z);test_sizes[b]=z;test_revision[b]++;data_writes++;return 0;}
 static const risc_app_data_v1 app_data_api={1,sizeof(app_data_api),NULL,test_stat,test_read,test_replace};
-static int32_t proxy_open(void*c,const risc_text_entry_request_v1*q,uint64_t*t){IO();(void)c;assert(text_opens<32&&!lease_count&&!pending_token);open_reads[text_opens]=mic_reads;open_analysis[text_opens]=analysis_count();strcpy(opened_text[text_opens],q->text);strcpy(opened_label[text_opens],q->label);opened_capacity[text_opens++]=q->capacity;in_host_call=true;int32_t rc=real_text->base.base.base.base.open(real_text->base.base.base.base.context,q,t);in_host_call=false;if(is_mode("unavailable-open")){assert(real_text->base.base.base.base.close(real_text->base.base.base.base.context,*t)==RISC_TEXT_ENTRY_OK);*t=0;return RISC_TEXT_ENTRY_UNAVAILABLE;}if(is_mode("loss-open"))runtime_lost=true;return rc;}
-static int32_t proxy_poll(void*c,uint64_t t,risc_text_entry_state_v1*q){IO();(void)c;in_host_call=true;int32_t rc=real_text->base.base.base.base.poll(real_text->base.base.base.base.context,t,q);in_host_call=false;if(rc==RISC_TEXT_ENTRY_OK){assert(strlen(q->text)<opened_capacity[text_opens-1]);strcpy(terminal_text[text_opens-1],q->text);terminal_state[text_opens-1]=q->state;}if(is_mode("loss-poll"))runtime_lost=true;return rc;}
-static int32_t proxy_close(void*c,uint64_t t){IO();(void)c;in_host_call=true;int32_t rc=real_text->base.base.base.base.close(real_text->base.base.base.base.context,t);in_host_call=false;if(!session_closes[text_opens-1]++){first_close_reads[text_opens-1]=mic_reads;first_close_analysis[text_opens-1]=analysis_count();}close_reads[text_opens-1]=mic_reads;close_analysis[text_opens-1]=analysis_count();text_closes++;if(rc==RISC_TEXT_ENTRY_AGAIN)text_close_again++;if(is_mode("loss-close"))runtime_lost=true;return rc;}
+static int32_t proxy_open(void*c,const risc_text_entry_request_v1*q,uint64_t*t){IO();(void)c;assert(text_opens<32&&!lease_count&&!pending_token);open_reads[text_opens]=mic_reads;open_analysis[text_opens]=analysis_count();strcpy(opened_text[text_opens],q->text);strcpy(opened_label[text_opens],q->label);opened_capacity[text_opens++]=q->capacity;in_host_call=true;int32_t rc=real_text->open(real_text->context,q,t);in_host_call=false;if(is_mode("unavailable-open")){assert(real_text->close(real_text->context,*t)==RISC_TEXT_ENTRY_OK);*t=0;return RISC_TEXT_ENTRY_UNAVAILABLE;}if(is_mode("loss-open"))runtime_lost=true;return rc;}
+static int32_t proxy_poll(void*c,uint64_t t,risc_text_entry_state_v1*q){IO();(void)c;in_host_call=true;int32_t rc=real_text->poll(real_text->context,t,q);in_host_call=false;if(rc==RISC_TEXT_ENTRY_OK){assert(strlen(q->text)<opened_capacity[text_opens-1]);strcpy(terminal_text[text_opens-1],q->text);terminal_state[text_opens-1]=q->state;}if(is_mode("loss-poll"))runtime_lost=true;return rc;}
+static int32_t proxy_close(void*c,uint64_t t){IO();(void)c;in_host_call=true;int32_t rc=real_text->close(real_text->context,t);in_host_call=false;if(!session_closes[text_opens-1]++){first_close_reads[text_opens-1]=mic_reads;first_close_analysis[text_opens-1]=analysis_count();}close_reads[text_opens-1]=mic_reads;close_analysis[text_opens-1]=analysis_count();text_closes++;if(rc==RISC_TEXT_ENTRY_AGAIN)text_close_again++;if(is_mode("loss-close"))runtime_lost=true;return rc;}
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static const risc_text_entry_api_v1_checkpoint *real_checkpoint;
+static int32_t proxy_enable(void*c,uint64_t t){if(getenv("SPECTRUM_POLICY_UNAVAILABLE"))return RISC_TEXT_ENTRY_UNAVAILABLE;in_host_call=true;int r=real_checkpoint->checkpoint_enable(c,t);in_host_call=false;return r;}
+static int32_t proxy_snapshot(void*c,uint64_t t,risc_text_entry_checkpoint_state_v1*s){in_host_call=true;int r=real_checkpoint->checkpoint_snapshot(c,t,s);in_host_call=false;return r;}
+static int32_t proxy_pause(void*c,uint64_t t){in_host_call=true;int r=real_checkpoint->pause(c,t);in_host_call=false;if(getenv("SPECTRUM_POLICY_PAUSED_HOME")&&r==RISC_TEXT_ENTRY_OK){policy_home_pending=true;return RISC_TEXT_ENTRY_AGAIN;}return r;}
+static int32_t proxy_pause_focus(void*c,uint64_t t){in_host_call=true;int r=real_checkpoint->pause_for_focus_change(c,t);in_host_call=false;return r;}
+static int32_t proxy_resume(void*c,uint64_t t,uint32_t f){policy_resumes++;if(is_mode("policy-retained"))return RISC_TEXT_ENTRY_RETAINED;in_host_call=true;int r=real_checkpoint->resume(c,t,f);in_host_call=false;return r;}
+#endif
 static uint8_t ble_enabled;
 static bool fake_ble_enable(void*c,bool on){IO();(void)c;ble_enabled=on;return true;}
 static bool fake_ble_status(void*c,uint8_t*s){IO();(void)c;*s=ble_enabled;return true;}
@@ -139,14 +154,14 @@ static wifi_link_t fake_wifi_status(void*c){IO();(void)c;return WIFI_LINK_DOWN;}
 static bool fake_wifi_disconnect(void*c){IO();(void)c;return true;}
 static const wifi_api_v1 wifi_api={.api_version=1,.struct_size=sizeof(wifi_api),.status=fake_wifi_status,.disconnect_checked=fake_wifi_disconnect};
 static bool fake_broadcast_pause(void*c){IO();(void)c;return true;}
-static bool fake_broadcast_step(void*c,bool allow,const telemetry_broadcast_policy_v1*p){IO();(void)c;(void)allow;(void)p;return true;}
+static bool fake_broadcast_step(void*c,bool allow,const telemetry_broadcast_policy_v1*p){IO();if(text_granted)policy_background++;(void)c;(void)allow;(void)p;return true;}
 static bool fake_broadcast_status(void*c,telemetry_broadcast_status_v1*s){IO();(void)c;*s=(telemetry_broadcast_status_v1){.struct_size=sizeof(*s),.state=TELEMETRY_BROADCAST_OFF};return true;}
 static int32_t fake_broadcast_enum(void*c,uint32_t i,risc_telemetry_field_v1*f){IO();(void)c;(void)i;(void)f;return 0;}
 static int32_t fake_broadcast_read(void*c,uint32_t i,int32_t*v){IO();(void)c;(void)i;(void)v;return 0;}
 static const telemetry_broadcast_v1 broadcast_api={1,sizeof(broadcast_api),NULL,fake_broadcast_step,fake_broadcast_pause,fake_broadcast_status,fake_broadcast_enum,fake_broadcast_read};
 /* Bounded base Contexts service: no background sensors, presets or exports.
  * The actual app-data-backed shared fingerprint pipeline remains in the app. */
-static bool ctx_step(void*c,const contexts_policy_v1*p){IO();(void)c;(void)p;return true;}
+static bool ctx_step(void*c,const contexts_policy_v1*p){IO();if(text_granted)policy_contexts++;(void)c;(void)p;return true;}
 static bool ctx_pause(void*c){IO();(void)c;return true;}
 static bool ctx_status(void*c,contexts_status_v1*s){IO();(void)c;*s=(contexts_status_v1){.struct_size=sizeof(*s),.state=CONTEXTS_PAUSED};return true;}
 static bool ctx_source(void*c,uint32_t s){IO();(void)c;(void)s;return true;}
@@ -158,11 +173,12 @@ static bool ctx_result(void*c,uint32_t s,uint32_t g,uint32_t r){IO();(void)c;(vo
 static const contexts_service_v1 contexts_api={.api_version=1,.struct_size=sizeof(contexts_api),.step=ctx_step,.pause=ctx_pause,.status=ctx_status,.request_export=ctx_source,.begin_export=ctx_source,.export_record=ctx_record,.finish_export=ctx_finish,.label=ctx_label,.claim_preset=ctx_claim,.preset_result=ctx_result,.capture_audio=ctx_pause};
 static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){IO();(void)id;assert(g->struct_size==sizeof(*g));
  if(!strcmp(n,CONTEXTS_SERVICE_CAPABILITY)&&v==1&&!getenv("SPECTRUM_NO_CONTEXTS"))g->api=&contexts_api;else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&ble_api;else if(!strcmp(n,"telemetry.broadcast")&&v==1)g->api=&broadcast_api;else if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&legacy_kv_api;else if(!strcmp(n,"storage.key-value")&&v==2)g->api=&kv_api;else if(!strcmp(n,"audio.input")&&v==1)g->api=&mic_api;else if(!strcmp(n,"storage.app-data")&&v==1)g->api=&app_data_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else if(!strcmp(n,"input.navigation")&&v==1)g->api=&nav_api;
- else if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)&&v==1){text_attempts++;if(is_mode("missing-host")||(is_mode("missing-reopen")&&text_opens)||(is_mode("missing-once")&&text_attempts==1))return false;text_proxy.base.base.base.base.struct_size=is_mode("old-host")?sizeof(risc_text_entry_api_v1)-1:sizeof(text_proxy);assert(!text_granted);text_granted=true;text_grants++;host_session_frames=host_frames;g->api=&text_proxy;if(is_mode("old-reopen")&&text_opens)text_proxy.base.base.base.base.struct_size=sizeof(risc_text_entry_api_v1)-1;}else return false;
+ else if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)&&v==1){text_attempts++;if(is_mode("missing-host")||(is_mode("missing-reopen")&&text_opens)||(is_mode("missing-once")&&text_attempts==1))return false;TEXT_PROXY_BASE.struct_size=is_mode("old-host")?sizeof(risc_text_entry_api_v1)-1:getenv("SPECTRUM_POLICY_MISSING_SUFFIX")?sizeof(risc_text_entry_api_v1_long):sizeof(text_proxy);assert(!text_granted);text_granted=true;text_grants++;host_session_frames=host_frames;g->api=&text_proxy;if(is_mode("old-reopen")&&text_opens)TEXT_PROXY_BASE.struct_size=sizeof(risc_text_entry_api_v1)-1;}else return false;
  g->slot=++grant_serial;g->generation=1;grant_count++;return true;
 }
 static bool fake_release(risc_runtime_capability_v1*g){IO();assert(g->api&&grant_count);if(g->api==&text_proxy){assert(text_driver->quiesce()&&!lease_count&&!pending_token);text_granted=false;}*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};grant_count--;return true;}
-static const risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=fake_acquire,.release=fake_release,.retain_invocation=fake_retain};
+static bool fake_exit_requested(void){IO();return policy_home_pending;}
+static const risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=fake_acquire,.release=fake_release,.retain_invocation=fake_retain,.exit_requested=fake_exit_requested};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return !native_retained&&!runtime_lost&&v==1?&runtime_api:NULL;}
 static uint64_t clock_now(void*c){IO();(void)c;return ticks;}
 #ifndef SPECTRUM_APP_SOURCE
@@ -220,9 +236,13 @@ int main(int argc,char**argv){
  const char *delayed=getenv("SPECTRUM_TEST_DELAY_MS");delay_ms=delayed?(unsigned)atoi(delayed):0;
  risc_platform_clock_api_v1 clock={1,sizeof(clock),NULL,clock_now,NULL};scene_driver=spectrum_scene_driver_get(2);text_driver=spectrum_text_driver_get(2);profile_driver=spectrum_profile_driver_get(2);assert(scene_driver&&text_driver&&profile_driver&&profile_driver->start(NULL,0));
  risc_provider_dependency_v1 scene_deps[]={{"display.output",1,&display_api},{"input.touch.raw",1,&touch_api},{"input.navigation",1,&nav_api},{"platform.clock",1,&clock},{"ui.presentation-profile",1,profile_driver->capability}};
- assert(scene_driver->start(scene_deps,5));risc_provider_dependency_v1 text_deps[]={{RISC_SCENE_CAPABILITY,1,scene_driver->capability}};assert(text_driver->start(text_deps,1));real_text=text_driver->capability;assert(risc_text_entry_long(&real_text->base.base.base.base));text_proxy=*real_text;text_proxy.base.base.base.base.open=proxy_open;text_proxy.base.base.base.base.poll=proxy_poll;text_proxy.base.base.base.base.close=proxy_close;if(is_mode("old-host"))text_proxy.base.base.base.base.struct_size=sizeof(risc_text_entry_api_v1)-1;
+ assert(scene_driver->start(scene_deps,5));risc_provider_dependency_v1 text_deps[]={{RISC_SCENE_CAPABILITY,1,scene_driver->capability}};assert(text_driver->start(text_deps,1));real_text=text_driver->capability;assert(real_text->struct_size>=sizeof(*real_text)&&real_text->struct_size<=sizeof(text_proxy));memcpy(&text_proxy,real_text,real_text->struct_size);TEXT_PROXY_BASE.open=proxy_open;TEXT_PROXY_BASE.poll=proxy_poll;TEXT_PROXY_BASE.close=proxy_close;if(is_mode("old-host"))TEXT_PROXY_BASE.struct_size=sizeof(risc_text_entry_api_v1)-1;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ real_checkpoint=risc_text_entry_checkpoint(real_text);assert(real_checkpoint);
+ text_proxy.checkpoint_enable=proxy_enable;text_proxy.checkpoint_snapshot=proxy_snapshot;text_proxy.pause=proxy_pause;text_proxy.pause_for_focus_change=proxy_pause_focus;text_proxy.resume=proxy_resume;
+#endif
  assert(app_module_init()==0);app_main();app_module_fini();
- if(is_mode("retained")||!strncmp(mode,"loss-",5)){assert(native_retained&&portable_text_adapter_retained()&&!launches);assert(grant_count==retained_grants&&subs==retained_subs&&lease_count==retained_frames&&io_calls==retained_calls&&allocation_count==retained_allocations);assert(app_module_init()!=0&&io_calls==retained_calls);puts("PASS retained invocation: resources frozen, zero later I/O, reentry refused");return 0;}
+ if(is_mode("retained")||is_mode("policy-retained")||!strncmp(mode,"loss-",5)){assert(native_retained&&portable_text_adapter_retained()&&!launches);assert(grant_count==retained_grants&&subs==retained_subs&&lease_count==retained_frames&&io_calls==retained_calls&&allocation_count==retained_allocations);assert(app_module_init()!=0&&io_calls==retained_calls);if(is_mode("policy-retained"))assert(policy_resumes==1);puts("PASS retained invocation: resources frozen, zero later I/O, reentry refused");return 0;}
  assert(!grant_count&&!lease_count&&!subs&&!mic_owned&&!text_granted&&!pending_token);assert(action_cursor==action_count&&!touch_down&&!navigation_pressed);
  expect_num("SPECTRUM_EXPECT_OPENS",text_opens);expect_num("SPECTRUM_EXPECT_KV_WRITES",kv_writes);expect_num("SPECTRUM_EXPECT_DATA_WRITES",data_writes);
  const char *want=getenv("SPECTRUM_EXPECT_DRAFT");if(want){fprintf(stderr,"final draft='%s' expected='%s'\n",draft_name(),want);assert(!strcmp(draft_name(),want));}
@@ -232,7 +252,13 @@ int main(int argc,char**argv){
  if(getenv("SPECTRUM_EXPECT_CLOSE_AGAIN"))assert(text_close_again>0);
  if(getenv("SPECTRUM_EXPECT_CLOSE_PROGRESS")){assert(text_opens==1&&close_reads[0]>first_close_reads[0]&&close_analysis[0]>first_close_analysis[0]);printf("close-AGAIN audio %u -> %u, analysis %u -> %u\n",first_close_reads[0],close_reads[0],first_close_analysis[0],close_analysis[0]);}
  if(getenv("SPECTRUM_NO_PRESENT"))assert(!host_frames&&unavailable_frames>0);
- assert(app_frames>0);if(text_opens&&!is_mode("unavailable-open")&&!getenv("SPECTRUM_NO_PRESENT"))assert(host_frames>0);
+ if(getenv("SPECTRUM_POLICY_PAUSED_HOME"))assert(policy_home_pending&&!policy_resumes&&!policy_sleep&&!kv_writes&&!data_writes);
+ if(getenv("SPECTRUM_POLICY_PROBE")){
+  assert(policy_battery>=12&&policy_contexts>0&&policy_background>0);
+  if(getenv("SPECTRUM_POLICY_STOPPED"))assert(policy_sleep==1&&!mic_host_reads);else assert(!policy_sleep&&mic_host_reads>500);
+  printf("POLICY battery=%u sleep=%u background=%u contexts=%u resumes=%u capture=%u\n",policy_battery,policy_sleep,policy_background,policy_contexts,policy_resumes,mic_host_reads);
+ }
+ assert(app_frames>0);if(text_opens&&!is_mode("unavailable-open")&&!getenv("SPECTRUM_NO_PRESENT")&&!getenv("SPECTRUM_POLICY_UNAVAILABLE")&&!getenv("SPECTRUM_POLICY_MISSING_SUFFIX"))assert(host_frames>0);
  assert(text_driver->quiesce());text_driver->stop();assert(scene_driver->quiesce());scene_driver->stop();assert(profile_driver->quiesce());profile_driver->stop();assert(!allocation_count);
  printf("PASS real Spectrum app/adapter/shared hosts: mode=%s frames=%u app=%u host=%u input=%u/%u edges=%u ms=%u audio=%u host-audio=%u transforms=%u kv=%u data=%u close-again=%u; leases and stride guards clean\n",mode,presents,app_frames,host_frames,action_cursor,action_count,touch_edges,ticks,mic_reads,mic_host_reads,analysis_count(),kv_writes,data_writes,text_close_again);return 0;
 }
