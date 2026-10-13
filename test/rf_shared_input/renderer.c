@@ -31,7 +31,7 @@
 void app_main(void); int app_module_init(void); void app_module_fini(void);
 const risc_driver_v2 *rf_scene_driver_get(uint32_t),*rf_text_driver_get(uint32_t),*rf_profile_driver_get(uint32_t);
 static const risc_driver_v2 *scene_driver,*text_driver,*profile_driver;
-static risc_text_entry_api_v1_long text_proxy;
+static risc_text_entry_api_v1_checkpoint text_proxy;
 static const risc_text_entry_api_v1 *real_text;
 static unsigned ticks,polls,grant_count,lease_count,subs,presents,app_frames,host_frames,host_session_frames;
 static unsigned text_attempts,text_grants,text_opens,text_closes,text_close_again,grant_serial,launches,fallback_backs,rf_store_reads,rf_store_acquires;
@@ -90,7 +90,7 @@ static bool is_mode(const char*s){return !strcmp(mode,s);}
 #define IO() do{assert(!native_retained&&!runtime_lost);io_calls++;}while(0)
 static void check_guards(void){
  for(unsigned i=0;i<32;i++)assert(raster.before[i]==0xa5&&raster.after[i]==0xa5);
- for(unsigned y=0;y<HEIGHT;y++)for(unsigned x=(FORMAT==RISC_DISPLAY_FORMAT_MONO1?100u:480u);x<STRIDE;x++)assert(frame_pixels[y*STRIDE+x]==0xa5);
+ for(unsigned y=0;y<HEIGHT;y++)for(unsigned x=(FORMAT==RISC_DISPLAY_FORMAT_MONO1?WIDTH/8u:WIDTH*2u);x<STRIDE;x++)assert(frame_pixels[y*STRIDE+x]==0xa5);
 }
 static void save_frame(const char *name){
  check_guards();char path[1024];snprintf(path,sizeof(path),"%s/%s.ppm",directory,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n%u %u\n255\n",VIEW_WIDTH,VIEW_HEIGHT);
@@ -221,7 +221,7 @@ static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabi
  else if(!strcmp(n,"alarm.service")&&v==2)g->api=&alarm_v2;
 #endif
  else if(!strcmp(n,CONTEXTS_SERVICE_CAPABILITY)&&v==1&&!getenv("RF_NO_CONTEXTS"))g->api=&contexts_api;else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&ble_api;else if(!strcmp(n,"telemetry.broadcast")&&v==1)g->api=&broadcast_api;else if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&legacy_kv_api;else if(!strcmp(n,"storage.key-value")&&v==2)g->api=&kv_api;else if(!strcmp(n,"radio.iq")&&v==1)g->api=&radio_api;else if(!strcmp(n,"storage.app-data")&&v==1)g->api=&app_data_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else if(!strcmp(n,"input.navigation")&&v==1)g->api=&nav_api;
- else if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)&&v==1){text_attempts++;if(is_mode("missing-host")||(is_mode("missing-reopen")&&text_opens)||(is_mode("missing-once")&&text_attempts==1))return false;text_proxy.base.base.base.base.struct_size=is_mode("old-host")?sizeof(risc_text_entry_api_v1)-1:real_text->struct_size;assert(!text_granted);text_granted=true;text_grants++;host_session_frames=host_frames;g->api=&text_proxy;if(is_mode("old-reopen")&&text_opens)text_proxy.base.base.base.base.struct_size=sizeof(risc_text_entry_api_v1)-1;}else return false;
+ else if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)&&v==1){text_attempts++;if(is_mode("missing-host")||(is_mode("missing-reopen")&&text_opens)||(is_mode("missing-once")&&text_attempts==1))return false;text_proxy.base.base.base.base.base.struct_size=is_mode("old-host")?sizeof(risc_text_entry_api_v1)-1:real_text->struct_size;assert(!text_granted);text_granted=true;text_grants++;host_session_frames=host_frames;g->api=&text_proxy;if(is_mode("old-reopen")&&text_opens)text_proxy.base.base.base.base.base.struct_size=sizeof(risc_text_entry_api_v1)-1;}else return false;
  g->slot=++grant_serial;g->generation=1;grant_count++;return true;
 }
 static bool fake_release(risc_runtime_capability_v1*g){IO();assert(g->api&&grant_count);if(g->api==&text_proxy){assert(text_driver->quiesce()&&!lease_count&&!pending_token);text_granted=false;}*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};grant_count--;return true;}
@@ -296,7 +296,7 @@ int main(int argc,char**argv){
  const char *delayed=getenv("RF_TEST_DELAY_MS");delay_ms=delayed?(unsigned)atoi(delayed):0;
  risc_platform_clock_api_v1 clock={1,sizeof(clock),NULL,clock_now,NULL};scene_driver=rf_scene_driver_get(2);text_driver=rf_text_driver_get(2);profile_driver=rf_profile_driver_get(2);assert(scene_driver&&text_driver&&profile_driver&&profile_driver->start(NULL,0));
  risc_provider_dependency_v1 scene_deps[]={{"display.output",1,&display_api},{"input.touch.raw",1,&touch_api},{"input.navigation",1,&nav_api},{"platform.clock",1,&clock},{"ui.presentation-profile",1,profile_driver->capability}};
- assert(scene_driver->start(scene_deps,5));risc_provider_dependency_v1 text_deps[]={{RISC_SCENE_CAPABILITY,1,scene_driver->capability}};assert(text_driver->start(text_deps,1));real_text=text_driver->capability;assert(real_text->struct_size>=sizeof(*real_text)&&real_text->struct_size<=sizeof(text_proxy));memcpy(&text_proxy,real_text,real_text->struct_size);text_proxy.base.base.base.base.open=proxy_open;text_proxy.base.base.base.base.poll=proxy_poll;text_proxy.base.base.base.base.close=proxy_close;if(is_mode("old-host"))text_proxy.base.base.base.base.struct_size=sizeof(risc_text_entry_api_v1)-1;
+ assert(scene_driver->start(scene_deps,5));risc_provider_dependency_v1 text_deps[]={{RISC_SCENE_CAPABILITY,1,scene_driver->capability}};assert(text_driver->start(text_deps,1));real_text=text_driver->capability;assert(real_text->struct_size>=sizeof(*real_text)&&real_text->struct_size<=sizeof(text_proxy));memcpy(&text_proxy,real_text,real_text->struct_size);text_proxy.base.base.base.base.base.open=proxy_open;text_proxy.base.base.base.base.base.poll=proxy_poll;text_proxy.base.base.base.base.base.close=proxy_close;if(is_mode("old-host"))text_proxy.base.base.base.base.base.struct_size=sizeof(risc_text_entry_api_v1)-1;
  assert(app_module_init()==0);app_main();app_module_fini();
 #ifdef PORTABLE_RF_SHARED_TEXT_INPUT
  if(getenv("RF_EXPECT_HOME_EXIT")){assert(home_exit_requested&&!fallback_backs&&!capture_requested&&!running&&!signature_goal&&!event_armed&&!cfa_learning_kind&&!editing.name[0]&&!shared_name[0]);}

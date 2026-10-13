@@ -15,6 +15,9 @@ static int32_t replace_data(void*c,const char*n,uint64_t r,const void*b,uint32_t
 static const risc_app_data_v1 data_api={1,sizeof(data_api),(void*)3,stat_data,read_data,replace_data};
 /* Mirrors Runtime.cpp:547-551: one appDataContext_ per invocation, shared
  * between storage.app-data and storage.shared-data. No service behavior mocked. */
+/* The provisioned RTC may have an unset date, but acquisition succeeds. */
+static bool fixture_rtc_read(void*c,twatch_rtc_time_v1*t){(void)c;memset(t,0,sizeof(*t));return true;}
+static const twatch_rtc_api_v1 fixture_rtc={.api_version=2,.struct_size=sizeof(fixture_rtc),.read=fixture_rtc_read};
 static bool acquire_raw(const char*n,uint32_t v,uint64_t i,risc_runtime_capability_v1*g){
  assert(g->struct_size==sizeof(*g)&&!g->api&&!g->slot&&!g->generation);
  printf("ACQUIRE %s api=%u instance=%llu live_appdata=%u\n",n,v,(unsigned long long)i,appdata_live);
@@ -22,11 +25,8 @@ static bool acquire_raw(const char*n,uint32_t v,uint64_t i,risc_runtime_capabili
   if(appdata_live){assert(!strcmp(n,"storage.shared-data"));shared_refusals++;return false;}
   appdata_live=true;g->api=&data_api;if(!strcmp(n,"storage.shared-data"))shared_acquires++;
  }else if(!strcmp(n,"contexts.service")){g->api=service_api;}
- else if(!strcmp(n,"runtime.realtime")||!strcmp(n,"rtc.clock")){
-  /* Both date-clock providers are optional here; the selected System SDK
-   * probes rtc.clock. Retained cleanup must prohibit even that probe. */
-  return false;
- }
+ else if(!strcmp(n,"runtime.realtime"))return false;
+ else if(!strcmp(n,"rtc.clock")){assert(v==2&&i==0);g->api=&fixture_rtc;}
  else {fprintf(stderr,"unexpected acquire: %s\n",n);abort();}
  g->slot=1;g->generation=1;return true;
 }
@@ -36,6 +36,7 @@ static void yield_raw(uint32_t n){(void)n;}
 static bool diagnostic_raw(const char*s){puts(s);return true;}
 static const risc_runtime_api_v1 raw={.api_version=1,.struct_size=sizeof(raw),.acquire=acquire_raw,.release=release_raw,.retain_invocation=retain_raw,.yield_ms=yield_raw,.diagnostic=diagnostic_raw};
 int main(int argc,char**argv){
+ setbuf(stdout,NULL);
  bool checkpoint_first=argc>1&&!strcmp(argv[1],"checkpoint-first");
  service_api=fixture_service();fixture_adapter_init(&raw);
  static const t5_app_api_v1 fixture_app={.millis=fixture_millis};app=&fixture_app;runtime=waterfall_runtime=&raw;
@@ -47,6 +48,7 @@ int main(int argc,char**argv){
  if(checkpoint_first){assert(portable_contexts_models_save());assert(!retains&&!appdata_live);}
  event_restore();assert(!appdata_live&&!retains);
  puts("ENTER cfa_restore");cfa_restore();puts("RETURN cfa_restore");
+ printf("STARTUP retains=%u refusals=%u shared=%u failed=%u loaded=%u live=%u\n",retains,shared_refusals,shared_acquires,cfa_failed,cfa_loaded,appdata_live);
  assert(!retains&&!shared_refusals&&shared_acquires==2&&!cfa_failed&&cfa_loaded&&!appdata_live);
  assert(!writes&&!memcmp(before,disk,sizeof(disk))&&!strcmp(event_library.labels[0].name,"SavedEvent")&&!strcmp(cfa_bank.profiles[6].name,"SavedRoom"));
  const contexts_fingerprint_service_v1*fp=contexts_fingerprint_api(service_api);assert(fp);
