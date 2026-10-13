@@ -21,7 +21,11 @@ static bool acquire_raw(const char*n,uint32_t v,uint64_t i,risc_runtime_capabili
   if(appdata_live){assert(!strcmp(n,"storage.shared-data"));shared_refusals++;return false;}
   appdata_live=true;active_app=!strcmp(n,"storage.app-data");g->api=&data_api;if(!strcmp(n,"storage.shared-data"))shared_acquires++;
  }else if(!strcmp(n,"contexts.service")){g->api=service_api;}
- else if(!strcmp(n,"runtime.realtime"))return false;
+ else if(!strcmp(n,"runtime.realtime")||!strcmp(n,"rtc.clock")){
+  /* Both date-clock providers are optional here; the selected System SDK
+   * probes rtc.clock. Retained cleanup must prohibit even that probe. */
+  assert(!release_failed);return false;
+ }
  else {fprintf(stderr,"unexpected acquire: %s\n",n);abort();}
  g->slot=1;g->generation=1;return true;
 }
