@@ -220,14 +220,33 @@ static bool cs_open_scene(const risc_scene_navigation_v1*navigation){
 #include "contexts_text_input.inc"
 #endif
 static bool cs_checkpoint(unsigned reason){
- uint64_t catalog_generation=cs_catalog.generation;
  risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())return false;
+ char focused_route[RISC_APP_CATALOG_ROUTE_MAX]={0};bool refresh_focus=false;
+ unsigned depth=nav.depth&&nav.depth<=RISC_SCENE_MAX_DEPTH?nav.depth-1:0;
+ if(cu_page==CU_APPS&&nav.focus[depth]&&nav.focus[depth]<=cs_document.node_count){
+  unsigned action=cs_document.nodes[nav.focus[depth]-1].action;
+  refresh_focus=action==CU_CATALOG_REFRESH;
+  if(action>=CU_RUNTIME_APP&&action<CU_RUNTIME_APP+cs_catalog.count)
+   strcpy(focused_route,cs_catalog.entries[action-CU_RUNTIME_APP].route);
+ }
  if(!cs_catalog_close())return false;
  bool training=cs_client.foreground_learning;if(!portable_contexts_pause(&cs_client)||!portable_contexts_close(&cs_client)){cs_retain();return false;}ctx_service=NULL;
  if(!cs_close_scene())return false;
  int rc=risc_scene_resident_dispatch_v1(&cs_resident,reason);if(!cs_alive())return false;if(rc==RISC_RESIDENT_RETAINED){cs_retain();return false;}if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_BUSY)return false;
  if(!cs_backend_open())return false;
- if(cu_page==CU_APPS){if(!cs_catalog_refresh()&&!cs_alive())return false;if(cs_catalog.generation!=catalog_generation)memset(nav.focus,0,sizeof(nav.focus));cs_declare();}
+ if(cu_page==CU_APPS){
+  if(!cs_catalog_refresh()&&!cs_alive())return false;
+  /* Generation identities are scoped to a grant. Across reacquisition, retain
+   * focus by the copied canonical route or explicit Refresh action only. */
+  memset(nav.focus,0,sizeof(nav.focus));cs_declare();
+  for(unsigned i=0;i<cs_document.node_count;i++){
+   unsigned action=cs_document.nodes[i].action;
+   bool same=refresh_focus&&action==CU_CATALOG_REFRESH;
+   if(focused_route[0]&&action>=CU_RUNTIME_APP&&action<CU_RUNTIME_APP+cs_catalog.count)
+    same=!strcmp(focused_route,cs_catalog.entries[action-CU_RUNTIME_APP].route);
+   if(same){nav.focus[depth]=cs_document.nodes[i].id;break;}
+  }
+ }
  cs_client.foreground_learning=training;ctx_dirty=true;return cs_open_scene(&nav);
 }
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT

@@ -4,7 +4,7 @@ import argparse, os, subprocess, tempfile
 from pathlib import Path
 from build_contexts_scene import stage
 ROOT=Path(__file__).resolve().parents[1]
-CASES='one many oversized one-over-limit empty refresh long long-id medium select-stale unavailable missing partial release malformed duplicate generation snapshot-error snapshot-context snapshot-retained get-context get-retained get-error faces-actions absent launch launch-stale launch-removed launch-rejected launch-retained launch-catalog-retained launch-home launch-home-get picker-checkpoint picker-checkpoint-empty'.split()
+CASES='one many oversized one-over-limit empty refresh long long-id medium select-stale unavailable missing partial release malformed duplicate generation snapshot-error snapshot-context snapshot-retained get-context get-retained get-error faces-actions absent launch launch-stale launch-removed launch-rejected launch-retained launch-catalog-retained launch-home launch-home-get picker-checkpoint picker-checkpoint-empty picker-checkpoint-reused-remove picker-checkpoint-reused-shrink picker-checkpoint-reused-reorder picker-checkpoint-refresh picker-checkpoint-reused-oversized'.split()
 def run(runtime,system,catalog_system,sanitize=False):
  with tempfile.TemporaryDirectory(prefix='contexts-catalog-') as tmp:
   tmp=Path(tmp);include=stage(runtime,system,tmp,catalog_system)
