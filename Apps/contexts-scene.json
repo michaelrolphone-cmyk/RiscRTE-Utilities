@@ -1,6 +1,6 @@
 {
   "min_firmware_version": "0.1.83",
-  "version": "0.4.2",
+  "version": "0.4.5",
   "display_name": "Contexts",
   "file_name": "contexts.elf",
   "icon": "solid:f015",
@@ -45,5 +45,11 @@
   "type": "application",
   "architecture": "xtensa-esp32s3",
   "entry": "app_main",
-  "id": "contexts"
+  "id": "contexts",
+  "optional": [
+    {
+      "capability": "app.catalog",
+      "api": 1
+    }
+  ]
 }

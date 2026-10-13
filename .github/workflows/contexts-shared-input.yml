@@ -1,12 +1,13 @@
 name: Contexts shared input
 on:
   push:
-    branches: [work/contexts-shared-input-20261012, work/contexts-input-lifecycle-20261012]
+    branches: [work/contexts-shared-input-20261012, work/contexts-input-lifecycle-20261012, work/contexts-runtime-catalog-20261013]
   pull_request:
     paths:
       - 'Apps/contexts*'
       - 'test/contexts/**'
       - 'scripts/test_contexts_shared_input.py'
+      - 'scripts/test_contexts_runtime_catalog.py'
       - 'scripts/build_contexts_scene.py'
       - 'tests/test_contexts_shared_build.py'
       - '.github/workflows/contexts-shared-input.yml'
@@ -30,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-Utilities
-          ref: 4beb9778d300ec9f6b18448e1ec86317e063c98c
+          ref: d068784cb5d581f1e81b5021f5d96d2917e03ec3
           path: .dependencies/baseline
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -44,6 +45,12 @@ jobs:
           repository: michaelrolphone-cmyk/RiscRTE
           ref: 1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70
           path: .dependencies/x4-runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 72f435fcee376ec62d17ece6180753385ea547d9
+          path: .dependencies/catalog-system
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
@@ -62,8 +69,15 @@ jobs:
           --runtime .dependencies/watch-runtime
           --x4-runtime .dependencies/x4-runtime
           --system-apps .dependencies/system
+          --catalog-system .dependencies/catalog-system
           --baseline-utilities .dependencies/baseline
           --output build/contexts-shared-input --sanitize
+      - name: Standalone runtime inventory and launch safety
+        run: >-
+          python scripts/test_contexts_runtime_catalog.py
+          --runtime .dependencies/watch-runtime
+          --system-apps .dependencies/system
+          --catalog-system .dependencies/catalog-system --sanitize
       - name: Manifest, catalog and build flag contracts
         run: python -m unittest discover -s tests -v
       - name: Unchanged capture and learning pipeline regressions
@@ -72,9 +86,21 @@ jobs:
           python scripts/test_context_fingerprints.py --drivers .dependencies/drivers --runtime .dependencies/watch-runtime
           python scripts/test_contexts_service.py --drivers .dependencies/drivers --runtime .dependencies/watch-runtime --system-apps .dependencies/system
           python scripts/test_contexts_rf_retained.py --system-apps .dependencies/system
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Validate complete shared-input Xtensa app and catalog symbols
+        run: >-
+          python scripts/build_contexts_scene.py
+          --runtime .dependencies/watch-runtime --system-apps .dependencies/system
+          --catalog-system .dependencies/catalog-system --target watch
+          --shared-text-input --output build/contexts-runtime-catalog-target
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: contexts-shared-input-evidence
-          path: build/contexts-shared-input/
+          path: |
+            build/contexts-shared-input/
+            build/contexts-runtime-catalog-target/
           if-no-files-found: error

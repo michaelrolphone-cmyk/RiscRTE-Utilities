@@ -26,6 +26,8 @@ static bool cs_alive(void);
 #define PORTABLE_CONTEXTS_CLEANUP_FAILURE() cs_retain()
 #include "PortableContextsClient.h"
 #include "PortableApps.h"
+#include "PortableAppCatalog.h"
+#define CONTEXTS_RUNTIME_CATALOG 1
 #include "RiscBatteryGaugeV1.h"
 #include "PortableContextActions.h"
 static const risc_runtime_api_v1 *ctx_runtime;
@@ -44,7 +46,9 @@ static contexts_status_v1 ctx_status;
 static contexts_fingerprint_status_v1 ctx_fp;
 static const char *ctx_message;
 static uint16_t cs_active;
-static char cs_launch[33];
+static char cs_launch[RISC_APP_CATALOG_ROUTE_MAX];
+static portable_app_catalog cs_catalog;
+static portable_app_catalog_launch cs_launch_ticket;
 static contexts_workflow_v1 cs_launch_report;
 /* Native exit is persistent and owned by the host. Normal cleanup may run,
  * but editor state, shared keyboard, or a queued launch cannot defer it. */
@@ -62,6 +66,7 @@ static void ctx_note(const char*s){ctx_message=s;ctx_dirty=true;}
 static void cs_retain(void){if(!cs_terminal){cs_terminal=true;if(ctx_runtime&&ctx_runtime->retain_invocation)(void)ctx_runtime->retain_invocation();}}
 static bool cs_alive(void){if(cs_terminal)return false;if(!risc_runtime_get_api(1)){cs_terminal=true;return false;}return true;}
 static bool cs_release(risc_runtime_capability_v1*g){if(!cs_alive())return false;if(g->api&&!ctx_runtime->release(g)){cs_retain();return false;}memset(g,0,sizeof(*g));return cs_alive();}
+#include "contexts_catalog.inc"
 static bool cs_backend_open(void){
  if(cs_client.api)return true;
  if(!portable_contexts_open(&cs_client,ctx_runtime)){
@@ -268,7 +273,7 @@ static bool cs_rules_tick(void){
  if(a.available){bool ok=false;if(!portable_contexts_pause(&cs_client)){cs_retain();return false;}
   if(a.step.kind==CR_MESSAGE){cs_copy(cs_workflow_message,sizeof(cs_workflow_message),a.step.text);ok=true;ctx_dirty=true;}
   else if(a.step.kind==CR_TIMER){risc_runtime_capability_v1 storage={.struct_size=sizeof(storage)};ok=portable_context_timer(ctx_runtime,cs_alarm_grant.api,a.step.value,&storage);if(storage.api){cs_retain();return false;}}
-  else if(a.step.kind==CR_LAUNCH){for(unsigned i=0;i<portable_catalog_count;i++)if(portable_catalog[i].compatible&&!strcmp(portable_catalog[i].file_name,a.step.text)){cs_copy(cs_launch,sizeof(cs_launch),a.step.text);ok=true;}}
+  else if(a.step.kind==CR_LAUNCH){ok=cs_catalog_prepare(a.step.text);if(!cs_alive())return false;}
   if(cs_launch[0]){cs_launch_report=a;return true;}
   a.claim=false;a.result=ok?CR_RAN:CR_FAILED;if(!f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&a))return false;
  }
@@ -287,11 +292,14 @@ static bool cs_open_scene(const risc_scene_navigation_v1*navigation){
 #include "contexts_text_input.inc"
 #endif
 static bool cs_checkpoint(unsigned reason){
+ uint64_t catalog_generation=cs_catalog.generation;
  risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())return false;
+ if(!cs_catalog_close())return false;
  bool training=cs_client.foreground_learning;if(!portable_contexts_pause(&cs_client)||!portable_contexts_close(&cs_client)){cs_retain();return false;}ctx_service=NULL;
  if(!cs_close_scene())return false;
  int rc=risc_scene_resident_dispatch_v1(&cs_resident,reason);if(!cs_alive())return false;if(rc==RISC_RESIDENT_RETAINED){cs_retain();return false;}if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_BUSY)return false;
  if(!cs_backend_open())return false;
+ if(cu_page==CU_APPS){if(!cs_catalog_refresh()&&!cs_alive())return false;if(cs_catalog.generation!=catalog_generation)memset(nav.focus,0,sizeof(nav.focus));cs_declare();}
  cs_client.foreground_learning=training;ctx_dirty=true;return cs_open_scene(&nav);
 }
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
@@ -306,13 +314,31 @@ static void cs_cleanup(void){
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
  if(!cs_text_cleanup())return;
 #endif
+ if(!cs_catalog_close())return;
  if(cs_client.api&&(!portable_contexts_pause(&cs_client)||!portable_contexts_close(&cs_client))){cs_retain();return;}
  if(cs_close_scene()){if(!cs_release(&cs_alarm_grant)||!cs_release(&cs_battery_grant)||!cs_release(&cs_civil_grant))return;(void)cs_release(&cs_scene_grant);}
+}
+/* Revalidate the exact publication after scene teardown. Never dispatch an
+ * old route merely because it was available when the workflow was claimed. */
+static bool cs_dispatch_launch(void){
+ if(!cs_launch[0]||!cs_alive()||cs_host_exit())return false;
+ if(!portable_contexts_pause(&cs_client)||!cs_close_scene()){cs_retain();return false;}
+ if(!cs_alive()||cs_host_exit())return false;
+ bool valid=cs_catalog_checked(portable_catalog_launch_valid(&cs_catalog,&cs_launch_ticket));
+ if(!cs_alive())return false;
+ if(cs_host_exit()||!cs_alive())return false;
+ bool launched=valid&&ctx_runtime->request_launch&&ctx_runtime->request_launch(cs_launch_ticket.route);
+ if(!cs_alive())return false;
+ const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(ctx_service);cs_launch_report.claim=false;cs_launch_report.result=launched?CR_RAN:CR_FAILED;
+ if(f)(void)f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&cs_launch_report);
+ if(!cs_alive())return false;
+ if(!launched&&ctx_runtime->diagnostic)ctx_runtime->diagnostic("Contexts workflow app launch rejected");
+ return launched;
 }
 __attribute__((visibility("default"))) const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1={1,sizeof(risc_resident_app_descriptor_v1_t),RISC_RESIDENT_ROLE_FOREGROUND,0};
 __attribute__((visibility("default"))) void app_main(void){
  ctx_runtime=risc_runtime_get_api(1);if(!ctx_runtime||ctx_runtime->struct_size<RISC_RUNTIME_RETAIN_INVOCATION_V1_SIZE||!ctx_runtime->retain_invocation||!ctx_runtime->acquire||!ctx_runtime->release||!ctx_runtime->yield_ms||!ctx_runtime->health)return;
- cs_terminal=ctx_exit=false;cs_training_stopped=true;cu_autosave=false;ctx_dirty=true;ctx_enabled=false;ctx_message="";cs_session=0;cs_revision=cs_toast_token=0;cs_last_event=0;cs_toast[0]=cs_launch[0]=cs_workflow_message[0]=0;cs_active=0;cs_client=(portable_contexts_client){0};
+ cs_terminal=ctx_exit=false;cs_training_stopped=true;cu_autosave=false;ctx_dirty=true;ctx_enabled=false;ctx_message="";cs_session=0;cs_revision=cs_toast_token=0;cs_last_event=0;cs_toast[0]=cs_launch[0]=cs_workflow_message[0]=0;cs_active=0;cs_client=(portable_contexts_client){0};cs_catalog=(portable_app_catalog){0};cs_launch_ticket=(portable_app_catalog_launch){0};
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
  cs_text_reset();
 #endif
@@ -367,14 +393,7 @@ __attribute__((visibility("default"))) void app_main(void){
   if(cs_launch[0])break;
   ctx_runtime->yield_ms(10);
  }
- if(cs_launch[0]&&cs_alive()&&!cs_host_exit()){
-  if(!portable_contexts_pause(&cs_client)||!cs_close_scene()){cs_retain();return;}
-  bool launched=ctx_runtime->request_launch&&ctx_runtime->request_launch(cs_launch);
-  if(!cs_alive())return;
-  const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(ctx_service);cs_launch_report.claim=false;cs_launch_report.result=launched?CR_RAN:CR_FAILED;
-  if(f)(void)f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&cs_launch_report);
-  if(!launched&&ctx_runtime->diagnostic)ctx_runtime->diagnostic("Contexts workflow app launch rejected");
- }
+ if(cs_launch[0]){(void)cs_dispatch_launch();if(!cs_alive())return;}
  cs_cleanup();
 }
 

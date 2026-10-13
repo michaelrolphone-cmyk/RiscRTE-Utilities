@@ -6,10 +6,18 @@ enum { CU_HOME,CU_LIBRARY,CU_ITEMS,CU_ITEM,CU_NEW,CU_NAME,CU_LEARN,CU_RULES,CU_R
 enum { CU_ROW_BACK=1,CU_ROW_AUTO,CU_ROW_LIBRARY,CU_ROW_RULES,CU_ROW_ACTIVITY,CU_ROW_SOURCES,CU_ROW_PLACE,CU_ROW_EVENT,CU_ROW_TRIGGER,CU_ROW_NEW,CU_ROW_SAMPLE,CU_ROW_RENAME,CU_ROW_DELETE,CU_ROW_SAVE,CU_ROW_CANCEL,CU_ROW_ENABLE,CU_ROW_WHEN,CU_ROW_SETTINGS,CU_ROW_WORKFLOW,CU_ROW_HOLD,CU_ROW_PRIORITY,CU_ROW_ADD_STEP,CU_ROW_LAUNCH,CU_ROW_TIMER,CU_ROW_MESSAGE,CU_ROW_BATTERY,CU_ROW_TIME,CU_ROW_CHARGER,CU_ROW_START,CU_ROW_ARG0,CU_ROW_ARG1,CU_ROW_CONFIRM,CU_ROW_ITEMS=100,CU_ROW_RULE=200,CU_ROW_FIELD=300,CU_ROW_STEP=400,CU_ROW_APP=500,CU_ROW_SOURCE=600,CU_ROW_DURATION=700 };
 typedef struct {char title[34],detail[64];unsigned action;bool on;} cu_row;
 static cr_store cu_store,cu_saved;
+#ifdef CONTEXTS_RUNTIME_CATALOG
+static cu_row cu_rows[RISC_COMPONENTS_MAX_NODES];
+#else
 static cu_row cu_rows[64];
+#endif
 static unsigned cu_count,cu_page,cu_offset,cu_item,cu_rule,cu_kind,cu_name_reason,cu_key_page,cu_return;
 static bool cu_loaded,cu_edit,cu_pending,cu_learning_saved,cu_contact,cu_moved,cu_add_sample,cu_autosave;
 
+#ifdef CONTEXTS_RUNTIME_CATALOG
+/* Separate action range avoids the historical source/timer action ranges. */
+enum {CU_RUNTIME_APP=1000,CU_CATALOG_REFRESH=1200};
+#endif
 static char cu_name[33];
 static contexts_learning_v1 cu_learning;
 static contexts_profile_v1 cu_profiles[24];
@@ -31,7 +39,7 @@ static bool cu_save(void){
  if(!portable_contexts_rules_save(&cu_store)){cu_pending=true;cu_note("SAVE UNCONFIRMED / RETRY");return false;}
  cu_saved=cu_store;cu_edit=cu_pending=false;cu_note("SAVED");return true;
 }
-static void cu_add(const char*t,const char*d,unsigned action,bool on){if(cu_count>=64)return;cu_row*r=&cu_rows[cu_count++];snprintf(r->title,sizeof(r->title),"%s",t?t:"");snprintf(r->detail,sizeof(r->detail),"%s",d?d:"");r->action=action;r->on=on;}
+static void cu_add(const char*t,const char*d,unsigned action,bool on){if(cu_count>=sizeof(cu_rows)/sizeof(*cu_rows))return;cu_row*r=&cu_rows[cu_count++];snprintf(r->title,sizeof(r->title),"%s",t?t:"");snprintf(r->detail,sizeof(r->detail),"%s",d?d:"");r->action=action;r->on=on;}
 static void cu_value(unsigned field,int32_t value,char*out,size_t size){
  if(value==CR_KEEP){snprintf(out,size,"NO CHANGE");return;}
  const char*label=NULL;
@@ -100,7 +108,20 @@ static void cu_build(void){
   for(unsigned i=0;i<r->steps;i++){cr_step*w=&r->workflow[i];if(w->kind==CR_TIMER)snprintf(b,sizeof(b),"%lu MIN / TAP TO REMOVE",(unsigned long)(w->value/60));if(w->kind!=CR_TIMER)snprintf(b,sizeof(b),"%.32s / TAP TO REMOVE",w->text);cu_add(w->kind==CR_LAUNCH?"OPEN APP":w->kind==CR_TIMER?"START TIMER":"SHOW MESSAGE",b,CU_ROW_STEP+i,false);}if(r->steps<CR_STEPS)cu_add("+ ADD STEP","RUN ONCE ON ACTIVATION",CU_ROW_ADD_STEP,false);break;
  case CU_TIMER:{const unsigned minutes[]={5,10,15,25,45};for(unsigned i=0;i<5;i++){snprintf(b,sizeof(b),"%u MINUTES",minutes[i]);cu_add(b,"START ON ACTIVATION",CU_ROW_DURATION+i,false);}break;}
  case CU_ADD_STEP:cu_add("LAUNCH APP","CHOOSE AN INSTALLED APP",CU_ROW_LAUNCH,false);cu_add("START TIMER","CHOOSE DURATION",CU_ROW_TIMER,false);cu_add("SHOW MESSAGE","TYPE A SHORT MESSAGE",CU_ROW_MESSAGE,false);break;
+#ifdef CONTEXTS_RUNTIME_CATALOG
+ case CU_APPS:
+  /* The shared presenter owns one continuous scrolling list. Its copied-value
+   * ABI has a finite capacity and exposes no virtual-list window callbacks. */
+  if(cs_catalog.count>=RISC_COMPONENTS_MAX_NODES)cu_add("CATALOG EXCEEDS DISPLAY LIMIT","NO APPS OMITTED / UPDATE PRESENTER",0,false);
+  else for(unsigned i=0;i<cs_catalog.count;i++){
+   const t5_app_manifest_t*app=&cs_catalog.entries[i].manifest;
+   cu_add(app->display_name,!app->compatible?"APP UNAVAILABLE":strlen(app->file_name)>=sizeof(((cr_step*)0)->text)?"APP KEY TOO LONG FOR THIS RULE":app->file_name,CU_RUNTIME_APP+i,false);
+  }
+  if(!cu_count)cu_add("NO APPS AVAILABLE","REFRESH THE INSTALLED CATALOG",0,false);
+  cu_add("REFRESH APPS","READ THE CURRENT INVENTORY",CU_CATALOG_REFRESH,false);break;
+#else
  case CU_APPS:for(unsigned i=0;i<portable_catalog_count&&i<40;i++)if(portable_catalog[i].compatible)cu_add(portable_catalog[i].display_name,portable_catalog[i].file_name,CU_ROW_APP+i,false);if(!cu_count)cu_add("CATALOG UNAVAILABLE","NO APP CAN BE SELECTED",0,false);break;
+#endif
  case CU_ACTIVITY:
   for(unsigned i=0;i<CR_LOGS;i++){contexts_log_v1 q={.struct_size=sizeof(q),.index=i};if(!cu_call(CONTEXTS_FP_LOG,&q))break;snprintf(b,sizeof(b),"%s / %lu SEC",q.entry.kind==CR_ENTER?"ACTIVATED":q.entry.kind==CR_LEAVE?"INACTIVE":q.entry.kind==CR_APPLIED?"SETTINGS APPLIED":q.entry.kind==CR_RAN?"ACTION RAN":"ACTION FAILED",(unsigned long)(q.entry.at_ms/1000));cu_add(q.entry.name,b,0,false);}if(!cu_count)cu_add("NO ACTIVITY YET","CONTEXT CHANGES APPEAR HERE",0,false);break;
  case CU_SOURCES:
@@ -164,7 +185,18 @@ static void cu_action(unsigned action){
  cr_rule*r=&cu_store.rules[cu_rule];cr_item*t=&cu_store.items[cu_item];
  if(action>=CU_ROW_DURATION&&action<CU_ROW_DURATION+5){const unsigned minutes[]={5,10,15,25,45};if(r->steps<CR_STEPS){r->workflow[r->steps++]=(cr_step){.kind=CR_TIMER,.value=minutes[action-CU_ROW_DURATION]*60};cu_edit=true;}cu_page_set(CU_WORKFLOW);return;}
  if(action>=CU_ROW_SOURCE&&action<CU_ROW_SOURCE+3){unsigned i=action-CU_ROW_SOURCE;ctx_model_source=i<2?i:0;ctx_fingerprint_setting(i==2);ctx_read_status();return;}
+#ifdef CONTEXTS_RUNTIME_CATALOG
+ if(cu_page==CU_APPS){
+  if(action==CU_CATALOG_REFRESH){(void)cs_catalog_refresh();ctx_dirty=true;return;}
+  if(action>=CU_RUNTIME_APP&&action<CU_RUNTIME_APP+RISC_APP_CATALOG_MAX){
+   unsigned i=action-CU_RUNTIME_APP;cr_step selected;
+   if(cs_catalog.count>=RISC_COMPONENTS_MAX_NODES)return;
+   if(r->steps<CR_STEPS&&cs_catalog_select(i,&selected)){r->workflow[r->steps++]=selected;cu_edit=true;cu_page_set(CU_WORKFLOW);}return;
+  }
+ }
+#else
  if(action>=CU_ROW_APP&&action<CU_ROW_APP+portable_catalog_count){unsigned i=action-CU_ROW_APP;if(r->steps<CR_STEPS){cr_step*w=&r->workflow[r->steps++];memset(w,0,sizeof(*w));w->kind=CR_LAUNCH;snprintf(w->text,sizeof(w->text),"%s",portable_catalog[i].file_name);cu_edit=true;}cu_page_set(CU_WORKFLOW);return;}
+#endif
  if(action>=CU_ROW_STEP&&action<CU_ROW_STEP+CR_STEPS){unsigned i=action-CU_ROW_STEP;if(i<r->steps){for(unsigned j=i;j+1<r->steps;j++)r->workflow[j]=r->workflow[j+1];memset(&r->workflow[--r->steps],0,sizeof(cr_step));cu_edit=true;ctx_dirty=true;}return;}
  if(action>=CU_ROW_FIELD&&action<CU_ROW_FIELD+CR_SETTINGS){cu_cycle(action-CU_ROW_FIELD);return;}
  if(action>=CU_ROW_RULE&&action<CU_ROW_RULE+CR_RULES){cu_rule=action-CU_ROW_RULE;cu_edit=false;cu_page_set(CU_RULE);return;}
@@ -188,7 +220,11 @@ static void cu_action(unsigned action){
  case CU_ROW_WHEN:cu_page_set(CU_CHOOSE);break;case CU_ROW_SETTINGS:cu_page_set(CU_SETTINGS);break;case CU_ROW_WORKFLOW:cu_page_set(CU_WORKFLOW);break;
  case CU_ROW_HOLD:{const uint32_t holds[]={0,20,60,300,900};unsigned i=0;while(i<5&&holds[i]!=r->hold_seconds)i++;r->hold_seconds=holds[(i+1)%5];cu_edit=true;ctx_dirty=true;break;}
  case CU_ROW_PRIORITY:r->priority=r->priority%9+1;cu_edit=true;ctx_dirty=true;break;
- case CU_ROW_ADD_STEP:cu_page_set(CU_ADD_STEP);break;case CU_ROW_LAUNCH:cu_page_set(CU_APPS);break;
+ case CU_ROW_ADD_STEP:cu_page_set(CU_ADD_STEP);break;case CU_ROW_LAUNCH:
+#ifdef CONTEXTS_RUNTIME_CATALOG
+  if(!cs_catalog_refresh()&&!cs_alive())return;
+#endif
+  cu_page_set(CU_APPS);break;
  case CU_ROW_TIMER:cu_page_set(CU_TIMER);break;
  case CU_ROW_MESSAGE:cu_name_open(4,"");break;
  case CU_ROW_BATTERY:case CU_ROW_TIME:case CU_ROW_CHARGER:

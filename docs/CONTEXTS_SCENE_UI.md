@@ -26,9 +26,9 @@ Captured PPMs come from that execution. Transport fixtures are not physical test
 The obsolete alternative-renderer screenshot tests have been replaced.
 
 Build with `scripts/build_contexts_scene.py --runtime ... --system-apps ...
---target watch|x4 --catalog ... --output ...`. Watch optionally supplies
+--target watch|x4 --catalog-system ... --output ...`. Watch optionally supplies
 `--face-header <product>/apps/clock/faces/ContextsFaces.h`. Both target ELFs pass
-structural validation. The selected System tree must contain scene-host 0.3.0.
+structural validation. Keep the repaired scene/text System source separate from the catalog client headers; see `CONTEXTS_RUNTIME_CATALOG.md`. The selected owner must grant `app.catalog@1`, instance 0; no compiled app inventory is linked.
 
 `compose_contexts_scene.py` upgrades an existing shared-scene store. It preserves
 all other apps, providers and shared data bindings; removes the obsolete direct-display/input grants and adds Contexts grants for `ui.scene`

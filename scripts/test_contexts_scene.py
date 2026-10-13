@@ -4,13 +4,13 @@ import argparse,os,subprocess,tempfile
 from pathlib import Path
 from build_contexts_scene import stage
 ROOT=Path(__file__).resolve().parents[1]
-def run(runtime,system,frames,sanitize=False,atomic=False):
+def run(runtime,system,frames,sanitize=False,atomic=False,catalog_system=None):
  if atomic:
   from test_utility_atomic import PROFILE,exact
   exact(system,PROFILE['system_sha']);exact(runtime,PROFILE['runtime_sdk_sha'])
  frames.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory(prefix='contexts-scene-test-') as temporary:
-  tmp=Path(temporary);include=stage(runtime,system,tmp)
+  tmp=Path(temporary);include=stage(runtime,system,tmp,catalog_system)
   flags=['-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I'+str(include),'-I'+str(system/'test/scene')]
   if sanitize:flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
   for profile in (('paper',) if atomic else ('watch','paper')):
@@ -30,5 +30,6 @@ if __name__=='__main__':
  p=argparse.ArgumentParser(description=__doc__)
  for n in ('runtime','system-apps','frames'):p.add_argument('--'+n,type=Path,required=True)
  p.add_argument('--sanitize',action='store_true');p.add_argument('--atomic-preferences',action='store_true')
- a=p.parse_args();run(a.runtime.resolve(),a.system_apps.resolve(),a.frames.resolve(),a.sanitize,a.atomic_preferences)
+ p.add_argument('--catalog-system',type=Path)
+ a=p.parse_args();run(a.runtime.resolve(),a.system_apps.resolve(),a.frames.resolve(),a.sanitize,a.atomic_preferences,a.catalog_system)
 

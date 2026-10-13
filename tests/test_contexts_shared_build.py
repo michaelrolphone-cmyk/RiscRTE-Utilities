@@ -19,6 +19,7 @@ class ContextsSharedBuild(unittest.TestCase):
         captured = {}
 
         def record(cc, include, output, manifest, sources, **kwargs):
+            output.mkdir(parents=True)
             captured.update(cc=cc, manifest=manifest, sources=sources, **kwargs)
             return {'id': 'contexts'}
 
@@ -27,15 +28,14 @@ class ContextsSharedBuild(unittest.TestCase):
             json_write=lambda path, value: path.write_text(json.dumps(value)))
         with tempfile.TemporaryDirectory() as temporary:
             tmp = Path(temporary)
-            catalog = tmp / 'catalog.json'
-            catalog.write_text(json.dumps([{'file_name': 'calculator.elf',
-                                           'display_name': 'Calculator'}]))
+            (tmp/'.contexts-catalog-sources.json').write_text('{}')
             with patch.object(build, 'stage', return_value=tmp), \
                  patch.object(build, 'load', return_value=builder), \
-                 patch.object(build.subprocess, 'run'):
-                build.run(tmp, tmp, tmp / 'out', catalog, device,
+                 patch.object(build.subprocess, 'run'), \
+                 patch.object(build.subprocess, 'check_output', return_value='0000 T app_main\n'):
+                build.run(tmp, tmp, tmp / 'out', None, device,
                           tmp / 'ContextsFaces.h' if faces else None, shared)
-            captured['catalog'] = (tmp / 'out/catalog.c').read_text()
+            captured['compiled_catalog'] = (tmp / 'out/catalog.c').exists()
         return captured
 
     def test_watch_shared_flag_and_original_faces(self):
@@ -43,10 +43,12 @@ class ContextsSharedBuild(unittest.TestCase):
         self.assertEqual(selected['defines'][0], '-DPORTABLE_CONTEXTS_SHARED_TEXT_INPUT')
         self.assertEqual(selected['defines'][1], '-include')
         self.assertTrue(selected['defines'][2].endswith('/ContextsFaces.h'))
-        self.assertEqual(selected['manifest']['version'], '0.4.4')
+        self.assertEqual(selected['manifest']['version'], '0.4.5')
         self.assertIn({'capability': 'ui.text-input', 'api': 1},
                       selected['manifest']['requires'])
-        self.assertIn('calculator.elf', selected['catalog'])
+        self.assertFalse(selected['compiled_catalog'])
+        self.assertEqual(selected['sources'], [ROOT/'Apps/contexts.c'])
+        self.assertIn({'capability':'app.catalog','api':1},selected['manifest']['optional'])
         self.assertEqual(selected['exports'],
                          {'app_main', 'risc_resident_app_descriptor_v1'})
 
@@ -71,13 +73,17 @@ class ContextsSharedBuild(unittest.TestCase):
                 selected = self.selected(device, False)
                 self.assertNotIn('-DPORTABLE_CONTEXTS_SHARED_TEXT_INPUT',
                                  selected['defines'])
-                self.assertEqual(selected['manifest']['version'], '0.4.2')
+                self.assertEqual(selected['manifest']['version'], '0.4.5')
                 self.assertFalse(any(r['capability'] == 'ui.text-input'
                                      for r in selected['manifest']['requires']))
 
+    def test_compiled_catalog_input_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'app.catalog'):
+            build.run(Path('.'),Path('.'),Path('/unused'),Path('catalog.json'))
+
     def test_source_manifest_is_not_product_opt_in(self):
         manifest = json.loads((ROOT / 'Apps/contexts-scene.json').read_text())
-        self.assertEqual(manifest['version'], '0.4.2')
+        self.assertEqual(manifest['version'], '0.4.5')
         self.assertFalse(any(r['capability'] == 'ui.text-input'
                              for r in manifest['requires']))
 

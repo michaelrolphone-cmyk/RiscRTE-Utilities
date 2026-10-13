@@ -58,6 +58,7 @@ static bool cs_text_policy(void){
  }
  if(rc==RISC_TEXT_ENTRY_AGAIN)return true;
  if(rc!=RISC_TEXT_ENTRY_OK||!cs_alive()||cs_host_exit())return false;
+ if(!cs_catalog_close())return false;
  bool training=cs_client.foreground_learning;
  if(!portable_contexts_pause(&cs_client)||!portable_contexts_close(&cs_client)){cs_retain();return false;}
  ctx_service=NULL;
