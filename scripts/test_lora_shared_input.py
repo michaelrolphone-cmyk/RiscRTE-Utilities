@@ -70,6 +70,7 @@ def scenarios():
                                  'LORA_EXPECT_OPENS': str(opens), 'LORA_EXPECT_SENDS': str(sends),
                                  'LORA_EXPECT_HISTORY': str(sends), **{k: str(v) for k, v in env.items()}})
     add('idle', [], opens=0)
+    add('missing-radio', tap(50,203)+capture(), opens=0)
     add('draft-done', compose + key('Q') + done + capture(), 'Q')
     add('draft-cancel', compose + key('Q') + cancel + capture())
     add('draft-header-back', compose + key('Q') + tap(20, 20, 'text') + capture())
@@ -203,14 +204,15 @@ def run(args):
             if result.returncode:
                 print(result.stdout + result.stderr, file=sys.stderr)
                 result.check_returncode()
-            from PIL import Image
-            for ppm in folder.glob('*.ppm'):
-                with Image.open(ppm) as im:
-                    assert im.size == (240, 240)
-                    evidence['frame_hashes'][('sanitized/' if sanitized else 'normal/')+name+'/'+ppm.name]=hashlib.sha256(im.tobytes()).hexdigest()
-                    if not sanitized and name in ('draft-done', 'rf-recover', 'rf-all', 'send-history', 'send-cancel', 'limit-240', 'rapid-pending', 'missing-host'):
-                        im.save(ppm.with_suffix('.png'))
-                ppm.unlink()
+            if not args.raw_frames:
+                from PIL import Image
+                for ppm in folder.glob('*.ppm'):
+                    with Image.open(ppm) as im:
+                        assert im.size == (240, 240)
+                        evidence['frame_hashes'][('sanitized/' if sanitized else 'normal/')+name+'/'+ppm.name]=hashlib.sha256(im.tobytes()).hexdigest()
+                        if not sanitized and name in ('draft-done', 'rf-recover', 'rf-all', 'send-history', 'send-cancel', 'limit-240', 'rapid-pending', 'missing-host'):
+                            im.save(ppm.with_suffix('.png'))
+                    ppm.unlink()
             print('LoRa production shared input', 'ASan/UBSan' if sanitized else 'normal', name, 'PASS', flush=True)
         for obj in objects:
             obj.unlink()
@@ -239,6 +241,7 @@ if __name__ == '__main__':
     p.add_argument('--output', type=Path)
     p.add_argument('--scenario', action='append')
     p.add_argument('--normal-only', action='store_true')
+    p.add_argument('--raw-frames', action='store_true', help='Keep raw PPM output without optional PNG conversion')
     p.add_argument('--extra-define', action='append', default=[], type=define_argument, metavar='NAME[=VALUE]',
                    help='Additional production selector; repeat once for each define (without -D)')
     run(p.parse_args())

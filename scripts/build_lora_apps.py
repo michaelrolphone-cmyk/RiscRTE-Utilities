@@ -45,6 +45,7 @@ def build(system):
         subprocess.run([str(validator),str(elf)],check=True)
         side=json.loads((ROOT/app['manifest_path']).read_text())
         manifest={'type':'application','id':name,'version':side['version'],'architecture':'xtensa-esp32s3','file_name':elf.name,'entry':'app_main','requires':[{'capability':r['capability'],'api':int(r['api'][2:])} for r in side['requires']]}
+        if side.get('optional'):manifest['optional']=[{'capability':r['capability'],'api':int(r['api'][2:])} for r in side['optional']]
         elf.with_suffix('.json').write_text(json.dumps(manifest,indent=2)+'\n')
         rows.append({'id':name,'version':side['version'],'size_bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'imports':sorted(imports)})
     record={'schema':1,'purpose':'development-lora-messages-no-hardware-qualification','source_pins':pin,'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}

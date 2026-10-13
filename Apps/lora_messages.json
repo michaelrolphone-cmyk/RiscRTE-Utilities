@@ -18,10 +18,6 @@
       "api": ">=1"
     },
     {
-      "capability": "radio.lora",
-      "api": ">=2"
-    },
-    {
       "capability": "storage.key-value",
       "api": ">=1"
     },
@@ -32,6 +28,12 @@
     {
       "capability": "alarm.service",
       "api": ">=1"
+    }
+  ],
+  "optional": [
+    {
+      "capability": "radio.lora",
+      "api": ">=2"
     }
   ]
 }
