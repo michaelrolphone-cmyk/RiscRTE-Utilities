@@ -183,6 +183,7 @@ def scenarios(target):
         else:env.update({k:str(v) for k,v in home_env.items()})
         cases[title+'-pending-home'+('-refused-back' if target=='watch' else '')]=(actions,env)
     a,e=cases['context-signal-done'];cases['contexts-unavailable']=(list(a),dict(e,RF_NO_CONTEXTS='1'))
+    cases['capture-stop-restart']=(tap(120,120)+[(500,'app','idle',0,0)]+tap(75,225)+check(13)+[(500,'app','idle',0,0)]+check(14)+tap(75,225)+[(500,'app','idle',0,0)]+check(15)+nav('home'),{})
     cases['non-keyboard-views']=(sum(([(100,'app','scene',i,0)]+check(9) for i in range(len(VIEWS))),[]),{'RF_EXPECT_OPENS':'0'})
     return cases
 
@@ -215,6 +216,9 @@ def run(args):
         if target=='watch':
             added+=['-DPORTABLE_HOME_APP="springboard.elf"','-DPORTABLE_CHECKED_STORAGE_RUNTIME','-DPORTABLE_NATIVE_CUSTODY_FENCE','-DPORTABLE_ALARM_TERMINAL_RETENTION','-DPORTABLE_WATCH_COLOR_ONLY','-DPORTABLE_WATCH_FROZEN_ICONS']
         else: added+=['-DPORTABLE_CHECKED_STORAGE_RUNTIME','-DRF_TEST_PAPER']
+        if args.native_height and target=="watch":
+            added=[x for x in added if x!="-DPORTABLE_WATCH_FROZEN_ICONS"]
+            added += ["-DPORTABLE_WATCH_NATIVE_HEIGHT","-DRF_TEST_NATIVE_HEIGHT","-DRF_TEST_WIDTH=410u","-DRF_TEST_HEIGHT=502u"]
         added=[flag for flag in added if flag not in deployed]
         telemetry_include=None
         if target=='x4':
@@ -253,7 +257,7 @@ def run(args):
         flags=deployed+added+['-D'+d for d in args.extra_define]+extra
         includes=[sdk,ROOT/'Apps',system/'Apps',system/'lib/NativeApps/include',system/'Services/scene_profile',system/'Services/text_input']
         evidence['profiles'][target]={'receipt':str(receipt),'runtime':pin(runtime),'host_system':pin(host_system),'sha256':digest(receipt),'deployed_defines':deployed,'added_defines':added,'omitted_defines':[],
-            'omitted_target_options':['Xtensa machine/linker options','-flto; native tests use -O1 -g'],'raster':[480,800] if target=='x4' else [240,240],
+            'omitted_target_options':['Xtensa machine/linker options','-flto; native tests use -O1 -g'],'raster':[480,800] if target=='x4' else ([410,502] if args.native_height else [240,240]),
             'scene_profile':{'display_rotation':270 if target=='x4' else 0,'touch_rotation':0,'paper':target=='x4','source':str(host_system/'Services/scene_profile/profile.c')}}
         selected=scenarios(target)
         if args.scenario:
@@ -268,7 +272,7 @@ def run(args):
             for provider,entry in [('scene_host','rf_scene_driver_get'),('text_input','rf_text_driver_get'),('scene_profile','rf_profile_driver_get')]:
                 obj=out/(provider+'.o');source=host_system/'Services'/provider/('profile.c' if provider=='scene_profile' else 'host.c')
                 host_flags=['-DSCENE_HOST_TELEMETRY=0'] if provider=='scene_host' and target=='watch' else []
-                if target=='watch' and provider=='scene_host':host_flags+=['-DSCENE_HOST_WATCH_240=1']
+                if target=='watch' and provider=='scene_host':host_flags+=['-DSCENE_HOST_WATCH_240='+('0' if args.native_height else '1')]
                 if target=='watch' and provider=='scene_profile':host_flags+=['-DSCENE_PROFILE_ID="scene-profile-compact-color"']
                 if target=='x4' and provider=='scene_profile':host_flags+=['-DSCENE_PROFILE_PAPER=1','-DSCENE_DISPLAY_ROTATION=270','-DSCENE_PROFILE_ID="scene-profile-portrait-monochrome"']
                 provider_command=[command[0],*(['-I'+str(telemetry_include)] if telemetry_include else []),'-I'+str(host_system/'lib/PortableApps/include'),'-I'+str(host_system/'Services/scene_profile'),*command[1:]]
@@ -284,6 +288,7 @@ def run(args):
                 folder=out/name;folder.mkdir(exist_ok=True)
                 for old in [*folder.glob('*.ppm'),*folder.glob('*.png')]:old.unlink()
                 action_file=folder/'actions.txt';action_file.write_text(''.join(' '.join(map(str,row))+'\n' for row in actions))
+                if args.native_height and 0<int(env.get('RF_TEST_DELAY_MS','0'))<3000:env={**env,'RF_TEST_DELAY_MS':'3000'}
                 environ={k:v for k,v in os.environ.items() if not k.startswith('RF_')};environ.update(env,ASAN_OPTIONS='detect_leaks=0',UBSAN_OPTIONS='halt_on_error=1')
                 result=subprocess.run([str(executable),str(folder),str(action_file),name],env=environ,capture_output=True,text=True,timeout=120)
                 (folder/'run.log').write_text(result.stdout+result.stderr)
@@ -343,5 +348,6 @@ if __name__=='__main__':
     p.add_argument('--target',choices=['watch','x4'],action='append')
     p.add_argument('--scenario',action='append')
     p.add_argument('--extra-define',action='append',default=[])
+    p.add_argument('--native-height',action='store_true')
     p.add_argument('--normal-only',action='store_true')
     run(p.parse_args())
