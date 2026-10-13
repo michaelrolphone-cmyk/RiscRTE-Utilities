@@ -1,0 +1,59 @@
+name: X4 Scanner exact source and modal policy
+on:
+  push:
+    branches: [fix/x4-scanner-modal-policy-20261013]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  scanner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: ab388f92324c90dc892b709a5fd5870548f03e08
+          path: .deps/system
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: a3504d4f8f342d9d78383978e8b70032d0097c23
+          path: .deps/hosts
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70
+          path: .deps/runtime
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Utilities
+          ref: b0b32919a12d7fd12326091f2c6eb0bcfad5b4ad
+          path: .deps/baseline-app
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Drivers
+          ref: 422e1e81a498fb6bdab9abf086325afc05a532dc
+          path: .deps/drivers
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned compiler and ELF parser
+        run: |
+          pip install platformio==6.1.19 pyelftools==0.32
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Reproduce deployed Scanner and qualify modal successor
+        run: |
+          python scripts/qualify_x4_scanner_policy.py --system .deps/system --runtime .deps/runtime --hosts .deps/hosts --drivers .deps/drivers --baseline-app .deps/baseline-app --compiler "$HOME/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc" --output build/x4-scanner
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: x4-scanner-target-and-policy-evidence
+          path: |
+            build/x4-scanner/qualification.json
+            build/x4-scanner/*/ble_scanner/*.elf
+            build/x4-scanner/*/ble_scanner/*.json
+            build/x4-scanner/*/qualification.json
+            build/x4-scanner/*/*/run.log
+          retention-days: 14

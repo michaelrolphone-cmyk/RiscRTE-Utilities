@@ -29,7 +29,11 @@ static int32_t text_open(void*c,const risc_text_entry_request_v1*q,uint64_t*t){
 }
 static int32_t text_poll(void*c,uint64_t t,risc_text_entry_state_v1*s){(void)c;assert(text_suspended&&text_live&&t==17);*s=text_result;return RISC_TEXT_ENTRY_OK;}
 static int32_t text_close(void*c,uint64_t t){(void)c;assert(text_suspended&&text_live&&t==17);text_closes++;if(text_close_bad)return RISC_TEXT_ENTRY_RETAINED;if(text_close_again){text_close_again--;return RISC_TEXT_ENTRY_AGAIN;}text_live=false;return RISC_TEXT_ENTRY_OK;}
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+#include "scanner_policy_provider.inc"
+#else
 static const risc_text_entry_api_v1_home_reason text_api={{1,sizeof(text_api),NULL,text_open,text_poll,text_close},RISC_TEXT_ENTRY_HOME_REASON_TAG,RISC_TEXT_ENTRY_HOME_REASON_VERSION};
+#endif
 #ifndef BLE_RENDER
 static void text_accept(const char*s){assert(naming&&strlen(s)<sizeof(editing));strcpy(text_result.text,s);text_result.state=RISC_TEXT_ENTRY_ACCEPTED;name_step();}
 #endif
