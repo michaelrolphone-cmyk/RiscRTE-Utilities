@@ -10,6 +10,11 @@
 #include "CanvasApp.h"
 #include "RiscStorageVolumeV1.h"
 #include "T5FileOpenApi.h"
+#ifdef CANVAS_FILE_SOURCE
+#include "RiscFileOpenSourceV1.h"
+static bool source_test;
+static unsigned source_reads;
+#endif
 #if CANVAS_KIND==1
 #include "../../Apps/model_viewer.c"
 #else
@@ -80,11 +85,32 @@ static bool sd_seek(void *c,uint32_t h,uint64_t n){assert(!c&&h==1&&sd_open&&n<=
 static risc_storage_volume_api_v1_ext sd_api={.base={.api_version=1,.struct_size=sizeof(sd_api),.refresh=sd_ready,.ready=sd_ready,.file_open_read=sd_open_read,.file_read=sd_read,.file_close=sd_close},.file_seek=sd_seek};
 static bool file_path(char *p,size_t n){snprintf(p,n,"/sd/triangle.obj");return true;}
 static const t5_file_open_api_v1 file_api={.api_version=1,.struct_size=sizeof(file_api),.source_path_get=file_path};
-static bool acquire_cap(const char *n,uint32_t v,uint64_t instance,risc_runtime_capability_v1 *g){assert(v==1&&!instance&&!held_invocation);const void *api=sd_test&&!strcmp(n,"storage.volume")?(const void*)&sd_api:sd_test&&!strcmp(n,"file.open")?(const void*)&file_api:!strcmp(n,"display.output")?(const void*)&display_api:!strcmp(n,"input.touch.raw")?(const void*)&touch_api:!strcmp(n,"input.navigation")&&mode?(const void*)&nav_api:!strcmp(n,"storage.app-data")?(const void*)&data_api:NULL;if(!api)return false;g->api=api;g->slot=++acquired;return true;}
+#ifdef CANVAS_FILE_SOURCE
+static int32_t selected_info(risc_file_open_source_info_v1*out){
+ assert(out->struct_size==sizeof(*out));if(!source_test)return RISC_FILE_SOURCE_CONTEXT;
+ *out=(risc_file_open_source_info_v1){.struct_size=sizeof(*out),.size=sizeof(triangle)-1,.token=0x1234};
+ strcpy(out->name,"builtin.obj");return RISC_FILE_SOURCE_OK;
+}
+static int32_t selected_read(uint64_t token,uint64_t offset,void*out,uint32_t n,uint32_t*actual){
+ assert(source_test&&token==0x1234&&offset<=sizeof(triangle)-1&&n<=RISC_FILE_OPEN_SOURCE_IO_MAX);
+ if(n>sizeof(triangle)-1-offset)n=(uint32_t)(sizeof(triangle)-1-offset);
+ if(n>7)n=7;/* Exercise supported short reads through the real parser. */
+ memcpy(out,triangle+offset,n);*actual=n;source_reads++;return RISC_FILE_SOURCE_OK;
+}
+static const risc_file_open_source_api_v1 selected_api={.api_version=1,.struct_size=sizeof(selected_api),.source_info=selected_info,.read_at=selected_read};
+#endif
+static bool acquire_cap(const char *n,uint32_t v,uint64_t instance,risc_runtime_capability_v1 *g){assert(v==1&&!instance&&!held_invocation);const void *api=
+#ifdef CANVAS_FILE_SOURCE
+ !strcmp(n,RISC_FILE_OPEN_SOURCE_CAPABILITY)?(const void*)&selected_api:
+#endif
+ sd_test&&!strcmp(n,"storage.volume")?(const void*)&sd_api:sd_test&&!strcmp(n,"file.open")?(const void*)&file_api:!strcmp(n,"display.output")?(const void*)&display_api:!strcmp(n,"input.touch.raw")?(const void*)&touch_api:!strcmp(n,"input.navigation")&&mode?(const void*)&nav_api:!strcmp(n,"storage.app-data")?(const void*)&data_api:NULL;if(!api)return false;g->api=api;g->slot=++acquired;return true;}
 static bool release_cap(risc_runtime_capability_v1 *g){assert(!queued&&!held_invocation&&g->api);if(hold_test)return false;g->api=NULL;releases++;return true;}
 static const risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.health=health,.yield_ms=yield_ms,.diagnostic=diagnostic,.acquire=acquire_cap,.release=release_cap,.retain_invocation=retain,.monotonic_ms=monotonic};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1&&!held_invocation?&runtime_api:NULL;}
 int main(int argc,char **argv){
+#ifdef CANVAS_FILE_SOURCE
+ source_test=argc>2&&!strcmp(argv[2],"source");
+#endif
  mode=argc>1&&strcmp(argv[1],"watch")?(!strcmp(argv[1],"x4-native")?2:1):0;sd_test=argc>2&&!strncmp(argv[2],"sd",2);sd_legacy=sd_test&&!strcmp(argv[2],"sd-legacy");if(sd_legacy)sd_api.base.struct_size=sizeof(risc_storage_volume_api_v1);hold_test=argc>2&&!strcmp(argv[2],"retain");
 #if CANVAS_KIND==1
  physical_w=mode==2?800:mode?480:240;physical_h=mode==2?480:mode?800:240;
@@ -96,6 +122,9 @@ int main(int argc,char **argv){
  app_main();assert(finished&&submits>=3);
  if(hold_test)assert(held_invocation&&releases==0);else assert(!held_invocation&&releases==acquired&&!subscribed&&!queued);
 #if CANVAS_KIND==1
+#ifdef CANVAS_FILE_SOURCE
+ if(source_test)assert(source_reads&&!sd_opens);
+#endif
  assert(changed&&did_shade&&did_saved);if(sd_test)assert(sd_opens&&sd_opens==sd_closes&&!sd_open);
 #else
  assert(did_move&&notes_seen);
