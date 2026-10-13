@@ -52,7 +52,12 @@ static unsigned stop_at=90000,pending_token,pending_until,delay_ms;
 static unsigned touch_head,touch_count,touch_edges,action_cursor,action_count,next_action_at;
 static uint64_t touch_sequence;
 static bool touch_down; static int touch_x,touch_y; static uint32_t navigation_pressed;
-static uint16_t pixels[240*244];
+#ifndef SPECTRUM_TEST_WIDTH
+#define SPECTRUM_TEST_WIDTH 240
+#define SPECTRUM_TEST_HEIGHT 240
+#endif
+#define SPECTRUM_TEST_STRIDE (SPECTRUM_TEST_WIDTH+4)
+static uint16_t pixels[SPECTRUM_TEST_HEIGHT*SPECTRUM_TEST_STRIDE];
 static const char *directory,*mode;
 static risc_touch_event_v1 touch_events[64];
 static struct {unsigned delay;char gate[16],kind[16];int x,y;} actions[4096];
@@ -66,16 +71,16 @@ static void verify_capture(int after);
 static bool is_mode(const char*s){return !strcmp(mode,s);}
 #define IO() do{assert(!native_retained&&!runtime_lost);io_calls++;}while(0)
 static void save_frame(const char *name){
- char path[1024];snprintf(path,sizeof(path),"%s/%s.ppm",directory,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n240 240\n255\n");
- for(unsigned y=0;y<240;y++){for(unsigned x=0;x<240;x++){uint16_t v=pixels[y*244+x];unsigned char rgb[]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};assert(fwrite(rgb,1,3,f)==3);}for(unsigned x=240;x<244;x++)assert(pixels[y*244+x]==0xa5a5);}assert(!fclose(f));
+ char path[1024];snprintf(path,sizeof(path),"%s/%s.ppm",directory,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n%u %u\n255\n",SPECTRUM_TEST_WIDTH,SPECTRUM_TEST_HEIGHT);
+ for(unsigned y=0;y<SPECTRUM_TEST_HEIGHT;y++){for(unsigned x=0;x<SPECTRUM_TEST_WIDTH;x++){uint16_t v=pixels[y*SPECTRUM_TEST_STRIDE+x];unsigned char rgb[]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};assert(fwrite(rgb,1,3,f)==3);}for(unsigned x=SPECTRUM_TEST_WIDTH;x<SPECTRUM_TEST_STRIDE;x++)assert(pixels[y*SPECTRUM_TEST_STRIDE+x]==0xa5a5);}assert(!fclose(f));
 }
 static bool fake_health(risc_runtime_health_v1*h){IO();h->uptime_ms=ticks;return true;}
 static void fake_yield(uint32_t n){IO();ticks+=n;assert(ticks<120000&&"script failed to finish");}
 static bool fake_diag(const char*s){IO();fprintf(stderr,"%s\n",s);return true;}
 static bool fake_launch(const char*s){IO();assert(!mic_owned&&!text_granted&&!lease_count&&!pending_token);assert(!strcmp(s,"springboard.elf"));launches++;return true;}
 static bool fake_retain(void){assert(!native_retained);native_retained=true;retained_grants=grant_count;retained_subs=subs;retained_frames=lease_count;retained_calls=io_calls;retained_allocations=allocation_count;return true;}
-static bool fake_info(void*c,risc_display_info_v1*s){IO();(void)c;*s=(risc_display_info_v1){.api_version=1,.struct_size=sizeof(*s),.width=240,.height=240,.preferred_format=RISC_DISPLAY_FORMAT_RGB565,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565),.flags=delay_ms?RISC_DISPLAY_INFO_ASYNC_PRESENT:0};return true;}
-static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){IO();(void)c;assert(!lease_count&&!pending_token&&(!text_granted||in_host_call));if(text_granted&&getenv("SPECTRUM_NO_PRESENT")){unavailable_frames++;return false;}lease_count=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=240,.height=240,.stride_bytes=488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
+static bool fake_info(void*c,risc_display_info_v1*s){IO();(void)c;*s=(risc_display_info_v1){.api_version=1,.struct_size=sizeof(*s),.width=SPECTRUM_TEST_WIDTH,.height=SPECTRUM_TEST_HEIGHT,.preferred_format=RISC_DISPLAY_FORMAT_RGB565,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565),.flags=delay_ms?RISC_DISPLAY_INFO_ASYNC_PRESENT:0};return true;}
+static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){IO();(void)c;assert(!lease_count&&!pending_token&&(!text_granted||in_host_call));if(text_granted&&getenv("SPECTRUM_NO_PRESENT")){unavailable_frames++;return false;}lease_count=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=SPECTRUM_TEST_WIDTH,.height=SPECTRUM_TEST_HEIGHT,.stride_bytes=2*SPECTRUM_TEST_STRIDE,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
 static void fake_frame_release(void*c,risc_display_frame_v1 f){IO();(void)c;assert(lease_count&&f==1);lease_count=0;}
 static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){IO();(void)c;(void)r;(void)n;(void)o;assert(lease_count&&f==1&&!pending_token);lease_count=0;*t=++presents;pending_token=*t;pending_until=ticks+(text_granted?delay_ms:0);if(text_granted){host_frames++;save_frame("keyboard");}else{app_frames++;save_frame("app");}return true;}
 static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){IO();(void)c;assert(t);s->state=ticks<pending_until?RISC_DISPLAY_PRESENT_ACTIVE:RISC_DISPLAY_PRESENT_COMPLETE;if(s->state==RISC_DISPLAY_PRESENT_COMPLETE)pending_token=0;return true;}
@@ -94,13 +99,17 @@ static bool fake_touch_poll(void*c,size_t n){IO();(void)c;assert(n==1||n==2);pol
  else if(!strcmp(kind,"back")||!strcmp(kind,"home")){assert(!touch_down&&!navigation_pressed);navigation_pressed=!strcmp(kind,"back")?RISC_NAV_BACK:RISC_NAV_HOME;}
  else if(!strcmp(kind,"capture")){verify_capture(actions[action_cursor].x);char name[64];snprintf(name,sizeof(name),"capture-%02u",capture_serial++);save_frame(name);}
  else{unsigned event_kind;if(!strcmp(kind,"down")){assert(!touch_down);touch_down=true;event_kind=RISC_TOUCH_EVENT_DOWN;}else{assert(!strcmp(kind,"up")&&touch_down);touch_down=false;event_kind=RISC_TOUCH_EVENT_UP;}
- touch_x=actions[action_cursor].x;touch_y=actions[action_cursor].y;assert(touch_x>=0&&touch_x<240&&touch_y>=0&&touch_y<240&&subs==1&&touch_count<64);
+ touch_x=actions[action_cursor].x;touch_y=actions[action_cursor].y;
+#if SPECTRUM_TEST_WIDTH != 240
+ if(!strcmp(actions[action_cursor].gate,"text")){if(touch_y==20){touch_x=touch_x>120?SPECTRUM_TEST_WIDTH-20:20;}else{touch_x=touch_x*SPECTRUM_TEST_WIDTH/240;touch_y=touch_y*SPECTRUM_TEST_HEIGHT/240;}}else{touch_x+=(SPECTRUM_TEST_WIDTH-240)/2;touch_y+=(SPECTRUM_TEST_HEIGHT-240)/2;}
+#endif
+ assert(touch_x>=0&&touch_x<SPECTRUM_TEST_WIDTH&&touch_y>=0&&touch_y<SPECTRUM_TEST_HEIGHT&&subs==1&&touch_count<64);
  touch_events[(touch_head+touch_count++)%64]=(risc_touch_event_v1){.sequence=++touch_sequence,.timestamp_ms=ticks,.kind=event_kind,.id=1,.x=(uint16_t)touch_x,.y=(uint16_t)touch_y};touch_edges++;}
  fprintf(stderr,"input %u %s %s %d %d\n",ticks,actions[action_cursor].gate,kind,actions[action_cursor].x,actions[action_cursor].y);
  if(++action_cursor<action_count)next_action_at=ticks+actions[action_cursor].delay;else stop_at=ticks+900;return true;
 }
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){IO();(void)c;assert(n==1&&subs);if(!touch_count)return 0;*e=touch_events[touch_head];touch_head=(touch_head+1)%64;touch_count--;return 1;}
-static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){IO();(void)c;*s=(risc_touch_snapshot_v1){.width=240,.height=240,.sequence=touch_sequence,.timestamp_ms=ticks};if(touch_down){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=(uint16_t)touch_x,.y=(uint16_t)touch_y};}return true;}
+static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){IO();(void)c;*s=(risc_touch_snapshot_v1){.width=SPECTRUM_TEST_WIDTH,.height=SPECTRUM_TEST_HEIGHT,.sequence=touch_sequence,.timestamp_ms=ticks};if(touch_down){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=(uint16_t)touch_x,.y=(uint16_t)touch_y};}return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
 static bool fake_battery(void*c,risc_battery_sample_v1*s){IO();(void)c;if(text_granted)policy_battery++;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};return true;}
 static const risc_battery_gauge_api_v1 battery_api={1,sizeof(battery_api),NULL,fake_battery};

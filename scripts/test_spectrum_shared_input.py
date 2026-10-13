@@ -167,6 +167,9 @@ def run(args):
     safety_flags = ['-DPORTABLE_SPECTRUM_SHARED_TEXT_INPUT', '-DPORTABLE_TEXT_INPUT_CLIENT',
                     '-DPORTABLE_APP_LAUNCH_GUARD', '-DPORTABLE_CHECKED_STORAGE_RUNTIME',
                     '-DPORTABLE_NATIVE_CUSTODY_FENCE', '-DPORTABLE_ALARM_TERMINAL_RETENTION', '-DPORTABLE_WATCH_COLOR_ONLY', '-DPORTABLE_WATCH_FROZEN_ICONS']
+    if args.native_height:
+        safety_flags=[x for x in safety_flags if x!='-DPORTABLE_WATCH_FROZEN_ICONS']
+        safety_flags+=['-DPORTABLE_WATCH_NATIVE_HEIGHT','-DSPECTRUM_TEST_WIDTH=410','-DSPECTRUM_TEST_HEIGHT=502']
     output.mkdir(parents=True, exist_ok=True)
     sdk = output / 'sdk/include'
     sdk.mkdir(parents=True, exist_ok=True)
@@ -224,7 +227,7 @@ def run(args):
         for provider, entry in [('scene_host', 'spectrum_scene_driver_get'), ('text_input', 'spectrum_text_driver_get'), ('scene_profile', 'spectrum_profile_driver_get')]:
             obj = out / (provider + '.o')
             source = system / 'Services' / provider / ('profile.c' if provider == 'scene_profile' else 'host.c')
-            host_flags = ['-DSCENE_HOST_TELEMETRY=0', '-DSCENE_HOST_WATCH_240=1'] if provider == 'scene_host' else []
+            host_flags = ['-DSCENE_HOST_TELEMETRY=0', '-DSCENE_HOST_WATCH_240='+('0' if args.native_height else '1')] if provider == 'scene_host' else []
             subprocess.run([*command, *host_flags, '-Dt5_driver_get=' + entry, '-c', str(source), '-o', str(obj)], check=True)
             objects.append(obj)
         sources = [ROOT / 'test/native_apps/spectrum_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', catalog]
@@ -250,7 +253,7 @@ def run(args):
             from PIL import Image
             for ppm in folder.glob('*.ppm'):
                 with Image.open(ppm) as im:
-                    assert im.size == (240, 240)
+                    assert im.size == ((410,502) if args.native_height else (240,240))
                     im.save(ppm.with_suffix('.png'))
                 ppm.unlink()
             print('Spectrum production shared input', 'ASan/UBSan' if sanitized else 'normal', name, 'PASS', flush=True)
@@ -316,6 +319,7 @@ if __name__ == '__main__':
     p.add_argument('--output', type=Path)
     p.add_argument('--scenario', action='append')
     p.add_argument('--baseline-utilities', type=Path, default=Path('/workspace/shared/lora-shared-input-utilities-published-20261012'))
+    p.add_argument('--native-height',action='store_true')
     p.add_argument('--normal-only', action='store_true')
     p.add_argument('--extra-define', action='append', default=[], type=define_argument, metavar='NAME[=VALUE]',
                    help='Additional production selector; repeat once for each define (without -D)')
