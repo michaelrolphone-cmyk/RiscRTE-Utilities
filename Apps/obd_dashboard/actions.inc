@@ -56,15 +56,21 @@ static void action(obd_app*a,unsigned id,int value){
  }
  if(id>=ACT_PID&&id<ACT_PID+OBD_METRICS){a->selected_metric=id-ACT_PID;go(a,DETAIL);return;}
  if(id>=ACT_ON_DASH&&id<ACT_ON_DASH+OBD_METRICS){
-  unsigned k=id-ACT_ON_DASH;if(!db_specs[k].selectable||!a->elm.samples[k].supported)return;
+  unsigned k=id-ACT_ON_DASH;if(!db_specs[k].selectable)return;
   unsigned at=0;while(at<a->data.cfg.dash_count&&a->data.cfg.dash[at]!=k)at++;
+  /* Checkbox events request a value, not an inversion. Repeated identical
+   * requests during an outstanding frame cannot undo the accepted edit. */
+  if((at<a->data.cfg.dash_count)==(value!=0))return;
+  if(value&&!a->elm.samples[k].supported)return;
   if(at<a->data.cfg.dash_count){for(unsigned j=at+1;j<a->data.cfg.dash_count;j++)a->data.cfg.dash[j-1]=a->data.cfg.dash[j];a->data.cfg.dash[--a->data.cfg.dash_count]=0;}
   else if(a->data.cfg.dash_count<8)a->data.cfg.dash[a->data.cfg.dash_count++]=k;else{feedback(a,"Max 8 sensors; remove one first");return;}
   persist(a);return;
  }
  if(id>=ACT_GRAPH_SENSOR&&id<ACT_GRAPH_SENSOR+OBD_METRICS){
-  unsigned k=id-ACT_GRAPH_SENSOR;if(!a->elm.samples[k].supported)return;
+  unsigned k=id-ACT_GRAPH_SENSOR;
   unsigned at=0;while(at<a->data.cfg.graph_count&&a->data.cfg.graph[at]!=k)at++;
+  if(a->screen==GRAPH_PICK&&(at<a->data.cfg.graph_count)==(value!=0))return;
+  if(at==a->data.cfg.graph_count&&!a->elm.samples[k].supported)return;
   if(at<a->data.cfg.graph_count){if(a->data.cfg.graph_count==1){feedback(a,"Keep at least one graph sensor");return;}for(unsigned j=at+1;j<a->data.cfg.graph_count;j++)a->data.cfg.graph[j-1]=a->data.cfg.graph[j];a->data.cfg.graph[--a->data.cfg.graph_count]=0;}
   else if(a->data.cfg.graph_count<3)a->data.cfg.graph[a->data.cfg.graph_count++]=k;else{feedback(a,"Max 3 sensors on a graph");return;}
   a->data.paused=false;persist(a);return;

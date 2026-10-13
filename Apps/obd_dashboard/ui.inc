@@ -102,7 +102,7 @@ static void detail_page(obd_app*a){
   unsigned max_index=(unsigned)((db_specs[k].maximum-db_specs[k].minimum)/db_specs[k].step)+1,index=has?(unsigned)((v-db_specs[k].minimum)/db_specs[k].step)+1:0;
   stepper(a,i?"ALERT BELOW":"ALERT ABOVE",vtext,i?ACT_LIMIT_LOW:ACT_LIMIT_HIGH,index,max_index);
  }
- if(db_specs[k].selectable)checked(a,"SHOW ON LIVE DASHBOARD","",ACT_ON_DASH+k,on_dashboard(a,k),!a->elm.samples[k].supported);
+ if(db_specs[k].selectable)checked(a,"SHOW ON LIVE DASHBOARD","",ACT_ON_DASH+k,on_dashboard(a,k),!a->elm.samples[k].supported&&!on_dashboard(a,k));
 }
 static const struct {uint16_t code;unsigned priority;const char*description,*causes[3];} definitions[]={
  {0x0300,2,"RANDOM / MULTIPLE CYLINDER MISFIRE",{"Worn spark plugs or coils","Vacuum leak","Low fuel pressure"}},
@@ -226,7 +226,7 @@ static void declare(obd_app*a){
  else if(a->screen==CUSTOM||a->screen==GRAPH_PICK){
   bool custom=a->screen==CUSTOM;char text[64];snprintf(text,sizeof(text),"%u OF %u SHOWN",custom?a->data.cfg.dash_count:a->data.cfg.graph_count,custom?8:3);title(a,custom?"DASHBOARD SENSORS":"ADD TO GRAPH",text);
   for(unsigned i=0;i<OBD_METRICS;i++)if(custom?db_specs[i].selectable:(db_specs[i].selectable||i==OBD_RPM||i==OBD_SPEED)){
-   snprintf(text,sizeof(text),"PID %02X%s",obd_specs[i].pid,a->elm.samples[i].supported?"":" / NOT REPORTED BY THIS VEHICLE");checked(a,obd_specs[i].name,text,(custom?ACT_ON_DASH:ACT_GRAPH_SENSOR)+i,custom?on_dashboard(a,i):on_graph(a,i),!a->elm.samples[i].supported);
+   snprintf(text,sizeof(text),"PID %02X%s",obd_specs[i].pid,a->elm.samples[i].supported?"":" / NOT REPORTED BY THIS VEHICLE");checked(a,obd_specs[i].name,text,(custom?ACT_ON_DASH:ACT_GRAPH_SENSOR)+i,custom?on_dashboard(a,i):on_graph(a,i),!a->elm.samples[i].supported&&!(custom?on_dashboard(a,i):on_graph(a,i)));
   }
   node(a,RISC_SCENE_TEXT_NODE,custom?"SPEED AND RPM ALWAYS SHOWN":"MAXIMUM THREE SERIES","Fewer selected sensors allow faster adapter polling.",0);
  }else if(a->screen==ADLOG){
