@@ -1,0 +1,365 @@
+{
+  "schema": "contexts.provider-pair.qualification.v1",
+  "status": "passed for cumulative full-profile component; mixed editing rejected safely",
+  "base_utilities": "186ba80899fc9746609860821df61c7bbe0e2dc8",
+  "app_and_lib_unchanged": true,
+  "scene_text_system": "f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165",
+  "legacy_scene": "1aaf53e23ca9651a5cf9d1debe44941c9d7d0e58",
+  "app_elf": {
+    "bytes": 88020,
+    "sha256": "8db9d4be5801635bdb58e3f5ddaa41bcbdb744243a0e875a4a8252496cd24402"
+  },
+  "tests": {
+    "cumulative_navigation_capable": 740,
+    "cumulative_no_navigation": 48,
+    "catalog_touch_no_navigation": 12,
+    "mixed_safe_unavailable_actual_provider": 8,
+    "total": 808
+  },
+  "reports": [
+    {
+      "file": "cumulative-240x240-catalog-no-nav-normal.json",
+      "sha256": "dd4d8ae1fa02a2a31517fb63ae50c362e336817a78db1a1d04d927cee5d4b1db",
+      "cases": 3,
+      "navigation_declared": false,
+      "geometry": "240x240",
+      "sanitized": false,
+      "pair": "cumulative",
+      "catalog": true
+    },
+    {
+      "file": "cumulative-240x240-catalog-no-nav-sanitized.json",
+      "sha256": "446365a50dbfdc243ad5180e51d1b41c687c692f2964c83cb369cde333f22568",
+      "cases": 3,
+      "navigation_declared": false,
+      "geometry": "240x240",
+      "sanitized": true,
+      "pair": "cumulative",
+      "catalog": true
+    },
+    {
+      "file": "cumulative-240x240-no-nav-normal.json",
+      "sha256": "9b5f6416d4d84027deb2fad71f32c6221799ee462c0457baf02e663f6de654e4",
+      "cases": 12,
+      "navigation_declared": false,
+      "geometry": "240x240",
+      "sanitized": false,
+      "pair": "cumulative",
+      "catalog": false
+    },
+    {
+      "file": "cumulative-240x240-no-nav-sanitized.json",
+      "sha256": "80572d70e69d2228c19fbe242c35858b9f9d1ce22770c98bcd96d9bb10dc93f1",
+      "cases": 12,
+      "navigation_declared": false,
+      "geometry": "240x240",
+      "sanitized": true,
+      "pair": "cumulative",
+      "catalog": false
+    },
+    {
+      "file": "cumulative-240x240-normal.json",
+      "sha256": "be91f98355cdd8bf5f42ae163dfdc810bef6bb225beae102efc64246ef228a69",
+      "cases": 185,
+      "navigation_declared": true,
+      "geometry": "240x240",
+      "sanitized": false,
+      "pair": "cumulative",
+      "catalog": false
+    },
+    {
+      "file": "cumulative-240x240-sanitized.json",
+      "sha256": "be51ab96f8d4cb3115c0ff3c4eaeff980c729f4116f0b39988b97af0e1fc5714",
+      "cases": 185,
+      "navigation_declared": true,
+      "geometry": "240x240",
+      "sanitized": true,
+      "pair": "cumulative",
+      "catalog": false
+    },
+    {
+      "file": "cumulative-410x502-catalog-no-nav-normal.json",
+      "sha256": "3296411cbe8c5bc2ed33c17cff0cd71b8c85bcfbf39a2c3676894a8331c59460",
+      "cases": 3,
+      "navigation_declared": false,
+      "geometry": "410x502",
+      "sanitized": false,
+      "pair": "cumulative",
+      "catalog": true
+    },
+    {
+      "file": "cumulative-410x502-catalog-no-nav-sanitized.json",
+      "sha256": "feff956f4bef49114d57bd7242b3b4a03b923e888bca539af26766be44cd2b78",
+      "cases": 3,
+      "navigation_declared": false,
+      "geometry": "410x502",
+      "sanitized": true,
+      "pair": "cumulative",
+      "catalog": true
+    },
+    {
+      "file": "cumulative-410x502-no-nav-normal.json",
+      "sha256": "5b48cf222609f01083e756dba5301eed6e8bb9f0a5bc984069512808ea0d4e89",
+      "cases": 12,
+      "navigation_declared": false,
+      "geometry": "410x502",
+      "sanitized": false,
+      "pair": "cumulative",
+      "catalog": false
+    },
+    {
+      "file": "cumulative-410x502-no-nav-sanitized.json",
+      "sha256": "c907b204d7171ebbe75adf7cd86af382b291edecf815a2848f685d9f665b9b22",
+      "cases": 12,
+      "navigation_declared": false,
+      "geometry": "410x502",
+      "sanitized": true,
+      "pair": "cumulative",
+      "catalog": false
+    },
+    {
+      "file": "cumulative-410x502-normal.json",
+      "sha256": "c35bc37fff246d908a28215f174f6b35b9841e59189cc2238700ff77174abd69",
+      "cases": 185,
+      "navigation_declared": true,
+      "geometry": "410x502",
+      "sanitized": false,
+      "pair": "cumulative",
+      "catalog": false
+    },
+    {
+      "file": "cumulative-410x502-sanitized.json",
+      "sha256": "3688f0733f6279bb00f4d44d6a610fc2b9865e0d8b82180407afcb7fa9296a35",
+      "cases": 185,
+      "navigation_declared": true,
+      "geometry": "410x502",
+      "sanitized": true,
+      "pair": "cumulative",
+      "catalog": false
+    },
+    {
+      "file": "mixed-240x240-no-nav-normal.json",
+      "sha256": "a85a4891aa9b87a1ef69e98967c416b08e6ac38b3e8f87725b82818842733017",
+      "cases": 1,
+      "navigation_declared": false,
+      "geometry": "240x240",
+      "sanitized": false,
+      "pair": "mixed",
+      "catalog": false
+    },
+    {
+      "file": "mixed-240x240-no-nav-sanitized.json",
+      "sha256": "fc420fb5ea5a666d2b1c8fd99d493b32667a32b3ca50b31aa2a50980e3603a57",
+      "cases": 1,
+      "navigation_declared": false,
+      "geometry": "240x240",
+      "sanitized": true,
+      "pair": "mixed",
+      "catalog": false
+    },
+    {
+      "file": "mixed-240x240-normal.json",
+      "sha256": "34b89343edebe2a1665e5461fdf852d160fa2b67a2f8aa426ba6c40896bd2af8",
+      "cases": 1,
+      "navigation_declared": true,
+      "geometry": "240x240",
+      "sanitized": false,
+      "pair": "mixed",
+      "catalog": false
+    },
+    {
+      "file": "mixed-240x240-sanitized.json",
+      "sha256": "e5dfdf27cb1868e6450f72d05f25315473596743c1d05ff62f78ab7fd2d36c8f",
+      "cases": 1,
+      "navigation_declared": true,
+      "geometry": "240x240",
+      "sanitized": true,
+      "pair": "mixed",
+      "catalog": false
+    },
+    {
+      "file": "mixed-410x502-no-nav-normal.json",
+      "sha256": "87ec248a52fa51e0707598223e660762627e043791e6a3c277ba8b00ea5fbf2f",
+      "cases": 1,
+      "navigation_declared": false,
+      "geometry": "410x502",
+      "sanitized": false,
+      "pair": "mixed",
+      "catalog": false
+    },
+    {
+      "file": "mixed-410x502-no-nav-sanitized.json",
+      "sha256": "ff1ba9007258e2a3aa9526e10946371f66fba555d2d417d8311237071e651d41",
+      "cases": 1,
+      "navigation_declared": false,
+      "geometry": "410x502",
+      "sanitized": true,
+      "pair": "mixed",
+      "catalog": false
+    },
+    {
+      "file": "mixed-410x502-normal.json",
+      "sha256": "1c4e6a5589cfaaf9bfc270a7117b1bfd5f7e1c1d50b11f266e39340e7cc80153",
+      "cases": 1,
+      "navigation_declared": true,
+      "geometry": "410x502",
+      "sanitized": false,
+      "pair": "mixed",
+      "catalog": false
+    },
+    {
+      "file": "mixed-410x502-sanitized.json",
+      "sha256": "479e73f21992818eb4194e28ea33c9245f3b41c8ff53b6c591027071cc0de79b",
+      "cases": 1,
+      "navigation_declared": true,
+      "geometry": "410x502",
+      "sanitized": true,
+      "pair": "mixed",
+      "catalog": false
+    }
+  ],
+  "target": {
+    "cumulative": {
+      "raw_bytes": 467088,
+      "raw_sha256": "a264c572f180d53e6f8e4632bd2834e5dc0b3a3581c95e5fe9995197deea4359",
+      "compaction": {
+        "after_bytes": 298204,
+        "after_sha256": "b110f57972fadf67f36ddc08f28bc3dfa03e030d46d5fd72d4b64890ff201cfb",
+        "before_bytes": 467088,
+        "before_sha256": "a264c572f180d53e6f8e4632bd2834e5dc0b3a3581c95e5fe9995197deea4359",
+        "options": [
+          "--remove-section=.xt.lit",
+          "--remove-section=.xt.prop",
+          "--discard-all"
+        ],
+        "original_elf_retained": true,
+        "profile": "loader-metadata-v3",
+        "removed_sections": [
+          ".xt.lit",
+          ".xt.prop"
+        ],
+        "retained_loader_sections_symbols_relocations_unchanged": true,
+        "tool": "GNU objcopy (crosstool-NG esp-2021r2-patch5) 2.35.1.20201223"
+      },
+      "manifest": {
+        "architecture": "xtensa-esp32s3",
+        "driver_abi": 2,
+        "file_name": "driver.elf",
+        "id": "scene-host",
+        "provides": [
+          {
+            "api": 1,
+            "capability": "ui.scene"
+          }
+        ],
+        "requires": [
+          {
+            "api": 1,
+            "capability": "display.output"
+          },
+          {
+            "api": 1,
+            "capability": "input.touch.raw"
+          },
+          {
+            "api": 1,
+            "capability": "platform.clock"
+          },
+          {
+            "api": 1,
+            "capability": "ui.presentation-profile"
+          }
+        ],
+        "type": "driver",
+        "version": "0.4.6"
+      },
+      "defines": [],
+      "compiler": "xtensa-esp32s3-elf-gcc (crosstool-NG esp-2021r2-patch5) 8.4.0",
+      "raw_validation": "passed",
+      "compact_validation": "passed"
+    },
+    "local_controlled_legacy": {
+      "raw_bytes": 302332,
+      "raw_sha256": "593f0bde1a573f96b48394e910350600c455930fcc30a885381108e6f143d243",
+      "compaction": {
+        "after_bytes": 197584,
+        "after_sha256": "c383a5487619fcf469d22d3254ac03e3267e14677e4f69860fa2a807260e9718",
+        "before_bytes": 302332,
+        "before_sha256": "593f0bde1a573f96b48394e910350600c455930fcc30a885381108e6f143d243",
+        "options": [
+          "--remove-section=.xt.lit",
+          "--remove-section=.xt.prop",
+          "--discard-all"
+        ],
+        "original_elf_retained": true,
+        "profile": "loader-metadata-v3",
+        "removed_sections": [
+          ".xt.lit",
+          ".xt.prop"
+        ],
+        "retained_loader_sections_symbols_relocations_unchanged": true,
+        "tool": "GNU objcopy (crosstool-NG esp-2021r2-patch5) 2.35.1.20201223"
+      },
+      "manifest": {
+        "architecture": "xtensa-esp32s3",
+        "driver_abi": 2,
+        "file_name": "driver.elf",
+        "id": "scene-host",
+        "provides": [
+          {
+            "api": 1,
+            "capability": "ui.scene"
+          }
+        ],
+        "requires": [
+          {
+            "api": 1,
+            "capability": "display.output"
+          },
+          {
+            "api": 1,
+            "capability": "input.touch.raw"
+          },
+          {
+            "api": 1,
+            "capability": "platform.clock"
+          },
+          {
+            "api": 1,
+            "capability": "ui.presentation-profile"
+          }
+        ],
+        "type": "driver",
+        "version": "0.3.6"
+      },
+      "defines": [],
+      "compiler": "xtensa-esp32s3-elf-gcc (crosstool-NG esp-2021r2-patch5) 8.4.0",
+      "raw_validation": "passed",
+      "compact_validation": "passed"
+    }
+  },
+  "original_composer_artifact": {
+    "raw_bytes": 315000,
+    "raw_sha256": "6676ce70db2043c6c600a54ffec6e6201f9dd37d253dcd829fa7b399ee0951e9",
+    "compact_bytes": 208776,
+    "compact_sha256": "2fd96f8f965d10215e126263cf256651949e75c61a6cae201db2d9f4ed52f956",
+    "provenance": "reported by composer; unavailable locally; exact recipe mismatch remains separate"
+  },
+  "payload_delta_from_supplied_composer_bytes": 89428,
+  "controlled_same_stage_local_delta": 100620,
+  "scripts": {
+    "test_contexts_provider_pair.py": "83d704442a91df18a7b9d2e836289714ccd475e99d3638d35d96dda572090fca",
+    "test_contexts_provider_target.py": "e87f34dad9e10ab6e6b79315dcfea41aac7b655399a44211dce5f2ea079ba1d0"
+  },
+  "limits": [
+    "No physical hardware",
+    "No Xtensa instruction execution",
+    "No full firmware or assembled-store admission",
+    "No product repinning or publication",
+    "95-row chooser and 32-character workflow keys remain existing bounds"
+  ],
+  "negative_evidence": {
+    "file": "mixed-normal-edit-rejection.json",
+    "sha256": "b077f80172fab0954846b27925e9ca3c829106097950f627a5cd800d4b1958cb"
+  }
+}
