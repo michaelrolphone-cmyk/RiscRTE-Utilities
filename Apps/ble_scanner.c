@@ -3,6 +3,12 @@
 #include "RiscRuntimeV1.h"
 #include "RiscBluetoothSensorsV1.h"
 #include "PortableTextInputClient.h"
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+#include "PortableTextInputPolicy.h"
+#include "RiscRuntimeHostControlV1.h"
+static portable_text_checkpoint_client name_checkpoint;
+static bool name_policy_continuity;
+#endif
 #include "ble_sensor_names.h"
 #include "PortableRadioSession.h"
 #include "PortableRadioPolicy.h"
@@ -151,10 +157,18 @@ static void begin_name(void){
  if(!name_save_failed||name_draft_index!=detail_index)memcpy(editing,aliases[detail_index],sizeof(editing));
  name_draft_index=detail_index;name_closing=false;
  name_state=(risc_text_entry_state_v1){.struct_size=sizeof(name_state)};
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ name_checkpoint=(portable_text_checkpoint_client){0};name_policy_continuity=false;
+#endif
  int32_t rc=portable_text_client_begin(&name_client,runtime,"Sensor name",editing,sizeof(editing));
  if(rc==RISC_TEXT_ENTRY_RETAINED||name_client.retained){name_retain();return;}
  if(rc!=RISC_TEXT_ENTRY_OK){message="Text input unavailable";detail_scroll=0;dirty=true;return;}
  naming=true;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ rc=portable_text_checkpoint_enable(&name_client,&name_checkpoint);
+ if(name_client.retained){name_retain();return;}
+ if(rc!=RISC_TEXT_ENTRY_OK){name_closing=true;name_state.state=RISC_TEXT_ENTRY_CANCELLED;message="Text input unavailable";}
+#endif
 }
 static bool name_storage_live(void){
  if(portable_text_client_live(&name_client))return true;
@@ -204,14 +218,52 @@ static void save_name(void){
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);for(unsigned i=0;i<n;i++)if(list[i]==detail_index){selected=i;break;}
  scroll=selected>=visible_rows()?selected-visible_rows()+1:0;dirty=true;
 }
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static void name_policy(void){
+ if(!name_checkpoint.pausing&&!name_checkpoint.paused){
+  risc_text_entry_checkpoint_state_v1 snapshot={.struct_size=sizeof(snapshot)};
+  int rc=portable_text_checkpoint_snapshot(&name_client,&name_checkpoint,&snapshot);
+  if(rc!=RISC_TEXT_ENTRY_OK||name_client.retained)return;
+  rc=portable_text_adapter_policy_prepare(snapshot.flags,&name_policy_continuity);
+  if(rc<0){(void)portable_text_client_retain(&name_client);name_retain();return;}
+  if(!rc)return;
+ }
+ int rc=portable_text_checkpoint_pause_mode(&name_client,&name_checkpoint,name_policy_continuity);
+ if(rc!=RISC_TEXT_ENTRY_OK||name_client.retained)return;
+ uint32_t flags=0;int policy=portable_text_adapter_policy_apply(name_policy_continuity,&flags);
+ if(policy<0){(void)portable_text_client_retain(&name_client);name_retain();return;}
+ if(name_client.retained)return;
+ if(policy>0){name_state.state=RISC_TEXT_ENTRY_CANCELLED;name_closing=true;return;}
+ (void)portable_text_checkpoint_resume(&name_client,&name_checkpoint,flags);
+}
+#endif
 static void name_step(void){
  int32_t rc;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ if(name_client.retained)return;
+ if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&name_client);name_retain();return;}
+ if(!name_closing&&(name_checkpoint.pausing||name_checkpoint.paused)){
+  int attention=portable_text_adapter_attention();
+  if(attention<0){(void)portable_text_client_retain(&name_client);name_retain();return;}
+  if(!attention){name_policy();return;}
+  name_state.state=RISC_TEXT_ENTRY_CANCELLED;name_closing=true;
+ }
+#endif
  if(!name_closing){
   rc=portable_text_client_poll(&name_client,&name_state);
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+  if(name_client.retained)return;
+  if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&name_client);name_retain();return;}
+#endif
   if(rc==RISC_TEXT_ENTRY_AGAIN)return;
   if(rc==RISC_TEXT_ENTRY_RETAINED||name_client.retained){name_retain();return;}
   if(rc!=RISC_TEXT_ENTRY_OK){name_state.state=RISC_TEXT_ENTRY_CANCELLED;message="Text input unavailable";}
-  else if(name_state.state==RISC_TEXT_ENTRY_EDITING)return;
+  else if(name_state.state==RISC_TEXT_ENTRY_EDITING){
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+   name_policy();
+#endif
+   return;
+  }
   name_closing=true;
  }
  rc=portable_text_client_close(&name_client);
@@ -219,6 +271,10 @@ static void name_step(void){
  if(rc!=RISC_TEXT_ENTRY_OK||name_client.retained){name_retain();return;}
  naming=name_closing=false;dirty=true;
  name_home_return=(name_state.flags&RISC_TEXT_ENTRY_HOME_CANCEL)!=0;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ name_home_return|=risc_runtime_exit_requested_v1(runtime);
+ if(!name_storage_live())return;
+#endif
  if(name_state.state==RISC_TEXT_ENTRY_ACCEPTED){
   unsigned n=0;while(n<sizeof(name_state.text)&&name_state.text[n]){
    unsigned char c=(unsigned char)name_state.text[n];if(c<32||c>126)break;n++;

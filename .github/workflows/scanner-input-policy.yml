@@ -1,0 +1,60 @@
+name: Scanner modal policy
+on:
+  push:
+    branches: [work/scanner-input-policy-20261012]
+  pull_request:
+    paths: ['Apps/ble_scanner.c', 'tests/scanner_policy*', 'tests/scanner_policy_profile/**', 'scripts/test_scanner_policy.py', 'scripts/scanner_policy_cases.py', '.github/workflows/scanner-input-policy.yml']
+permissions:
+  contents: read
+jobs:
+  real-host-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 9957e7c975f7b57ce9ea50d57b13c1d9bb75cf43
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 267aab6d9382ce4921a1536fab1620749b2f5301
+          path: .dependencies/runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: 089868395268b696c05651c33816345bfe0425df
+          path: .dependencies/watch
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Drivers
+          ref: aac1cb342696e96345d4546e2c69023834c6c8d4
+          path: .dependencies/drivers
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: >-
+          python scripts/test_scanner_policy.py
+          --system-apps .dependencies/system
+          --runtime .dependencies/runtime
+          --watch .dependencies/watch
+          --drivers .dependencies/drivers
+          --output build/scanner-policy
+      - run: python scripts/test_ble_scanner.py --system-apps .dependencies/system
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scanner-modal-policy-evidence
+          path: |
+            build/scanner-policy/result.json
+            build/scanner-policy/**/run.log
+            build/scanner-policy/**/frame-*.ppm.gz
+            build/ble-scanner/frames/**
