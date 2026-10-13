@@ -109,15 +109,17 @@ launches remain pending while the name editor owns input.
 
 ## Build and verification
 
-The generic source build supports:
+The generic source build supports the native read-only inventory. `--catalog` is no longer accepted; grant Contexts `app.catalog@1`, instance 0, in the product composition. See `CONTEXTS_RUNTIME_CATALOG.md` for the explicit source union.
+
+Build commands:
 
 ```
 python scripts/build_contexts_scene.py --runtime <runtime> \
   --system-apps <system> --target watch --shared-text-input \
-  --catalog <catalog.json> --face-header <ContextsFaces.h> --output <fresh-dir>
+  --catalog-system <catalog-system> --face-header <ContextsFaces.h> --output <fresh-dir>
 python scripts/build_contexts_scene.py --runtime <runtime> \
   --system-apps <system> --target x4 --shared-text-input \
-  --catalog <catalog.json> --output <fresh-dir>
+  --catalog-system <catalog-system> --output <fresh-dir>
 ```
 
 These generic commands do not substitute for the product's exact-pinned build,

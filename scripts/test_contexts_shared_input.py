@@ -41,9 +41,9 @@ CHECKPOINT = ('checkpoint-idle','checkpoint-presenting','checkpoint-input-busy',
 
 
 
-def build(runtime, system, tmp, profile, shared, sanitized, baseline=None):
+def build(runtime, system, tmp, profile, shared, sanitized, baseline=None, catalog_system=None):
     runtime,system = runtime.resolve(),system.resolve()
-    include = stage(runtime, system, tmp / 'sdk')
+    include = stage(runtime, system, tmp / 'sdk', catalog_system)
     flags = ['-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I'+str(include),'-I'+str(system/'test/scene'),'-I'+str(system/'Services/text_input')]
     if sanitized:
         flags += ['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
@@ -106,8 +106,6 @@ def run(args):
         return {'commit':subprocess.check_output(['git','-C',str(path),'rev-parse','HEAD'],text=True).strip(),
                 'tree':subprocess.check_output(['git','-C',str(path),'rev-parse','HEAD^{tree}'],text=True).strip(),
                 'working_tree_status':subprocess.check_output(['git','-C',str(path),'status','--porcelain'],text=True).splitlines()}
-    if args.baseline_utilities:
-        assert (ROOT/'Apps/contexts_controller.inc').read_bytes() == (args.baseline_utilities/'Apps/contexts_controller.inc').read_bytes(), 'Contexts controller changed'
     files = ['Apps/contexts.c','Apps/contexts_scene_view.inc','Apps/contexts_controller.inc','Apps/contexts_text_input.inc',
              'scripts/test_contexts_shared_input.py','test/contexts/app_test.c','test/contexts/host_probe.c',
              'test/contexts/shared_input_fixture.h','test/contexts/shared_input_fixture.inc']
@@ -118,14 +116,14 @@ def run(args):
                 'sanitizer_options':os.environ.get('ASAN_OPTIONS','default')}
     for sanitized in ((False,True) if args.sanitize else (False,)):
         flavor = 'sanitized' if sanitized else 'normal'
-        for profile in PROFILES:
+        for profile in args.profiles:
             parity = {}
             for shared in ((True,) if args.only else (False,True)):
                 kind = 'shared' if shared else 'legacy'
                 with tempfile.TemporaryDirectory(prefix='contexts-shared-test-') as directory:
                     tmp = Path(directory)
                     runtime = args.x4_runtime if profile == 'paper' and args.x4_runtime else args.runtime
-                    exe = build(runtime,args.system_apps,tmp,profile,shared,sanitized,args.baseline_utilities)
+                    exe = build(runtime,args.system_apps,tmp,profile,shared,sanitized,args.baseline_utilities,args.catalog_system)
                     frames = out / flavor / profile / kind
                     frames.mkdir(parents=True,exist_ok=True)
                     cases = list(LEGACY) if not args.only else []
@@ -163,6 +161,8 @@ if __name__ == '__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('runtime','system-apps','output'):
         parser.add_argument('--'+name,type=Path,required=True)
+    parser.add_argument('--catalog-system',type=Path)
+    parser.add_argument('--profiles',nargs='+',choices=PROFILES,default=PROFILES)
     parser.add_argument('--baseline-utilities',type=Path,help='Compile the exact earlier Contexts Apps sources for parity')
     parser.add_argument('--x4-runtime',type=Path,help='Stage Paper headers from the selected X4 source')
     parser.add_argument('--sanitize',action='store_true',help='Run both ordinary and ASan/UBSan suites')

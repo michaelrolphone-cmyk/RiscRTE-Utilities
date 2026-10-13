@@ -4,10 +4,10 @@ import argparse,os,subprocess,tempfile
 from pathlib import Path
 from build_contexts_scene import stage
 ROOT=Path(__file__).resolve().parents[1]
-def run(runtime,system,frames,sanitize=False):
+def run(runtime,system,frames,sanitize=False,catalog_system=None):
  frames.mkdir(parents=True,exist_ok=True)
  with tempfile.TemporaryDirectory(prefix='contexts-scene-test-') as temporary:
-  tmp=Path(temporary);include=stage(runtime,system,tmp)
+  tmp=Path(temporary);include=stage(runtime,system,tmp,catalog_system)
   flags=['-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I'+str(include),'-I'+str(system/'test/scene')]
   if sanitize:flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
   for profile in ('watch','paper'):
@@ -25,6 +25,7 @@ def run(runtime,system,frames,sanitize=False):
 if __name__=='__main__':
  p=argparse.ArgumentParser(description=__doc__)
  for n in ('runtime','system-apps','frames'):p.add_argument('--'+n,type=Path,required=True)
+ p.add_argument('--catalog-system',type=Path)
  p.add_argument('--sanitize',action='store_true')
- a=p.parse_args();run(a.runtime.resolve(),a.system_apps.resolve(),a.frames.resolve(),a.sanitize)
+ a=p.parse_args();run(a.runtime.resolve(),a.system_apps.resolve(),a.frames.resolve(),a.sanitize,a.catalog_system)
 

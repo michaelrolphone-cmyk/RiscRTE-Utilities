@@ -29,8 +29,10 @@ static unsigned native_exit_mode,app_launches;
 static bool native_exit_pending;
 static uint8_t preferences[4];static unsigned preferences_size;
 static const char *folder,*device;
+#ifndef CONTEXTS_RUNTIME_CATALOG
 const t5_app_manifest_t portable_catalog[]={{.file_name="calculator.elf",.display_name="CALCULATOR",.compatible=true}};
 const unsigned portable_catalog_count=1;
+#endif
 static int32_t file_stat(void*c,const char*n,uint32_t*size,uint64_t*rev){(void)c;*size=0;*rev=0;int32_t fault=text_test_backend_storage_result(n);if(fault)return fault;if(fail_storage)return RISC_APP_DATA_IO;if(strcmp(n,"context-rules.ctx"))return RISC_APP_DATA_NOT_FOUND;*size=sizeof(stored);*rev=revision;return 0;}
 static int32_t file_read(void*c,const char*n,uint64_t rev,void*p,uint32_t cap,uint32_t*sz,uint64_t*actual){(void)c;assert(!strcmp(n,"context-rules.ctx")&&rev==revision&&cap>=sizeof(stored));memcpy(p,stored,sizeof(stored));*sz=sizeof(stored);*actual=revision;return 0;}
 static int32_t file_replace(void*c,const char*n,uint64_t rev,const void*p,uint32_t size){(void)c;assert(!strcmp(n,"context-rules.ctx")&&rev==revision&&size==sizeof(stored));if(fail_write)return RISC_APP_DATA_IO;memcpy(stored,p,size);revision++;return 0;}
@@ -208,7 +210,10 @@ const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){return native_alive&&
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
 #include "shared_input_fixture.inc"
 #endif
-int main(int argc,char**argv){
+#ifndef CONTEXTS_TEST_MAIN
+#define CONTEXTS_TEST_MAIN main
+#endif
+int CONTEXTS_TEST_MAIN(int argc,char**argv){
  assert(argc==4);device=argv[1];folder=argv[2];fail_storage=!strcmp(argv[3],"storage");terminal_mode=!strcmp(argv[3],"retained");learning_mode=!strcmp(argv[3],"no-input")?1:!strcmp(argv[3],"delayed")?2:!strcmp(argv[3],"save-failure")?3:!strcmp(argv[3],"event-no-input")?4:0;
  native_exit_mode=!strcmp(argv[3],"exit-home")?1:!strcmp(argv[3],"exit-busy")?2:!strcmp(argv[3],"exit-keyboard")?3:!strcmp(argv[3],"exit-learning")?4:!strcmp(argv[3],"exit-saving")?5:0;
 
@@ -228,5 +233,6 @@ int main(int argc,char**argv){
  if(native_exit_mode){assert(native_exit_pending&&phase==99&&!app_launches&&!cs_launch[0]);if(native_exit_mode>=4)assert(!learn_saves);assert(driver->quiesce());driver->stop();printf("Contexts native exit: orderly cleanup, no queued launch, mode %u %s PASS\n",native_exit_mode,device);return 0;}
  assert(phase==(fail_storage?99:47));assert(driver->quiesce());driver->stop();printf("Contexts actual app_main, renderer, touch flows, pending refresh, training, save retry %s PASS\n",device);
 
+ return 0;
 }
 
