@@ -242,6 +242,8 @@ def run(args):
             action_file = folder / 'actions.txt'
             action_file.write_text(''.join(' '.join(map(str, row)) + '\n' for row in actions))
             env = {k: v for k, v in os.environ.items() if not k.startswith('SPECTRUM_')}
+            if args.native_height and 0<int(extra_env.get('SPECTRUM_TEST_DELAY_MS','0'))<3000:
+                extra_env={**extra_env,'SPECTRUM_TEST_DELAY_MS':'3000'}
             env.update(extra_env, ASAN_OPTIONS='detect_leaks=0', UBSAN_OPTIONS='halt_on_error=1')
             result = subprocess.run([str(executable), str(folder), str(action_file), name], env=env, capture_output=True, text=True, timeout=90)
             (folder / 'run.log').write_text(result.stdout + result.stderr)
