@@ -147,6 +147,7 @@ def scenarios():
     a,e=cases['shared-done'];cases['contexts-unavailable']=(list(a),dict(e,SPECTRUM_NO_CONTEXTS='1'))
     cases['missing-once']=(setup(3)+tap(120,84)+check(2)+setup(0)+tap(120,120)+key('Q')+done+check(),
         {'SPECTRUM_EXPECT_DRAFT':'Q','SPECTRUM_EXPECT_OPENS':'1','SPECTRUM_EXPECT_EDITOR_PAGE':'2'})
+    cases['capture-stop-restart']=(tap(120,120)+[(500,'app','idle',0,0)]+tap(75,225)+check(6)+[(500,'app','idle',0,0)]+check(7)+tap(75,225)+[(500,'app','idle',0,0)]+check(8)+nav('home'),{})
     cases['non-keyboard-views']=(sum(([(100,'app','scene',i,0)]+check(9) for i in range(18)),[]),{'SPECTRUM_EXPECT_OPENS':'0'})
     return cases
 

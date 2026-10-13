@@ -231,6 +231,10 @@ static void setup_scene(int which){
  else assert(!"unknown scene");
 }
 static void verify_capture(int check){
+ static unsigned stopped_reads;
+ if(check==6){assert(!running&&!mic_owned&&mic_opens==mic_closes&&mic_reads>0);stopped_reads=mic_reads;}
+ if(check==7){assert(!running&&!mic_owned&&mic_reads==stopped_reads);}
+ if(check==8){assert(running&&mic_owned&&mic_reads>stopped_reads&&mic_opens==mic_closes+1);}
  if(check==0){assert(!text_granted);expect_num("SPECTRUM_EXPECT_EDITOR_PAGE",page);assert(!kv_writes&&!data_writes);const char *v=getenv("SPECTRUM_EXPECT_DRAFT");if(v){fprintf(stderr,"draft='%s' expected='%s'\n",draft_name(),v);assert(!strcmp(draft_name(),v));}}
  if(check==1){assert(!text_granted);const char*v=getenv("SPECTRUM_EXPECT_DRAFT");assert(v);if(editor==0){unsigned slot=getenv("SPECTRUM_SAVED_SLOT")?(unsigned)atoi(getenv("SPECTRUM_SAVED_SLOT")):4;assert(kv_writes==1&&labels[slot].present&&!strcmp(labels[slot].name,v));}else if(editor==2){assert(data_writes&&event_library.labels[0].present&&!strcmp(event_library.labels[0].name,v));}else if(editor==1){assert(signature_goal&&running&&!strcmp(signature_capture.name,v));}else{assert(cfa_learning_kind&&running&&!strcmp(cfa_learning.name,v));}}
  if(check==2){assert(!text_granted&&!kv_writes&&!data_writes);}
