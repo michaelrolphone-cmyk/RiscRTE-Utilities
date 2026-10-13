@@ -93,8 +93,10 @@ static void capture(const char*name){
  if(!frames||!submits)return;char path[512];snprintf(path,sizeof(path),"%s/%s.pbm",frames,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P4\n480 800\n");
  for(unsigned i=0;i<480*800/8;i++){uint8_t b=pixels[16+i];assert(fwrite(&b,1,1,f)==1);}fclose(f);
 }
+static bool ui_regression(void);
 static void yield_rt(uint32_t delay){
  assert(native_alive);ms+=delay;if(ms>=240000){fprintf(stderr,"STALLED step=%u screen=%u state=%u dirty=%u pending=%u\n",step,app.screen,app.elm.state,app.dirty,event_count-event_at);assert(0);}
+ if(scenario>=25&&ui_regression())return;
  if(!app.session||presenting||held||event_at<event_count)return;
  risc_scene_navigation_v1 path={.struct_size=sizeof(path)};uint32_t flags=0;assert(!api->snapshot(NULL,app.session,&path,&flags));if(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))return;
  if(ms-step_at<300)return;
@@ -235,9 +237,11 @@ static int32_t shell_checkpoint(uint64_t token,const risc_resident_request_v1*r,
 static bool resident_bind(risc_resident_client_v1*out){if(scenario!=5)return false;*out=(risc_resident_client_v1){.api_version=1,.struct_size=sizeof(*out),.invocation=9,.role=RISC_RESIDENT_ROLE_FOREGROUND,.checkpoint=shell_checkpoint};return true;}
 static const risc_runtime_api_v1 runtime={.api_version=1,.struct_size=sizeof(runtime),.yield_ms=yield_rt,.diagnostic=diagnostic,.acquire=cap_acquire,.release=cap_release,.retain_invocation=retain_rt,.monotonic_ms=clock_now,.resident_shell=resident_bind};
 const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){return native_alive&&v==1?&runtime:NULL;}
+#include "ui_regression.inc"
 int main(int argc,char**argv){
  if(argc>1)scenario=(unsigned)atoi(argv[1]);if(argc>2)frames=argv[2];missing_radio=scenario==4;
  w=480;h=800;format=1;presentation_delay=100;poll_step=5;expected_intent=RISC_DISPLAY_PRESENT_LOW_LATENCY;
+ if(scenario>=25)poll_step=0;
  prof=(risc_scene_profile_v1){1,sizeof(prof),1,3,88,20,0,0xffff,0,0,0,0};
  driver=t5_driver_get(2);api=driver->capability;risc_provider_dependency_v1 deps[]={{"display.output",1,&disp},{"input.touch.raw",1,&raw},{"input.navigation",1,&nav},{"platform.clock",1,&clk},{"ui.presentation-profile",1,&prof}};
  sf_init();assert(driver->start(deps,5));app_main();

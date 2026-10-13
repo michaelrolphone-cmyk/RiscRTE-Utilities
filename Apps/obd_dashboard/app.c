@@ -42,6 +42,7 @@ typedef struct {
  uint64_t session,token,sequence;
  uint32_t revision,now,last_paint,next_view,policy_at,send_blocked_at;
  bool send_blocked;
+ uint32_t scene_activity;
  bool dirty,done,retained,imperial,elm_started,view_settled,upgrade_required,reload_required;
  char notice[80],peer_name[40];
  obd_client elm;
@@ -203,6 +204,7 @@ static bool service_link(obd_app*a){
  return true;
 }
 static bool serial_api_valid(const risc_bluetooth_serial_v1*b){return b&&b->api_version==1&&b->struct_size>=sizeof(*b)&&b->open&&b->poll&&b->status&&b->peer&&b->connect&&b->channel&&b->select_channel&&b->write&&b->read&&b->close;}
+#include "ui_loop.inc"
 extern __attribute__((visibility("default"))) const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1;
 const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1={1,sizeof(risc_resident_app_descriptor_v1_t),RISC_RESIDENT_ROLE_FOREGROUND,0};
 __attribute__((visibility("default"))) void app_main(void){
@@ -218,7 +220,7 @@ __attribute__((visibility("default"))) void app_main(void){
  found=a->rt->acquire("storage.volume",1,0,&a->grants[a->acquired]);if(!authority(a))return;
  if(found){const risc_storage_volume_api_v1*b=a->grants[a->acquired].api;a->acquired++;a->volume=risc_storage_volume_extension(b);a->fs=risc_storage_volume_fs(b);if(!storage_api_valid(a->volume,a->fs)){a->volume=NULL;a->fs=NULL;}}
  ui_ready:
- if(a->rt->diagnostic)a->rt->diagnostic("OBD/dashboard version=0.2.2 transport=BLE clear=confirmed-only");if(!authority(a))return;
+ if(a->rt->diagnostic)a->rt->diagnostic("OBD/dashboard version=0.2.3 transport=BLE clear=confirmed-only");if(!authority(a))return;
  if(!a->rt->monotonic_ms(&a->now)||!authority(a))goto cleanup;
  db_init(&a->data,a->now);if(!load_settings(a))goto cleanup;a->imperial=a->data.cfg.imperial!=0;
  if(!publish(a,true))goto cleanup;
@@ -228,7 +230,7 @@ __attribute__((visibility("default"))) void app_main(void){
   db_tick(&a->data,&a->elm,a->now);
   if(a->data.alert_visible&&a->screen!=ALERT_MODAL&&a->screen!=CONFIRM){go(a,ALERT_MODAL);}
   if(!log_samples(a))break;
-  risc_scene_event_v1 event={.struct_size=sizeof(event)};int rc=a->scene->next(a->scene->context,a->session,&event);
+  risc_scene_event_v1 event={.struct_size=sizeof(event)};int rc=next_scene(a,&event);
   if(!authority(a)||rc==RISC_SCENE_RETAINED){retain_app(a);break;}if(rc!=RISC_SCENE_OK&&rc!=RISC_SCENE_IDLE)break;
   if(rc==RISC_SCENE_OK&&valid_event(a,&event)){
    if(event.kind==RISC_SCENE_SUSPEND_EVENT){a->done=true;break;}
@@ -240,6 +242,7 @@ __attribute__((visibility("default"))) void app_main(void){
   if(a->done||!authority(a))break;
   risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;
   if(!scene_ok(a,a->scene->snapshot(a->scene->context,a->session,&nav,&flags)))break;
+  flags|=a->scene_activity;a->scene_activity=0;
   if((uint32_t)(a->now-a->policy_at)>=100){
    a->policy_at=a->now;int status=risc_scene_resident_poll_work_v1(&a->resident,flags,a->token?RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY:0);
    if(status==RISC_RESIDENT_RETAINED||!authority(a)){retain_app(a);break;}if(status==RISC_RESIDENT_EXIT)break;
@@ -248,10 +251,14 @@ __attribute__((visibility("default"))) void app_main(void){
   /* Schedule data repaint from completed presentation. Starting another frame
    * immediately on completion can otherwise make every visible hit map stale. */
   if(!(flags&RISC_SCENE_PRESENTING)&&!a->view_settled){a->view_settled=true;a->next_view=a->now;}
-  if(!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&(a->dirty||(uint32_t)(a->now-a->next_view)>=a->data.cfg.update_ms)){
+  /* A user edit acknowledges logical control state immediately. Periodic
+   * telemetry still waits for presentation and never interrupts a contact. */
+  if(!(flags&RISC_SCENE_INPUT_BUSY)&&(a->dirty||(!(flags&RISC_SCENE_PRESENTING)&&(uint32_t)(a->now-a->next_view)>=a->data.cfg.update_ms))){
    a->next_view=a->now;if(!publish(a,false))break;
   }
-  if(a->save_config&&a->view_settled&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!save_settings(a))break;
+  /* Coalesce checkbox edits in RAM; commit when leaving the selector or at
+   * the existing close/shared-control boundary, not between individual taps. */
+  if(a->save_config&&!editing_sensor_selection(a)&&a->view_settled&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!save_settings(a))break;
   a->rt->yield_ms(10);
  }
  cleanup:
