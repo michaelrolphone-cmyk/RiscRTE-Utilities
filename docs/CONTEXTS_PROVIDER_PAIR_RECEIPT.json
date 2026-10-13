@@ -343,7 +343,7 @@
     "raw_sha256": "6676ce70db2043c6c600a54ffec6e6201f9dd37d253dcd829fa7b399ee0951e9",
     "compact_bytes": 208776,
     "compact_sha256": "2fd96f8f965d10215e126263cf256651949e75c61a6cae201db2d9f4ed52f956",
-    "provenance": "reported by composer; unavailable locally; exact recipe mismatch remains separate"
+    "provenance": "Independently reproduced byte-for-byte with exact ordered composer flags and matching SDK headers."
   },
   "payload_delta_from_supplied_composer_bytes": 89428,
   "controlled_same_stage_local_delta": 100620,
@@ -361,5 +361,84 @@
   "negative_evidence": {
     "file": "mixed-normal-edit-rejection.json",
     "sha256": "b077f80172fab0954846b27925e9ca3c829106097950f627a5cd800d4b1958cb"
+  },
+  "composer_recipe_reproduced": true,
+  "composer_recipe": {
+    "source_translation_unit": "System@f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165/Services/scene_host/host.c",
+    "defines": [],
+    "forced_includes": [],
+    "float_compatibility_helper": false,
+    "export_map": "{ global: t5_driver_get; local: *; };",
+    "ordered_flags": [
+      "-std=c11",
+      "-Os",
+      "-fPIC",
+      "-mtext-section-literals",
+      "-mlongcalls",
+      "-fvisibility=hidden",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-nostdlib",
+      "-nostartfiles",
+      "-shared",
+      "-Wl,--no-relax",
+      "-Wl,--hash-style=sysv",
+      "-Wl,--version-script=$MAP",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-misleading-indentation",
+      "-ffunction-sections",
+      "-fdata-sections",
+      "-Wl,--gc-sections",
+      "-I$SDK_INCLUDE",
+      "$SYSTEM/Services/scene_host/host.c",
+      "-lgcc",
+      "-o",
+      "$OUTPUT"
+    ],
+    "old": {
+      "profile": "loader-metadata-v3",
+      "before_bytes": 315000,
+      "after_bytes": 208776,
+      "before_sha256": "6676ce70db2043c6c600a54ffec6e6201f9dd37d253dcd829fa7b399ee0951e9",
+      "after_sha256": "2fd96f8f965d10215e126263cf256651949e75c61a6cae201db2d9f4ed52f956",
+      "removed_sections": [
+        ".xt.lit",
+        ".xt.prop"
+      ],
+      "retained_loader_sections_symbols_relocations_unchanged": true,
+      "original_elf_retained": true,
+      "tool": "GNU objcopy (crosstool-NG esp-2021r2-patch5) 2.35.1.20201223",
+      "options": [
+        "--remove-section=.xt.lit",
+        "--remove-section=.xt.prop",
+        "--discard-all"
+      ]
+    },
+    "cumulative": {
+      "profile": "loader-metadata-v3",
+      "before_bytes": 480824,
+      "after_bytes": 310220,
+      "before_sha256": "4e9ac1dd5424c6e487142c07217f03c30933452f16577526536bfefc448ab021",
+      "after_sha256": "017039a424e0482cf35c062a5b883af621bda0457e8bb9ff321fe63640e54fa1",
+      "removed_sections": [
+        ".xt.lit",
+        ".xt.prop"
+      ],
+      "retained_loader_sections_symbols_relocations_unchanged": true,
+      "original_elf_retained": true,
+      "tool": "GNU objcopy (crosstool-NG esp-2021r2-patch5) 2.35.1.20201223",
+      "options": [
+        "--remove-section=.xt.lit",
+        "--remove-section=.xt.prop",
+        "--discard-all"
+      ]
+    },
+    "structural_validation": "raw and compact passed for both sources",
+    "loader_parity": "passed for both sources",
+    "evidence_sha256": "206ab0879663dfaf5b4b31d8aa53c9b7c0caef77c6fe330604ec6cba5c3e5cdd",
+    "same_recipe_payload_delta": 101444,
+    "independent_no_navigation_cases": 20
   }
 }

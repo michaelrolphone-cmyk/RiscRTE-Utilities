@@ -156,3 +156,28 @@ No physical device, Xtensa instruction execution, X4 run, or complete firmware/
 store admission is claimed. The old composer's unmatched recipe is a separate
 provenance comparison and does not invalidate the corrected component's own
 reproducible qualification.
+
+## Exact composer-recipe addendum
+
+After the initial checkpoint, the composer supplied its complete ordered command.
+The independent reviewer reproduced its old raw and compact hashes byte-for-byte.
+That recipe includes function/data sections, section GC and -lgcc, unlike the
+portable System component builder used above. No float helper is needed by this
+scene. Both profiles retain all reachable scene features and fonts.
+
+The same composer recipe with cumulative f4b scene and matching SDK gives:
+
+- Raw 480,824 bytes, SHA-256
+  `4e9ac1dd5424c6e487142c07217f03c30933452f16577526536bfefc448ab021`.
+- Loader-metadata-v3 310,220 bytes, SHA-256
+  `017039a424e0482cf35c062a5b883af621bda0457e8bb9ff321fe63640e54fa1`.
+- Same-recipe compact payload increase: 101,444 bytes. Full-store overhead and
+  admission still require measurement in the assembled product.
+
+The old-artifact provenance mismatch described above is therefore resolved.
+The composer should retain its existing recipe and use this exact artifact,
+with the cumulative version 0.4.6 four-dependency manifest. Raw/compact loader
+validation and retained loader evidence equality pass for both old and new
+artifacts. Twenty additional independent no-navigation sanitizer probes pass
+across both geometries. The JSON receipt records ordered flags and exact hashes.
+These results do not add physical hardware or Xtensa execution qualification.
