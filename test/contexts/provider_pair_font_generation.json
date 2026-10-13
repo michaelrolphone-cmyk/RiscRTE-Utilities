@@ -1,0 +1,18 @@
+{
+  "system": "f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165",
+  "generator": "scripts/generate_telemetry_fonts.py",
+  "generator_sha256": "718ed123fa468da46f451020d0e8e96c213a08a23d6dfa815d5c920f4a9bbfd0",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "python": "3.12.14",
+  "pillow": "12.3.0",
+  "freetype": "2.14.3",
+  "raqm": "0.10.5",
+  "ttfs": {
+    "Orbitron-900.ttf": "0f400490a6a736ff1caed71d39cca5bae16456ca78c426649c6c11a8fa474613",
+    "Orbitron-700.ttf": "7427419051683fa09b122579dddacd1bad5d72f05344818a71230ae77174c5dd",
+    "Rajdhani-700.ttf": "691470dd3286a14e9677940d0bf75796179841ba5215cbda1a2c8910a3226afd"
+  },
+  "output_bytes": 272953,
+  "output_sha256": "2d7501e42d6223ebbc191817715431182c435fea944a1a02166a0748a577eaf1",
+  "byte_identical_to_qualified_input": true
+}

@@ -1,0 +1,272 @@
+name: Contexts pinned provider pair
+
+on:
+  push:
+    paths:
+      - 'scripts/test_contexts_provider_pair.py'
+      - 'test/contexts/provider_pair_font_generation.json'
+      - '.github/workflows/contexts-provider-pair.yml'
+  pull_request:
+    paths:
+      - 'scripts/test_contexts_provider_pair.py'
+      - 'test/contexts/provider_pair_font_generation.json'
+      - '.github/workflows/contexts-provider-pair.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualified-host-matrix:
+    name: ${{ matrix.geometry }} / ${{ matrix.flavor }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        geometry: ['240x240', '410x502']
+        flavor: [normal, sanitized]
+    env:
+      GEOMETRY: ${{ matrix.geometry }}
+      FLAVOR: ${{ matrix.flavor }}
+      FONT_ROOT: build/contexts-provider-pair/font-inputs
+      EVIDENCE: build/contexts-provider-pair/evidence
+    steps:
+      - name: Checkout regression harness under review
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/test_contexts_provider_pair.py
+            /test/contexts/provider_pair_font_generation.json
+            /.github/workflows/contexts-provider-pair.yml
+
+      - name: Checkout exact qualified final application
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Utilities
+          ref: 186ba80899fc9746609860821df61c7bbe0e2dc8
+          path: .dependencies/utilities
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /Apps/contexts*
+            /Apps/alarm_writer.h
+            /lib/Contexts/
+            /lib/Alarm/
+            /scripts/build_contexts_scene.py
+            /scripts/test_contexts_shared_input.py
+            /test/contexts/
+
+      - name: Checkout cumulative repaired scene and text providers
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165
+          path: .dependencies/system
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /Services/scene_host/
+            /Services/scene_profile/
+            /Services/text_input/
+            /sdk/app/
+            /lib/PortableApps/
+            /lib/NativeApps/
+            /scripts/scene_sdk.py
+            /scripts/generate_telemetry_fonts.py
+            /test/scene/host_test.c
+
+      - name: Checkout incompatible legacy scene for real negative control
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 1aaf53e23ca9651a5cf9d1debe44941c9d7d0e58
+          path: .dependencies/legacy-system
+          persist-credentials: false
+          sparse-checkout: |
+            Services/scene_host
+            Services/text_input
+            sdk/app
+
+      - name: Checkout exact native Runtime SDK
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: a6c7f273025a59b1383e9c2795fa0ff0a8e9efad
+          path: .dependencies/runtime
+          persist-credentials: false
+          sparse-checkout: sdk
+
+      - name: Checkout exact catalog headers
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 72f435fcee376ec62d17ece6180753385ea547d9
+          path: .dependencies/catalog-system
+          persist-credentials: false
+          sparse-checkout: lib/PortableApps/include
+
+      - name: Checkout original unchanged 34-face header
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Watch
+          ref: 76aa47728192531ca9812f3e026057e0b174cb00
+          path: .dependencies/watch-faces
+          persist-credentials: false
+          sparse-checkout: apps/clock/faces
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install exact font-generation dependency
+        run: >-
+          python -m pip install --disable-pip-version-check --only-binary=:all: Pillow==12.3.0
+
+      - name: Verify exact source pins, generator, TTFs and original faces
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE"
+          python - <<'PYCODE'
+          import hashlib, json, os, platform, subprocess
+          from pathlib import Path
+          import PIL
+          from PIL import features
+          baseline = json.loads(Path('test/contexts/provider_pair_font_generation.json').read_text())
+          assert PIL.__version__ == baseline['pillow'] == '12.3.0'
+          pins = {
+              'utilities': '186ba80899fc9746609860821df61c7bbe0e2dc8',
+              'system': 'f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165',
+              'legacy-system': '1aaf53e23ca9651a5cf9d1debe44941c9d7d0e58',
+              'runtime': 'a6c7f273025a59b1383e9c2795fa0ff0a8e9efad',
+              'catalog-system': '72f435fcee376ec62d17ece6180753385ea547d9',
+              'watch-faces': '76aa47728192531ca9812f3e026057e0b174cb00',
+          }
+          assert pins['system'] == baseline['system']
+          for directory, commit in pins.items():
+              actual = subprocess.check_output(
+                  ['git', '-C', '.dependencies/' + directory, 'rev-parse', 'HEAD'], text=True).strip()
+              assert actual == commit, (directory, actual, commit)
+          source_root = Path('.dependencies/system')
+          expected = {source_root / baseline['generator']: baseline['generator_sha256']}
+          expected.update({source_root / 'Services/scene_host/fonts' / name: digest
+                           for name, digest in baseline['ttfs'].items()})
+          expected[Path('.dependencies/watch-faces/apps/clock/faces/ContextsFaces.h')] = (
+              'e75de6b17b85e1d7fa2ebc4b89514ac7345f671027c3b15dfdbd98f9b06b5ea2')
+          for path, digest in expected.items():
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == digest, path
+          generation = {'python': platform.python_version(), 'platform': platform.platform(),
+                        'pillow': PIL.__version__, 'freetype': features.version('freetype2'),
+                        'libraqm': features.version('raqm'),
+                        'generator_and_ttf_sha256': {str(path): digest for path, digest in expected.items()
+                                                    if str(path).startswith(str(source_root))}}
+          receipt = {'pins': pins, 'generation_dependencies': generation,
+                     'input_sha256': {str(path): digest for path, digest in expected.items()}}
+          Path(os.environ['EVIDENCE'], 'inputs.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PYCODE
+
+      - name: Generate and preserve SHA-verified canonical telemetry include
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$FONT_ROOT/scripts" "$FONT_ROOT/Services/scene_host/fonts"
+          cp .dependencies/system/scripts/generate_telemetry_fonts.py "$FONT_ROOT/scripts/"
+          cp .dependencies/system/Services/scene_host/fonts/*.ttf "$FONT_ROOT/Services/scene_host/fonts/"
+          python "$FONT_ROOT/scripts/generate_telemetry_fonts.py"
+          python - <<'PYCODE'
+          import hashlib, json, os, shutil
+          from pathlib import Path
+          baseline = json.loads(Path('test/contexts/provider_pair_font_generation.json').read_text())
+          path = Path(os.environ['FONT_ROOT']) / 'Services/scene_host/fonts/telemetry.inc'
+          digest = hashlib.sha256(path.read_bytes()).hexdigest()
+          assert digest == baseline['output_sha256'] == '2d7501e42d6223ebbc191817715431182c435fea944a1a02166a0748a577eaf1'
+          assert path.stat().st_size == baseline['output_bytes'] == 272953
+          root = Path(os.environ['EVIDENCE'])
+          shutil.copyfile(path, root / 'telemetry.inc')
+          assert hashlib.sha256((root / 'telemetry.inc').read_bytes()).hexdigest() == digest
+          receipt = json.loads((root / 'inputs.json').read_text())
+          receipt['canonical_telemetry'] = {'file': 'telemetry.inc', 'bytes': path.stat().st_size,
+                                          'sha256': digest, 'byte_identical_to_qualified_input': True}
+          (root / 'inputs.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PYCODE
+
+      - name: Run five qualified groups with real separately compiled providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          common=(
+            --runtime .dependencies/runtime
+            --system-apps .dependencies/system
+            --legacy-system "$(realpath .dependencies/legacy-system)"
+            --catalog-system .dependencies/catalog-system
+            --utilities-source .dependencies/utilities
+            --face-header .dependencies/watch-faces/apps/clock/faces/ContextsFaces.h
+            --telemetry-font "$FONT_ROOT/Services/scene_host/fonts/telemetry.inc"
+            --output "$EVIDENCE"
+            --geometry "$GEOMETRY"
+          )
+          if [[ "$FLAVOR" == sanitized ]]; then common+=(--sanitize); fi
+          run_group() {
+            local group="$1"
+            shift
+            python scripts/test_contexts_provider_pair.py "${common[@]}" "$@" \
+              2>&1 | tee "$EVIDENCE/$group.log"
+          }
+          run_group mixed --pair mixed
+          run_group mixed-no-navigation --pair mixed --no-navigation
+          run_group cumulative --pair cumulative --all
+          run_group cumulative-no-navigation --pair cumulative --no-navigation
+          run_group catalog-no-navigation --pair cumulative --no-navigation --catalog
+
+      - name: Require the exact bounded 202-case job receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ['EVIDENCE'])
+          geometry, flavor = os.environ['GEOMETRY'], os.environ['FLAVOR']
+          groups = {
+              f'mixed-{geometry}-{flavor}.json': (1, 'mixed', True, False),
+              f'mixed-{geometry}-no-nav-{flavor}.json': (1, 'mixed', False, False),
+              f'cumulative-{geometry}-{flavor}.json': (185, 'cumulative', True, False),
+              f'cumulative-{geometry}-no-nav-{flavor}.json': (12, 'cumulative', False, False),
+              f'cumulative-{geometry}-catalog-no-nav-{flavor}.json': (3, 'cumulative', False, True),
+          }
+          reports = []
+          for name, (count, pair, navigation, catalog) in groups.items():
+              path = root / name
+              data = json.loads(path.read_text())
+              assert len(data['cases']) == count, name
+              assert all(case.get('returncode') == 0 for case in data['cases']), name
+              assert data['pair'] == pair and data['geometry'] == geometry, name
+              assert data['navigation_declared'] is navigation and data['catalog_probe'] is catalog, name
+              assert data['sanitized'] is (flavor == 'sanitized'), name
+              assert data['scene_profile'] == 'full; no explicit -D', name
+              assert data['sdk_sha256']['scene_provider'] and data['sdk_sha256']['app_and_text_provider'], name
+              assert data['physical_hardware'] is False and data['xtensa_execution'] is False, name
+              reports.append({'file': name, 'cases': count,
+                              'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+          assert sum(report['cases'] for report in reports) == 202
+          summary = {'scope': 'pinned host provider-pair qualification only', 'geometry': geometry,
+                     'flavor': flavor, 'passed_cases': 202, 'reports': reports,
+                     'not_qualified': ['hardware', 'Xtensa instruction execution', 'firmware/store admission']}
+          (root / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+          print(f'{geometry} / {flavor}: 202 cases passed; four matrix jobs total 808')
+          PY
+
+      - name: Preserve compact receipts, logs and canonical telemetry bytes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contexts-provider-pair-${{ matrix.geometry }}-${{ matrix.flavor }}
+          path: build/contexts-provider-pair/evidence/
+          if-no-files-found: error
+          compression-level: 9
+          retention-days: 7
