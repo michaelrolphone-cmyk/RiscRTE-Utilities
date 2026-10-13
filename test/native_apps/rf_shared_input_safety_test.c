@@ -9,6 +9,7 @@
 #else
 #define PORTABLE_HOME_APP "springboard.elf"
 #endif
+#include "PortableContextsClient.h"
 #include "../../Apps/waterfall.c"
 #include <assert.h>
 #include <stdlib.h>
