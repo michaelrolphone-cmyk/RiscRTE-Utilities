@@ -41,7 +41,7 @@ jobs:
           python-version: '3.11'
       - name: Install pinned compiler and ELF parser
         run: |
-          pip install platformio==6.1.19 pyelftools==0.32
+          pip install platformio==6.1.19 pyelftools==0.32 Pillow==12.2.0
           pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
       - name: Reproduce deployed Scanner and qualify modal successor
         run: |
