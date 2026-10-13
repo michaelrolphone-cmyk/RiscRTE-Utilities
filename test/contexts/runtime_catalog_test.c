@@ -8,7 +8,8 @@ static risc_runtime_api_v1 catalog_runtime;
 static contexts_fingerprint_service_v1 catalog_service;
 static unsigned inventory=1,catalog_acquires,catalog_releases,catalog_gets,catalog_snapshots;
 static unsigned workflow_reports,workflow_result,close_calls,open_calls;
-static bool home_get,empty_checkpoint;
+static bool home_get,empty_checkpoint,reused_checkpoint,reverse_checkpoint,refresh_checkpoint;
+static unsigned shrink_checkpoint;
 static uint64_t publication=1;
 static int snapshot_error,get_error,close_error;
 static bool missing,partial_grant,release_error,unavailable,duplicate,malformed,mutate_snapshot,mutate_close,remove_close,reject_launch;
@@ -26,9 +27,10 @@ static int32_t catalog_get(void*c,uint64_t generation,uint32_t index,risc_app_ca
  if(generation!=publication)return RISC_APP_CATALOG_STALE;
  if(index>=inventory)return RISC_APP_CATALOG_NOT_FOUND;
  *out=(risc_app_catalog_entry_v1){.struct_size=sizeof(*out),.flags=unavailable?0:RISC_APP_CATALOG_AVAILABLE};
- snprintf(out->display_name,sizeof(out->display_name),"Installed %u",index);
- snprintf(out->file_name,sizeof(out->file_name),"app-%u.elf",duplicate?0:index);
- snprintf(out->id,sizeof(out->id),"native-%u",index);
+ unsigned logical=reverse_checkpoint?inventory-1-index:index;
+ snprintf(out->display_name,sizeof(out->display_name),"Installed %u",logical);
+ snprintf(out->file_name,sizeof(out->file_name),"app-%u.elf",duplicate?0:logical);
+ snprintf(out->id,sizeof(out->id),"native-%u",logical);
  if(route_override)strcpy(out->file_name,route_override);
  if(id_override)strcpy(out->id,id_override);
  if(malformed)memset(out->display_name,'x',sizeof(out->display_name));
@@ -54,9 +56,9 @@ static int32_t catalog_close_scene(void*c,uint64_t token){
  if(remove_close){inventory=0;publication++;}
  return close_error;
 }
-static int32_t catalog_snapshot_scene(void*c,uint64_t token,risc_scene_navigation_v1*out,uint32_t*flags){(void)c;assert(token==17);*out=(risc_scene_navigation_v1){.api_version=1,.struct_size=sizeof(*out),.depth=1,.routes={1},.focus={50}};*flags=0;return 0;}
-static int32_t catalog_open_scene(void*c,const risc_components_document_v1*d,const risc_scene_navigation_v1*n,uint64_t*t){(void)c;(void)d;assert(n&&n->struct_size==sizeof(*n));assert(n->focus[0]==(empty_checkpoint?0u:50u));open_calls++;*t=17;return 0;}
-static int32_t catalog_checkpoint(uint64_t token,const risc_resident_request_v1*q,risc_resident_reply_v1*r){assert(token==99&&q->reason==RISC_RESIDENT_CHECKPOINT_CONTROLS);r->flags=0;if(empty_checkpoint){inventory=0;publication++;}return 0;}
+static int32_t catalog_snapshot_scene(void*c,uint64_t token,risc_scene_navigation_v1*out,uint32_t*flags){(void)c;assert(token==17);*out=(risc_scene_navigation_v1){.api_version=1,.struct_size=sizeof(*out),.depth=1,.routes={1},.focus={refresh_checkpoint?65:50}};*flags=0;return 0;}
+static int32_t catalog_open_scene(void*c,const risc_components_document_v1*d,const risc_scene_navigation_v1*n,uint64_t*t){(void)c;(void)d;assert(n&&n->struct_size==sizeof(*n));assert(n->focus[0]==(refresh_checkpoint?2u:empty_checkpoint||shrink_checkpoint?0u:reverse_checkpoint?15u:50u));open_calls++;*t=17;return 0;}
+static int32_t catalog_checkpoint(uint64_t token,const risc_resident_request_v1*q,risc_resident_reply_v1*r){assert(token==99&&q->reason==RISC_RESIDENT_CHECKPOINT_CONTROLS);r->flags=0;if(empty_checkpoint){inventory=0;if(!reused_checkpoint)publication++;}if(shrink_checkpoint)inventory=shrink_checkpoint;if(reused_checkpoint&&!empty_checkpoint&&!shrink_checkpoint)reverse_checkpoint=true;return 0;}
 static const risc_scene_api_v1 catalog_scene={.close=catalog_close_scene,.snapshot=catalog_snapshot_scene};
 static const risc_scene_components_api_v1 catalog_components={.open=catalog_open_scene};
 static bool catalog_fingerprint(void*c,uint32_t op,void*p){
@@ -116,12 +118,15 @@ int main(int argc,char**argv){
   get_error=!strcmp(mode,"get-context")?RISC_APP_CATALOG_CONTEXT:!strcmp(mode,"get-retained")?RISC_APP_CATALOG_RETAINED:!strcmp(mode,"get-error")?RISC_APP_CATALOG_INVALID:0;
   assert(!cs_catalog_refresh());if(cs_terminal)assert(cs_catalog.uncertain);else assert(!cs_catalog.count&&!cs_catalog.entries);
  }
- else if(!strcmp(mode,"picker-checkpoint")||!strcmp(mode,"picker-checkpoint-empty")){
-  empty_checkpoint=!strcmp(mode,"picker-checkpoint-empty");
+ else if(!strncmp(mode,"picker-checkpoint",17)){
+  empty_checkpoint=!strcmp(mode,"picker-checkpoint-empty")||!strcmp(mode,"picker-checkpoint-reused-remove")||!strcmp(mode,"picker-checkpoint-refresh");
+  reused_checkpoint=strstr(mode,"reused")||!strcmp(mode,"picker-checkpoint-refresh");
+  refresh_checkpoint=!strcmp(mode,"picker-checkpoint-refresh");
+  shrink_checkpoint=!strcmp(mode,"picker-checkpoint-reused-shrink")?10:!strcmp(mode,"picker-checkpoint-reused-oversized")?128:0;
   inventory=64;cu_action(CU_ROW_LAUNCH);cs_declare();uint32_t screen=cs_document.screen_key;
   cs_session=17;cs_components=&catalog_components;cs_resident.enabled=true;cs_resident.client.invocation=99;cs_resident.client.checkpoint=catalog_checkpoint;
-  assert(cs_checkpoint(RISC_RESIDENT_CHECKPOINT_CONTROLS));assert(close_calls==1&&open_calls==1&&cs_catalog.count==(empty_checkpoint?0u:64u)&&cu_page==CU_APPS&&cs_document.screen_key==screen);
-  cs_declare();assert(cs_document.node_count==(empty_checkpoint?2u:65u));if(!empty_checkpoint){cu_action(CU_RUNTIME_APP+37);assert(!strcmp(cu_store.rules[0].workflow[0].text,"app-37.elf"));}
+  assert(cs_checkpoint(RISC_RESIDENT_CHECKPOINT_CONTROLS));assert(close_calls==1&&open_calls==1&&cs_catalog.count==(empty_checkpoint?0u:shrink_checkpoint?shrink_checkpoint:64u)&&cu_page==CU_APPS&&cs_document.screen_key==screen);
+  cs_declare();assert(cs_document.node_count==(empty_checkpoint||shrink_checkpoint>=96?2u:shrink_checkpoint?shrink_checkpoint+1:65u));if(!empty_checkpoint&&!shrink_checkpoint&&!reverse_checkpoint){cu_action(CU_RUNTIME_APP+37);assert(!strcmp(cu_store.rules[0].workflow[0].text,"app-37.elf"));}
   assert(portable_contexts_close(&cs_client));
  }
  else if(!strcmp(mode,"faces-actions")){

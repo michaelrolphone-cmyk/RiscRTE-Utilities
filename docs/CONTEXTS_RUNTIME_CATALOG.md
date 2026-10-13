@@ -57,8 +57,9 @@ ticket again, checks persistent Home, and only then requests the canonical
 native route. Removed, unavailable or changed entries cannot launch from stale
 UI state. Rejected launches receive the existing failed workflow report.
 Catalog grants are closed before resident handoff. Picker resumption refreshes
-and rebuilds the document before reopening it; changed inventories clear stale
-focus IDs. Unchanged inventories preserve the predecessor navigation behavior.
+and rebuilds the document before reopening it; focus is remapped by the copied canonical route or explicit Refresh action.
+Missing entries clear focus, even when a new grant reuses a generation number.
+Unchanged inventories preserve the predecessor navigation behavior.
 
 The existing workflow schema is unchanged (`text[33]`). The shared bridge uses
 the canonical route below 128 bytes and `id:<native ID>` for longer routes.
