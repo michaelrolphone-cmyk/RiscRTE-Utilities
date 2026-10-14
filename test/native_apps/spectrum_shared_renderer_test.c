@@ -75,7 +75,7 @@ static void save_frame(const char *name){
  char path[1024];snprintf(path,sizeof(path),"%s/%s.ppm",directory,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n%u %u\n255\n",SPECTRUM_TEST_WIDTH,SPECTRUM_TEST_HEIGHT);
  for(unsigned y=0;y<SPECTRUM_TEST_HEIGHT;y++){for(unsigned x=0;x<SPECTRUM_TEST_WIDTH;x++){uint16_t v=pixels[y*SPECTRUM_TEST_STRIDE+x];unsigned char rgb[]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};assert(fwrite(rgb,1,3,f)==3);}for(unsigned x=SPECTRUM_TEST_WIDTH;x<SPECTRUM_TEST_STRIDE;x++)assert(pixels[y*SPECTRUM_TEST_STRIDE+x]==0xa5a5);}assert(!fclose(f));
 }
-static bool fake_health(risc_runtime_health_v1*h){IO();h->uptime_ms=ticks;return true;}
+static bool fake_health(risc_runtime_health_v1*h){IO();static unsigned draw_clock_calls;if(getenv("SPECTRUM_DRAW_CLOCK")&&lease_count&&!(++draw_clock_calls%32))ticks++;h->uptime_ms=ticks;return true;}
 static void fake_yield(uint32_t n){IO();ticks+=n;assert(ticks<120000&&"script failed to finish");}
 static bool fake_diag(const char*s){IO();fprintf(stderr,"%s\n",s);return true;}
 static bool fake_launch(const char*s){IO();assert(!mic_owned&&!text_granted&&!lease_count&&!pending_token);assert(!strcmp(s,"springboard.elf"));launches++;return true;}
@@ -102,7 +102,7 @@ static bool fake_touch_poll(void*c,size_t n){IO();(void)c;assert(n==1||n==2);pol
  else{unsigned event_kind;if(!strcmp(kind,"down")){assert(!touch_down);touch_down=true;event_kind=RISC_TOUCH_EVENT_DOWN;}else{assert(!strcmp(kind,"up")&&touch_down);touch_down=false;event_kind=RISC_TOUCH_EVENT_UP;}
  touch_x=actions[action_cursor].x;touch_y=actions[action_cursor].y;
 #if SPECTRUM_TEST_WIDTH != 240
- if(!strcmp(actions[action_cursor].gate,"text")){if(touch_y==20){touch_x=touch_x>120?SPECTRUM_TEST_WIDTH-20:20;}else{touch_x=touch_x*SPECTRUM_TEST_WIDTH/240;touch_y=touch_y*SPECTRUM_TEST_HEIGHT/240;}}else{touch_x+=(SPECTRUM_TEST_WIDTH-240)/2;touch_y+=(SPECTRUM_TEST_HEIGHT-240)/2;}
+ if(!strcmp(actions[action_cursor].gate,"text")){if(touch_y==20){touch_x=touch_x>120?SPECTRUM_TEST_WIDTH-20:20;}else{touch_x=touch_x*SPECTRUM_TEST_WIDTH/240;touch_y=touch_y*SPECTRUM_TEST_HEIGHT/240;}}else{touch_x=(touch_x*SPECTRUM_TEST_WIDTH+239)/240;touch_y=(touch_y*SPECTRUM_TEST_WIDTH+239)/240;}
 #endif
  assert(touch_x>=0&&touch_x<SPECTRUM_TEST_WIDTH&&touch_y>=0&&touch_y<SPECTRUM_TEST_HEIGHT&&subs==1&&touch_count<64);
  touch_events[(touch_head+touch_count++)%64]=(risc_touch_event_v1){.sequence=++touch_sequence,.timestamp_ms=ticks,.kind=event_kind,.id=1,.x=(uint16_t)touch_x,.y=(uint16_t)touch_y};touch_edges++;}
@@ -247,6 +247,7 @@ static void setup_scene(int which){
 }
 static void verify_capture(int check){
  static unsigned stopped_reads;
+ if(check>=10&&check<=12){fprintf(stderr,"mode state check=%d page=%u started=%d running=%d owned=%d view=%u history=%u reads=%u\n",check,page,started,running,mic_owned,view,history_count,mic_reads);assert(page==PAGE_MAIN&&started&&running&&mic_owned&&view==(unsigned)(check-10));assert(history_count>0&&mic_reads>0);if(getenv("SPECTRUM_FULL_HISTORY"))assert(history_count==PLOT_W);fprintf(stderr,"mode checkpoint view=%u history=%u reads=%u\n",view,history_count,mic_reads);}
  if(check==6){assert(!running&&!mic_owned&&mic_opens==mic_closes&&mic_reads>0);stopped_reads=mic_reads;}
  if(check==7){assert(!running&&!mic_owned&&mic_reads==stopped_reads);}
  if(check==8){assert(running&&mic_owned&&mic_reads>stopped_reads&&mic_opens==mic_closes+1);}

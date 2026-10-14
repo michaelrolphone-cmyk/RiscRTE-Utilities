@@ -151,6 +151,9 @@ def scenarios():
         {'SPECTRUM_EXPECT_DRAFT':'Q','SPECTRUM_EXPECT_OPENS':'1','SPECTRUM_EXPECT_EDITOR_PAGE':'2'})
     cases['capture-stop-restart']=(tap(120,120)+[(500,'app','idle',0,0)]+tap(75,225)+check(6)+[(500,'app','idle',0,0)]+check(7)+tap(75,225)+[(500,'app','idle',0,0)]+check(8)+nav('home'),{})
     cases['non-keyboard-views']=(sum(([(100,'app','scene',i,0)]+check(9) for i in range(18)),[]),{'SPECTRUM_EXPECT_OPENS':'0'})
+    cases['waterfall-mode-capture']=(tap(120,120)+[(12000,'app','idle',0,0)]+check(10)+tap(80,25)+check(11)+tap(140,25)+check(12)+tap(25,25)+check(10)+tap(80,25)+check(11)+nav('home'),{'SPECTRUM_EXPECT_OPENS':'0','SPECTRUM_FULL_CONTEXTS':'1'})
+    actions,env=cases['waterfall-mode-capture']
+    cases['waterfall-mode-full-history'] = ([(35000,g,k,x,y) if (d,g,k)==(12000,'app','idle') else (d,g,k,x,y) for d,g,k,x,y in actions],dict(env,SPECTRUM_FULL_HISTORY='1',SPECTRUM_DRAW_CLOCK='1'))
     return cases
 
 
