@@ -97,7 +97,7 @@ static void late_read_write(void){
  injected_result=RISC_APP_DATA_NO_SPACE;
  assert(f->replace(f->context,n,disk_revision,wanted,sizeof(wanted))==RISC_APP_DATA_NO_SPACE&&!storage_live);
  injected_result=0;assert(portable_contexts_models_save()&&!storage_live);
- assert(storage_acquires==storage_releases&&storage_calls==storage_releases&&!storage_refusals);
+ assert(storage_acquires==storage_releases&&storage_calls+1==storage_releases&&!storage_refusals);
 }
 static unsigned failure_mode;
 static void retained_operation(void){
@@ -124,6 +124,6 @@ int main(int argc,char**argv){
   assert(retained_grant&&!memcmp(retained_grant,&retained_snapshot,sizeof(retained_snapshot)));
  }
  reset_storage();injected_result=RISC_APP_DATA_RETAINED;run();
- assert(temporal_retained()&&checkpoints==0&&!polls&&!frames&&!storage_releases);
+ assert(temporal_retained()&&checkpoints==0&&!polls&&!frames&&storage_releases==1&&storage_acquires==2&&storage_calls==1);
  puts("PASS: actual Spectrum startup, shared interleaving, later write/read, stale revision, no-space, retained stat/read/replace, refused release, dirty acquisition, startup terminal fence");return 0;
 }

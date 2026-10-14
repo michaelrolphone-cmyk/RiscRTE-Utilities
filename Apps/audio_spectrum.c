@@ -707,7 +707,7 @@ void app_main(void){
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
  text_client=(portable_text_client){0};text_state=(risc_text_entry_state_v1){0};text_active=text_closing=text_home=shared_keyboard=false;text_return_page=PAGE_MAIN;
 #endif
- restore();signature_restore();event_restore();cfa_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
+ restore();signature_restore();event_restore();if(temporal_retained())return;cfa_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
  for(;;){
   if(temporal_retained())return;
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
@@ -766,5 +766,5 @@ void app_main(void){
   if(!input.buttons&&!input.tapped&&!contact_down&&!consumed)event_neural_tick();
  }
  if(temporal_retained())return;
- stop();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;if(acquired&&!runtime->release(&grant))retain();if(store_acquired&&!runtime->release(&store_grant))retain();acquired=store_acquired=false;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};microphone=NULL;storage=NULL;
+ stop();if(temporal_retained())return;event_files.api=NULL;if(acquired&&!runtime->release(&grant))retain();if(store_acquired&&!runtime->release(&store_grant))retain();acquired=store_acquired=false;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};microphone=NULL;storage=NULL;
 }
