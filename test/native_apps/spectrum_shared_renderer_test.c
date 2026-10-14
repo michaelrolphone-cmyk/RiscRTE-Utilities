@@ -21,6 +21,7 @@
 #include "AudioInputV1.h"
 #include "RiscAppDataV1.h"
 #include "ContextsServiceV1.h"
+#include "ContextFingerprintService.h"
 #include <math.h>
 #include <assert.h>
 #include <stdio.h>
@@ -180,12 +181,26 @@ static int32_t ctx_label(void*c,uint32_t s,uint32_t i,contexts_label_v1*l){IO();
 static bool ctx_claim(void*c,uint32_t s,uint32_t i,const char*n,uint32_t g){IO();(void)c;(void)s;(void)i;(void)n;(void)g;return false;}
 static bool ctx_result(void*c,uint32_t s,uint32_t g,uint32_t r){IO();(void)c;(void)s;(void)g;(void)r;return true;}
 static const contexts_service_v1 contexts_api={.api_version=1,.struct_size=sizeof(contexts_api),.step=ctx_step,.pause=ctx_pause,.status=ctx_status,.request_export=ctx_source,.begin_export=ctx_source,.export_record=ctx_record,.finish_export=ctx_finish,.label=ctx_label,.claim_preset=ctx_claim,.preset_result=ctx_result,.capture_audio=ctx_pause};
+/* Exercise the deployed optional Contexts suffix, not only its base ABI. */
+static unsigned fp_sources, shared_requests, shared_live, app_data_live;
+static bool ctx_fingerprint(void*c,uint32_t op,void*r){
+ IO();(void)c;
+ if(op==CONTEXTS_FP_CONFIG)fp_sources=((contexts_fingerprint_config_v1*)r)->sources;
+ else if(op==CONTEXTS_FP_STATUS)((contexts_fingerprint_status_v1*)r)->sources=fp_sources;
+ else if(op==CONTEXTS_FP_RULES){contexts_rules_v1*q=r;if(!q->set)q->available=true;}
+ return true;
+}
+static contexts_fingerprint_service_v1 full_contexts;
+static int32_t shared_stat(void*c,const char*n,uint32_t*z,uint64_t*r){IO();(void)c;assert(shared_live);assert(!strcmp(n,"context-fingerprints.cfp")||!strcmp(n,"context-rules.ctx"));*z=0;*r=0;return RISC_APP_DATA_NOT_FOUND;}
+static risc_app_data_v1 shared_api;
 static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){IO();(void)id;assert(g->struct_size==sizeof(*g));
- if(!strcmp(n,CONTEXTS_SERVICE_CAPABILITY)&&v==1&&!getenv("SPECTRUM_NO_CONTEXTS"))g->api=&contexts_api;else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&ble_api;else if(!strcmp(n,"telemetry.broadcast")&&v==1)g->api=&broadcast_api;else if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&legacy_kv_api;else if(!strcmp(n,"storage.key-value")&&v==2)g->api=&kv_api;else if(!strcmp(n,"audio.input")&&v==1)g->api=&mic_api;else if(!strcmp(n,"storage.app-data")&&v==1)g->api=&app_data_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else if(!strcmp(n,"input.navigation")&&v==1)g->api=&nav_api;
+ if(getenv("SPECTRUM_FULL_CONTEXTS"))fprintf(stderr,"ACQUIRE %s@%u instance=%llu\n",n,v,(unsigned long long)id);
+ if(!strcmp(n,"storage.shared-data")&&v==1){shared_requests++;assert(id>=2&&id<=4);if(is_mode("deployed-policy-retained")){fprintf(stderr,"DENIED missing deployed grant %s@%u instance=%llu\n",n,v,(unsigned long long)id);return false;}assert(!shared_live&&!app_data_live);shared_live=1;shared_api=app_data_api;shared_api.stat=shared_stat;g->api=&shared_api;}
+ else if(!strcmp(n,CONTEXTS_SERVICE_CAPABILITY)&&v==1&&!getenv("SPECTRUM_NO_CONTEXTS")){if(getenv("SPECTRUM_FULL_CONTEXTS")){full_contexts.base=contexts_api;full_contexts.base.struct_size=sizeof(full_contexts);full_contexts.fingerprint_abi=0x31504643u;full_contexts.fingerprint=ctx_fingerprint;g->api=&full_contexts;}else g->api=&contexts_api;}else if(!strcmp(n,"net.wifi")&&v==1)g->api=&wifi_api;else if(!strcmp(n,"bluetooth.hci")&&v==1)g->api=&ble_api;else if(!strcmp(n,"telemetry.broadcast")&&v==1)g->api=&broadcast_api;else if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&legacy_kv_api;else if(!strcmp(n,"storage.key-value")&&v==2)g->api=&kv_api;else if(!strcmp(n,"audio.input")&&v==1)g->api=&mic_api;else if(!strcmp(n,"storage.app-data")&&v==1){assert(!app_data_live&&!shared_live);app_data_live=1;g->api=&app_data_api;}else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else if(!strcmp(n,"input.navigation")&&v==1)g->api=&nav_api;
  else if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY)&&v==1){text_attempts++;if(is_mode("missing-host")||(is_mode("missing-reopen")&&text_opens)||(is_mode("missing-once")&&text_attempts==1))return false;TEXT_PROXY_BASE.struct_size=is_mode("old-host")?sizeof(risc_text_entry_api_v1)-1:getenv("SPECTRUM_POLICY_MISSING_SUFFIX")?sizeof(risc_text_entry_api_v1_long):sizeof(text_proxy);assert(!text_granted);text_granted=true;text_grants++;host_session_frames=host_frames;g->api=&text_proxy;if(is_mode("old-reopen")&&text_opens)TEXT_PROXY_BASE.struct_size=sizeof(risc_text_entry_api_v1)-1;}else return false;
  g->slot=++grant_serial;g->generation=1;grant_count++;return true;
 }
-static bool fake_release(risc_runtime_capability_v1*g){IO();assert(g->api&&grant_count);if(g->api==&text_proxy){assert(text_driver->quiesce()&&!lease_count&&!pending_token);text_granted=false;}*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};grant_count--;return true;}
+static bool fake_release(risc_runtime_capability_v1*g){IO();assert(g->api&&grant_count);if(g->api==&app_data_api){assert(app_data_live);app_data_live=0;}if(g->api==&shared_api){assert(shared_live);shared_live=0;}if(g->api==&text_proxy){assert(text_driver->quiesce()&&!lease_count&&!pending_token);text_granted=false;}*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};grant_count--;return true;}
 static bool fake_exit_requested(void){IO();return policy_home_pending;}
 static const risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=fake_acquire,.release=fake_release,.retain_invocation=fake_retain,.exit_requested=fake_exit_requested};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return !native_retained&&!runtime_lost&&v==1?&runtime_api:NULL;}
@@ -255,6 +270,8 @@ int main(int argc,char**argv){
  text_proxy.checkpoint_enable=proxy_enable;text_proxy.checkpoint_snapshot=proxy_snapshot;text_proxy.pause=proxy_pause;text_proxy.pause_for_focus_change=proxy_pause_focus;text_proxy.resume=proxy_resume;
 #endif
  assert(app_module_init()==0);app_main();app_module_fini();
+ if(is_mode("deployed-policy-retained")){assert(native_retained&&shared_requests==1&&io_calls==retained_calls);puts("PASS original policy reproduces retained invocation on first shared-data acquisition");return 0;}
+ if(getenv("SPECTRUM_FULL_CONTEXTS"))assert(shared_requests>=3&&!shared_live&&!native_retained);
  if(is_mode("retained")||is_mode("policy-retained")||!strncmp(mode,"loss-",5)){assert(native_retained&&portable_text_adapter_retained()&&!launches);assert(grant_count==retained_grants&&subs==retained_subs&&lease_count==retained_frames&&io_calls==retained_calls&&allocation_count==retained_allocations);assert(app_module_init()!=0&&io_calls==retained_calls);if(is_mode("policy-retained"))assert(policy_resumes==1);puts("PASS retained invocation: resources frozen, zero later I/O, reentry refused");return 0;}
  assert(!grant_count&&!lease_count&&!subs&&!mic_owned&&!text_granted&&!pending_token);assert(action_cursor==action_count&&!touch_down&&!navigation_pressed);
  expect_num("SPECTRUM_EXPECT_OPENS",text_opens);expect_num("SPECTRUM_EXPECT_KV_WRITES",kv_writes);expect_num("SPECTRUM_EXPECT_DATA_WRITES",data_writes);

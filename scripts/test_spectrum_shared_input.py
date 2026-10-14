@@ -67,6 +67,8 @@ def check(kind=0, gate='app', delay=220):
 
 def scenarios():
     cases = {}
+    cases["deployed-policy-retained"] = ([], {"SPECTRUM_FULL_CONTEXTS":"1"})
+    cases["full-contexts-startup"] = (nav("home"), {"SPECTRUM_FULL_CONTEXTS":"1"})
     name_taps = [(120, 120), (120, 90), (90, 54), (120, 84)]
     pages = [2, 5, 7, 11]
     done = key('\x03', 220)
@@ -197,12 +199,12 @@ def run(args):
                 'native_toolchain': os.environ.get('CC', 'cc'),
                 'omitted_target_options': ['Xtensa architecture/linker options', '-flto (native qualification uses -O1 -g)'],
                 'physical_backends': ['display/delayed present', 'ordered raw touch', 'navigation/PMU', 'RTC', 'battery', 'KV', 'synthetic microphone PCM', 'alarm', 'BLE control/broadcast', 'Wi-Fi control', 'bounded base Contexts service (no background sensors/presets/exports)'],
-                'unavailable_optional_backends': ['Contexts fingerprint suffix; app-local shared fingerprint storage remains exercised'],
+                'unavailable_optional_backends': ['Full Contexts suffix is deterministic in full-contexts-startup/deployed-policy-retained; background sensor and persistent model behavior are not simulated'],
                 'leak_sanitizer': 'Unavailable in this executor: fatal ptrace/runtime error even for clean idle; ASan/UBSan run with detect_leaks=0. Fixture asserts zero live grants, frames, subscriptions and allocations on clean exit.',
                 'not_claimed': ['hardware deployment', 'actual microphone/crown hardware', 'PMU/sleep hardware', 'Runtime ELF-loader integration'],
                 'catalog_sha256': hashlib.sha256(catalog.read_bytes()).hexdigest(), 'source_pins': {'system':source_pin(system),'runtime':source_pin(args.runtime.resolve()),'legacy_utilities':source_pin(args.baseline_utilities.resolve())},
                 'test_script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-                'source_commit': subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(), 'sources': {}, 'results': [], 'setup_note': 'ui-* scenarios navigate entirely via touch. Boundary/fault scenarios seed editor preconditions with production entrypoints. Non-keyboard raster cases seed deterministic display state.'}
+                'source_commit': source_pin(ROOT)['commit'], 'sources': {}, 'results': [], 'setup_note': 'ui-* scenarios navigate entirely via touch. Boundary/fault scenarios seed editor preconditions with production entrypoints. Non-keyboard raster cases seed deterministic display state.'}
     for path in [ROOT / 'Apps/audio_spectrum.c', ROOT / 'Apps/context_signal_library.inc', ROOT / 'Apps/spectrum_signature_app.inc', ROOT / 'Apps/spectrum_temporal_app.inc', ROOT / 'Apps/context_fingerprint_app.inc', ROOT / 'test/native_apps/spectrum_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', system / 'Services/scene_host/host.c', system / 'Services/text_input/host.c', system / 'lib/PortableApps/include/PortableTextInputClient.h']:
         evidence['sources'][str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
     selected = scenarios()

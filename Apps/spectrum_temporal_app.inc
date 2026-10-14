@@ -93,7 +93,15 @@ static void event_restore(void){
  memset(&event_library,0,sizeof(event_library));st_files_init(&event_files,NULL);st_segment_reset(&event_segment);st_segment_reset(&event_training);memset(&event_match,0,sizeof(event_match));event_match.selected=-1;
  event_data_scope=(rf_app_data_scope){0};event_initialized=true;event_armed=event_wait_quiet=event_known_hold=event_previous_active=false;event_pair_count=event_quiet=event_wait_count=event_missed=event_list_scroll=event_example_scroll=0;event_pair_active=false;event_edit_slot=event_delete_slot=event_delete_example=-1;event_capture_kind=ST_POSITIVE;event_edit_shift=1;event_armed_at=event_result_at=0;event_message=NULL;event_keyboard=false;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));event_load();
 }
-static bool temporal_retained(void){return event_initialized&&(event_files.retained||event_data_scope.retained);}
+#ifdef PORTABLE_NATIVE_CUSTODY_FENCE
+#include "PortableNativeCustody.h"
+#endif
+static bool temporal_retained(void){
+#ifdef PORTABLE_NATIVE_CUSTODY_FENCE
+ if(portable_adapter_retained())return true;
+#endif
+ return event_initialized&&(event_files.retained||event_data_scope.retained);
+}
 static bool temporal_exit_blocked(void){return event_initialized&&(event_files.pending>=0||event_armed||event_training.ready);}
 static void temporal_suspend(void){
  if(!event_initialized)return;
