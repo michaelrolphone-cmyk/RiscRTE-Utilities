@@ -1,0 +1,38 @@
+name: Spectrum storage lifecycle
+on:
+  pull_request:
+    paths:
+      - 'Apps/audio_spectrum.c'
+      - 'Apps/spectrum_temporal_app.inc'
+      - 'Apps/rf_app_data_scope.h'
+      - 'Apps/context_fingerprint_app.inc'
+      - 'test/native_apps/*spectrum*.c'
+      - 'scripts/test_spectrum_storage_lifecycle.py'
+      - '.github/workflows/spectrum-storage-lifecycle.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  storage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: fdc15395928a1fa8eee62a2823b3c8777dcf0fa0
+          path: .dependencies/legacy-system
+          persist-credentials: false
+      - name: Actual Spectrum with exclusive app/shared-data admission
+        run: python scripts/test_spectrum_storage_lifecycle.py --system-apps .dependencies/system
+      - name: Existing complete Spectrum regressions
+        run: python scripts/test_audio_spectrum.py --system-apps .dependencies/legacy-system

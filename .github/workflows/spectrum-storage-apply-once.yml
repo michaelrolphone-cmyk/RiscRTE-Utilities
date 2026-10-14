@@ -1,0 +1,47 @@
+name: Apply and verify Spectrum storage fix
+on:
+  push:
+    branches: [fix/spectrum-storage-lifecycle-20261013]
+    paths:
+      - '.github/workflows/spectrum-storage-apply-once.yml'
+      - 'scripts/apply_spectrum_storage_fix.py'
+      - 'scripts/test_spectrum_storage_lifecycle.py'
+      - 'test/native_apps/spectrum_storage_lifecycle_test.c'
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'michaelrolphone-cmyk/RiscRTE-Utilities'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: fdc15395928a1fa8eee62a2823b3c8777dcf0fa0
+          path: .dependencies/legacy-system
+          persist-credentials: false
+      - name: Reproduce on the shipped source
+        run: python scripts/test_spectrum_storage_lifecycle.py --system-apps .dependencies/system --expect-conflict
+      - name: Apply exact-source lifecycle changes
+        run: python scripts/apply_spectrum_storage_fix.py
+      - name: Verify operation scopes and terminal failures
+        run: python scripts/test_spectrum_storage_lifecycle.py --system-apps .dependencies/system
+      - name: Existing complete Spectrum regressions
+        run: python scripts/test_audio_spectrum.py --system-apps .dependencies/legacy-system
+      - name: Commit verified source and remove the one-time editor
+        run: |
+          git diff --check
+          git add -- Apps/audio_spectrum.c Apps/spectrum_temporal_app.inc test/native_apps
+          git rm -- .github/workflows/spectrum-storage-apply-once.yml scripts/apply_spectrum_storage_fix.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(audio): bound app-data leases to each storage operation'
+          git push origin HEAD:refs/heads/fix/spectrum-storage-lifecycle-20261013
