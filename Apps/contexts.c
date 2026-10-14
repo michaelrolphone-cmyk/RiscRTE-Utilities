@@ -8,9 +8,6 @@
 #endif
 #include "RiscRuntimeV1.h"
 #include "RiscRuntimeHostControlV1.h"
-#if defined(PORTABLE_UTILITIES_ATOMIC_PREFERENCES) && (!defined(CONTEXTS_SETTING_MASK) || CONTEXTS_SETTING_MASK != 0x274u)
-#error "Atomic Contexts requires the existing X4 0x274 editor mask"
-#endif
 #if defined(PORTABLE_NOVA_UI) || defined(PORTABLE_CONTEXTS_PAPER)
 #error "Contexts uses ui.scene. Build with scripts/build_contexts_scene.py; do not link the portable display adapter."
 #endif

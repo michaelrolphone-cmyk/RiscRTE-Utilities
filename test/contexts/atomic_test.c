@@ -21,11 +21,21 @@ int main(int argc,char **argv){
    else if(!strcmp(test,"automatic-partial"))uat.fail_on_submit=3;
    else if(!strcmp(test,"automatic-retained"))uat.collect_error=RISC_ATOMIC_IO;
    else if(!strcmp(test,"automatic-mask")){automatic_result.changed|=1u<<CR_VOLUME;automatic_result.settings[CR_VOLUME]=8;automatic_result.winners[CR_VOLUME]=0;}
+   else if(!strcmp(test,"automatic-rgb")){
+    automatic_result.changed|=(1u<<CR_POWER)|(1u<<CR_DEEP)|(1u<<CR_VOLUME)|(1u<<CR_NOTIFY);
+    automatic_result.settings[CR_POWER]=1;automatic_result.settings[CR_DEEP]=600;automatic_result.settings[CR_VOLUME]=8;automatic_result.settings[CR_NOTIFY]=1;
+    for(unsigned f=0;f<CR_SETTINGS;f++)if(automatic_result.changed&(1u<<f))automatic_result.winners[f]=0;
+   }
    else assert(!strcmp(test,"automatic-order"));
    bool ok=cs_rules_tick();
    if(!strcmp(test,"automatic-retained")){assert(!ok&&cs_terminal&&ctx_automatic.operation.token&&ctx_automatic_grant.api&&!automatic_reports);}
    else {assert(ok&&!kv_writes&&!uat.user_intents&&!uat.rollback_intents&&automatic_reports==1);
     if(!strcmp(test,"automatic-low")){assert(uat.commits==3&&!strcmp(uat.keys[0],"quick_radio")&&!strcmp(uat.keys[2],"alert_dnd")&&automatic_report_status[0]==CR_PARTIAL);}
+    else if(!strcmp(test,"automatic-rgb")){
+     assert(uat.commits==10&&automatic_report_status[0]==CR_APPLIED);
+     for(unsigned i=0;i<uat.commits;i++)assert(uat.boundaries[i]==PORTABLE_AUTOMATIC_CONTEXTS_EDITOR);
+     assert(!strcmp(uat.keys[0],"sleep_mode")&&!strcmp(uat.keys[2],"sleep_deep")&&!strcmp(uat.keys[6],"alarm_volume"));
+    }
     else {assert(uat.submits==5&&!strcmp(uat.keys[0],"sleep_idle")&&!strcmp(uat.keys[1],"quick_radio")&&!strcmp(uat.keys[2],"quick_radio")&&!strcmp(uat.keys[3],"brightness")&&!strcmp(uat.keys[4],"alert_dnd"));for(unsigned i=0;i<5;i++)assert(uat.boundaries[i]==PORTABLE_AUTOMATIC_CONTEXTS_EDITOR);
      if(!strcmp(test,"automatic-partial"))assert(uat.commits==4&&automatic_report_status[0]==CR_PARTIAL);
      else if(!strcmp(test,"automatic-mask"))assert(uat.commits==5&&automatic_report_status[0]==CR_PARTIAL);

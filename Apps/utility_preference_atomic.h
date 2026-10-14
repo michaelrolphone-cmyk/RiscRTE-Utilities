@@ -1,9 +1,9 @@
 #ifndef UTILITY_PREFERENCE_ATOMIC_H
 #define UTILITY_PREFERENCE_ATOMIC_H
-/* Explicit X4 controller adapter. The System helper and ABI are pinned by the
+/* Explicit controller adapter. The System helper and ABI are pinned by the
  * standalone experimental build. No legacy put is reclassified as intent. */
-#if !defined(PORTABLE_UTILITIES_ATOMIC_PREFERENCES) || !defined(PORTABLE_UTILITIES_TARGET_X4)
-#error "Utility atomic preferences require the explicit X4 experimental profile"
+#if !defined(PORTABLE_UTILITIES_ATOMIC_PREFERENCES)
+#error "Utility atomic preferences require the explicit atomic preferences profile"
 #endif
 #include "PortablePreferenceAtomic.h"
 #include "RiscRuntimeV1.h"
