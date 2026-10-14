@@ -1,0 +1,12 @@
+/tmp/t063-elf-loader/src/esp_elf.c: In function ‘esp_elf_open_impl’:
+/tmp/t063-elf-loader/src/esp_elf.c:117:28: warning: implicit declaration of function ‘asprintf’; did you mean ‘vsprintf’? [-Wimplicit-function-declaration]
+  117 |     ret = name[0] == '/' ? asprintf(&file_path, "%s", name)
+      |                            ^~~~~~~~
+      |                            vsprintf
+/tmp/t063-elf-loader/src/esp_elf.c: In function ‘esp_elf_load_section’:
+/tmp/t063-elf-loader/src/esp_elf.c:450:35: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
+  450 |     elf->sec[ELF_SEC_TEXT].addr = (Elf32_Addr)elf->ptext;
+      |                                   ^
+PASS /tmp/t063-alarm-target/watch-clock-change.elf: 8 alignments, 2488 relocation-site checks, exact sections and redzones intact
+PASS /tmp/t063-alarm-target/wave-startup-busy.elf: 8 alignments, 2528 relocation-site checks, exact sections and redzones intact
+PASS /tmp/t063-alarm-target/x4-startup-busy.elf: 8 alignments, 9928 relocation-site checks, exact sections and redzones intact

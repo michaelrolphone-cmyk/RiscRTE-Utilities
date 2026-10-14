@@ -108,6 +108,9 @@ static bool volume_sound_enabled(void) {
 static uint32_t staged_mode, seconds, previous_seconds, sleep_snapshot, alert_limit_ms;
 static uint64_t previous_ms, sample_ms, next_reconcile, alert_started, next_pulse;
 static bool started, in_call, refreshed, anchored, sleep_waiting;
+#ifdef ALARM_STARTUP_BUSY_RETRY
+static bool startup_storage_busy;
+#endif
 static bool sleep_ticket_valid;
 static alarm_sleep_v1 sleep_ticket;
 static bool active, dismiss, haptic_uncertain, audio_uncertain, cleanup_failed;
@@ -138,7 +141,15 @@ static int32_t storage_put(void *context,const char *key,const void *data,uint32
     return result;
 }
 #else
+#ifdef ALARM_STARTUP_BUSY_RETRY
+static int32_t storage_get(void *context,const char *key,void *data,uint32_t size,uint32_t *used) {
+    int32_t result=kv->get(context,key,data,size,used);
+    if(result==RISC_BOUND_KEY_VALUE_BUSY)startup_storage_busy=true;
+    return result;
+}
+#else
 #define storage_get(context,key,data,size,used) kv->get(context,key,data,size,used)
+#endif
 #define storage_put(context,key,data,size) kv->put(context,key,data,size)
 #endif
 #ifdef ALARM_DND_CONTROL
@@ -227,6 +238,11 @@ static void update_view(void) {
 #endif
 }
 static int32_t fail(int32_t e) {
+#ifdef ALARM_STARTUP_BUSY_RETRY
+    /* BUSY guarantees no I/O began. Only the initial read-only load may wait;
+     * committed/uncertain writes and genuine storage faults keep their rules. */
+    if(e==ALARM_STORAGE && !anchored && startup_storage_busy)return ALARM_PENDING;
+#endif
 #ifdef ALARM_STORAGE_BUSY_RETRY
     /* Typed BUSY proves no I/O began. Stay at this cooperative phase; never
      * reinterpret unavailable, IO, corruption or retained custody as BUSY. */
@@ -485,6 +501,9 @@ static int32_t evaluate(void) {
     return error?error:ALARM_OK;
 }
 static int32_t do_step(void) {
+#ifdef ALARM_STARTUP_BUSY_RETRY
+    startup_storage_busy=false;
+#endif
     #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
     if(custody_retained)return ALARM_RETAINED;
 #endif
