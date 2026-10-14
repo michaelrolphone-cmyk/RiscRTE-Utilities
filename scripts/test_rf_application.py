@@ -156,7 +156,7 @@ def target_scenes(target):
         result['radio-policy-'+policy]=(scene('wait 3',check('running',0),check('captures',0),check('radio_acquires',0),'finish'),{'RF_RENDER_POLICY':policy})
     result['sleep-stop']=(scene('wait 3','set jump 61000','wait 1',check('sleep',1),check('running',0),'remember captures','wait 5','same captures','nav 2',check('running',1),'finish'),{'RF_RENDER_SLEEP':'1'})
     result['release-reentry']=(scene('wait 3',check('captures',3,'ge'),check('running',1),'finish'),{'RF_RENDER_RELEASE_RETRY':'1','RF_RENDER_REENTRY':'1'})
-    result['trace-dedup']=(scene('wait 100',check('captures',100,'ge'),check('diag_captures',1),check('diag_stages',1),check('diag_total',8,'le'),'finish'),{})
+    result['trace-dedup']=(scene('wait 3',check('diag_startup',13),'remember diag_total','wait 100',check('captures',100,'ge'),check('diag_captures',1),check('diag_stages',1),check('diag_steady',8,'le'),'same diag_total','finish'),{})
     for traced in [False,True]:
         result['diagnostics-traced' if traced else 'diagnostics']=(scene('wait 3',check('running',0),check('capture_error',1),check('diag_details',1),check('diag_dumps',1),check('diag_stages',3 if traced else 0),'finish'),dict(RF_RENDER_DIAGNOSTICS='1',RF_RENDER_RF_FAILURE='4',**({'RF_RENDER_TRACED':'1'} if traced else {})))
     result['logger-optional']=(scene('wait 3',check('running',1),check('captures',3,'ge'),'finish'),{'RF_RENDER_NO_DIAGNOSTIC':'1'})

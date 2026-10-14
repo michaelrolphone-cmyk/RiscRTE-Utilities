@@ -154,8 +154,8 @@ static bool ui_stretched(void){return page==PAGE_MAIN?(view==2||!started):page!=
 static int ui_scale(void){return paper?app->screen_width()/240:1;}
 static int ui_x(int x){return x*ui_scale()+(paper?0:(app->screen_width()-240)/2);}
 static int ui_y(int y){return paper?(ui_stretched()?y*app->screen_height()/240:y*ui_scale()):y+(app->screen_height()-240)/2;}
-static int ui_unx(int x){return (x-(paper?0:(app->screen_width()-240)/2))/ui_scale();}
-static int ui_uny(int y){return paper?(ui_stretched()?y*240/app->screen_height():y/ui_scale()):y-(app->screen_height()-240)/2;}
+static int ui_unx(int x){return paper?x/ui_scale():utility_color_x(app,x);}
+static int ui_uny(int y){return paper?(ui_stretched()?y*240/app->screen_height():y/ui_scale()):utility_color_y(app,y);}
 static void fill(int x,int y,int w,int h,uint32_t c){
  if(w<=0||h<=0)return;
  if(paper){int left=ui_x(x),top=ui_y(y),right=ui_x(x+w),bottom=ui_y(y+h);if(left<0)left=0;if(top<0)top=0;if(right>app->screen_width())right=app->screen_width();if(bottom>app->screen_height())bottom=app->screen_height();if(right>left&&bottom>top){unsigned l=((c>>16&255u)*77u+(c>>8&255u)*150u+(c&255u)*29u)>>8;uint8_t tone=!c?T5_APP_TONE_WHITE:l>185?T5_APP_TONE_BLACK:l>85?T5_APP_TONE_DARK_GRAY:T5_APP_TONE_LIGHT_GRAY;if(app->struct_size>=offsetof(t5_app_api_v1,fill_rounded_rect_tone)+sizeof(app->fill_rounded_rect_tone)&&app->fill_rounded_rect_tone)app->fill_rounded_rect_tone(left,top,right-left,bottom-top,0,tone);else app->fill_rect(left,top,right-left,bottom-top,c!=0);}return;}
