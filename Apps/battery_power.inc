@@ -304,9 +304,9 @@ void app_main(void) {
        power_app->screen_width()<160 || power_app->screen_height()<240)return;
 #ifdef PORTABLE_PAPER_UTILITIES
     up_open(power_app);
-    if(!utility_paper && (power_app->screen_width()!=240 || power_app->screen_height()!=240))return;
+    if(!utility_paper && !utility_color_dimensions(power_app))return;
 #else
-    if(power_app->screen_width()!=240 || power_app->screen_height()!=240)return;
+    if(!utility_color_dimensions(power_app))return;
 #endif
     power_sample=(risc_battery_sample_v1){0,255,RISC_BATTERY_PROFILE_MISSING};
     power_read_ok=power_details=power_navigation_failed=false;power_detail_page=0;
@@ -322,6 +322,10 @@ void app_main(void) {
         #ifdef PORTABLE_PAPER_UTILITIES
         if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,200,88))input.buttons|=T5_APP_BUTTON_BACK;}
 #endif
+#ifdef PORTABLE_PAPER_UTILITIES
+        if(!utility_paper)
+#endif
+        utility_color_input(power_app,&input);
         if(input.buttons&T5_APP_BUTTON_BACK) {if(power_back())return;continue;}
         bool render=false;
         if((uint32_t)(power_app->millis()-power_sample_at)>=1000)render=power_refresh();

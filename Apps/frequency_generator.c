@@ -146,6 +146,7 @@ void app_main(void) {
         if(input.tapped) {
             int x=input.touch_x,y=input.touch_y;
 #ifdef PORTABLE_NOVA_UI
+            x=utility_color_x(app,x);y=utility_color_y(app,y);
             if(portable_nova_hit(x,y,72,196,96,44))toggle_requested=true;
             else if(portable_nova_hit(x,y,8,196,60,44)||portable_nova_hit(x,y,172,196,60,44)) {
                 volume=tone_adjust(volume,x<120?-1:1,0,TONE_MAX_PERCENT);

@@ -135,7 +135,7 @@ static bool open_raw(void){
  raw_acquired=true;raw=raw_grant.api;
  if(!raw||raw->api_version!=1||raw->struct_size<sizeof(*raw)||!raw->subscribe||!raw->unsubscribe||!raw->poll||!raw->next||!raw->snapshot){message="Raw touch update needed";return false;}
  subscription=raw->subscribe(raw->context);risc_touch_snapshot_v1 s={0};
- if(!subscription||!raw->snapshot(raw->context,&s)||s.width!=hid_width()||s.height!=hid_height()||s.contact_count>RISC_TOUCH_MAX_CONTACTS){message="Raw touch start failed";return false;}
+ if(!subscription||!raw->snapshot(raw->context,&s)||s.width!=app->screen_width()||s.height!=app->screen_height()||s.contact_count>RISC_TOUCH_MAX_CONTACTS){message="Raw touch start failed";return false;}
  sequence=s.sequence;hid_gesture_reset(&gesture,true);button_gate=true;return true;
 }
 static void update_battery(void){
@@ -291,6 +291,7 @@ static void pump(void){
   if(e.sequence!=sequence+1)gap=true;
   sequence=e.sequence;
 #if !HID_TOUCHPAD
+  if(!paper){e.x=utility_color_x(app,e.x);e.y=utility_color_y(app,e.y);}
   button_tap_event(&queued_tap,&e);
 #endif
   if(e.kind==RISC_TOUCH_EVENT_UP)saw_up=true;
@@ -300,7 +301,15 @@ static void pump(void){
  if(rc==-2){stop_session("Touch error - reconnect");return;}
  if(rc<0||!polled)gap=true;
  risc_touch_snapshot_v1 sample={0};
- if(!raw->snapshot(raw->context,&sample)||sample.width!=hid_width()||sample.height!=hid_height()||sample.contact_count>RISC_TOUCH_MAX_CONTACTS){stop_session("Touch unavailable - reconnect");return;}
+ if(!raw->snapshot(raw->context,&sample)||sample.width!=app->screen_width()||sample.height!=app->screen_height()||sample.contact_count>RISC_TOUCH_MAX_CONTACTS){stop_session("Touch unavailable - reconnect");return;}
+ if(!paper){
+  for(unsigned i=0;i<sample.contact_count;i++){
+   if(sample.contacts[i].x>=sample.width||sample.contacts[i].y>=sample.height){stop_session("Touch outside display - reconnect");return;}
+   sample.contacts[i].x=utility_color_x(app,sample.contacts[i].x);
+   sample.contacts[i].y=utility_color_y(app,sample.contacts[i].y);
+  }
+  sample.width=240;sample.height=(uint16_t)(app->screen_height()*240/app->screen_width());
+ }
  if(sample.sequence!=sequence)gap=true;
  sequence=sample.sequence;
  if(status.state==RISC_HID_PAIR_CONFIRM&&gap&&!pair_trace_gap)runtime->diagnostic("HID pairing touch ignored reason=event-gap");
@@ -433,7 +442,7 @@ void app_main(void){
  paper_pair_release_gate=false;hp_contact_down=hp_release_seen=false;paper=paper_presentation_get();
  if(paper&&(paper->struct_size<sizeof(*paper)||!paper->begin||!paper->text||!paper->measure||!paper->contact))return;
 #endif
- if(app->screen_width()!=hid_width()||app->screen_height()!=hid_height())return;
+ if(paper?(app->screen_width()!=hid_width()||app->screen_height()!=hid_height()):!utility_color_dimensions(app))return;
  hid=0;raw=0;hid_acquired=raw_acquired=held_acquired=closing=had_ready=close_error=save_failed=pair_armed=pair_down=pair_sent=false;token=subscription=sequence=0;held_button=-1;button_gate=true;view=HID_VIEW_MAIN;selected=0;dirty=true;message="Pair or reconnect in Settings";status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(status)};hid_gesture_reset(&gesture,true);load_assignments();
  pair_trace_down=pair_trace_cancelled=pair_trace_gap=false;
  ui_block_until=app->millis();app->set_back_exits_app(false);
@@ -444,6 +453,7 @@ void app_main(void){
 #ifdef PORTABLE_PAPER_HID
   if(paper)paper_input(&input);
 #endif
+  if(!paper)utility_color_input(app,&input);
   if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,paper?32:8,paper?16:4,paper?64:44,paper?88:44))){if(!back())break;continue;}
   if(input.tapped)tap(input.touch_x,input.touch_y);
   pump();

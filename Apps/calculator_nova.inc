@@ -54,9 +54,9 @@ void app_main(void) {
     if(!calculator_api || !calculator_api->poll || !calculator_api->present || !calculator_api->screen_width || !calculator_api->screen_height)return;
 #ifdef PORTABLE_PAPER_UTILITIES
     up_open(calculator_api);
-    if(!utility_paper && (calculator_api->screen_width()!=240 || calculator_api->screen_height()!=240))return;
+    if(!utility_paper && !utility_color_dimensions(calculator_api))return;
 #else
-    if(calculator_api->screen_width()!=240 || calculator_api->screen_height()!=240)return;
+    if(!utility_color_dimensions(calculator_api))return;
 #endif
     calc_reset(&calculator_state);calculator_menu=false;calculator_selected=0;calculator_render();
     for(;;) {
@@ -66,6 +66,10 @@ void app_main(void) {
         if(input.exit_requested&&!(input.buttons&T5_APP_BUTTON_BACK))return;
         if(utility_paper){up_input(&input);if(input.tapped && up_hit(input.touch_x,input.touch_y,32,688,calculator_menu?416:200,88))input.buttons|=T5_APP_BUTTON_BACK;}
 #endif
+#ifdef PORTABLE_PAPER_UTILITIES
+        if(!utility_paper)
+#endif
+        utility_color_input(calculator_api,&input);
         if(input.exit_requested || (input.buttons&T5_APP_BUTTON_BACK)) {
             if(calculator_menu){calculator_menu=false;calculator_selected=0;calculator_render();continue;}
 #ifdef CALCULATOR_RETURN_APP

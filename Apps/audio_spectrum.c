@@ -643,7 +643,7 @@ static bool process_contact(void){
  char caption[40];cursor_layout(caption);
  if(!optional_contact())return false;
  t5_app_contact_t contact={0};if(!app->touch_contact(&contact))return false;
- int x=contact.x-(app->screen_width()-240)/2,y=contact.y-(app->screen_height()-240)/2;
+ int x=utility_color_x(app,contact.x),y=utility_color_y(app,contact.y);
  bool consumed=false;
  if(contact.down){
   if(!contact_down){contact_down=true;contact_controls=page==PAGE_CONTROLS&&hit(x,y,0,CONTROLS_TOP,240,CONTROLS_BOTTOM-CONTROLS_TOP);controls_touch_y=y;controls_touch_scroll=controls_scroll;contact_plot=page==PAGE_MAIN&&started&&view<2&&hit(x,y,PLOT_X,PLOT_Y,PLOT_W,PLOT_H)&&!(cursor_visible&&hit(x,y,pill_x,pill_y,pill_w,pill_h));contact_moved=false;
@@ -756,7 +756,7 @@ void app_main(void){
 #ifndef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
   else if(page==PAGE_KEYBOARD){if(input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))key_choice=key_choice?key_choice-1:PWK_COUNT-1;else if(input.buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))key_choice=(key_choice+1)%PWK_COUNT;else if(input.buttons&T5_APP_BUTTON_CONFIRM)keyboard_activate(key_choice);if(input.buttons)dirty=true;}
 #endif
-  if(input.tapped&&!consumed&&tap_action(input.touch_x-(app->screen_width()-240)/2,input.touch_y-(app->screen_height()-240)/2,&toggle_requested,&freeze_requested))break;
+  if(input.tapped&&!consumed&&tap_action(utility_color_x(app,input.touch_x),utility_color_y(app,input.touch_y),&toggle_requested,&freeze_requested))break;
   if(temporal_retained())return;
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
   if(text_client.retained)return;

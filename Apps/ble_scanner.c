@@ -239,6 +239,7 @@ static void move(int delta){
 }
 static bool drag(void){
  t5_app_contact_t sample={0};if(!app->touch_contact(&sample))return false;
+ sample.x=(uint16_t)utility_color_x(app,sample.x);sample.y=(uint16_t)utility_color_y(app,sample.y);
  if(sample.down){
   if(!contact_down){contact_down=true;contact_list=sample.y>=60&&sample.y<196;contact_moved=false;contact_y=sample.y;}
   else if(contact_list){int dy=sample.y-contact_y;if(dy>=20||dy<=-20){move(dy<0?1:-1);contact_y=sample.y;contact_moved=true;}}
@@ -344,7 +345,7 @@ void app_main(void){
 #ifndef BLE_SCANNER_COMPACT_COLOR_ONLY
  paper=paper_presentation_get();
 #endif
- if((!paper&&(app->screen_width()!=240||app->screen_height()!=240))||(paper&&(!app->fill_rect||!app->draw_icon)))return;
+ if((!paper&&!utility_color_dimensions(app))||(paper&&(!app->fill_rect||!app->draw_icon)))return;
  paper_enable_needed=false;bp_down=false;
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
  bp_release_seen=false;
@@ -367,6 +368,7 @@ void app_main(void){
   if(input.exit_requested)break;
   normalize_results();
   if(paper){if(!paper_input(&input))break;if(name_client.retained)return;if(!naming)pump();continue;}
+  utility_color_input(app,&input);
   if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44))){if(!navigate_back())break;continue;}
   bool swiped=drag();
   if(input.buttons&T5_APP_BUTTON_UP)move(-1);
