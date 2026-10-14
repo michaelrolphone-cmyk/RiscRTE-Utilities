@@ -145,6 +145,10 @@ static void temporal_observe(void);
 static void detect_frequency_labels(void);
 static void temporal_suspend(void);
 static bool temporal_retained(void);
+bool portable_audio_services_safe(void);
+#include "spectrum_stage_trace.h"
+#define APP_STAGE(stage,a,b,c) do{if(portable_audio_services_safe())spectrum_stage_mark(stage,a,b,c);}while(0)
+
 static bool temporal_exit_blocked(void);
 static bool temporal_exit_ready(void);
 
@@ -300,7 +304,10 @@ static void capture_discontinuity(bool lost_input){
 }
 static void capture(void){
  int16_t pcm[256];size_t got=0;
+ bool stage_capture=spectrum_stage_take(false);
+ if(stage_capture)APP_STAGE("capture-before",view,256,history_count);
  bool ok=microphone->read(microphone->context,pcm,256,&got);
+ if(stage_capture)APP_STAGE("capture-after",view,ok,(unsigned)got);
  if(!ok||got>256){stop();message="MIC READ FAILED";capture_error=true;notify(message);return;}
  if(!input_gap&&(uint32_t)(app->millis()-last_pcm_at)>=128u)capture_discontinuity(!got);
  /* A successful short/empty read is a bounded RX wait, not end-of-stream. */
@@ -487,11 +494,19 @@ static void draw_keyboard(void){
 }
 #endif
 static int toast_top(void){return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}
+static void change_view(unsigned next){
+ if(next==view)return;
+ spectrum_stage_arm();APP_STAGE("mode-before",view,next,history_count);
+ view=next;APP_STAGE("mode-after",view,running,history_count);
+}
 static void draw(void){
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
  if(text_active||text_client.retained)return;
 #endif
  if(!utility_frame_begin(app))return;
+ bool stage_frame=spectrum_stage_take(true);
+ if(stage_frame)APP_STAGE("frame-request",view,app->screen_width(),app->screen_height());
+ if(stage_frame)APP_STAGE("render-before",view,page,history_count);
 #ifdef PORTABLE_NOVA_UI
  portable_nova_begin();
 #else
@@ -503,7 +518,10 @@ static void draw(void){
 #endif
  else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error||input_waiting){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
  if(toast_message&&page!=PAGE_KEYBOARD){int y=toast_top();round_rect(14,y,212,28,14,NOVA_DIM);round_rect(15,y+1,210,26,13,0);text(1,23,y+5,undo_slot>=0?145:194,toast_message,NOVA_TEXT);if(undo_slot>=0)text(1,174,y+5,45,"UNDO",NOVA_CYAN);}
- app->present(false);painted=app->millis();dirty=false;
+ if(stage_frame)APP_STAGE("submit-before",view,page,history_count);
+ app->present(false);
+ if(stage_frame)APP_STAGE("submit-after",view,page,history_count);
+ painted=app->millis();dirty=false;
 }
 
 #ifndef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
@@ -681,7 +699,7 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(page==PAGE_LABEL){if(hit(x,y,31,104,178,32)){keyboard_begin();}else if(y>=140&&y<166&&x>=28&&x<216){editing.color=(uint8_t)clamp_int((x-28)/23,0,7);dirty=true;}else if(y>=169&&y<203){if(x>=24&&x<89)set_page(PAGE_MAIN);else if(edit_slot>=0&&x>=89&&x<152)delete_label(edit_slot);else if(x>=(edit_slot>=0?152:122)&&x<218)save_label();}return false;}
  if(page==PAGE_CONTROLS){if(hit(x,y,79,201,82,32)){set_page(PAGE_MAIN);return false;}if(y<CONTROLS_TOP||y>=CONTROLS_BOTTOM)return false;unsigned position=(unsigned)(y-CONTROLS_TOP+controls_scroll),setting=position/CONTROLS_ROW_HEIGHT+1;int row_y=(int)(position%CONTROLS_ROW_HEIGHT);if(setting>CONTROLS_COUNT||row_y<4||row_y>=44)return false;if(controls_segment(setting)){if(x>=110&&x<165)settings_change(setting,0,0);else if(x>=171&&x<232)settings_change(setting,0,1);}else if(setting==11||setting==12||setting==13){if(x>=110&&x<232)settings_change(setting,0,0);}else if(x>=90&&x<122)settings_change(setting,-1,0);else if(x>=200&&x<232)settings_change(setting,1,0);return false;}
  if(!started){if(hit(x,y,68,102,104,48))*toggle_requested=true;else if(hit(x,y,72,196,98,38)){list_scroll=0;set_page(PAGE_CONTROLS);}else if(hit(x,y,6,4,50,34))return request_root_exit();return false;}
- if(y>=8&&y<42){if(x>=4&&x<55){view=0;list_scroll=0;lab_edit=false;}else if(x>=58&&x<108){view=1;list_scroll=0;lab_edit=false;}else if(x>=111&&x<185){view=2;list_scroll=0;lab_edit=false;}else if(x>=188&&x<210&&view!=2){if(load_errors&1u)notify("RETRY STORAGE FIRST");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=213&&x<240){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
+ if(y>=8&&y<42){if(x>=4&&x<55){change_view(0);list_scroll=0;lab_edit=false;}else if(x>=58&&x<108){change_view(1);list_scroll=0;lab_edit=false;}else if(x>=111&&x<185){change_view(2);list_scroll=0;lab_edit=false;}else if(x>=188&&x<210&&view!=2){if(load_errors&1u)notify("RETRY STORAGE FIRST");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=213&&x<240){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
  if(view==2){if(hit(x,y,161,44,64,37)){lab_edit=!lab_edit;list_scroll=0;set_page(PAGE_MAIN);return false;}if(lab_edit){unsigned order[8],n=ordered_labels(order);if(y>=88&&y<198){unsigned row=(unsigned)(y-88)/55+list_scroll;if(row<n){if(x>=182&&x<220)delete_label((int)order[row]);else if(x>=20&&x<181)open_label((int)order[row],0);}}if(y>=200&&y<235){if(x>=16&&x<68&&list_scroll)list_scroll--;else if(x>=173&&x<224&&list_scroll+2<n)list_scroll++;}}else if(y>=210){monitor_item items[17];unsigned n=monitor_items(items);if(x<39&&list_scroll)list_scroll--;else if(x>=45&&x<111)*toggle_requested=true;else if(x>=117&&x<196){shared_open(2);}else if(x>=202&&list_scroll+3<n)list_scroll++;}else if(hit(x,y,20,85,200,41)){shared_open(1);}dirty=true;return false;}
  if(cursor_visible&&hit(x,y,pill_x,pill_y,pill_w,pill_h)){open_label(-1,cursor_hz);return false;}
  if(hit(x,y,PLOT_X,PLOT_Y,PLOT_W,PLOT_H)){int coordinate=view==1?y-PLOT_Y:x-PLOT_X;int current=(int)spectrum_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);if(cursor_visible&&abs_int(current-coordinate)>14)cursor_visible=false;else{cursor_visible=true;cursor_hz=spectrum_dsp_frequency_at(&dsp_config,(unsigned)coordinate,view==1?PLOT_H:PLOT_W);}dirty=true;return false;}
@@ -694,6 +712,7 @@ void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->diagnostic||!runtime->yield_ms)return;
  if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
+ spectrum_stage_init(runtime,"AUDIO");APP_STAGE("static-memory",sizeof(spectrum),sizeof(history),sizeof(speech));
  microphone=NULL;storage=NULL;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};memset(&spectrum,0,sizeof(spectrum));
  capture_requested=input_gap=input_waiting=capture_error=acquired=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=true;
  pending_save=load_errors=0;page=PAGE_MAIN;
@@ -749,7 +768,7 @@ void app_main(void){
   uint32_t now=app->millis();if(event_slot>=0&&(uint32_t)(now-last_event_at)>2000u){event_slot=-1;dirty=true;}if(toast_message&&(int32_t)(now-toast_until)>=0){toast_message=NULL;undo_slot=-1;dirty=true;}
   normalize_monitor();
   bool consumed=process_contact(),toggle_requested=false,freeze_requested=false;
-  if(page==PAGE_MAIN){toggle_requested=!!(input.buttons&T5_APP_BUTTON_CONFIRM);freeze_requested=!!(input.buttons&T5_APP_BUTTON_DOWN);if(input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_RIGHT)){view=(view+(input.buttons&T5_APP_BUTTON_LEFT?2u:1u))%3;list_scroll=0;lab_edit=false;set_page(PAGE_MAIN);}}
+  if(page==PAGE_MAIN){toggle_requested=!!(input.buttons&T5_APP_BUTTON_CONFIRM);freeze_requested=!!(input.buttons&T5_APP_BUTTON_DOWN);if(input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_RIGHT)){change_view((view+(input.buttons&T5_APP_BUTTON_LEFT?2u:1u))%3);list_scroll=0;lab_edit=false;set_page(PAGE_MAIN);}}
   else if(page>=PAGE_SHARED)shared_buttons(input.buttons);
   else if(page==PAGE_CONTROLS){if(input.buttons&T5_APP_BUTTON_UP)controls_move(controls_scroll-CONTROLS_ROW_HEIGHT);if(input.buttons&T5_APP_BUTTON_DOWN)controls_move(controls_scroll+CONTROLS_ROW_HEIGHT);}
   else if(page==PAGE_LABEL && (input.buttons&T5_APP_BUTTON_CONFIRM))save_label();

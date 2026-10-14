@@ -20,6 +20,9 @@
 #include "WifiApi.h"
 #include "AudioInputV1.h"
 #include "RiscAppDataV1.h"
+#ifdef PORTABLE_SPECTRUM_STAGE_TRACE
+#include "RiscDiagnosticCheckpointV1.h"
+#endif
 #include "ContextsServiceV1.h"
 #include "ContextFingerprintService.h"
 #include <math.h>
@@ -202,7 +205,16 @@ static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabi
 }
 static bool fake_release(risc_runtime_capability_v1*g){IO();assert(g->api&&grant_count);if(g->api==&app_data_api){assert(app_data_live);app_data_live=0;}if(g->api==&shared_api){assert(shared_live);shared_live=0;}if(g->api==&text_proxy){assert(text_driver->quiesce()&&!lease_count&&!pending_token);text_granted=false;}*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};grant_count--;return true;}
 static bool fake_exit_requested(void){IO();return policy_home_pending;}
-static const risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=fake_acquire,.release=fake_release,.retain_invocation=fake_retain,.exit_requested=fake_exit_requested};
+#ifdef PORTABLE_SPECTRUM_STAGE_TRACE
+static unsigned stage_checkpoint_count;
+static char stage_checkpoint_text[577];
+static int32_t stage_checkpoint_write(uint64_t token,const char *text,uint32_t length){IO(); assert(token==77&&length&&length<=576);memcpy(stage_checkpoint_text,text,length);stage_checkpoint_text[length]=0;assert(strstr(stage_checkpoint_text,"T069 "));stage_checkpoint_count++;return 0;}
+static bool stage_checkpoint_client(risc_diagnostic_checkpoint_client_v1 *out){IO(); assert(out&&out->struct_size==sizeof(*out));*out=(risc_diagnostic_checkpoint_client_v1){1,sizeof(*out),77,stage_checkpoint_write};return true;}
+#define STAGE_CHECKPOINT_FIELD .diagnostic_checkpoint_client=stage_checkpoint_client,
+#else
+#define STAGE_CHECKPOINT_FIELD
+#endif
+static const risc_runtime_api_v1 runtime_api={STAGE_CHECKPOINT_FIELD .api_version=1,.struct_size=sizeof(runtime_api),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=fake_acquire,.release=fake_release,.retain_invocation=fake_retain,.exit_requested=fake_exit_requested};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return !native_retained&&!runtime_lost&&v==1?&runtime_api:NULL;}
 static uint64_t clock_now(void*c){IO();(void)c;return ticks;}
 #ifndef SPECTRUM_APP_SOURCE
@@ -271,6 +283,9 @@ int main(int argc,char**argv){
  text_proxy.checkpoint_enable=proxy_enable;text_proxy.checkpoint_snapshot=proxy_snapshot;text_proxy.pause=proxy_pause;text_proxy.pause_for_focus_change=proxy_pause_focus;text_proxy.resume=proxy_resume;
 #endif
  assert(app_module_init()==0);app_main();app_module_fini();
+#ifdef PORTABLE_SPECTRUM_STAGE_TRACE
+ assert(stage_checkpoint_count>0);
+#endif
  if(is_mode("deployed-policy-retained")){assert(native_retained&&shared_requests==1&&io_calls==retained_calls);puts("PASS original policy reproduces retained invocation on first shared-data acquisition");return 0;}
  if(getenv("SPECTRUM_FULL_CONTEXTS"))assert(shared_requests>=3&&!shared_live&&!native_retained);
  if(is_mode("retained")||is_mode("policy-retained")||!strncmp(mode,"loss-",5)){assert(native_retained&&portable_text_adapter_retained()&&!launches);assert(grant_count==retained_grants&&subs==retained_subs&&lease_count==retained_frames&&io_calls==retained_calls&&allocation_count==retained_allocations);assert(app_module_init()!=0&&io_calls==retained_calls);if(is_mode("policy-retained"))assert(policy_resumes==1);puts("PASS retained invocation: resources frozen, zero later I/O, reentry refused");return 0;}
