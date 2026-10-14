@@ -37,6 +37,14 @@ static hid_assignment assignments[4],draft;
 static int held_button;
 static uint8_t held_contact;
 static bool button_gate;
+#if !HID_TOUCHPAD
+#define HID_BUTTON_PENDING (RISC_TOUCH_QUEUE_LENGTH/2u)
+typedef struct {int target;uint8_t id;bool down,valid;uint64_t began,last;} hid_button_tap;
+static hid_button_tap button_trace;
+static uint8_t button_pending[HID_BUTTON_PENDING];
+static unsigned button_pending_head,button_pending_count;
+static void reset_button_queue(void){button_pending_head=button_pending_count=0;button_trace=(hid_button_tap){.target=-1,.valid=true};}
+#endif
 static unsigned selected,view;
 static uint32_t refreshed,reported,battery_at;
 static bool close_error,save_failed,pair_armed,pair_down,pair_sent,paper_pair_release_gate;
@@ -70,6 +78,9 @@ static void cleanup_wait(void){
 }
 static void retain_grant(risc_runtime_capability_v1*g){held_grant=*g;held_acquired=true;closing=true;cleanup_wait();}
 static bool release_input(void){
+#if !HID_TOUCHPAD
+ reset_button_queue();
+#endif
  hid_gesture_reset(&gesture,true);button_gate=true;held_button=-1;pair_armed=pair_down=false;pair_target=-1;
  if(token&&hid&&!closing)return hid->release_all(hid->context,token);
  return true;
@@ -77,6 +88,9 @@ static bool release_input(void){
 /* Failed close keeps both the token and provider grant alive. This is retryable
  * cleanup only; no reports, status reads or unrelated provider I/O may follow. */
 static bool close_session(void){
+#if !HID_TOUCHPAD
+ reset_button_queue();
+#endif
  closing=true;hid_gesture_reset(&gesture,true);held_button=-1;button_gate=true;
  if(token){if(!hid->close(hid->context,token))return false;token=0;
   risc_bluetooth_hid_status_v1 final={.struct_size=sizeof(final)};
@@ -169,23 +183,23 @@ static bool send_assignment(const hid_assignment*a,bool pressed){
 }
 static int button_at(int x,int y){if(paper){if(x<32||x>=448||y<224||y>=624||(x>=232&&x<248)||(y>=416&&y<432))return -1;return (y>=432?2:0)+(x>=248?1:0);}if(x<8||x>=232||y<80||y>=190|| (x>=116&&x<124)||(y>=131&&y<139))return -1;return (y>=139?2:0)+(x>=124?1:0);}
 #if !HID_TOUCHPAD
-/* The adapter and this app independently sample the same raw provider. A
- * complete short contact can therefore be queued while the final snapshot is
- * already neutral. Recognize only one uninterrupted, single-tile contact; the
- * ordinary state/sequence/neutral/timing gates still decide whether to act. */
-typedef struct {int target;uint8_t id;bool down,complete,valid;uint64_t began,last;} hid_button_tap;
-static void button_tap_event(hid_button_tap*t,const risc_touch_event_v1*e){
+/* Capture validated contacts independently of display completion. A snapshot
+ * can be neutral after several complete contacts; preserve each ordered pair.
+ * Dispatch one pair per pump so the HID owner can service ACL credits between
+ * shortcuts. Session/custody changes clear both the trace and pending actions. */
+static void button_tap_event(hid_button_tap*t,const risc_touch_event_v1*e,uint8_t*completed,unsigned*count){
  if(!t->valid)return;
  int target=button_at(e->x,e->y);
  if(!t->down){
-  if(e->kind!=RISC_TOUCH_EVENT_DOWN||target<0){t->valid=false;return;}
+  if(e->kind!=RISC_TOUCH_EVENT_DOWN||target<0||e->timestamp_ms<t->last){t->valid=false;return;}
   t->down=true;t->target=target;t->id=e->id;t->began=t->last=e->timestamp_ms;return;
  }
- if(t->complete||e->id!=t->id||target!=t->target||e->timestamp_ms<t->last||
-    e->timestamp_ms-t->began>100u){t->valid=false;return;}
+ if(e->id!=t->id||target!=t->target||e->timestamp_ms<t->last||e->timestamp_ms-t->began>100u){t->valid=false;return;}
  t->last=e->timestamp_ms;
- if(e->kind==RISC_TOUCH_EVENT_UP)t->complete=true;
- else if(e->kind!=RISC_TOUCH_EVENT_MOVE)t->valid=false;
+ if(e->kind==RISC_TOUCH_EVENT_UP){
+  if(*count>=HID_BUTTON_PENDING){t->valid=false;return;}
+  completed[(*count)++]=(uint8_t)t->target;t->down=false;
+ }else if(e->kind!=RISC_TOUCH_EVENT_MOVE)t->valid=false;
 }
 #endif
 static bool assignment_ready(const hid_assignment*a){
@@ -283,7 +297,7 @@ static void pump(void){
   status=next;if(next.state==RISC_HID_READY)had_ready=true;
  }
 #if !HID_TOUCHPAD
- hid_button_tap queued_tap={.target=-1,.valid=true};
+ hid_button_tap queued_tap=button_trace;uint8_t completed[HID_BUTTON_PENDING];unsigned completed_count=0;
 #endif
  bool polled=raw->poll(raw->context,1),gap=false,saw_up=false;int32_t rc=0;risc_touch_event_v1 e;
  for(unsigned n=0;n<RISC_TOUCH_QUEUE_LENGTH+1;n++){
@@ -292,10 +306,14 @@ static void pump(void){
   sequence=e.sequence;
 #if !HID_TOUCHPAD
   if(!paper){e.x=utility_color_x(app,e.x);e.y=utility_color_y(app,e.y);}
-  button_tap_event(&queued_tap,&e);
+  button_tap_event(&queued_tap,&e,completed,&completed_count);
 #endif
   if(e.kind==RISC_TOUCH_EVENT_UP)saw_up=true;
+#if HID_TOUCHPAD
   if(e.kind==RISC_TOUCH_EVENT_DOWN&&saw_up)gap=true;
+#else
+  (void)saw_up;
+#endif
   if(n==RISC_TOUCH_QUEUE_LENGTH)gap=true;
  }
  if(rc==-2){stop_session("Touch error - reconnect");return;}
@@ -320,17 +338,38 @@ static void pump(void){
  if(status.state==RISC_HID_READY&&(status.flags&need)==need&&view==HID_VIEW_MAIN){
   bool ok;
 #if !HID_TOUCHPAD
-  if(!gap&&!button_gate&&held_button<0&&!sample.contact_count&&
-     queued_tap.valid&&queued_tap.complete&&(uint32_t)(app->millis()-refreshed)<=100u&&
-     assignment_ready(assignments+queued_tap.target)){
-   /* No earlier sampled press exists for this contact. Queue the same FIFO
-    * press/neutral pair as an ordinary tap; neither path can deliver it twice. */
-   ok=send_assignment(assignments+queued_tap.target,true)&&send_assignment(assignments+queued_tap.target,false);
+  if(!gap&&!button_gate&&held_button<0&&queued_tap.valid&&
+     (uint32_t)(app->millis()-refreshed)<=100u){
+   if(completed_count>HID_BUTTON_PENDING-button_pending_count){
+    if(!release_input()){stop_session("Input queue full - reconnect");return;}
+   }else{
+    for(unsigned i=0;i<completed_count;i++)button_pending[(button_pending_head+button_pending_count++)%HID_BUTTON_PENDING]=completed[i];
+    button_trace=queued_tap;
+   }
+  }
+  if(!queued_tap.valid)button_trace.valid=false;
+  if(!sample.contact_count&&!button_trace.valid)button_trace=(hid_button_tap){.target=-1,.valid=true};
+  if(button_pending_count){
+   unsigned target=button_pending[button_pending_head];
+   if(!assignment_ready(assignments+target)){
+    if(!release_input()){stop_session("Release failed - reconnect");return;}
+    ok=true;
+   }else{
+    ok=send_assignment(assignments+target,true)&&send_assignment(assignments+target,false);
+    if(ok){button_pending_head=(button_pending_head+1)%HID_BUTTON_PENDING;button_pending_count--;}
+   }
   }else
 #endif
    ok=HID_TOUCHPAD?touch_pad(&sample,now):touch_buttons(&sample,now);
+#if !HID_TOUCHPAD
+  if(held_button>=0||button_gate)button_trace=(hid_button_tap){.target=-1,.valid=true};
+#endif
   if(!ok){stop_session("Report rejected - reconnect");return;}
- }else{hid_gesture_reset(&gesture,true);button_gate=true;}
+ }else{hid_gesture_reset(&gesture,true);button_gate=true;
+#if !HID_TOUCHPAD
+ reset_button_queue();
+#endif
+ }
  if((uint32_t)(now-battery_at)>=30000)update_battery();
 }
 static void load_assignments(void){
@@ -443,6 +482,9 @@ void app_main(void){
  if(paper&&(paper->struct_size<sizeof(*paper)||!paper->begin||!paper->text||!paper->measure||!paper->contact))return;
 #endif
  if(paper?(app->screen_width()!=hid_width()||app->screen_height()!=hid_height()):!utility_color_dimensions(app))return;
+#if !HID_TOUCHPAD
+ reset_button_queue();
+#endif
  hid=0;raw=0;hid_acquired=raw_acquired=held_acquired=closing=had_ready=close_error=save_failed=pair_armed=pair_down=pair_sent=false;token=subscription=sequence=0;held_button=-1;button_gate=true;view=HID_VIEW_MAIN;selected=0;dirty=true;message="Pair or reconnect in Settings";status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(status)};hid_gesture_reset(&gesture,true);load_assignments();
  pair_trace_down=pair_trace_cancelled=pair_trace_gap=false;
  ui_block_until=app->millis();app->set_back_exits_app(false);
