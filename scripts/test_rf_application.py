@@ -26,6 +26,8 @@ p.add_argument('--watch', type=Path)
 p.add_argument('--runtime', type=Path, required=True)
 p.add_argument('--scene', action='append')
 p.add_argument('--normal-only', action='store_true')
+p.add_argument('--native-width',type=int,default=240)
+p.add_argument('--native-height',type=int,default=240)
 a = p.parse_args()
 OUT = ROOT / 'build/rf-application'
 
@@ -51,6 +53,7 @@ scenes = {
         'nav 104', check('view', 1), check('running', 1), 'snapshot fall', 'nav 8', check('view', 2), 'snapshot monitor', 'nav 8', check('view', 0),
         'nav 32', check('frozen', 1), check('running', 0), 'remember captures', 'remember history', 'wait 5', 'same captures', 'same history',
         'nav 2', check('running', 1), 'wait 3', 'nav 2', check('running', 0), check('frozen', 0), 'finish'), {}),
+    'mode-history': (scene(*(['wait 80','nav 8','nav 8','nav 8']*7),check('history',228),'nav 8',check('view',1),'wait 3','nav 8',check('view',2),'nav 8',check('view',0),'nav 8',check('view',1),'nav 32',check('frozen',1),'nav 8',check('view',2),'nav 8',check('view',0),'finish'), {}),
     'sidebands': (scene('wait 3', check('peak_hz', 2446250000), 'set signal -1', 'wait 3', check('peak_hz', 2433750000), 'set signal 1', 'wait 3', check('peak_hz', 2446250000), 'finish'), {}),
     'retry': (scene('wait 3', check('running', 0), check('captures', 0), 'set no_radio 0', 'nav 2', check('running', 1), 'wait 2', 'set rf_failure 6', 'wait 2', check('running', 0), check('capture_error', 1), 'nav 2', check('running', 1), 'wait 2', 'set rf_failure 2', 'wait 2', check('running', 0), check('capture_error', 1), 'nav 2', check('running', 1), 'set format_failure 1', 'wait 2', check('running', 0), check('capture_error', 1), 'nav 2', check('running', 1), 'finish'), {'RF_RENDER_NO_RADIO':'1'}),
     'retained-radio': (scene('wait 3', 'set rf_failure 7', 'wait 2', check('running', 0), check('capture_error', 1), check('suspends', 4, 'ge'), 'nav 2', check('running', 1), 'finish'), {}),
@@ -240,7 +243,9 @@ for sanitized in (False, True):
         system = system.resolve()
         out = OUT / target / ('sanitized' if sanitized else 'normal')
         out.mkdir(parents=True, exist_ok=True)
-        flags = ['-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
+        flags = ['-include',str(system/'lib/PortableApps/include/PortableContextsClient.h'),'-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
+        if target.startswith('watch') and (a.native_width,a.native_height)!=(240,240):
+            flags += ['-DPORTABLE_WATCH_NATIVE_HEIGHT',f'-DRF_RENDER_WIDTH={a.native_width}',f'-DRF_RENDER_HEIGHT={a.native_height}']
         san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitized else []
         if target == 'x4':
             flags += ['-DRF_RENDER_PAPER', '-DPORTABLE_DISPLAY_ROTATION=90', '-DPORTABLE_HOME_APP="default.elf"']

@@ -32,9 +32,13 @@ static const risc_touch_api_v1 *fx_watch;
 #define FX_STRIDE 104u
 #define FX_FORMAT RISC_DISPLAY_FORMAT_MONO1
 #else
-#define FX_W 240u
-#define FX_H 240u
-#define FX_STRIDE 488u
+#ifndef RF_RENDER_WIDTH
+#define RF_RENDER_WIDTH 240u
+#define RF_RENDER_HEIGHT 240u
+#endif
+#define FX_W RF_RENDER_WIDTH
+#define FX_H RF_RENDER_HEIGHT
+#define FX_STRIDE (FX_W*2u+8u)
 #define FX_FORMAT RISC_DISPLAY_FORMAT_RGB565
 #endif
 static struct {uint8_t before[32],pixels[FX_H*FX_STRIDE],after[32];} fx_raster;
@@ -55,7 +59,7 @@ static struct {char key[24];uint8_t bytes[2048];uint32_t size;} fx_cells[32];
 static struct {char name[32];uint8_t bytes[72000];uint32_t size;uint64_t revision;} fx_files[4];
 static uint64_t fx_revision=1;
 static void fx_io(void){assert(!fx_radio_retained&&!fx_storage_retained);}
-static void fx_guards(void){for(unsigned i=0;i<32;i++)assert(fx_raster.before[i]==0xa5&&fx_raster.after[i]==0xa5);for(unsigned y=0;y<FX_H;y++)for(unsigned x=(FX_FORMAT==RISC_DISPLAY_FORMAT_MONO1?100u:480u);x<FX_STRIDE;x++)assert(fx_raster.pixels[y*FX_STRIDE+x]==0xa5);}
+static void fx_guards(void){for(unsigned i=0;i<32;i++)assert(fx_raster.before[i]==0xa5&&fx_raster.after[i]==0xa5);for(unsigned y=0;y<FX_H;y++)for(unsigned x=(FX_FORMAT==RISC_DISPLAY_FORMAT_MONO1?100u:FX_W*2u);x<FX_STRIDE;x++)assert(fx_raster.pixels[y*FX_STRIDE+x]==0xa5);}
 static unsigned fx_pixel(unsigned x,unsigned y){
 #ifdef RF_RENDER_PAPER
  unsigned nx=y,ny=479u-x;return (fx_raster.pixels[ny*FX_STRIDE+nx/8u]&(0x80u>>(nx%8u)))?0u:255u;
@@ -73,7 +77,7 @@ static void fx_snapshot(const char *name){
 #ifdef RF_RENDER_PAPER
  unsigned width=480,height=800;
 #else
- unsigned width=240,height=240;
+ unsigned width=FX_W,height=FX_H;
 #endif
  fprintf(f,"P6\n%u %u\n255\n",width,height);for(unsigned y=0;y<height;y++)for(unsigned x=0;x<width;x++){unsigned v=fx_pixel(x,y);
 #ifdef RF_RENDER_PAPER
@@ -88,7 +92,7 @@ static void fx_corners(void){
 #ifdef RF_RENDER_PAPER
  assert(w==480&&h==800);
 #else
- assert(w==240&&h==240);
+ assert(w==FX_W&&h==FX_H);
 #endif
  api->clear();api->fill_rect(-10,-10,11,11,true);api->fill_rect((int)w-2,0,5,2,true);api->fill_rect(0,(int)h-3,3,7,true);api->fill_rect((int)w-4,(int)h-4,9,9,true);api->present(true);
  assert(fx_pixel(0,0)==0&&fx_pixel(w-1,0)==0&&fx_pixel(0,h-1)==0&&fx_pixel(w-1,h-1)==0);assert(fx_pixel(1,1)!=0&&fx_pixel(w-3,0)!=0&&fx_pixel(3,h-1)!=0&&fx_pixel(w-5,h-1)!=0);fx_guards();fx_checks++;
@@ -122,6 +126,9 @@ static void fx_script(void){
   if(!strcmp(op,"tap")||!strcmp(op,"raw")){assert(sscanf(fx_line,"%*s %d %d",&x,&y)==2);if(!fx_phase++){
 #ifdef RF_RENDER_PAPER
    if(!strcmp(op,"tap")){x*=2;y=((page==PAGE_MAIN&&started&&view<2)||page==PAGE_CONTROLS)?y*2:y*800/240;}
+#endif
+#if defined(PORTABLE_WATCH_NATIVE_HEIGHT) && !defined(RF_RENDER_PAPER)
+   if(!strcmp(op,"tap")){x=(x*(int)FX_W+239)/240;y=(y*(int)FX_W+239)/240;}
 #endif
    fx_touch_x=x;fx_touch_y=y;
   }else fx_line[0]=0;return;}
@@ -189,7 +196,7 @@ static void fx_touch_report(risc_touch_snapshot_v1*s){*s=(risc_touch_snapshot_v1
 #ifdef RF_RENDER_PAPER
  .width=480,.height=800,
 #else
- .width=240,.height=240,
+ .width=FX_W,.height=FX_H,
 #endif
  .sequence=fx_polls,.buttons=fx_touch_buttons};if(fx_touch_x>=0){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=(uint16_t)fx_touch_x,.y=(uint16_t)fx_touch_y};}}
 #ifdef RF_RENDER_WATCH_TOUCH
