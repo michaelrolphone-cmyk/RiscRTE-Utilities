@@ -1,0 +1,136 @@
+Standalone Contexts runtime catalog one PASS
+Standalone Contexts runtime catalog many PASS
+Standalone Contexts runtime catalog oversized PASS
+Standalone Contexts runtime catalog one-over-limit PASS
+Standalone Contexts runtime catalog empty PASS
+Standalone Contexts runtime catalog refresh PASS
+Standalone Contexts runtime catalog long PASS
+Standalone Contexts runtime catalog long-id PASS
+Standalone Contexts runtime catalog medium PASS
+Standalone Contexts runtime catalog select-stale PASS
+Standalone Contexts runtime catalog unavailable PASS
+Standalone Contexts runtime catalog missing PASS
+Standalone Contexts runtime catalog partial PASS
+Standalone Contexts runtime catalog release PASS
+Standalone Contexts runtime catalog malformed PASS
+Standalone Contexts runtime catalog duplicate PASS
+Standalone Contexts runtime catalog generation PASS
+Standalone Contexts runtime catalog snapshot-error PASS
+Standalone Contexts runtime catalog snapshot-context PASS
+Standalone Contexts runtime catalog snapshot-retained PASS
+Standalone Contexts runtime catalog get-context PASS
+Standalone Contexts runtime catalog get-retained PASS
+Standalone Contexts runtime catalog get-error PASS
+Standalone Contexts runtime catalog faces-actions PASS
+Standalone Contexts runtime catalog absent PASS
+Standalone Contexts runtime catalog launch PASS
+app: Contexts workflow app launch rejected
+Standalone Contexts runtime catalog launch-stale PASS
+app: Contexts workflow app launch rejected
+Standalone Contexts runtime catalog launch-removed PASS
+app: Contexts workflow app launch rejected
+Standalone Contexts runtime catalog launch-rejected PASS
+Standalone Contexts runtime catalog launch-retained PASS
+Standalone Contexts runtime catalog launch-catalog-retained PASS
+Standalone Contexts runtime catalog launch-home PASS
+Standalone Contexts runtime catalog launch-home-get PASS
+Standalone Contexts runtime catalog picker-checkpoint PASS
+Standalone Contexts runtime catalog picker-checkpoint-empty PASS
+Standalone Contexts runtime catalog picker-checkpoint-reused-remove PASS
+Standalone Contexts runtime catalog picker-checkpoint-reused-shrink PASS
+Standalone Contexts runtime catalog picker-checkpoint-reused-reorder PASS
+Standalone Contexts runtime catalog picker-checkpoint-refresh PASS
+Standalone Contexts runtime catalog picker-checkpoint-reused-oversized PASS
+Standalone Contexts runtime catalog one PASS
+Standalone Contexts runtime catalog many PASS
+Standalone Contexts runtime catalog oversized PASS
+Standalone Contexts runtime catalog one-over-limit PASS
+Standalone Contexts runtime catalog empty PASS
+Standalone Contexts runtime catalog refresh PASS
+Standalone Contexts runtime catalog long PASS
+Standalone Contexts runtime catalog long-id PASS
+Standalone Contexts runtime catalog medium PASS
+Standalone Contexts runtime catalog select-stale PASS
+Standalone Contexts runtime catalog unavailable PASS
+Standalone Contexts runtime catalog missing PASS
+Standalone Contexts runtime catalog partial PASS
+Standalone Contexts runtime catalog release PASS
+Standalone Contexts runtime catalog malformed PASS
+Standalone Contexts runtime catalog duplicate PASS
+Standalone Contexts runtime catalog generation PASS
+Standalone Contexts runtime catalog snapshot-error PASS
+Standalone Contexts runtime catalog snapshot-context PASS
+Standalone Contexts runtime catalog snapshot-retained PASS
+Standalone Contexts runtime catalog get-context PASS
+Standalone Contexts runtime catalog get-retained PASS
+Standalone Contexts runtime catalog get-error PASS
+Standalone Contexts runtime catalog faces-actions PASS
+Standalone Contexts runtime catalog absent PASS
+Standalone Contexts runtime catalog launch PASS
+app: Contexts workflow app launch rejected
+Standalone Contexts runtime catalog launch-stale PASS
+app: Contexts workflow app launch rejected
+Standalone Contexts runtime catalog launch-removed PASS
+app: Contexts workflow app launch rejected
+Standalone Contexts runtime catalog launch-rejected PASS
+Standalone Contexts runtime catalog launch-retained PASS
+Standalone Contexts runtime catalog launch-catalog-retained PASS
+Standalone Contexts runtime catalog launch-home PASS
+Standalone Contexts runtime catalog launch-home-get PASS
+Standalone Contexts runtime catalog picker-checkpoint PASS
+Standalone Contexts runtime catalog picker-checkpoint-empty PASS
+Standalone Contexts runtime catalog picker-checkpoint-reused-remove PASS
+Standalone Contexts runtime catalog picker-checkpoint-reused-shrink PASS
+Standalone Contexts runtime catalog picker-checkpoint-reused-reorder PASS
+Standalone Contexts runtime catalog picker-checkpoint-refresh PASS
+Standalone Contexts runtime catalog picker-checkpoint-reused-oversized PASS
+PASS 80 standalone catalog cases; no compiled inventory symbols
+Actual Battery broadcast controller toggle PASS
+Actual Battery broadcast controller same PASS
+Actual Battery broadcast controller pause-failed PASS
+Actual Battery broadcast controller busy PASS
+Actual Battery broadcast controller delayed PASS
+Actual Battery broadcast controller exit PASS
+Actual Battery broadcast controller cancel-pending PASS
+Actual Battery broadcast controller cancel-race PASS
+Actual Battery broadcast controller collect-error PASS
+Actual Battery broadcast controller release-error PASS
+Actual BLE controller name-cancel PASS
+Actual BLE controller name-repair PASS
+Actual BLE controller name-stale PASS
+Actual BLE controller name-busy PASS
+Actual BLE controller name-copy PASS
+Actual BLE controller name-tombstone PASS
+Actual BLE controller name-delayed PASS
+Actual BLE controller name-collect-error PASS
+Actual BLE controller name-dirty-submit PASS
+Actual BLE controller name-release-error PASS
+Actual BLE controller name-bad-receipt PASS
+Actual BLE controller name-exit PASS
+Actual BLE controller name-cancel-pending PASS
+Actual BLE controller name-cancel-race PASS
+Actual BLE controller name-cancel-error PASS
+Actual BLE controller name-same PASS
+Actual BLE controller radio-success PASS
+Actual BLE controller radio-airplane PASS
+Actual BLE controller radio-rollback PASS
+Actual BLE controller radio-missing-rollback PASS
+Actual BLE controller radio-submit-fail PASS
+Actual BLE controller radio-uncertain PASS
+Actual BLE controller radio-revoked-before-hardware PASS
+Actual BLE controller radio-stale-rollback PASS
+Actual BLE controller radio-cancel-race PASS
+Actual BLE controller radio-restore-fail PASS
+Actual Contexts controller enable PASS
+Actual Contexts controller sources PASS
+Actual Contexts controller timing PASS
+Actual Contexts controller busy PASS
+Actual Contexts controller delayed PASS
+Actual Contexts controller exit PASS
+Actual Contexts controller retained PASS
+Actual Contexts controller automatic-noop PASS
+Actual Contexts controller automatic-order PASS
+Actual Contexts controller automatic-low PASS
+Actual Contexts controller automatic-mask PASS
+Actual Contexts controller automatic-partial PASS
+Actual Contexts controller automatic-retained PASS

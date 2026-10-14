@@ -5,7 +5,7 @@
 #include "PortableNovaUi.h"
 #include "PortablePowerStatus.h"
 #include "RiscRuntimeV1.h"
-#ifdef PORTABLE_NATIVE_TIME_TOOLBAR
+#if defined(PORTABLE_NATIVE_TIME_TOOLBAR) || defined(PORTABLE_UTILITIES_ATOMIC_PREFERENCES)
 #include "PortableNativeCustody.h"
 #endif
 #include <stdio.h>

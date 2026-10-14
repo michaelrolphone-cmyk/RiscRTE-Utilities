@@ -1,5 +1,9 @@
 #define PORTABLE_BLE_BROADCAST
+#ifdef PORTABLE_UTILITIES_TARGET_X4
 #define PORTABLE_NATIVE_TIME_TOOLBAR
+#else
+#define PORTABLE_NATIVE_CUSTODY_FENCE
+#endif
 #include "../Apps/battery_power.inc"
 #include "utility_atomic_transport.h"
 #include <assert.h>
