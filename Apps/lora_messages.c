@@ -406,7 +406,7 @@ static bool back(void){
 static bool input(t5_app_input_t *in){
  if(in->exit_requested)return false;
  if(in->buttons&T5_APP_BUTTON_BACK)return back();
- int x=in->touch_x-(app->screen_width()-240)/2,y=in->touch_y-(app->screen_height()-240)/2;
+ int x=utility_color_x(app,in->touch_x),y=utility_color_y(app,in->touch_y);
  if(in->tapped && hit(x,y,0,0,48,40))return back();
  if(page==PAGE_RF && in->tapped && hit(x,y,176,0,64,40)){open_picker();return true;}
  if(page==PAGE_RADIO){if(in->tapped && hit(x,y,12,40,216,176))choose_radio(1+(unsigned)(y-40)/44);return true;}
