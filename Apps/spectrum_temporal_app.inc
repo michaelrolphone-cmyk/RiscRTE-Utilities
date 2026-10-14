@@ -7,8 +7,10 @@ static st_matcher event_match;
 static sn_trainer event_neural;
 static uint32_t event_neural_crc[2];
 static bool event_neural_checkpoint,event_neural_cache_blocked,event_neural_used;
-static risc_runtime_capability_v1 event_data_grant;
-static bool event_data_acquired,event_initialized,event_armed,event_wait_quiet,event_known_hold,event_previous_active;
+#include "rf_app_data_scope.h"
+/* Reuse the RF app/shared-data transaction fence for Audio namespace 2. */
+static rf_app_data_scope event_data_scope;
+static bool event_initialized,event_armed,event_wait_quiet,event_known_hold,event_previous_active;
 static uint64_t event_pair_power[128];
 static uint32_t event_previous_power[128];
 static unsigned event_pair_count,event_quiet,event_wait_count,event_capture_kind,event_list_scroll,event_example_scroll,event_edit_shift,event_missed;
@@ -70,11 +72,14 @@ static void event_neural_tick(void){
 static const char *event_error(int32_t code){switch(code){case RISC_APP_DATA_OK:return "SAVED";case RISC_APP_DATA_UNAVAILABLE:return "APP DATA UNAVAILABLE";case RISC_APP_DATA_NO_SPACE:return "STORAGE FULL / KEEP DRAFT";case RISC_APP_DATA_COMMIT_UNKNOWN:return "SAVE UNKNOWN / RETRY";case RISC_APP_DATA_STALE:return "STORAGE CHANGED / RETRY";case ST_FILES_CONFLICT:return "COLLECTION CHANGED / DISCARD?";case ST_FILES_CORRUPT:return "COLLECTION UNREAD / RETRY";case RISC_APP_DATA_RETAINED:return "STORAGE CLEANUP UNCONFIRMED";default:return "STORAGE ERROR / RETRY";}}
 static bool event_acquire(void){
  if(event_files.api)return true;
- if(event_data_acquired)return false;
- event_data_grant=(risc_runtime_capability_v1){.struct_size=sizeof(event_data_grant)};
- if(!runtime->acquire("storage.app-data",1,2,&event_data_grant))return false;
- event_data_acquired=true;
- const risc_app_data_v1 *api=event_data_grant.api;if(!api||api->api_version!=1||api->struct_size<sizeof(*api)||!api->stat||!api->read||!api->replace)return false;event_files.api=api;return true;
+ /* Preserve eager admission: an unavailable/invalid store must not appear
+  * readable to the fingerprint loader. Release the probe before publishing
+  * this stable app-owned table; every later callback borrows its own lease. */
+ const risc_app_data_v1 *api=rf_data_bind(&event_data_scope,runtime,2u),*source=NULL;
+ int32_t result=rf_data_begin(&event_data_scope,&source);
+ if(!result)result=rf_data_finish(&event_data_scope,RISC_APP_DATA_OK);
+ if(result)return false;
+ event_files.api=api;return true;
 }
 static void event_load(void){
  if(event_files.retained)return;
@@ -86,9 +91,9 @@ static void event_load(void){
 static void event_restore(void){
  spectrum_speech_reset(&speech);
  memset(&event_library,0,sizeof(event_library));st_files_init(&event_files,NULL);st_segment_reset(&event_segment);st_segment_reset(&event_training);memset(&event_match,0,sizeof(event_match));event_match.selected=-1;
- event_data_grant=(risc_runtime_capability_v1){0};event_data_acquired=false;event_initialized=true;event_armed=event_wait_quiet=event_known_hold=event_previous_active=false;event_pair_count=event_quiet=event_wait_count=event_missed=event_list_scroll=event_example_scroll=0;event_pair_active=false;event_edit_slot=event_delete_slot=event_delete_example=-1;event_capture_kind=ST_POSITIVE;event_edit_shift=1;event_armed_at=event_result_at=0;event_message=NULL;event_keyboard=false;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));event_load();
+ event_data_scope=(rf_app_data_scope){0};event_initialized=true;event_armed=event_wait_quiet=event_known_hold=event_previous_active=false;event_pair_count=event_quiet=event_wait_count=event_missed=event_list_scroll=event_example_scroll=0;event_pair_active=false;event_edit_slot=event_delete_slot=event_delete_example=-1;event_capture_kind=ST_POSITIVE;event_edit_shift=1;event_armed_at=event_result_at=0;event_message=NULL;event_keyboard=false;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));event_load();
 }
-static bool temporal_retained(void){return event_initialized&&event_files.retained;}
+static bool temporal_retained(void){return event_initialized&&(event_files.retained||event_data_scope.retained);}
 static bool temporal_exit_blocked(void){return event_initialized&&(event_files.pending>=0||event_armed||event_training.ready);}
 static void temporal_suspend(void){
  if(!event_initialized)return;
