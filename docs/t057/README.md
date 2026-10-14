@@ -37,7 +37,7 @@ New changes:
 
 Run scripts/test_obd_dashboard.py with --runtime, --system, --drivers and --output
 paths, then repeat with --sanitize --test for the isolated test identity.
-Generate System telemetry fonts first. Build with scripts/build_obd_dashboard.py
+Use the System T057 committed telemetry fonts to preserve the delivered X4 raster. Build with scripts/build_obd_dashboard.py
 using the same paths and --test. Dependency pins and target hashes are recorded
 with the published artifacts. No RF, vehicle or physical display qualification
 has been performed.
