@@ -28,7 +28,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-Utilities
-          ref: 52157660ec573cf4639ffe3eefcad5b7b3115c4e
+          # Explicit behavior baseline: approved storage repair and display mapping.
+          ref: 65bffc27f96088db3c2f76ee95ae812b223459f7
           path: .dependencies/baseline
           persist-credentials: false
       - uses: actions/checkout@v4
