@@ -26,6 +26,7 @@ p.add_argument('--watch', type=Path)
 p.add_argument('--runtime', type=Path, required=True)
 p.add_argument('--scene', action='append')
 p.add_argument('--normal-only', action='store_true')
+p.add_argument('--stage-trace',action='store_true')
 p.add_argument('--native-width',type=int,default=240)
 p.add_argument('--native-height',type=int,default=240)
 a = p.parse_args()
@@ -246,6 +247,7 @@ for sanitized in (False, True):
         flags = ['-include',str(system/'lib/PortableApps/include/PortableContextsClient.h'),'-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
         if target.startswith('watch') and (a.native_width,a.native_height)!=(240,240):
             flags += ['-DPORTABLE_WATCH_NATIVE_HEIGHT',f'-DRF_RENDER_WIDTH={a.native_width}',f'-DRF_RENDER_HEIGHT={a.native_height}']
+        if a.stage_trace: flags += ['-DPORTABLE_SPECTRUM_STAGE_TRACE']
         san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitized else []
         if target == 'x4':
             flags += ['-DRF_RENDER_PAPER', '-DPORTABLE_DISPLAY_ROTATION=90', '-DPORTABLE_HOME_APP="default.elf"']

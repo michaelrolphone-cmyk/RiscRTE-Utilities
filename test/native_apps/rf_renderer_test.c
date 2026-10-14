@@ -328,7 +328,16 @@ static bool fx_release(risc_runtime_capability_v1*g){fx_io();assert(g->api&&fx_g
 #ifdef RF_RENDER_RESIDENT
 #include "rf_resident_fixture.inc"
 #else
-static const risc_runtime_api_v1 fx_runtime={.api_version=1,.struct_size=sizeof(fx_runtime),.health=fx_health,.yield_ms=fx_yield,.diagnostic=fx_diag,.request_launch=fx_launch,.acquire=fx_acquire,.release=fx_release};
+#ifdef PORTABLE_SPECTRUM_STAGE_TRACE
+static unsigned stage_checkpoint_count;
+static char stage_checkpoint_text[577];
+static int32_t stage_checkpoint_write(uint64_t token,const char *text,uint32_t length){fx_io(); assert(token==77&&length&&length<=576);memcpy(stage_checkpoint_text,text,length);stage_checkpoint_text[length]=0;assert(strstr(stage_checkpoint_text,"T069 "));stage_checkpoint_count++;return 0;}
+static bool stage_checkpoint_client(risc_diagnostic_checkpoint_client_v1 *out){fx_io(); assert(out&&out->struct_size==sizeof(*out));*out=(risc_diagnostic_checkpoint_client_v1){1,sizeof(*out),77,stage_checkpoint_write};return true;}
+#define STAGE_CHECKPOINT_FIELD .diagnostic_checkpoint_client=stage_checkpoint_client,
+#else
+#define STAGE_CHECKPOINT_FIELD
+#endif
+static const risc_runtime_api_v1 fx_runtime={STAGE_CHECKPOINT_FIELD .api_version=1,.struct_size=sizeof(fx_runtime),.health=fx_health,.yield_ms=fx_yield,.diagnostic=fx_diag,.request_launch=fx_launch,.acquire=fx_acquire,.release=fx_release};
 #endif
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){static risc_runtime_api_v1 optional;if(v!=1)return NULL;if(fx_app_api_phase&&getenv("RF_RENDER_NO_DIAGNOSTIC")){optional=fx_runtime;optional.diagnostic=NULL;return &optional;}return &fx_runtime;}
 int main(int argc,char**argv){
@@ -348,6 +357,10 @@ if(getenv("RF_RENDER_EXPECT_LAUNCH"))fx_expected_launch=(unsigned)atoi(getenv("R
  assert(app_module_init()==0);fx_corners();fx_app_api_phase=true;
  if(setjmp(fx_retained_jump)==0){app_main();assert(fx_done);fx_returned=true;app_module_fini();assert(!fx_grants&&!fx_frames&&!fx_subs&&!fx_radio_retained);}
  else {assert(fx_storage_retained&&fx_grants&&!running&&!owned&&fx_retained_yields==6);fprintf(stderr,"RF retained storage: no normal peripheral calls after uncertain cleanup\n");}
+
+#ifdef PORTABLE_SPECTRUM_STAGE_TRACE
+ assert(stage_checkpoint_count>0);
+#endif
  fx_guards();assert(fx_checks);if(fx_storage_retained)break;}assert(fx_launches==fx_expected_launch);if(getenv("RF_RENDER_RELEASE_RETRY"))assert(fx_release_failures==1);if(fx_serial)rf_serial_finish(fx_returned,getenv("RF_RENDER_NO_DIAGNOSTIC")==NULL);
 #ifdef RF_RENDER_WATCH_TOUCH
  if(fx_returned)hid_watch_touch_stop();
