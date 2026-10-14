@@ -1014,9 +1014,25 @@
           0
         ]
       ],
-      "expected_early": 0,
+      "expected_early": 4,
       "expected_late": 2,
       "expected_reports": [
+        [
+          1,
+          6
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          6
+        ],
+        [
+          0,
+          0
+        ],
         [
           0,
           78
@@ -1026,7 +1042,7 @@
           0
         ]
       ],
-      "passed": false
+      "passed": true
     },
     {
       "mouse_reports": [],
@@ -1067,9 +1083,25 @@
           0
         ]
       ],
-      "expected_early": 0,
+      "expected_early": 4,
       "expected_late": 2,
       "expected_reports": [
+        [
+          1,
+          6
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          6
+        ],
+        [
+          0,
+          0
+        ],
         [
           0,
           78
@@ -1079,7 +1111,7 @@
           0
         ]
       ],
-      "passed": false
+      "passed": true
     },
     {
       "mouse_reports": [],
