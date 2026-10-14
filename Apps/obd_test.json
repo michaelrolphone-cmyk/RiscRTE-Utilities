@@ -1,7 +1,7 @@
 {
   "type": "application",
   "id": "obd-test",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "display_name": "OBD Test",
   "file_name": "obd_test.elf",
   "icon": "solid:f7c0",
@@ -19,7 +19,7 @@
       "api": 1
     }
   ],
-  "description": "Side-by-side OBD 0.2.3 sensor UI test; separate settings and trip logs.",
+  "description": "OBD telemetry test: motion history, session logging and bounded reconnects.",
   "architecture": "xtensa-esp32s3",
   "entry": "app_main",
   "runtime_lifecycle": "foreground",

@@ -17,6 +17,8 @@ static void action(obd_app*a,unsigned id,int value){
   if(id==ACT_FORGET){a->have_peer=false;memset(&a->selected_peer,0,sizeof(a->selected_peer));a->peer_name[0]=0;}
   a->stack_count=0;show(a,INTRO);return;
  }
+ if(id==ACT_MOTION){go(a,MOTION);return;}
+ if(id==ACT_LANDSCAPE&&a->telemetry_api&&a->telemetry_api->telemetry_version>=2){a->rotate_pending=(value!=0)!=a->landscape;return;}
  if(id==ACT_UNITS&&value>=0&&value<=1){a->data.cfg.imperial=(unsigned)value;persist(a);return;}
  if(id==ACT_UPDATE&&value>=0&&value<=2){static const unsigned ms[]={1000,2000,5000};a->data.cfg.update_ms=ms[value];persist(a);return;}
  if(id==ACT_PROTOCOL&&value>=0&&value<=7){

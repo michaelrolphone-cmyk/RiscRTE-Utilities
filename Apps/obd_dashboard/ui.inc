@@ -77,6 +77,7 @@ static void live_page(obd_app*a){
 }
 static void graph_page(obd_app*a){
  title(a,"GRAPH",a->data.paused?"FROZEN / POLLING CONTINUES":"SCALED TO EACH SENSOR RANGE");header_button(a,ACT_GRAPH_PAUSE,a->data.paused?RISC_SYMBOL_PLAY:RISC_SYMBOL_PAUSE);header_button(a,ACT_GRAPH_ADD,RISC_SYMBOL_PLUS);
+ row(a,"MOTION HISTORY","Velocity / acceleration / jerk",ACT_MOTION);
  for(unsigned i=0;i<a->data.cfg.graph_count;i++){unsigned k=a->data.cfg.graph[i];char text[40];snprintf(text,sizeof(text),"%s x",db_specs[k].short_name);node(a,RISC_COMPONENT_CHIP,text,"",ACT_GRAPH_SENSOR+k);}
  unsigned p=0;
  for(unsigned i=0;i<a->data.cfg.graph_count;i++){unsigned k=a->data.cfg.graph[i];if(!i)p=plot(a,k,spans[a->graph_span],false,a->data.paused);else curve(a,p,k,i,RISC_TELEMETRY_POINTS,spans[a->graph_span],a->data.paused,db_specs[k].minimum,db_specs[k].maximum);}
@@ -87,6 +88,25 @@ static void graph_page(obd_app*a){
   snprintf(text,sizeof(text),"%s-%s",low,high);risc_scene_node_v1*n=node(a,RISC_COMPONENT_TRACE_LEGEND,db_specs[k].short_name,value,ACT_PID+k);n->value=(int)i;copy(a->candidate.details[n->id-1].badge,16,obd_unit(k,a->imperial));copy(a->candidate.details[n->id-1].choices,72,text);
  }
  stepper(a,"SPAN",span_names[a->graph_span],ACT_GRAPH_SPAN,a->graph_span,2);tabs(a,1);
+}
+static void motion_value(obd_app*a,unsigned k,int32_t v,char*out,size_t n){
+ if(!k){obd_value(OBD_SPEED,(int32_t)((int64_t)v*18/5),a->imperial,out,n);return;}
+ uint32_t magnitude=v<0?(uint32_t)(-(int64_t)v):(uint32_t)v;
+ snprintf(out,n,"%s%lu.%03lu",v<0?"-":"",(unsigned long)(magnitude/1000),(unsigned long)(magnitude%1000));
+}
+static void motion_page(obd_app*a){
+ title(a,"MOTION HISTORY","ECU SPEED / DERIVED / GAPS = NO DATA");
+ const char*names[]={"VELOCITY","ACCELERATION","JERK"};
+ const char*units[]={obd_unit(OBD_SPEED,a->imperial),"m/s^2","m/s^3"};
+ for(unsigned k=0;k<3;k++){
+  row(a,names[k],units[k],0);
+  risc_scene_node_v1*n=node(a,RISC_COMPONENT_PLOT,"","",0);n->value=(int32_t)spans[a->graph_span];
+  risc_scene_curve_v1*c=&a->plot_candidate.curves[a->plot_candidate.count++];c->node=n->id;c->count=RISC_TELEMETRY_POINTS;
+  int32_t lo,hi;db_motion_series(&a->data,k,a->now,spans[a->graph_span],c->points,c->count,&lo,&hi);
+  char high[24],low[24];motion_value(a,k,hi,high,sizeof(high));motion_value(a,k,lo,low,sizeof(low));
+  snprintf(a->candidate.details[n->id-1].choices,72,"%s|%s",high,low);
+ }
+ stepper(a,"SPAN",span_names[a->graph_span],ACT_GRAPH_SPAN,a->graph_span,2);
 }
 static void detail_page(obd_app*a){
  unsigned k=a->selected_metric;char sub[32],value[32],units[64];snprintf(sub,sizeof(sub),"PID 01 %02X",obd_specs[k].pid);title(a,obd_specs[k].name,sub);
@@ -218,6 +238,7 @@ static void declare(obd_app*a){
  }else if(a->screen==NOTICE){node(a,RISC_COMPONENT_EMPTY,"NOT CONNECTED",a->notice,0);button(a,"SEARCH AGAIN",ACT_SCAN,true);button(a,"CLOSE",ACT_EXIT,false);}
  else if(a->screen==DASHBOARD)live_page(a);
  else if(a->screen==GRAPH)graph_page(a);
+ else if(a->screen==MOTION)motion_page(a);
  else if(a->screen==DETAIL)detail_page(a);
  else if(a->screen==FAULTS)faults_page(a);
  else if(a->screen==DTC_DETAIL)dtc_page(a);
@@ -234,7 +255,9 @@ static void declare(obd_app*a){
   if(!a->elm.log_count)node(a,RISC_COMPONENT_EMPTY,"NO TRAFFIC YET","The log records actual commands and received lines.",0);
   for(unsigned i=0;i<a->elm.log_count;i++){unsigned at=(a->elm.log_head+OBD_LOG_LINES-a->elm.log_count+i)%OBD_LOG_LINES;node(a,RISC_COMPONENT_LOG_LINE,"",a->elm.logs[at],0);}
  }else if(a->screen==SETTINGS){
-  title(a,"SETTINGS","DASHBOARD & ADAPTER");segments(a,"METRIC|IMPERIAL",a->data.cfg.imperial,1,ACT_UNITS);
+  title(a,"SETTINGS","DASHBOARD & ADAPTER");segments(a,"KM/H|MPH",a->data.cfg.imperial,1,ACT_UNITS);
+  if(a->telemetry_api&&a->telemetry_api->telemetry_version>=2)toggle(a,"LANDSCAPE","This session",ACT_LANDSCAPE,a->landscape);
+  else row(a,"LANDSCAPE","Requires updated scene provider",0);
   stepper(a,"SCREEN UPDATE EVERY",a->data.cfg.update_ms==1000?"1 S":a->data.cfg.update_ms==2000?"2 S":"5 S",ACT_UPDATE,a->data.cfg.update_ms==1000?0:a->data.cfg.update_ms==2000?1:2,2);
   static const unsigned ps[]={0,6,7,8,9,5,4,3};unsigned pi=0;for(unsigned i=0;i<8;i++)if(ps[i]==a->data.cfg.protocol)pi=i;stepper(a,"PROTOCOL",obd_protocol_name(a->data.cfg.protocol),ACT_PROTOCOL,pi,7);
   toggle(a,"THRESHOLD ALERTS","",ACT_ALERT_SWITCH,a->data.cfg.alerts);char text[72];snprintf(text,sizeof(text),"%u THIS DRIVE",a->data.alert_count);row(a,"ALERT HISTORY",text,ACT_ALERTS);
@@ -255,4 +278,5 @@ static void declare(obd_app*a){
   a->candidate.flags=RISC_COMPONENTS_TELEMETRY|RISC_COMPONENTS_ALERT;a->candidate.cancel_action=ACT_ALERT_OK;title(a,"ALERT","");node(a,RISC_SCENE_TEXT_NODE,label,text,0);
   button(a,"OK",ACT_ALERT_OK,true);button(a,"MUTE 5 MIN",ACT_MUTE,false);button(a,"SEE GRAPH",ACT_ALERT_GRAPH,false);
  }
+ if(a->landscape)a->candidate.flags|=RISC_COMPONENTS_LANDSCAPE;
 }

@@ -26,7 +26,7 @@ static bool sf_seek(void*c,uint32_t d,uint64_t p){(void)c;(void)d;(void)p;assert
 static int32_t sf_metadata(void*c,const char*p,risc_storage_metadata_v1*m){(void)c;(void)p;(void)m;assert(0);return -1;}
 static bool sf_truncate(void*c,uint32_t f,uint64_t n){(void)c;(void)f;(void)n;assert(0);return false;}
 static void sf_init(void){
- snprintf(sf_root,sizeof(sf_root),"%s/sd",frames);mkdir(sf_root,0700);char p[1024];sf_path("/Apps",p);mkdir(p,0700);sf_path("/Apps/obd-dashboard",p);mkdir(p,0700);
+ snprintf(sf_root,sizeof(sf_root),"%s/sd",frames);mkdir(sf_root,0700);char p[1024];sf_path("/Apps",p);mkdir(p,0700);sf_path(OBD_APP_DIRECTORY,p);mkdir(p,0700);
  risc_storage_volume_api_v1_ext*e=(void*)&fs_api;*e=(risc_storage_volume_api_v1_ext){.base={.api_version=1,.struct_size=sizeof(fs_api),.ready=sf_ready,.stat=sf_stat,.file_open_read=sf_open_read,.file_read=sf_read,.file_write=sf_write,.file_close=sf_close},.file_open=sf_open,.file_sync=sf_sync,.mkdir=sf_mkdir,.handle_error=sf_error};
  fs_api.state.state_tag=RISC_STORAGE_STATE_TAG;fs_api.state.state_version=1;fs_api.state.observe=sf_observe;
  fs_api.fs_tag=RISC_STORAGE_FS_TAG;fs_api.fs_version=1;fs_api.dir_tell=sf_tell;fs_api.dir_seek=sf_seek;fs_api.metadata=sf_metadata;fs_api.file_truncate=sf_truncate;fs_api.replace_file=sf_replace;fs_api.recover_replace=sf_recover;

@@ -15,6 +15,9 @@ typedef struct {const char*short_name;int32_t minimum,maximum,step;bool selectab
 extern const db_spec db_specs[OBD_METRICS];
 typedef struct {
  db_config cfg;
+ int32_t motion[3][DB_HISTORY],motion_speed,motion_accel;
+ uint32_t motion_stamps[DB_HISTORY],motion_at,motion_dt;
+ unsigned motion_samples;
  int32_t history[OBD_METRICS][DB_HISTORY],frozen[3][DB_HISTORY];
  uint32_t stamps[DB_HISTORY],frozen_stamps[DB_HISTORY],seen[OBD_METRICS];
  uint32_t outside_since[OBD_METRICS],mute_until[OBD_METRICS],started_ms,frozen_at;
@@ -31,5 +34,6 @@ bool db_stats(const db_model*,unsigned metric,uint32_t now,uint32_t span,bool fr
 void db_series(const db_model*,unsigned metric,uint32_t now,uint32_t span,bool frozen,int32_t lo,int32_t hi,uint16_t*out,unsigned count);
 uint32_t db_poll_mask(const db_model*,int detail);
 bool db_warning(const db_model*,const obd_client*,unsigned,uint32_t);
+void db_motion_series(const db_model*,unsigned,uint32_t,uint32_t,uint16_t*,unsigned,int32_t*,int32_t*);
 uint32_t db_crc(const void*,size_t);
 #endif

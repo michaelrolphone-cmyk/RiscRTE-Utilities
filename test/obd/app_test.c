@@ -13,6 +13,9 @@ static uint64_t radio_token;
 static unsigned scenario,step,seen_publications,shared_calls,live_polls,paused_frames,paused_tx;
 static bool requested_policy;
 static uint32_t step_at;
+static uint64_t orientation_session;
+static risc_storage_file_t recording_handle;
+static char recording_path[96];
 static const char *frames;
 static bool missing_radio,close_failure,lost_in_read,test_reopen,stationary,overheat,force_link_drop;
 static unsigned clear_writes,reconnects;
@@ -87,7 +90,7 @@ static void click(unsigned id,int val){
  int x=0,y=0,rc=telemetry_test_target(id,val,&x,&y);
  if(rc==2||rc==-1){swipe(rc==2?1:-1);step_at=(uint32_t)ms;return;}
  if(rc!=1){fprintf(stderr,"Missing target action=%u value=%d screen=%u step=%u revision=%u\n",id,val,app.screen,step,app.revision);assert(0);}
- fprintf(stderr,"TAP step=%u action=%u value=%d x=%d y=%d screen=%u\n",step,id,val,x,y,app.screen);touch_tap((unsigned)x,(unsigned)y);step++;step_at=(uint32_t)ms;
+ fprintf(stderr,"TAP step=%u action=%u value=%d x=%d y=%d screen=%u\n",step,id,val,x,y,app.screen);if(app.landscape){unsigned rawx=479u-(unsigned)y;unsigned rawy=(unsigned)x;touch_tap(rawx,rawy);}else touch_tap((unsigned)x,(unsigned)y);step++;step_at=(uint32_t)ms;
 }
 static void capture(const char*name){
  if(!frames||!submits)return;char path[512];snprintf(path,sizeof(path),"%s/%s.pbm",frames,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P4\n480 800\n");
@@ -96,12 +99,32 @@ static void capture(const char*name){
 static bool ui_regression(void);
 static void yield_rt(uint32_t delay){
  assert(native_alive);ms+=delay;if(ms>=240000){fprintf(stderr,"STALLED step=%u screen=%u state=%u dirty=%u pending=%u\n",step,app.screen,app.elm.state,app.dirty,event_count-event_at);assert(0);}
- if(scenario>=25&&ui_regression())return;
+ if((scenario==25||scenario==26)&&ui_regression())return;
  if(!app.session||presenting||held||event_at<event_count)return;
  risc_scene_navigation_v1 path={.struct_size=sizeof(path)};uint32_t flags=0;assert(!api->snapshot(NULL,app.session,&path,&flags));if(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))return;
  if(ms-step_at<300)return;
  if(scenario==7){assert(app.upgrade_required&&!radio_token);capture("update-firmware");if(step==0)click(ACT_EXIT,0);return;}
  if(test_reopen){assert(app.data.cfg.imperial==1&&app.data.cfg.update_ms==2000&&app.data.cfg.dash_count==7);capture("restored-settings");app.done=true;return;}
+ if(scenario==27&&step>=3){
+  if(step==3&&app.screen==DASHBOARD){assert(app.imperial);orientation_session=app.session;click(ACT_SETTINGS,0);}
+  else if(step==4&&app.screen==SETTINGS)click(ACT_LANDSCAPE,1);
+  else if(step==5&&app.landscape){assert(app.session!=orientation_session);capture("landscape-settings");click(ACT_LANDSCAPE,0);}
+  else if(step==6&&!app.landscape)click(ACT_BACK,0);
+  else if(step==7&&app.screen==DASHBOARD)click(ACT_TAB,1);
+  else if(step==8&&app.screen==GRAPH)click(ACT_MOTION,0);
+  else if(step==9&&app.screen==MOTION){assert(app.plot_document.count==3);capture("motion-history");app.done=true;}
+  return;
+ }
+ if(scenario==28&&step>=3){
+  if(step==3&&app.screen==DASHBOARD)click(ACT_SETTINGS,0);
+  else if(step==4&&app.screen==SETTINGS)click(ACT_LOG_TRIP,1);
+  else if(step==5&&app.log_file&&ms-step_at>3000){
+   assert(app.elm.poll_mask==((1u<<OBD_METRICS)-1));recording_handle=app.log_file;strcpy(recording_path,app.log_path);force_link_drop=true;step++;step_at=(uint32_t)ms;
+  }else if(step==6&&app.elm.state==OBD_LIVE&&radio_opens>1&&ms-step_at>6000){
+   assert(app.log_file==recording_handle&&!strcmp(app.log_path,recording_path));assert(app.log_bytes>100);capture("recording-after-reconnect");app.done=true;
+  }
+  return;
+ }
  if(step==0&&app.screen==INTRO){capture("intro");click(ACT_SCAN,0);return;}
  if(missing_radio){if(app.screen==NOTICE){capture("missing-provider");app.done=true;}return;}
  if(step==1&&app.screen==PEERS&&scenario==17){capture("home-during-scan");nav_pressed=RISC_NAV_HOME;step++;return;}

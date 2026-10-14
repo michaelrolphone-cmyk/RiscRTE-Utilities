@@ -9,16 +9,19 @@ def stage(runtime,system,drivers,out):
  shutil.copyfile(drivers/'sdk/driver/RiscBluetoothSerialV1.h',inc/'RiscBluetoothSerialV1.h')
  return inc
 
-def build(runtime,system,drivers,out):
+def build(runtime,system,drivers,out,test=False):
  inc=stage(runtime,system,drivers,out);out.mkdir(parents=True,exist_ok=True)
  cc=os.environ.get('NATIVE_APP_CC') or shutil.which('xtensa-esp32s3-elf-gcc') or str(Path.home()/'.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc')
  flags=['-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-ffreestanding','-fno-builtin','-fvisibility=hidden','-ffunction-sections','-fdata-sections','-fstack-usage','-Wall','-Wextra','-Werror','-Wno-misleading-indentation']
+ if test:flags.append("-DOBD_SIDE_BY_SIDE_TEST=1")
+ identity="obd_test" if test else "obd_dashboard"
+ manifest=ROOT/"Apps"/(identity+".json")
  objects=[]
  for name in ('elm','dashboard','math','app'):
   obj=out/(name+'.o');objects.append(obj)
   subprocess.run([cc,*flags,'-I'+str(inc),'-c',str(ROOT/'Apps/obd_dashboard'/f'{name}.c'),'-o',str(obj)],check=True)
  mapping=out/'exports.map';mapping.write_text('{ global: app_main; risc_resident_app_descriptor_v1; local: *; };\n')
- elf=out/'obd_dashboard.elf'
+ elf=out/(identity+'.elf')
  subprocess.run([cc,*flags,'-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--gc-sections','-Wl,--version-script='+str(mapping),*map(str,objects),'-lgcc','-o',str(elf)],check=True)
  sys.path.insert(0,str(drivers/'scripts'));from normalize_xtensa_relocations import normalize
  normalize(elf)
@@ -34,9 +37,10 @@ def build(runtime,system,drivers,out):
    f,n,k=l.split('\t');stack[f]=int(n)
  assert max(stack.values())<=1536,stack
  sources={n:{'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=p,text=True).strip(),'dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=p,text=True).strip())} for n,p in [('utilities',ROOT),('runtime',runtime),('system',system),('drivers',drivers)]}
- result={'schema':1,'id':'obd-dashboard','version':json.loads((ROOT/'Apps/obd_dashboard.json').read_text())['version'],'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'imports':sorted(imports),'exports':sorted(exports),'stack_frames':stack,'sources':sources,'hardware_tested':False}
- (out/'build.json').write_text(json.dumps(result,indent=2)+'\n');shutil.copyfile(ROOT/'Apps/obd_dashboard.json',out/'obd_dashboard.json');print(json.dumps(result))
+ result={'schema':1,'id':json.loads(manifest.read_text())['id'],'version':json.loads(manifest.read_text())['version'],'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'imports':sorted(imports),'exports':sorted(exports),'stack_frames':stack,'sources':sources,'hardware_tested':False}
+ (out/'build.json').write_text(json.dumps(result,indent=2)+'\n');shutil.copyfile(manifest,out/(identity+'.json'));print(json.dumps(result))
 if __name__=='__main__':
  p=argparse.ArgumentParser()
  for n in ('runtime','system','drivers','output'):p.add_argument('--'+n,type=Path,required=True)
- a=p.parse_args();build(a.runtime.resolve(),a.system.resolve(),a.drivers.resolve(),a.output.resolve())
+ p.add_argument('--test',action='store_true')
+ a=p.parse_args();build(a.runtime.resolve(),a.system.resolve(),a.drivers.resolve(),a.output.resolve(),a.test)

@@ -15,21 +15,24 @@ assert _manifest['requires'] == [{'capability':'ui.scene','api':1},{'capability'
 
 from build_obd_dashboard import stage
 ROOT=Path(__file__).resolve().parents[1]
-def run(runtime,system,drivers,out,sanitize):
+def run(runtime,system,drivers,out,sanitize,test=False):
  out.mkdir(parents=True,exist_ok=True);inc=stage(runtime,system,drivers,out)
  cc=os.environ.get('CC','cc');flags=['-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-format-truncation','-I'+str(inc),'-I'+str(ROOT/'Apps/obd_dashboard'),'-I'+str(system/'test/scene'),'-I'+str(system)]
+ if test:flags+=['-DOBD_SIDE_BY_SIDE_TEST=1']
  if sanitize:flags+=['-fsanitize=address,undefined','-fno-omit-frame-pointer','-fno-sanitize-recover=all']
  env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0')
  exe=out/'math-test';subprocess.run([cc,*flags,'-D__udivdi3=obd_unsigned_divide','-D__divdi3=obd_signed_divide',str(ROOT/'Apps/obd_dashboard/math.c'),str(ROOT/'test/obd/math_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
  exe=out/'elm-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/diagnostics_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
  exe=out/'readiness-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'test/obd/readiness_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
  exe=out/'lifecycle-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/lifecycle_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True);subprocess.run([str(exe),'channel-labels'],env=env,check=True)
+ exe=out/'handshake-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/handshake_retry_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
+ exe=out/'features-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/telemetry_features_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
  exe=out/'selection-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/ui_selection_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
  exe=out/'app-test';subprocess.run([cc,*flags,str(ROOT/'test/obd/ui_regression_probe.c'),str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/app_test.c'),'-o',str(exe)],check=True)
- for scenario in range(27):
+ for scenario in range(29):
   frames=out/'frames'/str(scenario);frames.mkdir(parents=True,exist_ok=True)
   subprocess.run([str(exe),str(scenario),str(frames)],env=env,check=True,timeout=60)
 if __name__=='__main__':
  p=argparse.ArgumentParser()
  for n in ('runtime','system','drivers','output'):p.add_argument('--'+n,type=Path,required=True)
- p.add_argument('--sanitize',action='store_true');a=p.parse_args();run(a.runtime.resolve(),a.system.resolve(),a.drivers.resolve(),a.output.resolve(),a.sanitize)
+ p.add_argument('--test',action='store_true');p.add_argument('--sanitize',action='store_true');a=p.parse_args();run(a.runtime.resolve(),a.system.resolve(),a.drivers.resolve(),a.output.resolve(),a.sanitize,a.test)

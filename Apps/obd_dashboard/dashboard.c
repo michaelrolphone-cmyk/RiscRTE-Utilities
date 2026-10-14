@@ -11,13 +11,14 @@ const db_spec db_specs[OBD_METRICS]={
  {"SINCE CLEAR",0,65535000,100000,false},{"MIL DISTANCE",0,65535000,100000,false}
 };
 void db_init(db_model*m,uint32_t now){
- memset(m,0,sizeof(*m));m->started_ms=now;m->cfg.version=1;m->cfg.update_ms=1000;m->cfg.alerts=1;m->cfg.dash_count=8;
+ memset(m,0,sizeof(*m));m->started_ms=now;m->cfg.version=1;m->cfg.imperial=1;m->cfg.update_ms=1000;m->cfg.alerts=1;m->cfg.dash_count=8;
  const unsigned defaults[8]={OBD_COOLANT,OBD_INTAKE,OBD_LOAD,OBD_THROTTLE,OBD_MAP,OBD_MAF,OBD_FUEL,OBD_VOLTS};
  memcpy(m->cfg.dash,defaults,sizeof(defaults));m->cfg.graph_count=3;m->cfg.graph[0]=OBD_RPM;m->cfg.graph[1]=OBD_COOLANT;m->cfg.graph[2]=OBD_LOAD;
  m->cfg.limits[OBD_COOLANT]=(db_limit){0,105000,1,0,1};m->cfg.limits[OBD_RPM]=(db_limit){0,6500000,1,0,1};
  m->cfg.limits[OBD_VOLTS]=(db_limit){11800,15200,1,1,1};m->cfg.limits[OBD_FUEL]=(db_limit){10000,0,1,1,0};
  m->cfg.limits[OBD_INTAKE]=(db_limit){0,70000,0,0,1};m->cfg.limits[OBD_LOAD]=(db_limit){0,95000,0,0,1};
  for(unsigned i=0;i<OBD_METRICS;i++)for(unsigned j=0;j<DB_HISTORY;j++)m->history[i][j]=DB_NO_VALUE;
+ for(unsigned i=0;i<3;i++)for(unsigned j=0;j<DB_HISTORY;j++)m->motion[i][j]=DB_NO_VALUE;
 }
 bool db_config_valid(const db_config*c){
  if(!c||c->version!=1||c->imperial>1||c->alerts>1||c->dash_count>8||c->graph_count<1||c->graph_count>3||c->protocol>9||(c->update_ms!=1000&&c->update_ms!=2000&&c->update_ms!=5000))return false;
@@ -34,7 +35,56 @@ bool db_warning(const db_model*m,const obd_client*c,unsigned i,uint32_t now){
  const db_limit*t=&m->cfg.limits[i];int32_t value=c->samples[i].milli;
  return (t->has_low&&value<t->low)||(t->has_high&&value>t->high);
 }
+static void motion_tick(db_model*m,const obd_client*c,uint32_t now){
+ const obd_sample*s=&c->samples[OBD_SPEED];
+ if(c->state!=OBD_LIVE||!obd_fresh(c,OBD_SPEED,now)){m->motion_samples=0;return;}
+ if(m->motion_samples&&s->at_ms==m->motion_at)return;
+ uint32_t dt=s->at_ms-m->motion_at;
+ if(dt>obd_specs[OBD_SPEED].interval_ms*3+1500||!dt)m->motion_samples=0;
+ unsigned bin=(s->at_ms/1000)%DB_HISTORY;
+ m->motion_stamps[bin]=s->at_ms;
+ int32_t speed=(int32_t)((int64_t)s->milli*5/18); /* milli-km/h -> mm/s */
+ m->motion[0][bin]=speed;m->motion[1][bin]=m->motion[2][bin]=DB_NO_VALUE;
+ if(m->motion_samples){
+  int64_t accel=((int64_t)speed-m->motion_speed)*1000/dt;
+  if(accel>INT32_MAX||accel<=INT32_MIN){m->motion_samples=0;}
+  else {
+   m->motion[1][bin]=(int32_t)accel;
+   if(m->motion_samples>1){
+    /* Acceleration estimates live at interval midpoints: uneven sampling matters. */
+    int64_t jerk=(accel-m->motion_accel)*2000/(dt+m->motion_dt);
+    if(jerk>INT32_MIN&&jerk<=INT32_MAX)m->motion[2][bin]=(int32_t)jerk;
+   }
+   m->motion_accel=(int32_t)accel;
+  }
+ }
+ m->motion_speed=speed;m->motion_at=s->at_ms;m->motion_dt=dt;
+ if(m->motion_samples<2)m->motion_samples++;
+}
+void db_motion_series(const db_model*m,unsigned k,uint32_t now,uint32_t span,uint16_t*out,unsigned count,int32_t*lo,int32_t*hi){
+ *lo=INT32_MAX;*hi=INT32_MIN;
+ for(unsigned i=0;i<count;i++)out[i]=UINT16_MAX;
+ if(k>=3||!span||count<2)return;
+ for(unsigned j=0;j<DB_HISTORY;j++)if(m->motion[k][j]!=DB_NO_VALUE&&(uint32_t)(now-m->motion_stamps[j])<=span*1000){
+  int32_t v=m->motion[k][j];if(v<*lo)*lo=v;if(v>*hi)*hi=v;
+ }
+ if(*lo==INT32_MAX){*lo=0;*hi=1000;return;}
+ int64_t pad=((int64_t)*hi-*lo)/10;if(pad<100)pad=100;
+ *lo=(int32_t)(((int64_t)*lo-pad<INT32_MIN)?INT32_MIN:(int64_t)*lo-pad);
+ *hi=(int32_t)(((int64_t)*hi+pad>INT32_MAX)?INT32_MAX:(int64_t)*hi+pad);
+ for(unsigned i=0;i<count;i++){
+  uint32_t age=span*1000*(count-1-i)/(count-1),best=UINT32_MAX;int32_t v=DB_NO_VALUE;
+  for(unsigned j=0;j<DB_HISTORY;j++){
+   uint32_t sample_age=now-m->motion_stamps[j];
+   if(m->motion[k][j]==DB_NO_VALUE||sample_age>span*1000||sample_age<age)continue;
+   uint32_t delta=sample_age-age;
+   if(delta<best&&delta<=obd_specs[OBD_SPEED].interval_ms*3+1500){best=delta;v=m->motion[k][j];}
+  }
+  if(v!=DB_NO_VALUE)out[i]=(uint16_t)(((int64_t)v-*lo)*10000/((int64_t)*hi-*lo));
+ }
+}
 void db_tick(db_model*m,const obd_client*c,uint32_t now){
+ motion_tick(m,c,now);
  unsigned bin=(now/1000)%DB_HISTORY;uint32_t stamp=now-now%1000;
  if(m->stamps[bin]!=stamp){for(unsigned i=0;i<OBD_METRICS;i++)m->history[i][bin]=DB_NO_VALUE;m->stamps[bin]=stamp;}
  for(unsigned i=0;i<OBD_METRICS;i++){
