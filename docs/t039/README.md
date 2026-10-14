@@ -22,3 +22,12 @@ This is synthetic controller evidence, not physical radio or OS interoperability
 T037 reconciliation: Watch/X4 already contain shared HID 0.1.4; Wave has 0.1.2.
 Use the qualified 0.1.4 dependency so Wave retains the existing Forget/host-switch
 race recovery, without changing pairing policy or native controller code.
+
+Final qualification also passes 26 production X4 app/adapter/GT911 cases with
+1600ms asynchronous display delay, normally and with ASan/UBSan. The frozen
+fixture in test/native_apps/t039_frozen_hid_renderer_test.c is the previously
+qualified X4 fixture; its redundant SDK typedef alone is removed by the wrapper.
+Wave 410x502 mapping verifies all four assignments twice in exact queued
+press/neutral order in normal and sanitizer modes. Report and boot protocol
+wire captures pass; the report capture also passes with sanitized app and driver.
+Target color and X4 profiles each reproduce the final ELF byte-for-byte.

@@ -1,0 +1,13 @@
+Wave 410x502: four assignments twice, exact queued press/neutral order PASS
+HID model: left/right tap, second-contact motion, bounds, gaps, wrap and atomic persistence passed
+Touchpad gestures: drag/double-tap, neutral/cancel, identity, XY rails, hysteresis, diagonal/pinch, density and wrap PASS
+HID application: scoped grants, touch, secure pairing, holds, interruptions, close retries, persistence and navigation passed
+HID application: scoped grants, touch, secure pairing, holds, interruptions, close retries, persistence and navigation passed
+Wave 410x502: four assignments twice, exact queued press/neutral order PASS
+HID model: left/right tap, second-contact motion, bounds, gaps, wrap and atomic persistence passed
+Touchpad gestures: drag/double-tap, neutral/cancel, identity, XY rails, hysteresis, diagonal/pinch, density and wrap PASS
+HID application: scoped grants, touch, secure pairing, holds, interruptions, close retries, persistence and navigation passed
+HID application: scoped grants, touch, secure pairing, holds, interruptions, close retries, persistence and navigation passed
+HID production Nova screenshots captured
+HID production Nova screenshots captured
+HID app/model normal + address,undefined and Nova frames passed
