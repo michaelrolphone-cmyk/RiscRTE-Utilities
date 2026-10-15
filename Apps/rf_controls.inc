@@ -4,7 +4,8 @@
 #define CONTROLS_BOTTOM (ui_height-46)
 #define CONTROLS_ROW_HEIGHT 48
 #define CONTROLS_COUNT 13
-#define CONTROLS_MAX_SCROLL (CONTROLS_COUNT*CONTROLS_ROW_HEIGHT-(CONTROLS_BOTTOM-CONTROLS_TOP))
+#define CONTROLS_OVERFLOW (CONTROLS_COUNT*CONTROLS_ROW_HEIGHT-(CONTROLS_BOTTOM-CONTROLS_TOP))
+#define CONTROLS_MAX_SCROLL (CONTROLS_OVERFLOW>0?CONTROLS_OVERFLOW:0)
 static void controls_move(int offset){int next=clamp_int(offset,0,CONTROLS_MAX_SCROLL);if(next!=controls_scroll){controls_scroll=next;dirty=true;}}
 static bool controls_segment(unsigned setting){return setting==3||setting==4||setting==5;}
 static void draw_setting(unsigned setting,int y){
@@ -22,7 +23,7 @@ static void draw_controls(void){
  fill(0,0,240,CONTROLS_TOP,0);fill(0,CONTROLS_BOTTOM,240,ui_height-CONTROLS_BOTTOM,0);
  text(0,12,7,216,"CONTROLS",NOVA_CYAN);char name[48];snprintf(name,sizeof(name),"RF %uM / RECEIVER SETTINGS >",sample_rate/1000000u);text(1,12,27,220,name,NOVA_CAP);
  fill(12,CONTROLS_TOP-1,216,1,NOVA_DIM);fill(12,CONTROLS_BOTTOM,216,1,NOVA_DIM);
- int track=CONTROLS_BOTTOM-CONTROLS_TOP,thumb=track*track/(CONTROLS_COUNT*CONTROLS_ROW_HEIGHT);fill(236,CONTROLS_TOP,2,track,NOVA_LINE);fill(236,CONTROLS_TOP+controls_scroll*(track-thumb)/CONTROLS_MAX_SCROLL,2,thumb,NOVA_CYAN);
+ int track=CONTROLS_BOTTOM-CONTROLS_TOP,thumb=CONTROLS_MAX_SCROLL?track*track/(CONTROLS_COUNT*CONTROLS_ROW_HEIGHT):track;fill(236,CONTROLS_TOP,2,track,NOVA_LINE);fill(236,CONTROLS_TOP+(CONTROLS_MAX_SCROLL?controls_scroll*(track-thumb)/CONTROLS_MAX_SCROLL:0),2,thumb,NOVA_CYAN);
  pill(79,ui_height-39,82,32,"BACK",false);
 }
 

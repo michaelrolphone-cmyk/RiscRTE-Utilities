@@ -240,8 +240,10 @@ def run(args):
         for folder in [runtime/'sdk/app',runtime/'sdk/driver',system/'lib/PortableApps/include',system/'sdk/app',ROOT/'lib/Alarm/include',ROOT/'lib/Contexts/include']:
             for source in folder.glob('*.h'):
                 if folder in [ROOT/'lib/Alarm/include',ROOT/'lib/Contexts/include'] and (sdk/source.name).exists():continue
-                shutil.copyfile(source,sdk/source.name)
-        shutil.copytree(system/'lib/PortableApps/time',sdk.parent/'time',dirs_exist_ok=True)
+                dest=sdk/source.name
+                dest.unlink(missing_ok=True);dest.symlink_to(source.resolve())
+        time_alias=sdk.parent/'time'
+        if not time_alias.exists():time_alias.symlink_to(system/'lib/PortableApps/time',target_is_directory=True)
         extra=[]
         if target=='watch':
             defines=recipe['defines']; contexts=Path(defines[defines.index('-include')+1])
@@ -301,7 +303,7 @@ def run(args):
                         assert im.size==tuple(evidence['profiles'][target]['raster']);im.save(ppm.with_suffix('.png'))
                     ppm.unlink()
                 print('RF shared input',target,'ASan/UBSan' if sanitized else 'normal',name,'PASS',flush=True)
-            if 'non-keyboard-views' in selected:
+            if 'non-keyboard-views' in selected and not args.skip_baseline:
                 for label,baseline_root in [('published',args.baseline_utilities),('packaged',args.watch_baseline if target=='watch' else args.x4_baseline)]:
                     baseline=out/(label+'-baseline-renderer');baseline_source=baseline_root.resolve()/'Apps/waterfall.c'
                     baseline_flags=[command[0],'-I'+str(baseline_root.resolve()/'Apps'),*[x for x in command[1:] if x not in ['-DPORTABLE_RF_SHARED_TEXT_INPUT','-DPORTABLE_APP_HOME_GUARD']]]
@@ -350,4 +352,5 @@ if __name__=='__main__':
     p.add_argument('--extra-define',action='append',default=[])
     p.add_argument('--native-height',action='store_true')
     p.add_argument('--normal-only',action='store_true')
+    p.add_argument('--skip-baseline',action='store_true',help='Intentional presentation changes; retain normal/sanitized pixel equality')
     run(p.parse_args())

@@ -26,6 +26,7 @@ p.add_argument('--watch', type=Path)
 p.add_argument('--runtime', type=Path, required=True)
 p.add_argument('--scene', action='append')
 p.add_argument('--normal-only', action='store_true')
+p.add_argument('--native-canvas', action='store_true', help='Opt-in shared native RF plot canvas')
 a = p.parse_args()
 OUT = ROOT / 'build/rf-application'
 
@@ -241,6 +242,7 @@ for sanitized in (False, True):
         out = OUT / target / ('sanitized' if sanitized else 'normal')
         out.mkdir(parents=True, exist_ok=True)
         flags = ['-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
+        if a.native_canvas: flags += ['-DPORTABLE_RF_NATIVE_CANVAS','-DRF_RENDER_ORDERED_INPUT']
         san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitized else []
         if target == 'x4':
             flags += ['-DRF_RENDER_PAPER', '-DPORTABLE_DISPLAY_ROTATION=90', '-DPORTABLE_HOME_APP="default.elf"']
@@ -274,6 +276,11 @@ for sanitized in (False, True):
             for stale in folder.glob('*.ppm'):
                 stale.unlink()
             command_file=folder/'commands.txt'
+            if a.native_canvas:
+                # Ordered edges advance independently of raster polling. Give
+                # release/dispatch two polls; preserve all assertions and allow
+                # two polls per capture for long room/event training waits.
+                commands='\n'.join(('wait '+str(int(line.split()[1])*2) if line.startswith('wait ') and int(line.split()[1])>=70 else line)+('\nwait 2' if line.startswith(('tap ','nav ')) else '') for line in commands.splitlines())+'\n'
             command_file.write_text(commands)
             env=dict(os.environ, ASAN_OPTIONS='detect_leaks=0', **extra_env)
             if sanitized:

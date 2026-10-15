@@ -2,6 +2,8 @@
  * All commands use the real System adapter, renderer and touch navigation path.
  * RF/display/storage transports are explicit host peripherals, never hardware MMIO.
  * The separate runtime fixture exercises the real AppDataFiles implementation. */
+#include <string.h>
+#include "PortableContextsClient.h"
 #include "../../Apps/waterfall.c"
 #include "PortableApps.h"
 #include "RiscDisplayOutputV1.h"
@@ -32,9 +34,13 @@ static const risc_touch_api_v1 *fx_watch;
 #define FX_STRIDE 104u
 #define FX_FORMAT RISC_DISPLAY_FORMAT_MONO1
 #else
+#ifndef FX_W
 #define FX_W 240u
+#endif
+#ifndef FX_H
 #define FX_H 240u
-#define FX_STRIDE 488u
+#endif
+#define FX_STRIDE (FX_W*2u+8u)
 #define FX_FORMAT RISC_DISPLAY_FORMAT_RGB565
 #endif
 static struct {uint8_t before[32],pixels[FX_H*FX_STRIDE],after[32];} fx_raster;
@@ -55,7 +61,7 @@ static struct {char key[24];uint8_t bytes[2048];uint32_t size;} fx_cells[32];
 static struct {char name[32];uint8_t bytes[72000];uint32_t size;uint64_t revision;} fx_files[4];
 static uint64_t fx_revision=1;
 static void fx_io(void){assert(!fx_radio_retained&&!fx_storage_retained);}
-static void fx_guards(void){for(unsigned i=0;i<32;i++)assert(fx_raster.before[i]==0xa5&&fx_raster.after[i]==0xa5);for(unsigned y=0;y<FX_H;y++)for(unsigned x=(FX_FORMAT==RISC_DISPLAY_FORMAT_MONO1?100u:480u);x<FX_STRIDE;x++)assert(fx_raster.pixels[y*FX_STRIDE+x]==0xa5);}
+static void fx_guards(void){for(unsigned i=0;i<32;i++)assert(fx_raster.before[i]==0xa5&&fx_raster.after[i]==0xa5);for(unsigned y=0;y<FX_H;y++)for(unsigned x=(FX_FORMAT==RISC_DISPLAY_FORMAT_MONO1?100u:FX_W*2u);x<FX_STRIDE;x++)assert(fx_raster.pixels[y*FX_STRIDE+x]==0xa5);}
 static unsigned fx_pixel(unsigned x,unsigned y){
 #ifdef RF_RENDER_PAPER
  unsigned nx=y,ny=479u-x;return (fx_raster.pixels[ny*FX_STRIDE+nx/8u]&(0x80u>>(nx%8u)))?0u:255u;
@@ -73,7 +79,7 @@ static void fx_snapshot(const char *name){
 #ifdef RF_RENDER_PAPER
  unsigned width=480,height=800;
 #else
- unsigned width=240,height=240;
+ unsigned width=FX_W,height=FX_H;
 #endif
  fprintf(f,"P6\n%u %u\n255\n",width,height);for(unsigned y=0;y<height;y++)for(unsigned x=0;x<width;x++){unsigned v=fx_pixel(x,y);
 #ifdef RF_RENDER_PAPER
@@ -88,14 +94,14 @@ static void fx_corners(void){
 #ifdef RF_RENDER_PAPER
  assert(w==480&&h==800);
 #else
- assert(w==240&&h==240);
+ assert(w==FX_W&&h==FX_H);
 #endif
  api->clear();api->fill_rect(-10,-10,11,11,true);api->fill_rect((int)w-2,0,5,2,true);api->fill_rect(0,(int)h-3,3,7,true);api->fill_rect((int)w-4,(int)h-4,9,9,true);api->present(true);
  assert(fx_pixel(0,0)==0&&fx_pixel(w-1,0)==0&&fx_pixel(0,h-1)==0&&fx_pixel(w-1,h-1)==0);assert(fx_pixel(1,1)!=0&&fx_pixel(w-3,0)!=0&&fx_pixel(3,h-1)!=0&&fx_pixel(w-5,h-1)!=0);fx_guards();fx_checks++;
 }
 static long long fx_value(const char*k){
 #define V(n,v) if(!strcmp(k,n))return (long long)(v)
- V("fingerprint_dirty",cfa_changed);
+ V("fingerprint_dirty",cfa_changed);V("plot_width",PLOT_W);V("plot_height",PLOT_H);V("native_canvas",rf_native_canvas);
 #ifdef RF_RENDER_RESIDENT
  V("resident_polls",fx_resident_polls);V("resident_policies",fx_resident_policies);V("retry",capture_retries);V("retry_delay",capture_retry_delay);V("capture_requested",capture_requested);V("capture_active",portable_radio_capture_active());V("ticks",fx_ticks);V("polls",fx_polls);
 #endif
@@ -141,6 +147,22 @@ static void fx_script(void){
    memset(labels,0,sizeof(labels));memset(label_active,0,sizeof(label_active));
    for(unsigned i=0;i<(unsigned)value;i++){labels[i]=(rf_label){.present=true,.frequency_hz=1000000u+i*1000000u,.tolerance_bins=2,.color=(uint8_t)i};snprintf(labels[i].name,sizeof(labels[i].name),"Label %u",i);label_active[i]=true;label_snr[i]=600;}
    dirty=urgent_draw=true;
+  }
+#endif
+#ifdef PORTABLE_RF_NATIVE_CANVAS
+  else if(!strcmp(op,"native_seed")){
+   stop();frozen=started=true;view=0;page=PAGE_MAIN;cursor_visible=false;prefs.show_labels=false;toast_message=NULL;capture_error=input_waiting=false;
+   for(int i=0;i<PLOT_W;i++)spec_levels[i]=peak_levels[i]=(i/8)%2?30000:1000;
+   dirty=urgent_draw=true;
+  }
+  else if(!strcmp(op,"native_pixels")){
+   assert(rf_native_canvas&&PLOT_W==(int)FX_W-12&&PLOT_H==(int)FX_H-74);
+   for(int x=20;x<PLOT_W-12;x+=16){
+    unsigned low=fx_pixel(PLOT_X+(unsigned)x,PLOT_Y+20u);
+    unsigned high=fx_pixel(PLOT_X+(unsigned)x+8,PLOT_Y+20u);
+    assert(low!=high);
+   }
+   fx_guards();fx_checks++;
   }
 #endif
   else if(!strcmp(op,"name")){char expected[100];assert(sscanf(fx_line,"%*s %99s",expected)==1);if(strcmp(editing.name,expected)){fprintf(stderr,"line %u expected name [%s], got [%s]; page=%u polls=%u\n",fx_lineno,expected,editing.name,page,fx_polls);abort();}fx_checks++;}
@@ -189,7 +211,7 @@ static void fx_touch_report(risc_touch_snapshot_v1*s){*s=(risc_touch_snapshot_v1
 #ifdef RF_RENDER_PAPER
  .width=480,.height=800,
 #else
- .width=240,.height=240,
+ .width=FX_W,.height=FX_H,
 #endif
  .sequence=fx_polls,.buttons=fx_touch_buttons};if(fx_touch_x>=0){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=(uint16_t)fx_touch_x,.y=(uint16_t)fx_touch_y};}}
 #ifdef RF_RENDER_WATCH_TOUCH

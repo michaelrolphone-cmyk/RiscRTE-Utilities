@@ -33,10 +33,24 @@
 
 #define PLOT_X 6
 #define PLOT_Y 46
-#define PLOT_W 228
-#define PLOT_H (ui_height-74)
+/* Plot coordinates are native pixels on the opt-in color canvas; paper keeps
+ * its established presentation. History remains 228 real bursts, independent
+ * of display width. Extra pixels are evaluated by the renderer, not by scaling
+ * a 240px framebuffer. The bounded history resolution is unchanged. */
+#define RF_HISTORY_COLUMNS 228u
 #define RF_PLOT_MAX_H 438
-static int ui_height=240;
+#ifdef PORTABLE_RF_NATIVE_CANVAS
+#define RF_PLOT_MAX_W 1024
+#define RF_PLOT_MAX_SIDE 1024
+#else
+#define RF_PLOT_MAX_W 228
+#define RF_PLOT_MAX_SIDE 438
+#endif
+#define PLOT_W rf_plot_width
+#define PLOT_H rf_plot_height
+#define HISTORY_H (PLOT_H<RF_PLOT_MAX_H?PLOT_H:RF_PLOT_MAX_H)
+static int ui_height=240,rf_plot_width=228,rf_plot_height=166;
+static bool rf_native_canvas;
 static const paper_presentation *paper;
 static springboard_contact paper_contact;
 #define FRAME_MS 100u
@@ -84,7 +98,7 @@ static void capture_recovery_log(const char *state,int result){
 
 typedef struct {
  rf_dsp_state spectrum;
- uint8_t history[PLOT_W][RF_PLOT_MAX_H];
+ uint8_t history[RF_HISTORY_COLUMNS][RF_PLOT_MAX_H];
  uint32_t pairs[RF_DSP_MAX_FFT],filtered_amplitude[RF_DSP_MAX_FFT];
  rt_library event_library;
  rt_files event_files;
@@ -119,11 +133,11 @@ static uint32_t last_pcm_at;
 static bool lab_edit,cursor_visible,contact_down,contact_plot,contact_drag,contact_moved,started;
 static bool label_active[RF_LABEL_MAX],level_valid[RF_LABEL_MAX];
 static int16_t label_db[RF_LABEL_MAX],label_snr[RF_LABEL_MAX];
-static uint16_t spec_levels[PLOT_W],fall_levels[RF_PLOT_MAX_H],peak_levels[PLOT_W];
-static int16_t spec_db[PLOT_W],fall_db[RF_PLOT_MAX_H];
+static uint16_t spec_levels[RF_PLOT_MAX_W],fall_levels[RF_PLOT_MAX_SIDE],peak_levels[RF_PLOT_MAX_W];
+static int16_t spec_db[RF_PLOT_MAX_W],fall_db[RF_PLOT_MAX_SIDE];
 static uint16_t history_next,history_count,pending_save,load_errors;
 static bool storage_discard_confirm;
-static uint32_t history_times[PLOT_W];
+static uint32_t history_times[RF_HISTORY_COLUMNS];
 static uint32_t rendered,recorded_transform,sample_rate,painted;
 static int controls_scroll,controls_touch_y,controls_touch_scroll;
 static bool contact_controls;
@@ -150,14 +164,30 @@ static int clamp_int(int n,int low,int high){return n<low?low:n>high?high:n;}
 static int abs_int(int n){return n<0?-n:n;}
 static bool hit(int x,int y,int l,int t,int w,int h){return x>=l && y>=t && x<l+w && y<t+h;}
 static uint32_t fade(uint32_t c,unsigned a){return (((((c>>16)&255)*a/255)<<16)|((((c>>8)&255)*a/255)<<8)|((c&255)*a/255));}
+static bool native_plot_page(void){return rf_native_canvas&&page==PAGE_MAIN&&started&&view<2;}
+static int plot_screen_width(void){return rf_native_canvas?app->screen_width():240;}
+static int plot_screen_height(void){return rf_native_canvas?app->screen_height():ui_height;}
+static int header_x(int x){return native_plot_page()?(x>=188?plot_screen_width()-240+x:x*(plot_screen_width()-55)/185):x;}
+static int footer_y(void){return native_plot_page()?plot_screen_height():ui_height;}
 static bool ui_stretched(void){return page==PAGE_MAIN?(view==2||!started):page!=PAGE_CONTROLS;}
 static int ui_scale(void){return paper?app->screen_width()/240:1;}
-static int ui_x(int x){return x*ui_scale()+(paper?0:(app->screen_width()-240)/2);}
-static int ui_y(int y){return paper?(ui_stretched()?y*app->screen_height()/240:y*ui_scale()):y+(app->screen_height()-240)/2;}
-static int ui_unx(int x){return paper?x/ui_scale():utility_color_x(app,x);}
-static int ui_uny(int y){return paper?(ui_stretched()?y*240/app->screen_height():y/ui_scale()):utility_color_y(app,y);}
+/* Legacy page models retain their logical control coordinates, but each
+ * primitive is laid out directly on the native surface. No glyph bitmap or
+ * finished page is enlarged. Controls use extra height as scrollable space. */
+static int native_page_height(void){return page==PAGE_CONTROLS?ui_height:240;}
+static int native_edge(int value,int physical,int logical){return value>=0?(value*physical+logical-1)/logical:value*physical/logical;}
+static int ui_x(int x){if(rf_native_canvas)return native_plot_page()?x:native_edge(x,app->screen_width(),240);return x*ui_scale()+(paper?0:(app->screen_width()-240)/2);}
+static int ui_y(int y){if(rf_native_canvas)return native_plot_page()?y:native_edge(y,app->screen_height(),native_page_height());return paper?(ui_stretched()?y*app->screen_height()/240:y*ui_scale()):y+(app->screen_height()-240)/2;}
+static int ui_unx(int x){if(rf_native_canvas)return x<0||x>=app->screen_width()?-1:native_plot_page()?x:x*240/app->screen_width();return paper?x/ui_scale():utility_color_x(app,x);}
+static int ui_uny(int y){if(rf_native_canvas)return y<0||y>=app->screen_height()?-1:native_plot_page()?y:y*native_page_height()/app->screen_height();return paper?(ui_stretched()?y*240/app->screen_height():y/ui_scale()):utility_color_y(app,y);}
+#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)
+static unsigned native_face(unsigned face){return face;}
+#endif
 static void fill(int x,int y,int w,int h,uint32_t c){
  if(w<=0||h<=0)return;
+#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)
+ if(rf_native_canvas){int l=ui_x(x),top=ui_y(y);portable_nova_native_fill(l,top,ui_x(x+w)-l,ui_y(y+h)-top,c);return;}
+#endif
  if(paper){int left=ui_x(x),top=ui_y(y),right=ui_x(x+w),bottom=ui_y(y+h);if(left<0)left=0;if(top<0)top=0;if(right>app->screen_width())right=app->screen_width();if(bottom>app->screen_height())bottom=app->screen_height();if(right>left&&bottom>top){unsigned l=((c>>16&255u)*77u+(c>>8&255u)*150u+(c&255u)*29u)>>8;uint8_t tone=!c?T5_APP_TONE_WHITE:l>185?T5_APP_TONE_BLACK:l>85?T5_APP_TONE_DARK_GRAY:T5_APP_TONE_LIGHT_GRAY;if(app->struct_size>=offsetof(t5_app_api_v1,fill_rounded_rect_tone)+sizeof(app->fill_rounded_rect_tone)&&app->fill_rounded_rect_tone)app->fill_rounded_rect_tone(left,top,right-left,bottom-top,0,tone);else app->fill_rect(left,top,right-left,bottom-top,c!=0);}return;}
 #ifdef PORTABLE_NOVA_UI
  portable_nova_fill(x,y,w,h,c);
@@ -166,6 +196,9 @@ static void fill(int x,int y,int w,int h,uint32_t c){
 #endif
 }
 static void round_rect(int x,int y,int w,int h,int r,uint32_t c){
+#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)
+ if(rf_native_canvas){int l=ui_x(x),top=ui_y(y);int radius=native_plot_page()?r:r*app->screen_width()/240;portable_nova_native_round(l,top,ui_x(x+w)-l,ui_y(y+h)-top,radius,c);return;}
+#endif
  if(paper){fill(x,y,w,h,c);return;}
 #ifdef PORTABLE_NOVA_UI
  portable_nova_round(x,y,w,h,r,c);
@@ -174,6 +207,9 @@ static void round_rect(int x,int y,int w,int h,int r,uint32_t c){
 #endif
 }
 static int text_width(unsigned face,const char *s){
+#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)
+ if(rf_native_canvas){int n=portable_nova_measure(native_face(face),s);return native_plot_page()?n:(n*240+app->screen_width()-1)/app->screen_width();}
+#endif
  if(paper&&paper->measure)return (paper->measure(s,face==0)+ui_scale()-1)/ui_scale();
 #ifdef PORTABLE_NOVA_UI
  return portable_nova_measure(face,s);
@@ -182,6 +218,9 @@ static int text_width(unsigned face,const char *s){
 #endif
 }
 static void text(unsigned face,int x,int y,int w,const char *s,uint32_t c){
+#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)
+ if(rf_native_canvas){int l=ui_x(x);portable_nova_native_text(native_face(face),l,ui_y(y),ui_x(x+w)-l,s,c);return;}
+#endif
  if(paper&&paper->text){paper->text(ui_x(x),ui_y(y),w*ui_scale(),s,PAPER_TEXT_LITERAL|1u,face==0,c!=0);return;}
 #ifdef PORTABLE_NOVA_UI
  portable_nova_text(face,x,y,w,s,c);
@@ -191,7 +230,11 @@ static void text(unsigned face,int x,int y,int w,const char *s,uint32_t c){
 }
 static void center(unsigned face,int x,int y,int w,const char *s,uint32_t c){int n=text_width(face,s);text(face,x+(n<w?(w-n)/2:0),y,w,s,c);}
 /* These are the original baked 15px Rajdhani glyphs, never resized bitmaps. */
-static void pill(int x,int y,int w,int h,const char *s,bool selected){if(paper){fill(x,y,w,h,NOVA_WHITE);if(!selected)fill(x+1,y+1,w-2,h-2,0);center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0:NOVA_WHITE);return;}round_rect(x,y,w,h,h/2,selected?NOVA_CYAN:NOVA_DIM);if(!selected)round_rect(x+1,y+1,w-2,h-2,(h-2)/2,0);center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0x001418u:NOVA_CYAN);}
+static void pill(int x,int y,int w,int h,const char *s,bool selected){if(paper){fill(x,y,w,h,NOVA_WHITE);if(!selected)fill(x+1,y+1,w-2,h-2,0);center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0:NOVA_WHITE);return;}round_rect(x,y,w,h,h/2,selected?NOVA_CYAN:NOVA_DIM);if(!selected)round_rect(x+1,y+1,w-2,h-2,(h-2)/2,0);
+#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)
+ if(rf_native_canvas){int l=ui_x(x+2),r=ui_x(x+w-2),top=ui_y(y),bottom=ui_y(y+h),n=portable_nova_measure(1,s);portable_nova_native_text(1,l+(n<r-l?(r-l-n)/2:0),top+(bottom-top-15)/2-2,r-l,s,selected?0x001418u:NOVA_CYAN);return;}
+#endif
+ center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0x001418u:NOVA_CYAN);}
 static void line(int x0,int y0,int x1,int y1,uint32_t c){int dx=abs_int(x1-x0),sx=x0<x1?1:-1,dy=-abs_int(y1-y0),sy=y0<y1?1:-1,e=dx+dy;for(;;){fill(x0,y0,1,1,c);if(x0==x1&&y0==y1)break;int e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}}
 static void freq_text(unsigned hz,char out[20]){snprintf(out,20,"%u.%03u MHz",hz/1000000u,(hz%1000000u)/1000u);}
 
@@ -341,7 +384,7 @@ static void persist(void){
  for(unsigned i=0;i<RF_LABEL_MAX;i++)if(pending_save&(2u<<i)){char key[16];label_key(i,key);if(rf_label_encode(&labels[i],bytes)&&storage->put(storage->context,key,bytes,RF_LABEL_RECORD_SIZE)==RISC_KEY_VALUE_OK)pending_save&=(uint16_t)~(2u<<i);else failed=true;}
  if(failed){store_message="SAVE UNCONFIRMED";notify("SAVE UNCONFIRMED");}else store_message=load_errors?"SAVED DATA UNREAD / RETRY":NULL;
 }
-static void clear_analysis(void){signature_display_reset();memset(history,0,sizeof(history));memset(spec_levels,0,sizeof(spec_levels));memset(fall_levels,0,sizeof(fall_levels));memset(peak_levels,0,sizeof(peak_levels));memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));for(unsigned i=0;i<PLOT_W;i++)spec_db[i]=-12000;for(unsigned i=0;i<(unsigned)PLOT_H;i++)fall_db[i]=-12000;history_next=history_count=0;memset(history_times,0,sizeof(history_times));recorded_transform=0;}
+static void clear_analysis(void){signature_display_reset();memset(history,0,sizeof(history));memset(spec_levels,0,sizeof(spec_levels));memset(fall_levels,0,sizeof(fall_levels));memset(peak_levels,0,sizeof(peak_levels));memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));for(unsigned i=0;i<(unsigned)PLOT_W;i++)spec_db[i]=-12000;for(unsigned i=0;i<(unsigned)PLOT_H;i++)fall_db[i]=-12000;history_next=history_count=0;memset(history_times,0,sizeof(history_times));recorded_transform=0;}
 static void configure_dsp(void){
  dsp_config=(rf_dsp_config){prefs.identity,prefs.low_hz,prefs.high_hz,prefs.fft_size,(rf_dsp_window)prefs.window,prefs.log_frequency,prefs.log_amplitude,prefs.gain_db,prefs.threshold_db};sample_rate=prefs.identity.sample_rate_hz;
  (void)rf_dsp_configure(&spectrum,&dsp_config);clear_analysis();if(cursor_hz<dsp_config.low_hz||cursor_hz>dsp_config.high_hz)cursor_visible=false;
@@ -373,9 +416,12 @@ static void refresh_analysis(void){
  int selected=signature_filter();const uint32_t*shared_background=cfa_background();const uint32_t *display_amplitude=spectrum.amplitude_q24;
  if(shared_background){signature_prepare_filter(selected);for(unsigned k=0;k<spectrum.config.fft_size;k++)filtered_amplitude[k]=rf_signature_filtered_amplitude(spectrum.amplitude_q24[k],k,spectrum.config.fft_size,signature_display_gains);display_amplitude=filtered_amplitude;}
  rf_dsp_resample_values(&spectrum,display_amplitude,spec_levels,spec_db,PLOT_W);rf_dsp_resample_values(&spectrum,display_amplitude,fall_levels,fall_db,PLOT_H);
- for(unsigned i=0;i<PLOT_W;i++){unsigned decay=peak_levels[i]>196?peak_levels[i]-196:0;peak_levels[i]=spec_levels[i]>decay?spec_levels[i]:(uint16_t)decay;}
- for(unsigned y=0;y<(unsigned)PLOT_H;y++)history[history_next][y]=(uint8_t)((uint32_t)fall_levels[y]*255/32767);
- history_times[history_next]=burst_at;history_next=(history_next+1)%PLOT_W;if(history_count<PLOT_W)history_count++;
+ for(unsigned i=0;i<(unsigned)PLOT_W;i++){unsigned decay=peak_levels[i]>196?peak_levels[i]-196:0;peak_levels[i]=spec_levels[i]>decay?spec_levels[i]:(uint16_t)decay;}
+ for(unsigned y=0;y<(unsigned)HISTORY_H;y++){
+  unsigned row=HISTORY_H>1?y*(unsigned)(PLOT_H-1)/(unsigned)(HISTORY_H-1):0;
+  history[history_next][y]=(uint8_t)((uint32_t)fall_levels[row]*255/32767);
+ }
+ history_times[history_next]=burst_at;history_next=(history_next+1)%RF_HISTORY_COLUMNS;if(history_count<RF_HISTORY_COLUMNS)history_count++;
 
  signature_display_reset();recorded_transform=spectrum.transforms;rendered=now;dirty=true;
 }
@@ -460,16 +506,17 @@ static void build_palette(void){
  for(unsigned i=0;i<256;i++){while(part+1<count&&i>s[part].at)part++;unsigned span=s[part].at-s[part-1].at,a=i-s[part-1].at;uint32_t c=0;for(unsigned shift=0;shift<=16;shift+=8){unsigned lo=(s[part-1].color>>shift)&255,hi=(s[part].color>>shift)&255;unsigned v=(lo*(span-a)+hi*a)/span;c|=v<<shift;}palette[i]=c;}
 }
 static void draw_gear(void){
- round_rect(213,14,24,24,12,NOVA_DIM);round_rect(214,15,22,22,11,0);round_rect(220,21,10,10,5,NOVA_CYAN);round_rect(222,23,6,6,3,0);
- for(unsigned i=0;i<4;i++){int x=i==0?224:i==1?233:i==2?224:215,y=i==0?17:i==1?25:i==2?33:25;fill(x,y,3,3,NOVA_CYAN);}
+ int offset=header_x(213)-213;
+ round_rect(213+offset,14,24,24,12,NOVA_DIM);round_rect(214+offset,15,22,22,11,0);round_rect(220+offset,21,10,10,5,NOVA_CYAN);round_rect(222+offset,23,6,6,3,0);
+ for(unsigned i=0;i<4;i++){int x=i==0?224:i==1?233:i==2?224:215,y=i==0?17:i==1?25:i==2?33:25;fill(x+offset,y,3,3,NOVA_CYAN);}
 }
 static void tab(int x,int width,const char *name,bool selected){
  if(paper){pill(x,14,width,24,name,selected);return;}
  round_rect(x,14,width,24,12,selected?NOVA_CYAN:NOVA_DIM);if(!selected)round_rect(x+1,15,width-2,22,11,0);unsigned face=0;while(face<2&&text_width(face,name)>width-6)++face;center(face,x+3,17,width-6,name,selected?0x001418u:NOVA_CYAN);
 }
 static void draw_tabs(void){
- tab(4,51,"SPEC",view==0);tab(58,50,"FALL",view==1);tab(111,74,"MONITOR",view==2);
- if(view!=2){round_rect(188,14,22,24,11,prefs.show_labels?NOVA_CYAN:NOVA_DIM);if(!prefs.show_labels)round_rect(189,15,20,22,10,0);uint32_t c=prefs.show_labels?0x001418u:NOVA_CYAN;line(193,20,201,20,c);line(201,20,206,26,c);line(206,26,200,32,c);line(200,32,193,25,c);line(193,25,193,20,c);fill(195,22,2,2,c);}
+ tab(header_x(4),header_x(55)-header_x(4),"SPEC",view==0);tab(header_x(58),header_x(108)-header_x(58),"FALL",view==1);tab(header_x(111),header_x(185)-header_x(111),"MONITOR",view==2);
+ if(view!=2){int offset=header_x(188)-188;round_rect(188+offset,14,22,24,11,prefs.show_labels?NOVA_CYAN:NOVA_DIM);if(!prefs.show_labels)round_rect(189+offset,15,20,22,10,0);uint32_t c=prefs.show_labels?0x001418u:NOVA_CYAN;line(193+offset,20,201+offset,20,c);line(201+offset,20,206+offset,26,c);line(206+offset,26,200+offset,32,c);line(200+offset,32,193+offset,25,c);line(193+offset,25,193+offset,20,c);fill(195+offset,22,2,2,c);}
  draw_gear();
 }
 static void draw_axes(bool waterfall,bool foreground){
@@ -496,7 +543,21 @@ static void cursor_layout(char caption[40]){
  pill_y=view==1?PLOT_Y+clamp_int(p<38?p+8:p-36,2,PLOT_H-30):PLOT_Y+4;
 }
 static void draw_plot(void){
- if(view==1){for(unsigned x=0;x<history_count;x++){unsigned source=(history_next+PLOT_W-history_count+x)%PLOT_W;unsigned at=PLOT_W-history_count+x;unsigned alpha=at<12?at*255/12:at>PLOT_W-13?(PLOT_W-1-at)*255/12:255;for(unsigned y=0;y<(unsigned)PLOT_H;y++)fill(PLOT_X+(int)at,PLOT_Y+(int)y,1,1,fade(palette[history[source][y]],alpha));}draw_axes(true,true);char span[48];unsigned first=(history_next+PLOT_W-history_count)%PLOT_W,last=(history_next+PLOT_W-1u)%PLOT_W;uint32_t elapsed=history_count>1?history_times[last]-history_times[first]:0;snprintf(span,sizeof(span),"%u BURSTS / %u.%u s",history_count,elapsed/1000u,elapsed%1000u/100u);char high_name[20];short_freq(dsp_config.high_hz,high_name);int span_left=text_width(1,high_name)+10;fill(PLOT_X+span_left,PLOT_Y+PLOT_H-18,PLOT_W-span_left,18,0);text(1,PLOT_X+span_left+2,PLOT_Y+PLOT_H-18,PLOT_W-span_left-4,span,NOVA_CAP);}
+ if(view==1){
+  /* Time is a 228-burst window on every screen. Native columns map directly to
+   * retained samples; frequency rows are sampled separately from the FFT. */
+  for(int x=0;x<PLOT_W;x++){
+   unsigned age=(unsigned)(PLOT_W-1-x)*RF_HISTORY_COLUMNS/(unsigned)PLOT_W;
+   if(age>=history_count)continue;
+   unsigned source=(history_next+RF_HISTORY_COLUMNS-1u-age)%RF_HISTORY_COLUMNS;
+   unsigned alpha=x<12?(unsigned)x*255/12:x>PLOT_W-13?(unsigned)(PLOT_W-1-x)*255/12:255;
+   for(int y=0;y<PLOT_H;y++){
+    unsigned row=PLOT_H>1?(unsigned)y*(unsigned)(HISTORY_H-1)/(unsigned)(PLOT_H-1):0;
+    fill(PLOT_X+x,PLOT_Y+y,1,1,fade(palette[history[source][row]],alpha));
+   }
+  }
+  draw_axes(true,true);char span[48];unsigned first=(history_next+RF_HISTORY_COLUMNS-history_count)%RF_HISTORY_COLUMNS,last=(history_next+RF_HISTORY_COLUMNS-1u)%RF_HISTORY_COLUMNS;uint32_t elapsed=history_count>1?history_times[last]-history_times[first]:0;snprintf(span,sizeof(span),"%u BURSTS / %u.%u s",history_count,elapsed/1000u,elapsed%1000u/100u);char high_name[20];short_freq(dsp_config.high_hz,high_name);int span_left=text_width(1,high_name)+10;fill(PLOT_X+span_left,PLOT_Y+PLOT_H-18,PLOT_W-span_left,18,0);text(1,PLOT_X+span_left+2,PLOT_Y+PLOT_H-18,PLOT_W-span_left-4,span,NOVA_CAP);
+ }
  else{
   draw_axes(false,false);text(1,PLOT_X+48,PLOT_Y+1,48,"dBFS",NOVA_CAP);int prev_y=PLOT_Y+PLOT_H-1,prev_peak=prev_y;
   for(int x=0;x<PLOT_W;x++){int y=PLOT_Y+PLOT_H-1-(int)((uint32_t)spec_levels[x]*(PLOT_H-1)/32767),peak_y=PLOT_Y+PLOT_H-1-(int)((uint32_t)peak_levels[x]*(PLOT_H-1)/32767);
@@ -590,8 +651,8 @@ static void draw_monitor(void){
 static void draw_footer(void){
  if(view==2)return;
  const char *label=running?"BURSTS / STOP":frozen?"FROZEN / START":"START";
- text(1,8,ui_height-22,140,label,NOVA_CYAN);text(1,183,ui_height-22,51,running?"FREEZE":"EXIT",NOVA_CAP);
- if(pending_save||signature_pending||event_files.pending>=0)fill(150,ui_height-15,4,4,0xff6a5f);
+ text(1,8,footer_y()-22,140,label,NOVA_CYAN);text(1,native_plot_page()?plot_screen_width()-57:183,footer_y()-22,51,running?"FREEZE":"EXIT",NOVA_CAP);
+ if(pending_save||signature_pending||event_files.pending>=0)fill(150,footer_y()-15,4,4,0xff6a5f);
 }
 static void draw_start(void){
  center(0,20,46,200,"RF SPECTRUM",NOVA_CYAN);center(1,20,68,200,"NOVA-7",NOVA_CAP);if(capture_error)center(1,12,85,216,message,0xff6a5f);pill(68,108,104,38,"START",true);
@@ -619,7 +680,7 @@ static void draw_keyboard(void){
  char status[40];snprintf(status,sizeof(status),"%u / 16 CHARACTERS",(unsigned)strlen(editing.name));text(1,18,211,204,toast_message?toast_message:status,NOVA_CAP);
 }
 #endif
-static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return ui_height-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}
+static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return footer_y()-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}
 static void draw(void){
 #ifdef PORTABLE_RF_SHARED_TEXT_INPUT
  if(text_active||text_client.retained)return;
@@ -836,7 +897,7 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(text_active||text_client.retained)return false;
 #endif
  char caption[40];cursor_layout(caption);
- if(x<0||y<0||x>=240||y>=(ui_stretched()?240:ui_height))return false;
+ if(x<0||y<0||x>=(native_plot_page()?plot_screen_width():240)||y>=(native_plot_page()?plot_screen_height():rf_native_canvas?native_page_height():ui_stretched()?240:ui_height))return false;
  if(page==PAGE_RECEIVER){receiver_tap(x,y);return false;}
  if(page!=PAGE_KEYBOARD&&toast_message&&hit(x,y,14,toast_top(),212,28)){if(undo_slot>=0&&x>=167)undo_delete();else{toast_message=NULL;dirty=true;}return false;}
  if(page>=PAGE_SHARED){shared_tap(x,y);return false;}
@@ -848,11 +909,11 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(page==PAGE_LABEL){if(hit(x,y,31,104,178,32)){keyboard_begin();}else if(y>=140&&y<166&&x>=28&&x<216){editing.color=(uint8_t)clamp_int((x-28)/23,0,7);dirty=true;}else if(y>=169&&y<203){if(x>=24&&x<89)set_page(PAGE_MAIN);else if(edit_slot>=0&&x>=89&&x<152)delete_label(edit_slot);else if(x>=(edit_slot>=0?152:122)&&x<218)save_label();}return false;}
  if(page==PAGE_CONTROLS){if(y>=21&&y<45){receiver_scroll=0;set_page(PAGE_RECEIVER);return false;}if(hit(x,y,79,ui_height-39,82,32)){set_page(PAGE_MAIN);return false;}if(y<CONTROLS_TOP||y>=CONTROLS_BOTTOM)return false;unsigned position=(unsigned)(y-CONTROLS_TOP+controls_scroll),setting=position/CONTROLS_ROW_HEIGHT+1;int row_y=(int)(position%CONTROLS_ROW_HEIGHT);if(setting>CONTROLS_COUNT||row_y<4||row_y>=44)return false;if(controls_segment(setting)){if(x>=110&&x<165)settings_change(setting,0,0);else if(x>=171&&x<232)settings_change(setting,0,1);}else if(setting==11||setting==12||setting==13){if(setting==11&&pending_save&&x>=171&&x<232)discard_pending_storage();else if(x>=110&&x<232)settings_change(setting,0,0);}else if(x>=90&&x<122)settings_change(setting,-1,0);else if(x>=200&&x<232)settings_change(setting,1,0);return false;}
  if(!started){if(hit(x,y,68,102,104,48))*toggle_requested=true;else if(hit(x,y,72,196,98,38)){list_scroll=0;set_page(PAGE_CONTROLS);}else if(hit(x,y,6,4,50,34))return request_root_exit();return false;}
- if(y>=8&&y<42){if(x>=4&&x<55){view=0;list_scroll=0;lab_edit=false;}else if(x>=58&&x<108){view=1;list_scroll=0;lab_edit=false;}else if(x>=111&&x<185){view=2;list_scroll=0;lab_edit=false;}else if(x>=188&&x<210&&view!=2){if(load_errors&1u)notify("RETRY STORAGE FIRST");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=213&&x<240){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
+ if(y>=8&&y<42){if(x>=header_x(4)&&x<header_x(55)){view=0;list_scroll=0;lab_edit=false;}else if(x>=header_x(58)&&x<header_x(108)){view=1;list_scroll=0;lab_edit=false;}else if(x>=header_x(111)&&x<header_x(185)){view=2;list_scroll=0;lab_edit=false;}else if(x>=header_x(188)&&x<header_x(210)&&view!=2){if(load_errors&1u)notify("RETRY STORAGE FIRST");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=header_x(213)&&x<header_x(240)){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}
  if(view==2){if(hit(x,y,161,44,64,37)){lab_edit=!lab_edit;list_scroll=0;set_page(PAGE_MAIN);return false;}if(lab_edit){unsigned order[8],n=ordered_labels(order);if(y>=88&&y<198){unsigned row=(unsigned)(y-88)/55+list_scroll;if(row<n){if(x>=182&&x<220)delete_label((int)order[row]);else if(x>=20&&x<181)open_label((int)order[row],0);}}if(y>=200&&y<235){if(x>=16&&x<68&&list_scroll)list_scroll--;else if(x>=173&&x<224&&list_scroll+2<n)list_scroll++;}}else if(y>=210){monitor_item items[17];unsigned n=monitor_items(items);if(x<39&&list_scroll)list_scroll--;else if(x>=45&&x<111)*toggle_requested=true;else if(x>=117&&x<196){shared_open(2);}else if(x>=202&&list_scroll+3<n)list_scroll++;}else if(hit(x,y,20,85,200,41)){shared_open(1);}dirty=true;return false;}
  if(cursor_visible&&hit(x,y,pill_x,pill_y,pill_w,pill_h)){open_label(-1,cursor_hz);return false;}
  if(hit(x,y,PLOT_X,PLOT_Y,PLOT_W,PLOT_H)){int coordinate=view==1?y-PLOT_Y:x-PLOT_X;int current=(int)rf_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);if(cursor_visible&&abs_int(current-coordinate)>14)cursor_visible=false;else{cursor_visible=true;cursor_hz=rf_dsp_frequency_at(&dsp_config,(unsigned)coordinate,view==1?PLOT_H:PLOT_W);}dirty=true;return false;}
- if(y>=ui_height-24&&y<ui_height){if(x>=6&&x<150)*toggle_requested=true;else if(x>=154&&x<240){if(running)*freeze_requested=true;else return request_root_exit();}}return false;
+ if(y>=footer_y()-24&&y<footer_y()){if(x>=6&&x<(native_plot_page()?plot_screen_width()-90:150))*toggle_requested=true;else if(x>=(native_plot_page()?plot_screen_width()-86:154)&&x<(native_plot_page()?plot_screen_width():240)){if(running)*freeze_requested=true;else return request_root_exit();}}return false;
 }
 static bool rf_bulk_create(void){
  rf_bulk_allocated=app->struct_size>=offsetof(t5_app_api_v1,psram_free)+sizeof(app->psram_free)&&app->psram_alloc&&app->psram_free;
@@ -898,8 +959,20 @@ void app_main(void){
  utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);waterfall_api=app;waterfall_runtime=runtime;
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms)return;
+ #if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)
+ if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<160||app->screen_height()>1024)return;
+#else
  if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
- paper=paper_presentation_get();ui_height=paper?app->screen_height()/(app->screen_width()/240):240;if(ui_height<240||ui_height>512)return;
+#endif
+ paper=paper_presentation_get();if(paper&&app->screen_width()<240)return;ui_height=paper?app->screen_height()/(app->screen_width()/240):240;if(ui_height<240||ui_height>512)return;
+ rf_native_canvas=false;
+#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)
+ rf_native_canvas=!paper;
+ if(rf_native_canvas){ui_height=(app->screen_height()*240+app->screen_width()-1)/app->screen_width();if(ui_height<240)ui_height=240;}
+#endif
+ rf_plot_width=rf_native_canvas?app->screen_width()-12:228;
+ rf_plot_height=rf_native_canvas?app->screen_height()-74:ui_height-74;
+ if(PLOT_W<1||PLOT_H<1||PLOT_W>RF_PLOT_MAX_W||PLOT_H>RF_PLOT_MAX_SIDE)return;
  if(!rf_bulk_create()){waterfall_log("SDR bulk memory unavailable");return;}
  waterfall_radio=NULL;preferences=NULL;storage=NULL;waterfall_grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};radio_acquired=preferences_acquired=waterfall_uncertain=false;waterfall_enabled=false;trace_capture_seen=trace_cleanup_seen=false;waterfall_status=WATERFALL_STOPPED;
  waterfall_preferences=(risc_runtime_capability_v1){.struct_size=sizeof(waterfall_preferences)};if(runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&waterfall_preferences)){preferences_acquired=true;preferences=waterfall_preferences.api;}
