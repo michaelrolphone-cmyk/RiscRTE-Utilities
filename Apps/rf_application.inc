@@ -38,6 +38,7 @@
  * of display width. Extra pixels are evaluated by the renderer, not by scaling
  * a 240px framebuffer. The bounded history resolution is unchanged. */
 #define RF_HISTORY_COLUMNS 228u
+#define RF_NATIVE_STATUS_HEIGHT 36
 #define RF_PLOT_MAX_H 438
 #ifdef PORTABLE_RF_NATIVE_CANVAS
 #define RF_PLOT_MAX_W 1024
@@ -542,6 +543,19 @@ static void cursor_layout(char caption[40]){
  pill_x=view==1?PLOT_X+PLOT_W-pill_w-6:PLOT_X+clamp_int(p-pill_w/2,2,PLOT_W-pill_w-2);
  pill_y=view==1?PLOT_Y+clamp_int(p<38?p+8:p-36,2,PLOT_H-30):PLOT_Y+4;
 }
+/* Context status owns a separate strip on the native canvas. Its background
+ * and glyph bounds never intersect the data/axis rectangle. Paper is unchanged. */
+static void draw_context_status(void){
+ int x=PLOT_X+(rf_native_canvas?2:5),y=PLOT_Y+PLOT_H+(rf_native_canvas?1:-55);
+ int width=rf_native_canvas?PLOT_W-4:218;char detected[48];
+ if(cfa_room.slot>=0)snprintf(detected,sizeof(detected),"ROOM %.16s %u%%",cfa_name(CF_ROOM,"UNKNOWN"),(unsigned)(cfa_room.confidence*100.f));else snprintf(detected,sizeof(detected),"ROOM UNKNOWN");
+ fill(x,y,width,17,0);text(1,x+2,y,width-4,detected,NOVA_WHITE);
+ bool recognized=cfa_event.slot>=0;
+ if(recognized)snprintf(detected,sizeof(detected),"EVENT %.16s %u%%",cfa_name(CF_EVENT,"UNKNOWN"),(unsigned)(cfa_event.confidence*100.f));
+ else if(rf_native_canvas&&event_slot>=0&&!event_match.complete){snprintf(detected,sizeof(detected),"EVENT %.16s %u%%",signatures[event_slot].name,event_confidence);recognized=true;}
+ else snprintf(detected,sizeof(detected),"EVENT UNKNOWN");
+ fill(x,y+18,width,17,0);text(1,x+2,y+18,width-4,detected,recognized?0x3dff9au:NOVA_CAP);
+}
 static void draw_plot(void){
  if(view==1){
   /* Time is a 228-burst window on every screen. Native columns map directly to
@@ -574,12 +588,8 @@ static void draw_plot(void){
   if(label_active[i]){int y=view==1?PLOT_Y+clamp_int(p-18,1,PLOT_H-17):PLOT_Y+20+(int)(i%3)*17;int tw=text_width(1,l->name);if(tw>132)tw=132;int x=view==1?PLOT_X+PLOT_W-8-tw:PLOT_X+clamp_int(p>PLOT_W-90?p-4-tw:p+4,0,PLOT_W-tw);fill(x,y,tw,17,0);text(1,x,y,tw,l->name,color);}
  }
  pill_w=pill_h=0;
- if(event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),"%.16s %u%%",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}
- char detected[48];
- if(cfa_room.slot>=0)snprintf(detected,sizeof(detected),"ROOM %.16s %u%%",cfa_name(CF_ROOM,"UNKNOWN"),(unsigned)(cfa_room.confidence*100.f));else snprintf(detected,sizeof(detected),"ROOM UNKNOWN");
- fill(PLOT_X+5,PLOT_Y+PLOT_H-55,218,17,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-55,214,detected,NOVA_WHITE);
- if(cfa_event.slot>=0)snprintf(detected,sizeof(detected),"EVENT %.16s %u%%",cfa_name(CF_EVENT,"UNKNOWN"),(unsigned)(cfa_event.confidence*100.f));else snprintf(detected,sizeof(detected),"EVENT UNKNOWN");
- fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,17,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,detected,cfa_event.slot>=0?0x3dff9au:NOVA_CAP);
+ if(!rf_native_canvas&&event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),"%.16s %u%%",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}
+ draw_context_status();
  if(cfa_background())text(1,PLOT_X+112,PLOT_Y+1,113,"BG FILTER",0xffd24au);
  if(cursor_visible){int p=(int)rf_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);char caption[40];cursor_layout(caption);
   if(view==1)fill(PLOT_X,PLOT_Y+p,PLOT_W,1,NOVA_WHITE);else fill(PLOT_X+p,PLOT_Y,1,PLOT_H-18,NOVA_WHITE);
@@ -971,7 +981,7 @@ void app_main(void){
  if(rf_native_canvas){ui_height=(app->screen_height()*240+app->screen_width()-1)/app->screen_width();if(ui_height<240)ui_height=240;}
 #endif
  rf_plot_width=rf_native_canvas?app->screen_width()-12:228;
- rf_plot_height=rf_native_canvas?app->screen_height()-74:ui_height-74;
+ rf_plot_height=rf_native_canvas?app->screen_height()-74-RF_NATIVE_STATUS_HEIGHT:ui_height-74;
  if(PLOT_W<1||PLOT_H<1||PLOT_W>RF_PLOT_MAX_W||PLOT_H>RF_PLOT_MAX_SIDE)return;
  if(!rf_bulk_create()){waterfall_log("SDR bulk memory unavailable");return;}
  waterfall_radio=NULL;preferences=NULL;storage=NULL;waterfall_grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};radio_acquired=preferences_acquired=waterfall_uncertain=false;waterfall_enabled=false;trace_capture_seen=trace_cleanup_seen=false;waterfall_status=WATERFALL_STOPPED;

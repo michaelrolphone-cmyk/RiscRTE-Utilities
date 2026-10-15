@@ -28,7 +28,7 @@ for width,height in [(160,160),(200,200),(240,240),(410,502),(320,240),(640,240)
   scene=f'''wait 8
 check native_canvas eq 1
 check plot_width eq {width-12}
-check plot_height eq {height-74}
+check plot_height eq {height-110}
 check running eq 1
 snapshot spectrum
 nav 8
@@ -50,16 +50,16 @@ check frame_pending eq 1
 remember presents
 tap {width//2} 46
 check cursor_hz eq 2400000000
-tap {width//2} {height-29}
-tap {width//2} {height-29}
+tap {width//2} {height-65}
+tap {width//2} {height-65}
 check cursor_hz eq 2480000000
 nav 8
 nav 8
-tap 6 100
-tap 6 100
+tap 6 {min(100,height-85)}
+tap 6 {min(100,height-85)}
 check cursor_hz eq 2400000000
-tap {width-7} 100
-tap {width-7} 100
+tap {width-7} {min(100,height-85)}
+tap {width-7} {min(100,height-85)}
 check cursor_hz eq 2480000000
 tap {width-90} 63
 check page eq 2
@@ -86,6 +86,38 @@ snapshot controls
 native_seed
 wait 5
 native_pixels
+status_state 0
+wait 5
+remember plot_hash
+remember status_hash
+status_state 1
+wait 5
+same plot_hash
+different status_hash
+status_state 2
+wait 5
+same plot_hash
+different status_hash
+status_state 0
+wait 5
+nav 8
+status_state 0
+wait 5
+remember plot_hash
+remember status_hash
+status_state 1
+wait 5
+same plot_hash
+different status_hash
+status_state 2
+wait 5
+same plot_hash
+different status_hash
+status_state 0
+wait 5
+nav 8
+nav 8
+wait 5
 snapshot native-pixels
 finish
 '''

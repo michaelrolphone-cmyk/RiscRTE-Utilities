@@ -99,9 +99,10 @@ static void fx_corners(void){
  api->clear();api->fill_rect(-10,-10,11,11,true);api->fill_rect((int)w-2,0,5,2,true);api->fill_rect(0,(int)h-3,3,7,true);api->fill_rect((int)w-4,(int)h-4,9,9,true);api->present(true);
  assert(fx_pixel(0,0)==0&&fx_pixel(w-1,0)==0&&fx_pixel(0,h-1)==0&&fx_pixel(w-1,h-1)==0);assert(fx_pixel(1,1)!=0&&fx_pixel(w-3,0)!=0&&fx_pixel(3,h-1)!=0&&fx_pixel(w-5,h-1)!=0);fx_guards();fx_checks++;
 }
+static uint32_t fx_region_hash(int top,int bottom){uint32_t h=2166136261u;for(int y=top;y<bottom;y++)for(int x=PLOT_X*2;x<(PLOT_X+PLOT_W)*2;x++)h=(h^fx_raster.pixels[(unsigned)y*FX_STRIDE+(unsigned)x])*16777619u;return h;}
 static long long fx_value(const char*k){
 #define V(n,v) if(!strcmp(k,n))return (long long)(v)
- V("fingerprint_dirty",cfa_changed);V("plot_width",PLOT_W);V("plot_height",PLOT_H);V("native_canvas",rf_native_canvas);
+ V("plot_hash",fx_region_hash(PLOT_Y,PLOT_Y+PLOT_H));V("status_hash",fx_region_hash(PLOT_Y+PLOT_H,PLOT_Y+PLOT_H+RF_NATIVE_STATUS_HEIGHT));V("fingerprint_dirty",cfa_changed);V("plot_width",PLOT_W);V("plot_height",PLOT_H);V("native_canvas",rf_native_canvas);
 #ifdef RF_RENDER_RESIDENT
  V("resident_polls",fx_resident_polls);V("resident_policies",fx_resident_policies);V("retry",capture_retries);V("retry_delay",capture_retry_delay);V("capture_requested",capture_requested);V("capture_active",portable_radio_capture_active());V("ticks",fx_ticks);V("polls",fx_polls);
 #endif
@@ -110,7 +111,7 @@ static long long fx_value(const char*k){
 #undef V
  fprintf(stderr,"Unknown check: %s\n",k);abort();
 }
-static void fx_check(const char*k,const char*op,long long wanted){long long got=fx_value(k);bool ok=!strcmp(op,"eq")?got==wanted:!strcmp(op,"ge")?got>=wanted:!strcmp(op,"le")?got<=wanted:false;if(!ok){fprintf(stderr,"line %u check %s %s %lld: got %lld; page=%u polls=%u captures=%u message=%s\n",fx_lineno,k,op,wanted,got,page,fx_polls,fx_captures,message?message:"-");abort();}fx_checks++;}
+static void fx_check(const char*k,const char*op,long long wanted){long long got=fx_value(k);bool ok=!strcmp(op,"eq")?got==wanted:!strcmp(op,"ge")?got>=wanted:!strcmp(op,"le")?got<=wanted:!strcmp(op,"ne")?got!=wanted:false;if(!ok){fprintf(stderr,"line %u check %s %s %lld: got %lld; page=%u polls=%u captures=%u message=%s\n",fx_lineno,k,op,wanted,got,page,fx_polls,fx_captures,message?message:"-");abort();}fx_checks++;}
 static void fx_verify_times(void){
  const rt_example*e=event_training.ready?&event_training.event:&event_library.labels[0].examples[0];assert(e->count>=2);unsigned previous=0;
  for(unsigned i=0;i<e->count;i++){bool found=false;for(unsigned j=previous;j<fx_captures;j++)if(fx_times[j]==e->frames[i].timestamp_ms){previous=j+1;found=true;break;}assert(found&&(e->frames[i].flags&RT_GAP_BEFORE));}
@@ -138,7 +139,7 @@ static void fx_script(void){
   else if(!strcmp(op,"check")){assert(sscanf(fx_line,"%*s %63s %15s %lld",key,cmp,&value)==3);fx_check(key,cmp,value);}
   else if(!strcmp(op,"equal")){assert(sscanf(fx_line,"%*s %63s %15s",key,cmp)==2);fx_check(key,"eq",fx_value(cmp));}
   else if(!strcmp(op,"remember")){assert(sscanf(fx_line,"%*s %63s",key)==1);unsigned i=0;for(;i<fx_remember_count&&strcmp(key,fx_remember_keys[i]);i++);assert(i<32);if(i==fx_remember_count)fx_remember_count++;strcpy(fx_remember_keys[i],key);fx_remember[i]=fx_value(key);}
-  else if(!strcmp(op,"same")){assert(sscanf(fx_line,"%*s %63s",key)==1);unsigned i=0;for(;i<fx_remember_count&&strcmp(key,fx_remember_keys[i]);i++);assert(i<fx_remember_count);fx_check(key,"eq",fx_remember[i]);}
+  else if(!strcmp(op,"same")||!strcmp(op,"different")){assert(sscanf(fx_line,"%*s %63s",key)==1);unsigned i=0;for(;i<fx_remember_count&&strcmp(key,fx_remember_keys[i]);i++);assert(i<fx_remember_count);fx_check(key,!strcmp(op,"same")?"eq":"ne",fx_remember[i]);}
   else if(!strcmp(op,"set")){assert(sscanf(fx_line,"%*s %63s %lld",key,&value)==2);if(!strcmp(key,"frame_delay"))fx_frame_delay=(unsigned)value;else if(!strcmp(key,"signal"))fx_signal=(int)value;else if(!strcmp(key,"rf_failure"))fx_rf_failure=(int)value;else if(!strcmp(key,"kv_failure"))fx_kv_failure=(int)value;else if(!strcmp(key,"storage_failure"))fx_storage_failure=(int)value;else if(!strcmp(key,"format_failure"))fx_format_failure=(int)value;else if(!strcmp(key,"slow"))fx_slow=(int)value;else if(!strcmp(key,"jump"))fx_ticks+=(unsigned)value;else if(!strcmp(key,"poll_ms"))fx_poll_ms=(unsigned)value;else if(!strcmp(key,"no_radio"))fx_no_radio=value!=0;else assert(!"Unknown peripheral setting");}
 #ifdef RF_RENDER_MONITOR_STATE
   else if(!strcmp(op,"release_frame")){fx_frame_until=fx_polls;fx_frame_delay=0;}
@@ -155,11 +156,16 @@ static void fx_script(void){
    for(int i=0;i<PLOT_W;i++)spec_levels[i]=peak_levels[i]=(i/8)%2?30000:1000;
    dirty=urgent_draw=true;
   }
+  else if(!strcmp(op,"status_state")){
+   assert(sscanf(fx_line,"%*s %lld",&value)==1&&value>=0&&value<=2);
+   cfa_room.slot=cfa_event.slot=value==1?0:-1;event_slot=value==2?0:-1;event_match.complete=false;
+   strcpy(cfa_bank.profiles[0].name,"KNOWN ROOM EVENT");strcpy(signatures[0].name,"LEGACY EVENT");cfa_room.confidence=cfa_event.confidence=.8f;event_confidence=80;last_event_at=app->millis();dirty=urgent_draw=true;
+  }
   else if(!strcmp(op,"native_pixels")){
-   assert(rf_native_canvas&&PLOT_W==(int)FX_W-12&&PLOT_H==(int)FX_H-74);
+   assert(rf_native_canvas&&PLOT_W==(int)FX_W-12&&PLOT_H==(int)FX_H-110);
    for(int x=20;x<PLOT_W-12;x+=16){
-    unsigned low=fx_pixel(PLOT_X+(unsigned)x,PLOT_Y+20u);
-    unsigned high=fx_pixel(PLOT_X+(unsigned)x+8,PLOT_Y+20u);
+    unsigned low=fx_pixel(PLOT_X+(unsigned)x,PLOT_Y+(unsigned)(PLOT_H/2));
+    unsigned high=fx_pixel(PLOT_X+(unsigned)x+8,PLOT_Y+(unsigned)(PLOT_H/2));
     assert(low!=high);
    }
    fx_guards();fx_checks++;
@@ -361,7 +367,7 @@ if(getenv("RF_RENDER_EXPECT_LAUNCH"))fx_expected_launch=(unsigned)atoi(getenv("R
  if(getenv("RF_RENDER_NEURAL"))fx_seed_neural();
  unsigned invocations=getenv("RF_RENDER_REENTRY")?2u:1u;for(unsigned invocation=0;invocation<invocations;invocation++){fx_app_api_phase=false;fx_done=false;fx_polls=fx_captures=fx_lineno=0;fx_line[0]=0;rewind(fx_commands);
  assert(app_module_init()==0);fx_corners();fx_app_api_phase=true;
- if(setjmp(fx_retained_jump)==0){app_main();assert(fx_done);fx_returned=true;app_module_fini();assert(!fx_grants&&!fx_frames&&!fx_subs&&!fx_radio_retained);}
+ if(setjmp(fx_retained_jump)==0){app_main();if(!fx_done)fprintf(stderr,"early return line=%u checks=%u polls=%u\n",fx_lineno,fx_checks,fx_polls);assert(fx_done);fx_returned=true;app_module_fini();assert(!fx_grants&&!fx_frames&&!fx_subs&&!fx_radio_retained);}
  else {assert(fx_storage_retained&&fx_grants&&!running&&!owned&&fx_retained_yields==6);fprintf(stderr,"RF retained storage: no normal peripheral calls after uncertain cleanup\n");}
  fx_guards();assert(fx_checks);if(fx_storage_retained)break;}assert(fx_launches==fx_expected_launch);if(getenv("RF_RENDER_RELEASE_RETRY"))assert(fx_release_failures==1);if(fx_serial)rf_serial_finish(fx_returned,getenv("RF_RENDER_NO_DIAGNOSTIC")==NULL);
 #ifdef RF_RENDER_WATCH_TOUCH

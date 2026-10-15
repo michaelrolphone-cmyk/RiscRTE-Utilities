@@ -54,3 +54,30 @@ Qualification status at the first native checkpoint:
 
 Room/event labels still overlap plot data in this checkpoint. Their relocation
 is intentionally a distinct second source commit and visual regression gate.
+
+## Separate status-layout checkpoint
+
+Native Spectrum and Waterfall now reserve a36px status strip between the complete
+plot/axis rectangle and the fixed bottom actions. Unknown, shared-known and
+legacy-known room/event readouts use this strip. Paper output keeps its previous
+positions. Native plot height is `capability_height - 110`; width is
+`capability_width - 12`.
+
+Final native gate:14 normal/sanitized runs,41 checks each (574 checks). Both views
+compare every plot/axis byte while switching unknown/shared-known/legacy-known
+status; all56 plot-hash equality checks pass while all56 status hashes change.
+This also covers physical plot-edge/cursor-pill input while a submitted frame is
+pending, all control rows, shared editor Back and receiver/footer reachability.
+The rendered240x240 and410x502 contact sheet was inspected separately.
+
+Final target recipe rebuilds (exact prior flags plus native selector):
+- Wave:252240 bytes (+592), BSS1202504, SHA256
+  `a3f9e4f2ba63b5b035da6696a33c9b5bd3e3ecafd3dc86fc97ec096a0e21189a`
+- T-Watch:243016 bytes (+4104), BSS1201040, SHA256
+  `62c25516e32c7c5e3ff878dd90b52df6a2987fd97cdbfe27ce55390f8c7df86e`
+
+The full generic controller sweep passes102/108 scene runs plus2 real Runtime
+storage runs. Neural completion, sleep-stop and legacy keyboard-cancel each fail
+identically on candidate and exact predecessor, normal/sanitized. Do not describe
+that legacy sweep as clean. Final exact product-profile shared-input qualification
+and its paired inherited failures are recorded in the subsequent report.
