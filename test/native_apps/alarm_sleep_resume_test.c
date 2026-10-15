@@ -63,7 +63,12 @@ static void restart(void) {
     assert(client->api_version==2&&client->struct_size==sizeof(alarm_service_descriptor_v2));
     sleep_api=alarm_service_descriptor(client);
 #else
-    assert(client->api_version==1&&client->struct_size==ALARM_SERVICE_SLEEP_V1_SIZE);
+    assert(client->api_version==1);
+#ifdef ALARM_CLOCK_CHANGE_CONTROL
+    assert(client->struct_size==sizeof(alarm_clock_change_v1));
+#else
+    assert(client->struct_size==ALARM_SERVICE_SLEEP_V1_SIZE);
+#endif
     sleep_api=(const alarm_service_sleep_v1 *)client;
 #endif
     assert(sleep_api->resume_sleep);

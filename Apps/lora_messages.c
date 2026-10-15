@@ -9,7 +9,14 @@
 #include "PortableTimeFormat.h"
 #include "PortableRadioPolicy.h"
 #include "PortableNovaUi.h"
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+#ifndef PORTABLE_TEXT_INPUT_CLIENT
+#error Shared LoRa input requires the app-local text presenter handoff
+#endif
+#include "PortableTextInputLongClient.h"
+#else
 #include "PortableWatchKeyboard.h"
+#endif
 #include "lora_messages_model.h"
 #ifdef PORTABLE_ALARM_CLIENT
 #include "PortableAppSleep.h"
@@ -23,7 +30,14 @@ static bool acquired[4];
 static const risc_key_value_v1 *store,*preferences;
 static const twatch_rtc_api_v1 *rtc;
 static lm_model model;
-static unsigned picker_mask,picker_return_page,page,rf_page,rf_fields,key_page,key_choice,edit_field,history_page,detail_offset,compose_offset,time_format;
+static unsigned picker_mask,picker_return_page,page,rf_page,rf_fields,edit_field,history_page,detail_offset,compose_offset,time_format;
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+static portable_text_client text_client;
+static risc_text_entry_state_v1_long text_state;
+static bool text_active,text_closing,text_home;
+#else
+static unsigned key_page,key_choice;
+#endif
 static twatch_lora_config_v2 editing_profile;
 static lm_message detail;
 static char draft[LM_TEXT_MAX+1],entry[LM_TEXT_MAX+1];
@@ -41,8 +55,20 @@ static const char *field_help(unsigned field){
  return field==2?"5 to 12":field==3?"5 to 8":"8 to 4096";
 }
 static void retain(void){runtime->diagnostic("LORA cleanup-unconfirmed; invocation retained");for(;;)runtime->yield_ms(50);}
-bool portable_radio_services_safe(void){return !model.uncertain;}
+bool portable_radio_services_safe(void){return !model.uncertain
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+ &&!text_client.retained
+#endif
+ ;}
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+bool portable_app_before_launch(const char *destination){
+ (void)destination;return !model.uncertain&&!text_active&&!text_client.active&&!text_client.acquired&&!text_client.suspended&&!text_client.retained;
+}
+#endif
 bool portable_radio_suspend(void){
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+ if(text_client.retained)return false;
+#endif
  bool active=model.owned;
  if(!lm_stop(&model))return false;
  if(active){notice="Stopped; start again manually";dirty=true;}
@@ -139,6 +165,7 @@ static void header(const char *title){
  portable_nova_begin();portable_nova_text(1,10,12,38,"BACK",NOVA_CYAN);portable_nova_text(NOVA_FACE_ORBITRON_10,52,15,184,title,NOVA_WHITE);portable_nova_rule(12,38,216);
 }
 static int64_t field_value(unsigned i){switch(i){case 0:return editing_profile.frequency_hz;case 1:return editing_profile.bandwidth_hz;case 2:return editing_profile.sf;case 3:return editing_profile.coding_rate;case 4:return editing_profile.power_dbm;default:return editing_profile.preamble;}}
+#ifndef PORTABLE_LORA_SHARED_TEXT_INPUT
 static void draw_keyboard(void){
  header(edit_field<6?field_names[edit_field]:"COMPOSE MESSAGE");size_t n=strlen(entry);const char *tail=n>26?entry+n-26:entry;text(47,tail,NOVA_WHITE);
  for(unsigned k=0;k<PWK_COUNT;k++){
@@ -149,7 +176,20 @@ static void draw_keyboard(void){
  }
  char counter[64];snprintf(counter,sizeof(counter),"%u / %u    %s",(unsigned)n,edit_field<6?11:LM_TEXT_MAX,edit_field<6?"Exact value":"ASCII / raw broadcast");text(214,notice?notice:counter,NOVA_CAP);
 }
+#else
+/* A rejected RF value stays reviewable after the host has closed. The draft
+ * is preserved until explicit Edit or Back; it never writes a radio profile. */
+static void draw_keyboard(void){
+ header(edit_field<6?field_names[edit_field]:"COMPOSE MESSAGE");
+ portable_nova_wrap(1,12,52,216,20,3,entry,NOVA_WHITE);
+ portable_nova_wrap(1,12,122,216,20,3,notice?notice:"Text input unavailable. Retry.",NOVA_CAP);
+ portable_nova_button(12,188,216,44,"EDIT",false);
+}
+#endif
 static void draw(void){
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+ if(text_active||text_client.retained)return;
+#endif
  if(!utility_frame_begin(app))return;
  char line[80],clock[32];
  if(page==PAGE_KEYBOARD){draw_keyboard();app->present(false);dirty=false;return;}
@@ -194,11 +234,27 @@ static void draw(void){
  }
  app->present(false);dirty=false;
 }
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+static bool text_begin(void){
+ if(text_active||text_client.retained)return false;
+ text_state=(risc_text_entry_state_v1_long){.struct_size=sizeof(text_state)};
+ text_closing=false;
+ int rc=portable_text_client_begin_long(&text_client,runtime,edit_field<6?field_names[edit_field]:"COMPOSE MESSAGE",entry,edit_field<6?12:sizeof(entry));
+ if(rc!=RISC_TEXT_ENTRY_OK){if(!text_client.retained)notify("Text input unavailable. Retry.");return false;}
+ text_active=true;page=PAGE_KEYBOARD;return true;
+}
+#endif
 static void edit(unsigned field){
  edit_field=field;entry[0]=0;
  if(field<6){if(rf_fields&(1u<<field))snprintf(entry,sizeof(entry),"%lld",(long long)field_value(field));}
  else memcpy(entry,draft,sizeof(draft));
- notice=NULL;key_page=field<6?0:PWK_INITIAL_PAGE;key_choice=0;page=PAGE_KEYBOARD;dirty=true;
+ notice=NULL;
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+ (void)text_begin();
+#else
+ key_page=field<6?0:PWK_INITIAL_PAGE;key_choice=0;page=PAGE_KEYBOARD;
+#endif
+ dirty=true;
 }
 static bool apply_field(void){
  int64_t n;if(!lm_number(entry,edit_field==4,&n))return false;
@@ -213,6 +269,7 @@ static bool apply_field(void){
  }
  rf_fields|=1u<<edit_field;return true;
 }
+#ifndef PORTABLE_LORA_SHARED_TEXT_INPUT
 static void key(unsigned k){
  size_t n=strlen(entry);unsigned limit=edit_field<6?11:LM_TEXT_MAX;
  if(k<PWK_CHARACTERS){unsigned ch=portable_watch_key_character(key_page,k);if(ch && n<limit){entry[n]=(char)ch;entry[n+1]=0;}}
@@ -225,6 +282,35 @@ static void key(unsigned k){
  }
  dirty=true;
 }
+#else
+static void text_step(void){
+ if(!text_active||text_client.retained)return;
+ if(!text_closing){
+  int rc=portable_text_client_poll_long(&text_client,&text_state);
+  if(rc==RISC_TEXT_ENTRY_AGAIN)return;
+  if(rc==RISC_TEXT_ENTRY_RETAINED||text_client.retained)return;
+  if(rc!=RISC_TEXT_ENTRY_OK){text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify("Text input unavailable. Retry.");}
+  else if(text_state.state==RISC_TEXT_ENTRY_EDITING)return;
+  text_closing=true;
+ }
+ int rc=portable_text_client_close(&text_client);
+ if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+ text_active=text_closing=false;dirty=true;
+ text_home=(text_state.flags&RISC_TEXT_ENTRY_HOME_CANCEL)!=0;
+ if(text_state.state==RISC_TEXT_ENTRY_ACCEPTED){
+  unsigned n=0;while(n<sizeof(text_state.text)&&text_state.text[n]){
+   unsigned char ch=(unsigned char)text_state.text[n];if(ch<32||ch>126)break;n++;
+  }
+  if(n>=(edit_field<6?12u:(unsigned)sizeof(entry))||text_state.text[n])notify("Printable ASCII only. Edit again.");
+  else{
+   memset(entry,0,sizeof(entry));memcpy(entry,text_state.text,n);
+   if(edit_field<6){if(apply_field()){page=PAGE_RF;notice=NULL;}else notify(field_help(edit_field));}
+   else{memcpy(draft,entry,sizeof(draft));compose_offset=0;page=PAGE_COMPOSE;notice=NULL;}
+  }
+ }else{page=edit_field<6?PAGE_RF:PAGE_COMPOSE;notice=NULL;}
+ memset(&text_state,0,sizeof(text_state));
+}
+#endif
 static void apply_profile(void){
  if(rf_fields!=63 || !lm_profile_matches(&editing_profile,model.choice)){notify("Set six valid matching RF values");page=PAGE_RF_ERROR;return;}
  if(!portable_radio_suspend())retain();
@@ -252,7 +338,12 @@ static bool back(void){
 #endif
   return false;
  }
- if(page==PAGE_KEYBOARD){page=edit_field<6?PAGE_RF:PAGE_COMPOSE;return true;}
+ if(page==PAGE_KEYBOARD){
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+  if(text_active){text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;text_step();return true;}
+#endif
+  page=edit_field<6?PAGE_RF:PAGE_COMPOSE;return true;
+ }
  if(page==PAGE_RADIO){page=picker_return_page;notice=NULL;return true;}
  if(page==PAGE_MESSAGE){page=PAGE_HISTORY;return true;}
  if(page==PAGE_RF_ERROR){page=PAGE_RF;notice=NULL;return true;}
@@ -261,16 +352,20 @@ static bool back(void){
 static bool input(t5_app_input_t *in){
  if(in->exit_requested)return false;
  if(in->buttons&T5_APP_BUTTON_BACK)return back();
- int x=in->touch_x-(app->screen_width()-240)/2,y=in->touch_y-(app->screen_height()-240)/2;
+ int x=utility_color_x(app,in->touch_x),y=utility_color_y(app,in->touch_y);
  if(in->tapped && hit(x,y,0,0,48,40))return back();
  if(page==PAGE_RF && in->tapped && hit(x,y,176,0,64,40)){open_picker();return true;}
  if(page==PAGE_RADIO){if(in->tapped && hit(x,y,12,40,216,176))choose_radio(1+(unsigned)(y-40)/44);return true;}
  if(page==PAGE_KEYBOARD){
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+  if(!text_active&&((in->buttons&T5_APP_BUTTON_CONFIRM)||(in->tapped&&hit(x,y,12,188,216,44))))(void)text_begin();
+#else
   if(in->buttons&T5_APP_BUTTON_LEFT)key_choice=(key_choice+PWK_COUNT-1)%PWK_COUNT;
   if(in->buttons&T5_APP_BUTTON_RIGHT)key_choice=(key_choice+1)%PWK_COUNT;
   if(in->buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_RIGHT))dirty=true;
   int k=in->tapped?portable_watch_key_hit(x,y):-1;
   if(k>=0)key((unsigned)k);else if(in->buttons&T5_APP_BUTTON_CONFIRM)key(key_choice);
+#endif
   return true;
  }
  if(!in->tapped){if(page==PAGE_COMPOSE && (in->buttons&T5_APP_BUTTON_CONFIRM))send_message();return true;}
@@ -314,8 +409,27 @@ void app_main(void){
     !runtime || runtime->api_version!=1 || runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE || !runtime->acquire || !runtime->release || !runtime->diagnostic || !runtime->yield_ms)return;
  if(app->screen_width()<240 || app->screen_height()<240)return;
  memset(&model,0,sizeof(model));memset(grants,0,sizeof(grants));memset(acquired,0,sizeof(acquired));memset(draft,0,sizeof(draft));store=preferences=NULL;rtc=NULL;notice=NULL;profile_save_state=0;page=PAGE_HOME;dirty=true;
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+ text_client=(portable_text_client){0};text_state=(risc_text_entry_state_v1_long){0};text_active=text_closing=text_home=false;
+#endif
  app->set_back_exits_app(false);load_preferences();
  for(;;){
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+  if(text_client.retained)return;
+  if(text_home)break;
+  if(text_active){
+   text_step();if(text_client.retained)return;
+   if(text_home)break;
+   /* Keep the existing foreground radio operation progressing while the
+    * shared presenter owns input. No app raster or app input runs here. */
+   if(text_active&&!text_closing){unsigned before=model.state,next=model.next;bool changed=lm_step(&model,app->millis());
+    if(model.uncertain)retain();
+    if(next!=model.next)stamp(&model.history[model.active]);
+    if(changed||before!=model.state)dirty=true;}
+   if(text_active)runtime->yield_ms(10);
+   continue;
+  }
+#endif
   if(dirty)draw();
   t5_app_input_t in={0};
   if(!app->poll(&in,30)){
@@ -325,6 +439,9 @@ void app_main(void){
    break;
   }
   if(!input(&in))break;
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+  if(text_client.retained)return;
+#endif
   unsigned state=model.state,next=model.next;bool changed=lm_step(&model,app->millis());
   if(model.uncertain)retain();
   if(next!=model.next)stamp(&model.history[model.active]);
@@ -333,4 +450,7 @@ void app_main(void){
  if(!portable_radio_suspend())retain();
  for(unsigned i=4;i>0;i--)release_grant(i-1);
  model.radio=NULL;store=preferences=NULL;rtc=NULL;
+#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
+ app->set_back_exits_app(true);
+#endif
 }

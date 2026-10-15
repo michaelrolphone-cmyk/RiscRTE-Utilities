@@ -222,6 +222,11 @@ static bool alarm_back(void) {
 }
 static bool alarm_tap(int x,int y) {
 #ifdef PORTABLE_PAPER_UTILITIES
+    if(!utility_paper)
+#endif
+    {x=utility_color_x(app,x);y=utility_color_y(app,y);}
+
+#ifdef PORTABLE_PAPER_UTILITIES
     if(utility_paper) {
 #if DAILY_ALARM_KIND == 2
         return countdown_paper_tap(x,y);

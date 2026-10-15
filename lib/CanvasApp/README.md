@@ -1,6 +1,6 @@
 # Capability canvas apps
 
-Model Viewer 1.3.0 and Hollow Trail 1.2.1 migrate the actual T5S3-Reader
+Model Viewer 1.3.0 and Hollow Trail 1.2.2 migrate the actual T5S3-Reader
 1.2.8/1.1.49 sources. `migration-source.json` records original hashes and the
 Reader commit. All ten chapters, the journal and ending remain in Hollow Trail.
 The small `CanvasApp` client provides display, input, storage and lifetime
@@ -46,3 +46,6 @@ model loading, game movement/journal and uncertain cleanup under ASan/UBSan.
 Build receipts include the compiler's complete header/fragment closure. Product
 catalogues, exact grants and whole-native-cohort admission are separate required
 integration gates; a standalone app build is not an installable firmware image.
+
+[Hollow Trail launch memory repair](../../docs/HOLLOW_TRAIL_LAUNCH_MEMORY.md)
+records the bounded allocator reproduction and full-raster scratch sharing.

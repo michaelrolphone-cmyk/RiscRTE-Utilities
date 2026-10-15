@@ -10,3 +10,11 @@ bool contexts_test_target(uint32_t action,int value,int*x,int*y){
  }
  return false;
 }
+
+uint64_t contexts_test_session(void){return session;}
+bool contexts_test_header(bool home,int*x,int*y){
+ for(unsigned i=0;i<visible.count;i++)if(visible.items[i].kind==(home?HIT_HOME:HIT_BACK)){
+  const hit*h=&visible.items[i];*x=h->x+h->w/2;*y=h->y+h->h/2;return true;
+ }
+ return false;
+}

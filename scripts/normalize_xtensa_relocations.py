@@ -1,9 +1,9 @@
-"""Remove only trailing all-zero R_XTENSA_NONE linker padding.
+"""Remove only all-zero R_XTENSA_NONE linker padding.
 
 GCC8.4/binutils2.35 reserves two unused dynamic relocations for some libgcc
-helpers. The runtime accepts actionable relocations only. Do not alter any
-relocation, address, symbol, instruction, or file offset; shrink its table and
-matching DT_RELASZ. The ordinary runtime validator must still run afterwards.
+helpers, sometimes before their final actionable entries. The runtime accepts
+actionable relocations only. Preserve their bytes and order, every address,
+symbol, instruction and section offset; shrink the table and matching DT_RELASZ. The ordinary runtime validator must still run afterwards.
 """
 import struct
 from pathlib import Path
@@ -24,8 +24,9 @@ def normalize(path):
         if section[1] != 4 or not section[5] or section[5] % 12:
             continue
         size = section[5]
-        while size and data[section[4]+size-12:section[4]+size] == bytes(12):
-            size -= 12
+        records = [bytes(data[p:p+12]) for p in range(section[4], section[4]+size, 12)]
+        kept = b''.join(record for record in records if record != bytes(12))
+        size = len(kept)
         if size == section[5]:
             continue
         for dynamic in sections:
@@ -38,6 +39,7 @@ def normalize(path):
             if len(sizes) != 1 or struct.unpack_from('<I', data, sizes[0]+4)[0] != section[5]:
                 raise ValueError('Inconsistent DT_RELASZ')
             struct.pack_into('<I', data, sizes[0]+4, size)
+        data[section[4]:section[4]+section[5]] = kept + bytes(section[5]-size)
         struct.pack_into('<I', data, header[6]+index*40+20, size)
         removed += (section[5]-size)//12
     if removed:

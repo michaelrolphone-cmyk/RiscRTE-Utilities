@@ -1,0 +1,40 @@
+System pin closure: five unchanged profiles, explicit Battery result hook, exact two-file System delta PASS
+Native ELF structural validation tests passed
+Native ELF structural validation tests passed
+Native ELF structural validation tests passed
+battery: target atomic and default/base byte identity PASS
+Native ELF structural validation tests passed
+Native ELF structural validation tests passed
+Native ELF structural validation tests passed
+ble_scanner: target atomic and default/base byte identity PASS
+Native ELF structural validation tests passed
+Native ELF structural validation tests passed
+Native ELF structural validation tests passed
+contexts: target atomic and default/base byte identity PASS
+Battery paper broadcast case=0 peak-live=7 publish=1 close=1 retained=0 PASS
+Battery paper broadcast case=1 peak-live=7 publish=0 close=0 retained=0 PASS
+Battery paper broadcast case=2 peak-live=7 publish=0 close=0 retained=0 PASS
+Battery paper broadcast case=3 peak-live=7 publish=1 close=1 retained=0 PASS
+Battery paper broadcast case=4 peak-live=7 publish=1 close=1 retained=1 PASS
+Battery paper broadcast case=5 peak-live=0 publish=0 close=0 retained=1 PASS
+Battery paper broadcast case=6 peak-live=1 publish=0 close=0 retained=1 PASS
+Battery paper broadcast case=7 peak-live=1 publish=0 close=0 retained=1 PASS
+Battery paper broadcast case=8 peak-live=7 publish=0 close=0 retained=0 PASS
+Battery paper broadcast case=9 peak-live=7 publish=0 close=0 retained=0 PASS
+Battery paper broadcast case=10 peak-live=7 publish=2 close=2 retained=0 PASS
+Battery paper broadcast case=11 peak-live=7 publish=1 close=1 retained=0 PASS
+Battery paper broadcast case=12 peak-live=7 publish=0 close=0 retained=0 PASS
+Battery paper broadcast case=0 peak-live=7 publish=1 close=1 retained=0 PASS
+Battery paper broadcast case=1 peak-live=7 publish=0 close=0 retained=0 PASS
+Battery paper broadcast case=2 peak-live=7 publish=0 close=0 retained=0 PASS
+Battery paper broadcast case=3 peak-live=7 publish=1 close=1 retained=0 PASS
+Battery paper broadcast case=4 peak-live=7 publish=1 close=1 retained=1 PASS
+Battery paper broadcast case=5 peak-live=0 publish=0 close=0 retained=1 PASS
+Battery paper broadcast case=6 peak-live=1 publish=0 close=0 retained=1 PASS
+Battery paper broadcast case=7 peak-live=1 publish=0 close=0 retained=1 PASS
+Battery paper broadcast case=8 peak-live=7 publish=0 close=0 retained=0 PASS
+Battery paper broadcast case=9 peak-live=7 publish=0 close=0 retained=0 PASS
+Battery paper broadcast case=10 peak-live=7 publish=2 close=2 retained=0 PASS
+Battery paper broadcast case=11 peak-live=7 publish=1 close=1 retained=0 PASS
+Battery paper broadcast case=12 peak-live=7 publish=0 close=0 retained=0 PASS
+Native ELF structural validation tests passed

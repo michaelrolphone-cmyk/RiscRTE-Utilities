@@ -1,0 +1,11 @@
+{
+  "profile": "wave-startup-busy",
+  "enabled_define": "ALARM_STARTUP_BUSY_RETRY",
+  "target_raw_sha256": "b362902e0e3c5729862b54a006a574b6c0d49ffa7b091b9f4bb8b9d422dba3fd",
+  "target_compact_sha256": "21a50ad448014e2c365b39b84131fa1ced626b93cd38a80ea462f8a838dac9e1",
+  "target_state_symbol_verified": "startup_storage_busy",
+  "relocation_site_checks": 2528,
+  "load_alignments": 8,
+  "hardware_executed": false,
+  "host_same_profile_behavior": "nine startup phases; baseline fails on BUSY; fixed defers; IO blocks; Retry recovers; ASan/UBSan pass"
+}

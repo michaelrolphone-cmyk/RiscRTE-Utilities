@@ -1,0 +1,80 @@
+name: Contexts shared input
+on:
+  push:
+    branches: [work/contexts-shared-input-20261012, work/contexts-input-lifecycle-20261012]
+  pull_request:
+    paths:
+      - 'Apps/contexts*'
+      - 'test/contexts/**'
+      - 'scripts/test_contexts_shared_input.py'
+      - 'scripts/build_contexts_scene.py'
+      - 'tests/test_contexts_shared_build.py'
+      - '.github/workflows/contexts-shared-input.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  host-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Utilities
+          ref: 4beb9778d300ec9f6b18448e1ec86317e063c98c
+          path: .dependencies/baseline
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 64c8e52e46fd91e8fdafd636db04eed88f0c51a9
+          path: .dependencies/watch-runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70
+          path: .dependencies/x4-runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Drivers
+          ref: aac1cb342696e96345d4546e2c69023834c6c8d4
+          path: .dependencies/drivers
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Image evidence dependency
+        run: python -m pip install Pillow==12.3.0
+      - name: Exact predecessor parity and shared input, normal and ASan/UBSan
+        run: >-
+          python scripts/test_contexts_shared_input.py
+          --runtime .dependencies/watch-runtime
+          --x4-runtime .dependencies/x4-runtime
+          --system-apps .dependencies/system
+          --baseline-utilities .dependencies/baseline
+          --output build/contexts-shared-input --sanitize
+      - name: Manifest, catalog and build flag contracts
+        run: python -m unittest discover -s tests -v
+      - name: Unchanged capture and learning pipeline regressions
+        run: |
+          python scripts/check_contexts_contract.py --system-apps .dependencies/system
+          python scripts/test_context_fingerprints.py --drivers .dependencies/drivers --runtime .dependencies/watch-runtime
+          python scripts/test_contexts_service.py --drivers .dependencies/drivers --runtime .dependencies/watch-runtime --system-apps .dependencies/system
+          python scripts/test_contexts_rf_retained.py --system-apps .dependencies/system
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contexts-shared-input-evidence
+          path: build/contexts-shared-input/
+          if-no-files-found: error

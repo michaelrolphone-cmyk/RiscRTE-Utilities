@@ -8,7 +8,7 @@ typedef struct {char title[34],detail[64];unsigned action;bool on;} cu_row;
 static cr_store cu_store,cu_saved;
 static cu_row cu_rows[64];
 static unsigned cu_count,cu_page,cu_offset,cu_item,cu_rule,cu_kind,cu_name_reason,cu_key_page,cu_return;
-static bool cu_loaded,cu_edit,cu_pending,cu_learning_saved,cu_contact,cu_moved,cu_add_sample;
+static bool cu_loaded,cu_edit,cu_pending,cu_learning_saved,cu_contact,cu_moved,cu_add_sample,cu_autosave;
 
 static char cu_name[33];
 static contexts_learning_v1 cu_learning;
@@ -122,7 +122,7 @@ static void cu_learn_begin(void){
  if(!portable_contexts_training(true)){cu_note("START TRAINING FAILED");return;}
  cu_learning=(contexts_learning_v1){.struct_size=sizeof(cu_learning),.operation=CONTEXTS_LEARN_BEGIN,.kind=cu_kind==CR_EVENT?2:1};memcpy(cu_learning.name,cu_name,17);
  if(!cu_call(CONTEXTS_FP_LEARN,&cu_learning)){(void)portable_contexts_training(false);cu_note("INPUT UNAVAILABLE / CHECK SOURCES");return;}
- cu_learning_saved=false;cu_page_set(CU_LEARN);cu_note(cu_kind==CR_EVENT?"PERFORM 3 TAKES WITH QUIET BETWEEN":"CAPTURE RUNS FOR 30 SECONDS");
+ cu_learning_saved=false;cu_autosave=true;cu_page_set(CU_LEARN);cu_note("");
 }
 static void cu_back(void){
  if(cu_page==CU_NAME){cu_page_set(cu_return);return;}
@@ -193,11 +193,12 @@ static void cu_action(unsigned action){
  case CU_ROW_MESSAGE:cu_name_open(4,"");break;
  case CU_ROW_BATTERY:case CU_ROW_TIME:case CU_ROW_CHARGER:
   memset(t,0,sizeof(*t));t->kind=action==CU_ROW_BATTERY?CR_BATTERY:action==CU_ROW_TIME?CR_TIME:CR_CHARGER;t->arg0=t->kind==CR_BATTERY?20:22;t->arg1=7;snprintf(t->name,sizeof(t->name),"%s",t->kind==CR_BATTERY?"Low battery":t->kind==CR_TIME?"Night time":"On charger");cu_edit=true;cu_page_set(CU_TRIGGER);break;
- case CU_ROW_START:if(cu_page==CU_INTRO)cu_learn_begin();else cu_page_set(CU_TRIGGER);break;
+ case CU_ROW_START:if(cu_page==CU_INTRO||cu_page==CU_LEARN)cu_learn_begin();else cu_page_set(CU_TRIGGER);break;
  case CU_ROW_ARG0:t->arg0=t->kind==CR_BATTERY?(t->arg0>=50?5:t->arg0+5):(t->arg0+1)%24;cu_edit=true;ctx_dirty=true;break;
  case CU_ROW_ARG1:t->arg1=(t->arg1+1)%24;cu_edit=true;ctx_dirty=true;break;
  case CU_ROW_SAVE:
   if(cu_page==CU_LEARN){
+   cu_autosave=false;
    if(!cu_learning_saved){cu_learning.operation=CONTEXTS_LEARN_SAVE;if(!cu_call(CONTEXTS_FP_LEARN,&cu_learning)){cu_note("MORE EVIDENCE NEEDED");break;}cu_learning_saved=true;}
    if(!portable_contexts_models_save()||!portable_contexts_training(false)){cu_note("MODEL SAVE FAILED / RETRY");break;}
    t->kind=(uint8_t)cu_kind;memcpy(t->name,cu_name,17);cu_edit=true;if(cu_save()){cu_sync_profiles();cu_page_set(CU_DONE);cu_note("");}
@@ -220,4 +221,4 @@ static void cu_action(unsigned action){
  }
 }
 
-static bool cu_unsaved(void){return cu_edit||cu_pending||(cu_page==CU_LEARN&&!cu_learning_saved);}
+static bool cu_unsaved(void){return cu_edit||cu_pending||((cu_page==CU_LEARN||(cu_page==CU_CANCEL&&cu_return==CU_LEARN))&&!cu_learning_saved);}

@@ -1,5 +1,5 @@
-/* Read-only NOVA power screens. The PMIC owns charging; this app never changes
- * policy, clears IRQs, writes preferences or keeps the display awake. */
+/* NOVA power screens. The PMIC owns charging. The separate, explicit BLE
+ * broadcast control is the only preference writer in this app. */
 #include "T5AppApi.h"
 #include "utility_frame.h"
 #include "PortableNovaUi.h"
@@ -14,6 +14,27 @@
 #include "PortableBroadcastClient.h"
 static bool power_broadcast,power_broadcast_error,power_broadcast_requested;
 static telemetry_broadcast_status_v1 power_broadcast_state;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "utility_preference_atomic.h"
+static utility_preference_atomic power_preference;
+static bool power_preference_alive(void *unused){(void)unused;return !portable_adapter_retained();}
+static void power_preference_retain(void *unused){(void)unused;portable_adapter_retain();}
+static bool power_broadcast_save(bool enabled){
+ const risc_runtime_api_v1 *rt=risc_runtime_get_api(1);
+ int rc=utility_preference_begin(&power_preference,rt,"ble_broadcast",power_preference_alive,power_preference_retain,NULL);
+ if(rc==PORTABLE_PREFERENCE_READY){
+  if(!portable_broadcast_stop())rc=portable_adapter_retained()?RISC_ATOMIC_RETAINED:RISC_ATOMIC_IO;
+  else {uint8_t b[]={0x62,1,enabled?1:0,(uint8_t)((enabled?1:0)^0xa5u)};rc=utility_preference_submit(&power_preference,b,sizeof(b));}
+ }
+ rc=utility_preference_finish(&power_preference,rc);
+ if(rc==RISC_ATOMIC_RETAINED)return false;
+ /* Preserve the adapter's existing save_failed/paused policy after any
+  * checked terminal failure. The hook performs no key-value write. */
+ return portable_broadcast_preference_result(enabled,rc==RISC_ATOMIC_OK);
+}
+#else
+#define power_broadcast_save portable_broadcast_enable
+#endif
 #endif
 #ifdef PORTABLE_RETURN_APP
 #error Power details require nested Back via BATTERY_RETURN_APP
@@ -304,9 +325,9 @@ void app_main(void) {
        power_app->screen_width()<160 || power_app->screen_height()<240)return;
 #ifdef PORTABLE_PAPER_UTILITIES
     up_open(power_app);
-    if(!utility_paper && (power_app->screen_width()!=240 || power_app->screen_height()!=240))return;
+    if(!utility_paper && !utility_color_dimensions(power_app))return;
 #else
-    if(power_app->screen_width()!=240 || power_app->screen_height()!=240)return;
+    if(!utility_color_dimensions(power_app))return;
 #endif
     power_sample=(risc_battery_sample_v1){0,255,RISC_BATTERY_PROFILE_MISSING};
     power_read_ok=power_details=power_navigation_failed=false;power_detail_page=0;
@@ -322,6 +343,10 @@ void app_main(void) {
         #ifdef PORTABLE_PAPER_UTILITIES
         if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,200,88))input.buttons|=T5_APP_BUTTON_BACK;}
 #endif
+#ifdef PORTABLE_PAPER_UTILITIES
+        if(!utility_paper)
+#endif
+        utility_color_input(power_app,&input);
         if(input.buttons&T5_APP_BUTTON_BACK) {if(power_back())return;continue;}
         bool render=false;
         if((uint32_t)(power_app->millis()-power_sample_at)>=1000)render=power_refresh();
@@ -339,11 +364,18 @@ void app_main(void) {
 #endif
           ))) {
             if(!power_broadcast_error)power_broadcast_requested=!power_broadcast_state.enabled;
-            power_broadcast_error=!portable_broadcast_enable(power_broadcast_requested);
+            power_broadcast_error=!power_broadcast_save(power_broadcast_requested);
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
             if(portable_adapter_retained())return;
 #endif
-            (void)power_refresh();power_render();continue;
+            (void)power_refresh();
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+            /* The advertiser reloads policy on the next adapter tick. Keep the
+             * toggle aligned with this collected receipt in the meantime, so
+             * a second fast tap reverses the first rather than repeating it. */
+            if(!power_broadcast_error)power_broadcast_state.enabled=power_broadcast_requested;
+#endif
+            power_render();continue;
         }
 #endif
         if(input.tapped) {

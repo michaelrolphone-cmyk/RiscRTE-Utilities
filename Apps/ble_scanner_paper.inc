@@ -45,6 +45,74 @@ static void paper_draw(void){
  bp_button(bp_w()/2+8,bp_h()-112,w,detail?"MORE":sensors?"SHOW ALL":"SENSORS",detail?"solid:f054":NULL,false);
  app->present(false);dirty=false;
 }
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "PortablePreferenceRollback.h"
+static portable_preference_rollback radio_compensation;
+static risc_runtime_capability_v1 radio_control_grant;
+static int paper_radio_compensate(void){
+ int rc=portable_preference_rollback_begin(&radio_compensation,&radio_preference.edit,utility_preference_guard,&radio_preference);
+ if(rc==PORTABLE_PREFERENCE_READY)rc=portable_preference_rollback_submit(&radio_compensation);
+ rc=utility_preference_result(&radio_preference,rc);
+ /* The originating edit already committed. Exit cannot discard the inverse
+  * or release its grant; collect it before allowing the invocation to leave. */
+ while(rc==RISC_ATOMIC_PENDING&&radio_compensation.edit.token){
+  rc=portable_preference_atomic_collect(&radio_compensation.edit);
+  rc=utility_preference_result(&radio_preference,rc);
+  if(rc==RISC_ATOMIC_PENDING){runtime->yield_ms(5);if(!utility_preference_guard(&radio_preference))rc=utility_preference_result(&radio_preference,RISC_ATOMIC_RETAINED);}
+ }
+ return rc;
+}
+static void paper_enable(void){
+ if(active()||uncertain)return;
+ radio_control_grant=(risc_runtime_capability_v1){.struct_size=sizeof(radio_control_grant)};uint8_t flags=PORTABLE_RADIO_WIFI,prior=0,state=0;
+ message="Bluetooth enable failed";
+ int rc=utility_preference_begin(&radio_preference,runtime,"quick_radio",ble_preference_alive,ble_preference_retain,NULL);
+ if(rc!=PORTABLE_PREFERENCE_READY)goto done;
+ if(radio_preference.edit.present&&!portable_radio_decode(radio_preference.edit.expected,radio_preference.edit.expected_size,&flags)){message="Radio settings unreadable";goto done;}
+ if(flags&PORTABLE_RADIO_AIRPLANE){message="Turn off Airplane mode first";goto done;}
+ bool acquired=runtime->acquire("bluetooth.hci",1,16,&radio_control_grant);
+ if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}
+ if(!acquired){if(radio_control_grant.api||radio_control_grant.slot||radio_control_grant.generation)rc=RISC_ATOMIC_RETAINED;else message="Bluetooth unavailable";goto done;}
+ if(radio_control_grant.struct_size!=sizeof(radio_control_grant)||!radio_control_grant.api||!radio_control_grant.slot||!radio_control_grant.generation){rc=RISC_ATOMIC_RETAINED;goto done;}
+ const portable_bluetooth_control_v1 *c=radio_control_grant.api;
+ if(c->api_version!=1||c->struct_size<sizeof(*c)||!c->set_enabled||!c->status){message="Bluetooth controls unavailable";goto done;}
+ bool status_ok=c->status(c->context,&prior);
+ if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}
+ if(!status_ok||prior>PORTABLE_BLUETOOTH_ON){message="Bluetooth busy - retry";goto done;}
+ uint8_t wanted=(uint8_t)(flags|PORTABLE_RADIO_BLUETOOTH),bytes[]={0x51,1,wanted,(uint8_t)(wanted^0xa5u)};
+ rc=utility_preference_submit(&radio_preference,bytes,sizeof(bytes));
+ if(rc==RISC_ATOMIC_UNCERTAIN){rc=RISC_ATOMIC_RETAINED;goto done;}
+ if(rc!=RISC_ATOMIC_OK)goto done;
+ bool enabled_ok=false;
+ bool exit_requested=risc_runtime_exit_requested_v1(runtime);
+ if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}
+ if(!exit_requested){
+  enabled_ok=c->set_enabled(c->context,true);
+  if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}
+  if(enabled_ok){enabled_ok=c->status(c->context,&state)&&state==PORTABLE_BLUETOOTH_ON;if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}}
+ }
+ if(!enabled_ok){
+  rc=paper_radio_compensate();
+  /* Any newer preference revision blocks compensation, including physical
+   * restoration. Keep custody instead of guessing another writer's policy. */
+  if(rc!=RISC_ATOMIC_OK){rc=RISC_ATOMIC_RETAINED;goto done;}
+  risc_key_value_atomic_state_v1 current={.struct_size=sizeof(current)};
+  rc=radio_preference.edit.api->state(radio_preference.edit.api->context,&current);
+  if(!utility_preference_guard(&radio_preference)||rc||current.revision!=radio_compensation.edit.receipt.revision){rc=RISC_ATOMIC_RETAINED;goto done;}
+  bool restored=c->set_enabled(c->context,prior==PORTABLE_BLUETOOTH_ON);
+  if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}
+  if(restored){restored=c->status(c->context,&state)&&state==prior;if(!utility_preference_guard(&radio_preference)){rc=RISC_ATOMIC_RETAINED;goto done;}}
+  if(!restored){rc=RISC_ATOMIC_RETAINED;goto done;}
+  rc=RISC_ATOMIC_IO;
+ }else {paper_enable_needed=false;message="Bluetooth enabled. Tap Scan.";}
+ done:
+ if(rc==RISC_ATOMIC_RETAINED){(void)utility_preference_result(&radio_preference,rc);return;}
+ if(radio_control_grant.api){risc_runtime_capability_v1 released=radio_control_grant;bool closed=runtime->release(&released);
+  if(!utility_preference_guard(&radio_preference)||!closed||released.struct_size!=sizeof(released)||released.api||released.slot||released.generation){(void)utility_preference_result(&radio_preference,RISC_ATOMIC_RETAINED);return;}}
+ radio_control_grant=(risc_runtime_capability_v1){0};
+ (void)utility_preference_finish(&radio_preference,rc);dirty=true;
+}
+#else
 static void paper_enable(void){
  if(active()||uncertain)return;
  risc_runtime_capability_v1 kg={.struct_size=sizeof(kg)},hg={.struct_size=sizeof(hg)};uint8_t flags=0,prior=0,state=0;
@@ -68,6 +136,7 @@ static void paper_enable(void){
  if(kg.api&&!runtime->release(&kg)){uncertain=true;retain();}
  dirty=true;
 }
+#endif
 static void bp_more(void){if(detail){unsigned lines=detail_count();detail_scroll=detail_scroll+11<lines?detail_scroll+11:0;dirty=true;}else{sensors=!sensors;scroll=selected=0;dirty=true;}}
 static bool paper_input(const t5_app_input_t*i){
  normalize_results();

@@ -11,6 +11,7 @@ from normalize_xtensa_relocations import normalize
 U=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
 for name in ('system','runtime','display-sdk','alarm-sdk','baseline','output','watch'):p.add_argument('--'+name,type=Path,required=True)
+p.add_argument('--only-waterfall',action='store_true',help='Build RF without changing the separately delivered Contexts client')
 a=p.parse_args();S=a.system.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);inc=out/'sdk/include';inc.mkdir(parents=True,exist_ok=True)
 for d in (S/'lib/PortableApps/include',a.runtime/'sdk/app',a.display_sdk,a.alarm_sdk,U/'lib/Contexts/include'):
  for f in d.glob('*.h'):shutil.copyfile(f,inc/f.name)
@@ -32,7 +33,7 @@ cc=os.environ['NATIVE_APP_CC'];compiler=subprocess.check_output([cc,'--version']
 validator=out/'validate-elf';subprocess.run(['cc','-std=c11','-I'+str(U/'test/native_apps/stubs'),'-I'+str(U/'lib/elf_loader/include'),U/'lib/elf_loader/src/esp_elf_validate.c',U/'test/native_apps/validate_test.c','-o',validator],check=True)
 base=['PORTABLE_NOVA_UI','PORTABLE_ALARM_CLIENT','ALARM_SERVICE_TAGGED_V2','PORTABLE_NATIVE_CUSTODY_FENCE','PORTABLE_NATIVE_TIME_TOOLBAR','PORTABLE_INPUT_NAVIGATION','PORTABLE_APP_OWNS_TOUCH_CHROME','PORTABLE_APP_LAUNCH_GUARD','PORTABLE_PAPER_PREFERENCES','PORTABLE_CONTEXTS_CLIENT','PORTABLE_UNPADDED_HOURS','PORTABLE_BLE_BROADCAST','PORTABLE_BLE_BROADCAST_DEFAULT_OFF']
 records={};(out/'debug').mkdir(exist_ok=True)
-for name in ('contexts','waterfall'):
+for name in (('waterfall',) if a.only_waterfall else ('contexts','waterfall')):
  if name=='contexts':
   from build_contexts_scene import run as build_scene
   selected=out/'scene-catalog.json';selected.write_text(json.dumps({'apps':rows}))
@@ -57,8 +58,17 @@ for name in ('contexts','waterfall'):
   for tok in text.split()[1:]:
    f=Path(tok).resolve()
    if f.is_file():deps[str(f)]=hashlib.sha256(f.read_bytes()).hexdigest()
- records[name]={'compiler':compiler,'command':cmd,'dependencies':deps,'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'bytes':target.stat().st_size,'imports':sorted(imports),'exports':sorted(actual),'compaction':proof,'hardware_verified':False}
- old=json.loads((a.baseline/(name+'.json')).read_text());old['version']='0.3.2'
+ stack=out/'stack';stack.mkdir(exist_ok=True)
+ stack_command=[cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-fstack-usage',*flags,*['-I'+str(x) for x in includes],'-c',str(U/'Apps/waterfall.c'),'-o',str(stack/'waterfall.o')]
+ subprocess.run(stack_command,check=True)
+ stack_rows={}
+ for line in (stack/'waterfall.su').read_text().splitlines():
+  label,size,kind=line.split('\t');stack_rows[label.rsplit(':',1)[-1]]={'bytes':int(size),'kind':kind}
+ for function,limit in {'app_main':1024,'rf_data_begin':256,'rf_data_stat':256,'rf_data_read':256,'rf_data_replace':256}.items():
+  matches=[v for k,v in stack_rows.items() if k==function or k.startswith(function+'$') or k.startswith(function+'.')]
+  assert matches and max(v['bytes'] for v in matches)<=limit,(function,matches,limit)
+ records[name]={'target_stack_frames':stack_rows,'stack_command':stack_command,'version':json.loads((U/'Apps/waterfall.json').read_text())['version'],'compiler':compiler,'command':cmd,'dependencies':deps,'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'bytes':target.stat().st_size,'imports':sorted(imports),'exports':sorted(actual),'compaction':proof,'hardware_verified':False}
+ old=json.loads((a.baseline/(name+'.json')).read_text());old['version']=json.loads((U/'Apps'/(name+'.json')).read_text())['version']
  for capability in ('contexts.service','storage.shared-data','telemetry.broadcast'):
   requirement={'capability':capability,'api':1}
   if requirement not in old['requires']:old['requires'].append(requirement)

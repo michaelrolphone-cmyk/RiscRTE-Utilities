@@ -59,7 +59,9 @@ static inline int32_t points_catalog_ledger_write(points_catalog_ledger_storage 
     s->pending=b;s->pending_size=n;s->uncertain=true;
     int32_t r=api->replace(api->context,POINTS_LEDGER_FILE,s->missing?0:s->file_revision,b,n);
     points_catalog_ledger_storage_result(s,r);
-    if(r==RISC_APP_DATA_INVALID||r==RISC_APP_DATA_STALE||r==RISC_APP_DATA_NO_SPACE) {
+    /* BUSY is a pre-I/O refusal, so it owns neither a write nor ambiguous
+     * persisted bytes. Leave the complete intended ledger to its caller. */
+    if(r==RISC_APP_DATA_INVALID||r==RISC_APP_DATA_STALE||r==RISC_APP_DATA_NO_SPACE||r==RISC_APP_DATA_BUSY) {
         POINTS_CATALOG_FREE(s->pending);s->pending=NULL;s->pending_size=0;s->uncertain=false;
     }
     return r;

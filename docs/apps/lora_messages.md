@@ -1,4 +1,4 @@
-# LoRa Messages 0.1.1
+# LoRa Messages 0.1.14
 
 An original portable Nova7 application, independent of the historical Reader
 `lora.elf` packet-monitor/Ping utility. It uses the existing Watch
@@ -14,8 +14,10 @@ are introduced in the application.
   or convert the physical radio or antenna.
 - Explicit **Listen**, **Stop**, **Compose**, **Send** and RF setup. The first
   radio action asks for a choice; existing RF settings never imply a choice.
-- The shared 32-key Points/Watch keyboard, all 95 printable ASCII characters,
-  240-byte drafts, Delete, page switching, Done and cancelable nested Back.
+- In the opt-in current Watch profile, the separately loaded `ui.text-input`
+  service owns message and RF-value entry. It preserves all 95 printable ASCII
+  characters, 240-byte message drafts and 11-byte RF values, Delete, page
+  switching, Done and cancelable Back. The legacy build remains unchanged.
 - Draft review pages show every character before the explicit Send action.
 - Six exact RF settings: frequency in Hz, bandwidth in Hz, spreading factor,
   coding-rate denominator, output power in dBm, and preamble symbols.
@@ -138,3 +140,26 @@ The real app/adapter/rasterizer is exercised in twenty240×240 scenes, with norm
 and ASan/UBSan builds and framebuffer-stride/lease cleanup assertions. Software
 mocks/compilation do not qualify radio compatibility, RF legality, reception,
 transmission, timing or power on physical hardware. No device action is taken.
+
+## Shared-input Watch profile
+
+`PORTABLE_LORA_SHARED_TEXT_INPUT` requires `PORTABLE_TEXT_INPUT_CLIENT` and
+uses the additive long-input API (capacity 241 for messages; 12 for RF values).
+The existing 72-byte and 128-byte shared-input ABI layouts remain unchanged.
+The product recipe adds only `ui.text-input@1` authority to the prior LoRa
+manifest/policy; unrelated apps, radio policy, persistence and native firmware
+remain unchanged. The X4 packaged cohort has no LoRa app or LoRa radio provider.
+
+The shared host fully closes before the accepted text reaches the app. Done
+updates the in-memory draft or validated RF field; only explicit Send transmits.
+Back leaves the previous draft/profile intact. Invalid RF text remains visible
+with its existing range help and an Edit action that reopens the same draft.
+Home closes the host and app grants before returning to the configured default.
+A retained host prevents further app/provider work; a pending close is retried
+without drawing or consuming app input. Existing requested listening/transmission
+progresses during ordinary entry without any new automatic radio action.
+
+Build and qualification: the Watch product's `build_watch_keyboard_lora.py`
+preserves the hash-bound predecessor flags and all grants, adding the shared
+client/custody-fence selectors. Normal and sanitizer tests are software evidence;
+no physical radio, display, button, touch or flashing result is implied.

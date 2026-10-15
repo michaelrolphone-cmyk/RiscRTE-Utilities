@@ -1,0 +1,58 @@
+name: RF modal policy
+on:
+  push:
+    branches: [work/rf-input-policy-20261012]
+  pull_request:
+    paths: ['Apps/rf_application.inc', 'test/rf_shared_input/**', 'scripts/test_rf_policy.py', 'scripts/test_rf_shared_input.py', '.github/workflows/rf-input-policy.yml']
+permissions:
+  contents: read
+jobs:
+  real-host-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 64c8e52e46fd91e8fdafd636db04eed88f0c51a9
+          path: .dependencies/watch-runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70
+          path: .dependencies/x4-runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: 089868395268b696c05651c33816345bfe0425df
+          path: .dependencies/watch-profile
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install Pillow fonttools
+      - run: >-
+          python scripts/test_rf_policy.py
+          --system-apps .dependencies/system
+          --watch-runtime .dependencies/watch-runtime
+          --x4-runtime .dependencies/x4-runtime
+          --watch-profile .dependencies/watch-profile
+          --output build/rf-policy
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rf-policy-evidence
+          path: |
+            build/rf-policy/**/qualification.json
+            build/rf-policy/**/run.log

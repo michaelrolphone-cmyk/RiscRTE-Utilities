@@ -28,6 +28,8 @@ jobs:
           persist-credentials: false
       - name: Run real entrypoints under address and undefined behavior sanitizers
         run: python3 scripts/test_canvas_apps.py --runtime .dependencies/runtime --system-apps .dependencies/system --output build/canvas-tests
+      - name: Check bounded Hollow Trail launch and native scratch parity
+        run: python3 scripts/test_hollow_memory.py --runtime .dependencies/runtime --system-apps .dependencies/system --output build/hollow-memory
       - name: Install pinned compiler
         run: |
           python -m pip install platformio==6.1.19

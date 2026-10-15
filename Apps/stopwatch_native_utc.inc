@@ -238,6 +238,10 @@ void app_main(void) {
   if(input.tapped) {
 #ifdef PORTABLE_NOVA_UI
    int x=input.touch_x,y=input.touch_y;
+#ifdef PORTABLE_PAPER_UTILITIES
+   if(!utility_paper)
+#endif
+   {x=utility_color_x(app,x);y=utility_color_y(app,y);}
    if(
 #ifdef PORTABLE_PAPER_UTILITIES
       utility_paper?up_hit(x,y,32,584,132,88):

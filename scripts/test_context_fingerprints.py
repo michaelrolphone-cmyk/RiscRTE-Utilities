@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(prefix='fingerprints-') as temporary:
         flags = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                  '-fno-omit-frame-pointer', '-no-pie'] if sanitize else []
         for source in ('tests/context_fingerprint_test.c', 'tests/contexts_rules_test.c',
-                       'test/native_apps/contexts_fingerprint_test.c'):
+                       'test/native_apps/contexts_fingerprint_test.c', 'test/native_apps/contexts_learning_test.c'):
             target = Path(temporary) / ('check-' + str(sanitize))
             includes = (root/'Apps', root/'lib/Contexts/include',
                         args.drivers/'sdk/driver', args.runtime/'sdk/driver')
@@ -26,3 +26,8 @@ with tempfile.TemporaryDirectory(prefix='fingerprints-') as temporary:
                             '-lm', '-o', target], check=True)
             subprocess.run([target], check=True, timeout=120,
                            env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'})
+
+        target=Path(temporary)/('learning-rf-'+str(sanitize))
+        subprocess.run([os.environ.get('CC','cc'),'-std=c11','-O1','-g','-Wall','-Wextra','-Werror',*flags,
+                        '-DCONTEXTS_RF_ONLY=1',*['-I'+str(p) for p in includes],root/'test/native_apps/contexts_learning_test.c','-lm','-o',target],check=True)
+        subprocess.run([target],check=True,timeout=120,env={**os.environ,'ASAN_OPTIONS':'detect_leaks=0'})
