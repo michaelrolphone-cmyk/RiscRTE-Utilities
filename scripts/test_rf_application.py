@@ -11,6 +11,7 @@ The shared QuickActions variants intentionally omit radio toggle grants. Paper
 Wi-Fi remains unavailable; RGB565 retains its supported Wi-Fi app handoff.
 """
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -26,6 +27,7 @@ p.add_argument('--watch', type=Path)
 p.add_argument('--runtime', type=Path, required=True)
 p.add_argument('--scene', action='append')
 p.add_argument('--normal-only', action='store_true')
+p.add_argument('--keep-going', action='store_true', help='Record every scene failure, then exit nonzero if any failed')
 p.add_argument('--native-canvas', action='store_true', help='Opt-in shared native RF plot canvas')
 a = p.parse_args()
 OUT = ROOT / 'build/rf-application'
@@ -224,6 +226,7 @@ if a.scene:
     if unknown:
         p.error('Unknown scenes: '+', '.join(sorted(unknown)))
 completed_runs=0
+failed_runs=[]
 storage_runs=0
 targets=[('watch',a.system_apps)]
 if a.x4_system:
@@ -280,13 +283,18 @@ for sanitized in (False, True):
                 # Ordered edges advance independently of raster polling. Give
                 # release/dispatch two polls; preserve all assertions and allow
                 # two polls per capture for long room/event training waits.
-                commands='\n'.join(('wait '+str(int(line.split()[1])*2) if line.startswith('wait ') and int(line.split()[1])>=70 else line)+('\nwait 2' if line.startswith(('tap ','nav ')) else '') for line in commands.splitlines())+'\n'
+                commands='\n'.join(('wait '+str(int(line.split()[1])*2) if line.startswith('wait ') and int(line.split()[1])>=64 else line)+('\nwait 2' if line.startswith(('tap ','nav ')) else '') for line in commands.splitlines())+'\n'
             command_file.write_text(commands)
             env=dict(os.environ, ASAN_OPTIONS='detect_leaks=0', **extra_env)
             if sanitized:
                 env['RF_RENDER_NO_IMAGES']='1'
-            run([exe,folder,command_file],env=env,timeout=120)
-            completed_runs+=1
+            try:
+                run([exe,folder,command_file],env=env,timeout=120)
+            except subprocess.CalledProcessError as error:
+                if not a.keep_going: raise
+                failed_runs.append({'target':target,'sanitized':sanitized,'scene':name,'returncode':error.returncode,'commands':str(command_file),'environment':extra_env})
+            else:
+                completed_runs+=1
     if not a.scene or 'runtime-storage' in a.scene:
         runtime=a.runtime.resolve()
         out=OUT/'runtime'/('sanitized' if sanitized else 'normal')
@@ -297,4 +305,8 @@ for sanitized in (False, True):
         with tempfile.TemporaryDirectory(prefix='volume-',dir=out) as volume:
             run([exe,volume],env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'),timeout=120)
             storage_runs+=1
-print(f'RF actual controller/adapter regression passed: {completed_runs} scene runs and {storage_runs} Runtime storage runs; host simulation only.')
+print(f'RF actual controller/adapter scene passes: {completed_runs} scene runs and {storage_runs} Runtime storage runs; host simulation only.')
+
+if a.keep_going:
+    (OUT/"scene-failures.json").write_text(json.dumps(failed_runs,indent=2)+"\n")
+    if failed_runs: raise SystemExit(f"{len(failed_runs)} scene runs failed; see {OUT}/scene-failures.json")

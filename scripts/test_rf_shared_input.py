@@ -55,7 +55,7 @@ def key(ch, target, delay=80):
     raise ValueError(ch)
 
 
-def scenarios(target):
+def scenarios(target, controls_height=None):
     cases = {}
     name_taps = [(120, 120), (120, 90), (90, 54), (120, 84)]
     pages = [2, 5, 7, 12]
@@ -120,7 +120,8 @@ def scenarios(target):
         cases[name] = (base,{})
     # Discovery workflows reach every editor from normal live startup through UI.
     def settings(number):
-        offset=min((number-1)*48,624-((400 if target=='x4' else 240)-94))
+        height=controls_height or (400 if target=='x4' else 240)
+        offset=min((number-1)*48,max(0,624-(height-94)))
         return tap(225,26) + [(100,'app','nav',32,0)]*(number-1) + tap(180,48+(number-1)*48-offset+20)
     room=settings(12)
     events=settings(13)
@@ -200,7 +201,7 @@ def pin(path):
 def run(args):
     system=args.system_apps.resolve(); runtime=args.runtime.resolve()
     output=(args.output or ROOT/'build/rf-shared-input').resolve();output.mkdir(parents=True,exist_ok=True)
-    evidence={'schema':'rf.shared-input.qualification.v1','source_pins':{'utilities':pin(ROOT),'system':pin(system),'runtime':pin(runtime),'baseline':pin(args.baseline_utilities.resolve())},
+    evidence={'schema':'rf.shared-input.qualification.v1','source_pins':{'utilities':pin(ROOT),'system':pin(system),'runtime':pin(runtime),'baseline':None if args.skip_baseline else pin(args.baseline_utilities.resolve())},
         'not_claimed':['physical hardware','RF/crown/touch/PMU hardware','Runtime ELF loader integration','Runtime storage implementation'],
         'physical_backends':['deterministic signed 10-bit coherent complex IQ','ordered raw touch','navigation','RGB565/mono1 display with stride guards','KV and app-data','bounded base Contexts','alarm','resident checkpoint','RTC/realtime','BLE/Wi-Fi'],
         'leak_sanitizer':'detect_leaks=0 for executor ptrace/runtime limit; explicit malloc/free, grants, subscriptions and display lease accounting',
@@ -261,7 +262,7 @@ def run(args):
         evidence['profiles'][target]={'receipt':str(receipt),'runtime':pin(runtime),'host_system':pin(host_system),'sha256':digest(receipt),'deployed_defines':deployed,'added_defines':added,'omitted_defines':[],
             'omitted_target_options':['Xtensa machine/linker options','-flto; native tests use -O1 -g'],'raster':[480,800] if target=='x4' else ([410,502] if args.native_height else [240,240]),
             'scene_profile':{'display_rotation':270 if target=='x4' else 0,'touch_rotation':0,'paper':target=='x4','source':str(host_system/'Services/scene_profile/profile.c')}}
-        selected=scenarios(target)
+        selected=scenarios(target, (502*240+409)//410 if target=='watch' and args.native_height and '-DPORTABLE_RF_NATIVE_CANVAS' in flags else None)
         if args.scenario:
             unknown=set(args.scenario)-set(selected)
             if unknown:raise ValueError('Unknown scenario: '+', '.join(unknown))
@@ -296,7 +297,10 @@ def run(args):
                 (folder/'run.log').write_text(result.stdout+result.stderr)
                 evidence['results'].append({'target':target,'mode':name,'sanitized':sanitized,'returncode':result.returncode,'log':str(folder/'run.log')})
                 (output/'qualification.json').write_text(json.dumps(evidence,indent=2)+'\n')
-                if result.returncode:print(result.stdout+result.stderr,file=sys.stderr);result.check_returncode()
+                if result.returncode:
+                    print(result.stdout+result.stderr,file=sys.stderr)
+                    if not args.keep_going: result.check_returncode()
+                    continue
                 from PIL import Image
                 for ppm in folder.glob('*.ppm'):
                     with Image.open(ppm) as im:
@@ -325,6 +329,7 @@ def run(args):
         if not args.normal_only:
             from PIL import Image
             for name in selected:
+                if any(r['target']==target and r['mode']==name and r['returncode'] for r in evidence['results']):continue
                 normal=output/target/'normal'/name;sanitized=output/target/'sanitized'/name
                 names={p.name for p in normal.glob('*.png')};assert names=={p.name for p in sanitized.glob('*.png')}
                 for filename in sorted(names):
@@ -333,6 +338,8 @@ def run(args):
     for source,expected in evidence['sources'].items():assert digest(source)==expected,('source changed during qualification',source)
     (output/'qualification.json').write_text(json.dumps(evidence,indent=2)+'\n')
     print('Evidence:',output/'qualification.json')
+    failed=[r for r in evidence['results'] if r['returncode']]
+    if failed: raise SystemExit(f'{len(failed)} shared-input scene runs failed; see qualification.json')
 
 
 if __name__=='__main__':
@@ -352,5 +359,6 @@ if __name__=='__main__':
     p.add_argument('--extra-define',action='append',default=[])
     p.add_argument('--native-height',action='store_true')
     p.add_argument('--normal-only',action='store_true')
+    p.add_argument('--keep-going',action='store_true',help='Record every failure and exit nonzero after completing other scenes')
     p.add_argument('--skip-baseline',action='store_true',help='Intentional presentation changes; retain normal/sanitized pixel equality')
     run(p.parse_args())

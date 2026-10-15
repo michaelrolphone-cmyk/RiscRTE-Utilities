@@ -236,7 +236,19 @@ static unsigned analysis_count(void){return rf_bulk?signature_audio.transforms:0
 static unsigned final_analysis;
 static void observe_analysis(void){if(rf_bulk)final_analysis=signature_audio.transforms;}
 static bool fixture_live(void){return rf_bulk&&running&&owned;}
-static void app_touch_position(int *x,int *y){*x=ui_x(*x);*y=ui_y(*y);}
+static void app_touch_position(int *x,int *y){
+#ifdef PORTABLE_RF_NATIVE_CANVAS
+ /* Existing scenario scripts describe semantic targets on the original240px
+  * page. Native pixel-edge input has a separate independent fixture. */
+ if(native_plot_page()){
+  if(*y<46){*x=header_x(*x);return;}
+  if(*y>=216){*x=*x*app->screen_width()/240;*y+=app->screen_height()-240;return;}
+  if(cursor_visible&&*y>=50&&*y<78){char caption[40];cursor_layout(caption);*x=pill_x+pill_w/2;*y=pill_y+pill_h/2;return;}
+  *x=PLOT_X+(*x-PLOT_X)*PLOT_W/228;*y=PLOT_Y+(*y-PLOT_Y)*PLOT_H/166;return;
+ }
+#endif
+ *x=ui_x(*x);*y=ui_y(*y);
+}
 static const char *draft_name(void){return editor==3?shared_name:editing.name;}
 static void verify_pending_draft(void){assert(!strcmp(editing.name,opened_text[text_opens-1]));assert(!strcmp(draft_name(),opened_text[text_opens-1]));}
 static void expect_num(const char *key,unsigned value){const char *s=getenv(key);if(s&&value!=(unsigned)strtoul(s,NULL,10)){fprintf(stderr,"%s expected %s actual %u\n",key,s,value);abort();}}
