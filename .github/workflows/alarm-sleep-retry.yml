@@ -1,7 +1,10 @@
 name: Shared color alarm sleep retry
 on:
   push:
-    branches: [fix/sleep-storage-reconcile]
+    branches: [fix/sleep-storage-reconcile, main, work/first-boot-alarm-qualification]
+    paths: ['Services/alarm_service/**', 'lib/Alarm/**', 'scripts/*alarm*', 'test/native_apps/*alarm*', 'test/native_apps/points_service_test.c', '.github/workflows/alarm-sleep-retry.yml']
+  pull_request:
+    paths: ['Services/alarm_service/**', 'lib/Alarm/**', 'scripts/*alarm*', 'test/native_apps/*alarm*', 'test/native_apps/points_service_test.c', '.github/workflows/alarm-sleep-retry.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -9,6 +12,8 @@ jobs:
   alarm-sleep:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     container: espressif/idf:v6.1@sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c
     defaults:
       run:
@@ -17,7 +22,7 @@ jobs:
       - name: Clone exact public source inputs as build owner
         run: |
           set -euo pipefail
-          root="$RUNNER_TEMP/alarm-sleep-$GITHUB_SHA"
+          root="$RUNNER_TEMP/alarm-sleep-$SOURCE_SHA"
           mkdir -p "$root"
           echo "ALARM_ROOT=$root" >> "$GITHUB_ENV"
           clone() {
@@ -27,7 +32,7 @@ jobs:
             git -C "$root/$3" checkout --quiet --detach FETCH_HEAD
             test "$(git -C "$root/$3" rev-parse HEAD)" = "$2"
           }
-          clone RiscRTE-Utilities "$GITHUB_SHA" utilities
+          clone RiscRTE-Utilities "$SOURCE_SHA" utilities
           clone RiscRTE 659d859acb122640ef4003bb8d7099501d4381be runtime
           clone RiscRTE-System-Apps 755cc5174a6deaee120d108cbffe67ae809e1e6f system
           clone RiscRTE-Watch 2f77e01c19f20418e2f91e7181422bc4aabd3c85 watch
@@ -50,6 +55,8 @@ jobs:
           python "$ALARM_ROOT/utilities/scripts/build_alarm_sleep_retry.py" "${args[@]}" --output "$ALARM_ROOT/replay" 2>&1 | tee "$ALARM_ROOT/evidence/replay.log"
           cmp "$ALARM_ROOT/target/driver.elf" "$ALARM_ROOT/replay/driver.elf"
           cmp "$ALARM_ROOT/target/manifest.json" "$ALARM_ROOT/replay/manifest.json"
+          echo "189ce61b0e4a2b08cbd83ff90564a4c79a6c5e9a3d74b4ad4dcc2a61b4b51604  $ALARM_ROOT/target/driver.elf" | sha256sum --check
+          echo "d8de271face1fa0464bc23e0f8b8d5f75e82505d9479d6504132368f5e1740a2  $ALARM_ROOT/target/manifest.json" | sha256sum --check
           sha256sum "$ALARM_ROOT/target/driver.elf" "$ALARM_ROOT/target/manifest.json" | tee "$ALARM_ROOT/evidence/SHA256SUMS"
       - uses: actions/upload-artifact@v4
         with:
