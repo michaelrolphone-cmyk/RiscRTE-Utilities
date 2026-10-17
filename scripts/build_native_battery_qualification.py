@@ -18,7 +18,7 @@ PROFILE_PATH = 'profiles/native-battery-qualification.json'
 BASELINE_MANIFEST_SHA256 = 'd02c27407a5ab4461812e080b98262f49953d72524e8a7878ba8b05568c81934'
 BASE = '4fdcad2495c33fe63f5f6faca9b11ced3c739a5b'
 PINS = {
-    'system': 'fd9a028c5d38eb517c1328b869684c4330a5d4d9',
+    'system': 'fca52ae3a3e452d309408268e6e485cb43ac2c04',
     'bridges': '6e82fdcaec0b73ed700d2104cfb4d94f011c19d4',
     'runtime': '48229bd1593a2e24e95bf4537b495ee615990fd3',
     'profile_source': 'b9862e1379813a0914d4926ef59a3feb6fcf656a',
@@ -97,7 +97,7 @@ def validate_profile(profile, baseline_bytes):
         raise ValueError('The exact fifteen capability types/versions must be preserved')
     lifecycle = profile['lifecycle']
     if (not lifecycle['automatic_idle'] or not lifecycle['manual_sleep'] or
-            lifecycle['manual_only_suppression'] or lifecycle['shared_idle_correction_included']):
+            lifecycle['manual_only_suppression'] or not lifecycle['shared_idle_correction_included']):
         raise ValueError('Inherited idle behavior must remain selected and disclosed')
     if profile['historical_reproduction'] or profile['hardware_qualified'] or profile['published']:
         raise ValueError('Local qualification cannot declare release or hardware parity')
