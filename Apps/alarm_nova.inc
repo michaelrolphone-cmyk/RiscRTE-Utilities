@@ -107,6 +107,10 @@ static void alarm_retry(void) {
 #include "alarms_paper.inc"
 #endif
 #endif
+#ifdef PORTABLE_ALARMS_NATIVE_UI
+#include "alarms_native_view.inc"
+static void draw(void){alarm_native_draw();}
+#else
 static void draw(void) {
  if(!utility_frame_begin(app))return;
 #ifdef ALARM_NATIVE_UTC
@@ -206,6 +210,7 @@ static void draw(void) {
     }
     app->present(false);
 }
+#endif /* PORTABLE_ALARMS_NATIVE_UI */
 static bool alarm_back(void) {
 #ifdef ALARM_NATIVE_UTC
     if(!portable_app_before_launch(NULL))return false;
@@ -221,6 +226,9 @@ static bool alarm_back(void) {
     return true;
 }
 static bool alarm_tap(int x,int y) {
+#ifdef PORTABLE_ALARMS_NATIVE_UI
+    return alarm_native_tap(x,y);
+#else
 #ifdef PORTABLE_PAPER_UTILITIES
     if(!utility_paper)
 #endif
@@ -276,4 +284,5 @@ volume_load();alarm_page=3;
         else return false;
     }
     return true;
+#endif /* PORTABLE_ALARMS_NATIVE_UI */
 }
