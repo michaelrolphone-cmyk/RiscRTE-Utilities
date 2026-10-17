@@ -9,7 +9,7 @@
   ],
   "utilities_base": "4fdcad2495c33fe63f5f6faca9b11ced3c739a5b",
   "pins": {
-    "system": "fd9a028c5d38eb517c1328b869684c4330a5d4d9",
+    "system": "fca52ae3a3e452d309408268e6e485cb43ac2c04",
     "bridges": "6e82fdcaec0b73ed700d2104cfb4d94f011c19d4",
     "runtime": "48229bd1593a2e24e95bf4537b495ee615990fd3",
     "profile_source": "b9862e1379813a0914d4926ef59a3feb6fcf656a"
@@ -137,8 +137,8 @@
   "lifecycle": {
     "automatic_idle": true,
     "manual_sleep": true,
-    "inherited_dependency": "Pinned shared adapter and Watch generic sleep/navigation bridges; existing idle/lifecycle behavior is not corrected or waived by this recipe.",
-    "shared_idle_correction_included": false,
+    "inherited_dependency": "Pinned shared adapter includes Battery-specific completed-presentation input and alarm-cancel idle correction; Watch generic sleep/navigation bridges retained.",
+    "shared_idle_correction_included": true,
     "manual_only_suppression": false
   },
   "historical_reproduction": false,

@@ -143,8 +143,16 @@ static void run_case(void) {
         tap(90,50,212);tap(100,30,26);tap(110,30,26);
     } else if(scenario==15) {tap(10,30,26);tap(30,30,26);}
     if(scenario>=20&&scenario<28)native_cases();
-    if(scenario==30)tap(2,30,26);
-    if(scenario==31){tap(2,50,212);tap(4,30,26);tap(6,30,26);}
+    if(scenario==30){tap(2,30,26);
+#ifdef PORTABLE_ASYNC_RGB565
+      tap(20,30,26); /* First pointer Back is invisible; fresh visible Back works. */
+#endif
+    }
+    if(scenario==31){tap(2,50,212);tap(4,30,26);tap(6,30,26);
+#ifdef PORTABLE_ASYNC_RGB565
+      tap(20,50,212);tap(40,30,26);tap(60,30,26);
+#endif
+    }
     if(scenario==32)tap(2,50,212);
     assert(app_module_init()==0);app_main();
     const char *expected[]={"CHARGING","CHARGE COMPLETE","LOW BATTERY","BATTERY CRITICAL","BATTERY CRITICAL","BATTERY STATUS","THERMAL LIMIT","CHARGE DISABLED","NO BATTERY","BATTERY STATUS","USB POWER","READ ERROR","BATTERY STATUS","BATTERY STATUS","BATTERY STATUS","BATTERY STATUS","BATTERY STATUS","BATTERY STATUS","BATTERY STATUS","BATTERY STATUS"};
@@ -164,7 +172,8 @@ static void run_case(void) {
      assert(!power_details&&launch_calls==1);
      if(scenario==29||scenario==32)assert(exit_signaled);
 #ifdef PORTABLE_ASYNC_RGB565
-     assert(launch_with_pending&&pending_token);
+     if(scenario==29||scenario==32)assert(launch_with_pending&&pending_token);
+     else assert(!launch_with_pending&&!pending_token);
 #endif
     }
     assert(sample_reads>=1 && sample_reads<=ticks/1000+4);

@@ -13,6 +13,7 @@
 #error "Battery native color UI and legacy paper are separate profiles"
 #endif
 #include "battery_native_layout.h"
+#include "PortableBatteryNative.h"
 #endif
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
 #include "PortableNativeCustody.h"
@@ -298,6 +299,14 @@ static void power_broadcast_view(void) {
 #include "battery_paper.inc"
 #endif
 static void power_render(void) {
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+ uint64_t page=power_details?2u+power_detail_page:1u;
+#ifdef PORTABLE_BLE_BROADCAST
+ if(power_broadcast)page=16u;
+#endif
+ /* Page identity includes geometry, before a pending frame can defer paint. */
+ portable_battery_native_layout((page<<32)|((uint64_t)power_app->screen_width()<<16)|power_app->screen_height());
+#endif
  if(!utility_frame_begin(power_app))return;
 #if defined(PORTABLE_NATIVE_TIME_TOOLBAR) && defined(PORTABLE_BLE_BROADCAST)
  if(portable_adapter_retained())return;
@@ -360,6 +369,9 @@ void app_main(void) {
     if(!utility_paper && !utility_color_dimensions(power_app))return;
 #elif !defined(PORTABLE_BATTERY_NATIVE_UI)
     if(!utility_color_dimensions(power_app))return;
+#endif
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+    portable_battery_native_begin();
 #endif
     power_sample=(risc_battery_sample_v1){0,255,RISC_BATTERY_PROFILE_MISSING};
     power_read_ok=power_details=power_navigation_failed=false;power_detail_page=0;

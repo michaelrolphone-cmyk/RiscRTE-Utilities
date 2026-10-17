@@ -22,6 +22,16 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def dependency_identity(path, system, catalog):
+    if path == catalog:
+        return 'generated:catalog.c'
+    if path.is_relative_to(system):
+        return 'system:'+str(path.relative_to(system))
+    if path.is_relative_to(ROOT):
+        return 'utilities:'+str(path.relative_to(ROOT))
+    raise RuntimeError('Unowned host dependency: '+str(path))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--system-apps', required=True, type=Path)
@@ -83,20 +93,14 @@ def main():
         if sha(path) != digest:
             raise RuntimeError('Source changed during host qualification: '+str(path))
     def identity(path):
-        if path.is_relative_to(ROOT):
-            return 'utilities:'+str(path.relative_to(ROOT))
-        if path.is_relative_to(system):
-            return 'system:'+str(path.relative_to(system))
-        if path == catalog:
-            return 'generated:catalog.c'
-        raise RuntimeError('Unowned host dependency: '+str(path))
+        return dependency_identity(path, system, catalog)
     receipt = {
         'hardware_tested': False,
         'recipe': 'direct-view capture fixture; BLE reachability unchanged' if args.captures else 'reduced UI/controller host fixture',
         'sanitized': args.sanitize, 'async_rgb565': args.async_rgb565,
         'display_ownership': 'delayed queued/active to complete; immutable framebuffer hash, no reacquire or display release while provider-owned' if args.async_rgb565 else 'synchronous fixture',
         'command': command, 'results': results,
-        'source_sha256': {str(path.relative_to(ROOT)): digest for path, digest in sorted(before.items()) if path.is_relative_to(ROOT)},
+        'source_sha256': {str(path.relative_to(ROOT)): digest for path, digest in sorted(before.items()) if identity(path).startswith('utilities:')},
         'compiled_dependency_sha256': {identity(path): digest for path, digest in sorted(before.items())},
         'source_unchanged_during_run': True,
     }

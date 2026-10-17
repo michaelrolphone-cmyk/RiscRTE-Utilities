@@ -2,7 +2,7 @@ name: Native Battery qualification
 
 on:
   push:
-    branches: [work/battery-native-ui-20261017]
+    branches: [main, work/battery-native-input-20261017]
     paths:
       - 'Apps/battery.c'
       - 'Apps/battery_power.inc'
@@ -11,11 +11,13 @@ on:
       - 'Apps/utility_preference_atomic.h'
       - 'Apps/alarm_writer.h'
       - 'profiles/native-battery*.json'
+      - 'Apps/native/battery.json'
+      - 'scripts/*native_battery*.py'
       - 'scripts/build_native_battery_qualification.py'
-      - 'scripts/test_battery_native.py'
+      - 'scripts/test_battery_native*.py'
       - 'test/native_apps/battery_native*'
       - 'tests/battery_native_layout_test.c'
-      - 'tests/test_native_battery_recipe.py'
+      - 'tests/test_native_battery*.py'
       - 'docs/native-battery/**'
       - '.github/workflows/native-battery.yml'
   pull_request:
@@ -27,11 +29,13 @@ on:
       - 'Apps/utility_preference_atomic.h'
       - 'Apps/alarm_writer.h'
       - 'profiles/native-battery*.json'
+      - 'Apps/native/battery.json'
+      - 'scripts/*native_battery*.py'
       - 'scripts/build_native_battery_qualification.py'
-      - 'scripts/test_battery_native.py'
+      - 'scripts/test_battery_native*.py'
       - 'test/native_apps/battery_native*'
       - 'tests/battery_native_layout_test.c'
-      - 'tests/test_native_battery_recipe.py'
+      - 'tests/test_native_battery*.py'
       - 'docs/native-battery/**'
       - '.github/workflows/native-battery.yml'
   workflow_dispatch:
@@ -42,7 +46,7 @@ permissions:
 jobs:
   qualification:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 40
     defaults:
       run:
         shell: bash
@@ -60,7 +64,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: fd9a028c5d38eb517c1328b869684c4330a5d4d9
+          ref: fca52ae3a3e452d309408268e6e485cb43ac2c04
+          fetch-depth: 0
           path: .dependencies/native-battery-system
           persist-credentials: false
       - name: Checkout pinned generic Watch bridges
@@ -91,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/native-battery-ci/evidence
-          python -m unittest discover -s tests -p test_native_battery_recipe.py -v 2>&1 | tee dist/native-battery-ci/evidence/recipe.log
+          python -m unittest discover -s tests -p 'test_native_battery*.py' -v 2>&1 | tee dist/native-battery-ci/evidence/recipe.log
           python - <<'PY'
           import json
           from pathlib import Path
@@ -151,19 +156,60 @@ jobs:
           system=dist/native-battery-ci/target/inputs/system
           python scripts/test_battery_native.py --system-apps "$system" --output dist/native-battery-ci/async-normal --async 2>&1 | tee dist/native-battery-ci/evidence/async-normal.log
           python scripts/test_battery_native.py --system-apps "$system" --output dist/native-battery-ci/async-sanitized --async --sanitize 2>&1 | tee dist/native-battery-ci/evidence/async-sanitized.log
-      - name: Upload qualification receipts only
+      - name: Full-feature temporal, snapshot, custody and negative controls
+        run: |
+          set -euo pipefail
+          args=(--input-receipt dist/native-battery-ci/target/qualification.json
+            --system .dependencies/native-battery-system --bridges .dependencies/native-battery-watch
+            --runtime .dependencies/native-battery-runtime --profile-source .dependencies/native-battery-profile)
+          for mode in temporal snapshot original selector-off; do
+            for san in normal sanitized; do
+              extra=()
+              if [[ "$mode" != temporal ]]; then extra+=(--"$mode"); fi
+              if [[ "$san" == sanitized ]]; then extra+=(--sanitize); fi
+              python scripts/test_battery_native_temporal.py "${args[@]}" "${extra[@]}" \
+                --output "dist/native-battery-ci/$mode-$san" 2>&1 | tee "dist/native-battery-ci/evidence/$mode-$san.log"
+            done
+          done
+      - name: Exact-source standalone package and production loader admission
+        run: |
+          set -euo pipefail
+          python scripts/prepare_native_battery_release.py --artifact dist/native-battery-ci \
+            --system .dependencies/native-battery-system --runtime .dependencies/native-battery-runtime \
+            2>&1 | tee dist/native-battery-ci/evidence/standalone.log
+          python scripts/publish_native_battery.py --artifact dist/native-battery-ci \
+            --source-sha '${{ github.event.pull_request.head.sha || github.sha }}' \
+            --repository '${{ github.repository }}' --validate-only
+      - name: Upload exact source, target and qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: native-battery-qualification-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
-            dist/native-battery-ci/evidence/
-            dist/native-battery-ci/target/qualification.json
-            dist/native-battery-ci/target/*/command.json
-            dist/native-battery-ci/target/*/dynamic-symbols.txt
-            dist/native-battery-ci/host-normal/receipt.json
-            dist/native-battery-ci/host-sanitized/receipt.json
-            dist/native-battery-ci/async-normal/receipt.json
-            dist/native-battery-ci/async-sanitized/receipt.json
+            dist/native-battery-ci/
+            !dist/native-battery-ci/**/battery-native-test
+            !dist/native-battery-ci/layout-normal
+            !dist/native-battery-ci/layout-sanitized
+            !dist/native-battery-ci/target/validate-elf
+            !dist/native-battery-ci/**/__pycache__/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
+  publish-development:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: qualification
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-battery-qualification-${{ github.sha }}
+          path: qualified
+      - name: Publish or verify immutable standalone development release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish_native_battery.py --artifact qualified --repository '${{ github.repository }}' --source-sha '${{ github.sha }}'

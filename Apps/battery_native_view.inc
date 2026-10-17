@@ -69,7 +69,7 @@ static void power_overview(void){
   power_native_line(c,38,power_caption(),NOVA_CAP);
  }
  power_native_button(l.footer[0],"Details");power_native_button(l.footer[1],power_read_ok?"Refresh":"Retry");
- power_app->present(false);
+ portable_battery_native_present(false);
 }
 static void power_native_row(battery_native_rect c,const char *label,const char *value){
  if(c.h>=28){power_native_line(c,0,label,NOVA_WHITE);power_native_line(c,16,value,NOVA_CYAN);}
@@ -98,7 +98,7 @@ static void power_detail_view(void){
  }
  if(c.h>=88){snprintf(value,sizeof(value),"%u / %u%s",power_detail_page+1,power_detail_count(),power_read_ok?"":" - Read error");power_native_line(c,c.h-14,value,power_read_ok?NOVA_CAP:POWER_RED);}
  power_native_button(l.footer[0],"Prev");power_native_button(l.footer[1],power_read_ok?(l.footer[1].w<60?"Read":"Refresh"):"Retry");power_native_button(l.footer[2],"Next");
- power_app->present(false);
+ portable_battery_native_present(false);
 }
 #ifdef PORTABLE_BLE_BROADCAST
 static void power_broadcast_view(void){
@@ -120,6 +120,6 @@ static void power_broadcast_view(void){
  if(power_broadcast_error)power_native_line(c,104,"Not saved. Try again.",POWER_RED);
  }
  power_native_button(l.footer[0],power_broadcast_error?"Retry":power_broadcast_state.enabled?"Disable":"Enable");
- power_app->present(false);
+ portable_battery_native_present(false);
 }
 #endif

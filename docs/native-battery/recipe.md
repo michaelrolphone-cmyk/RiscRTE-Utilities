@@ -3,7 +3,8 @@
 This is a local software-qualification recipe for the app-local native Battery
 view. It does not assemble firmware, install an app, publish anything, or claim
 to reconstruct the historical Waveshare .59 Battery ELF. Existing builders and
-release manifests are unchanged. The new builder defaults to the legacy UI.
+legacy release manifests are unchanged. The separate standalone development
+packaging and publication path is described in [input-correction.md](input-correction.md). The new builder defaults to the legacy UI.
 
 ## Reproduce
 
@@ -44,7 +45,7 @@ ELF is assigned its historical release version or emitted as a release package.
 | Owner | Commit | Inputs |
 | --- | --- | --- |
 | Utilities baseline | `4fdcad2495c33fe63f5f6faca9b11ced3c739a5b` | Battery control, frame/atomic helpers, alarm/Contexts headers, source-owned ELF validator |
-| System foundation | `fd9a028c5d38eb517c1328b869684c4330a5d4d9` | Portable adapter, native canvas, Quick/radios, broadcast/Contexts, custody, SDK helpers and fonts |
+| System foundation | `fca52ae3a3e452d309408268e6e485cb43ac2c04` | Portable adapter, native canvas, Quick/radios, broadcast/Contexts, custody, SDK helpers and fonts |
 | Watch bridges | `6e82fdcaec0b73ed700d2104cfb4d94f011c19d4` | Generic local navigation/sleep, alarm sleep resume, motion, Contexts face names |
 | Runtime SDK | `48229bd1593a2e24e95bf4537b495ee615990fd3` | App SDK; explicit Runtime/atomic-header override in the staged System include directory |
 | Product alarm compatibility | `b9862e1379813a0914d4926ef59a3feb6fcf656a` | `profiles/shared-editor-inputs/watch-alarm-profile.h` and `AlarmServicePinnedV1.h` |
@@ -118,12 +119,11 @@ display qualification.
 
 Automatic idle and explicit sleep continue to use the pinned shared adapter
 and generic Watch bridge. `PORTABLE_APP_SLEEP_LOCAL` stays enabled;
-`PORTABLE_SLEEP_MANUAL_ONLY` is never introduced. Existing shared idle/lifecycle
-behavior, including any retained-surface or custody dependency, is inherited.
-This app-local UI recipe does not correct, waive, or hide that dependency and
-does not resume any separately stopped shared-idle work. Hardware lifecycle
-qualification remains a separate gate even when target admission and legacy
-byte identity pass.
+`PORTABLE_SLEEP_MANUAL_ONLY` is never introduced. The pinned shared adapter now includes the separately qualified Battery-specific
+input/idle correction described in [input-correction.md](input-correction.md).
+Retained-surface and provider-custody handling remains fail-closed. Hardware
+lifecycle qualification remains a separate gate even when target admission
+and legacy byte identity pass.
 
 Focused Python tests exercise exact source/manifest pins, all fifteen capability
 versions, every feature-selector and translation-unit omission, native opt-in,
