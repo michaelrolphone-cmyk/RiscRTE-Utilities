@@ -18,7 +18,7 @@ PROFILE_PATH = 'profiles/native-battery-qualification.json'
 BASELINE_MANIFEST_SHA256 = 'd02c27407a5ab4461812e080b98262f49953d72524e8a7878ba8b05568c81934'
 BASE = '4fdcad2495c33fe63f5f6faca9b11ced3c739a5b'
 PINS = {
-    'system': 'fca52ae3a3e452d309408268e6e485cb43ac2c04',
+    'system': 'b8e34df8b33096663d92b469dff225d130217354',
     'bridges': '6e82fdcaec0b73ed700d2104cfb4d94f011c19d4',
     'runtime': '48229bd1593a2e24e95bf4537b495ee615990fd3',
     'profile_source': 'b9862e1379813a0914d4926ef59a3feb6fcf656a',
@@ -30,7 +30,9 @@ CAPABILITIES = (
     ('board.battery', 1), ('storage.key-value', 1), ('net.wifi', 1),
     ('bluetooth.hci', 1), ('motion.accel', 1), ('storage.key-value.atomic', 1),
 )
-NATIVE = ['PORTABLE_BATTERY_NATIVE_UI', 'PORTABLE_NATIVE_CANVAS']
+NATIVE = ['PORTABLE_BATTERY_NATIVE_UI', 'PORTABLE_NATIVE_CANVAS',
+          'PORTABLE_QUICK_NATIVE', 'PORTABLE_ALARM_NATIVE']
+OVERLAYS = ['PORTABLE_QUICK_NATIVE', 'PORTABLE_ALARM_NATIVE']
 EXPORTS = {'app_main', 'app_module_init', 'app_module_fini'}
 IMPORTS = {'risc_runtime_get_api', 'memcpy', 'memset', 'memcmp', 'strcmp',
            'strlen', 'snprintf', 'malloc', 'calloc', 'free', 'strcpy',
@@ -65,6 +67,9 @@ REQUIRED_CLOSURE = {
     'runtime:sdk/app/RiscRuntimeV1.h', 'runtime:sdk/app/RiscKeyValueAtomicV1.h',
     *SOURCES,
 }
+NATIVE_CLOSURE = {'system:lib/PortableApps/include/PortableQuickLayout.h',
+                  'system:lib/PortableApps/include/PortableAlarmLayout.h',
+                  'system:lib/PortableApps/src/alarm_native.inc'}
 FLAGS = ['-std=c11', '-Os', '-fPIC', '-mtext-section-literals', '-mlongcalls',
          '-fvisibility=hidden', '-ffreestanding', '-fno-builtin', '-nostdlib',
          '-nostartfiles', '-shared', '-Wl,--gc-sections', '-Wl,--no-relax',
@@ -260,6 +265,8 @@ def build(args):
                 snapshots[path] = digest(data)
         if not REQUIRED_CLOSURE <= closure.keys():
             raise ValueError('Meaningful feature source closure absent: '+repr(REQUIRED_CLOSURE-closure.keys()))
+        if mode == 'native' and not NATIVE_CLOSURE <= closure.keys():
+            raise ValueError('Native overlay source closure absent: '+repr(NATIVE_CLOSURE-closure.keys()))
         if mode == 'native' and not any(key.startswith('utilities:Apps/battery_native') for key in closure):
             raise ValueError('Native Battery view is absent from the compiled closure')
         dest = out/mode

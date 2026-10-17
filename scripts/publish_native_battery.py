@@ -55,6 +55,16 @@ def validate(root, source):
         require(all(r.get(x) is True for x in ('ordinary_application_admitted','missing_import_rejected',
                     'unsafe_state_rejected','driver_role_rejected')) and r['alignment_placements_checked'] > 0 and
                 r['data_allocation_request_bytes'] == layout['section_loader']['data_allocation_request_bytes'], 'Failed admission')
+    previous = read(root/'previous-release/comparison.json')
+    require(recipe.digest((root/'previous-release/comparison.json').read_bytes()) == record['previous_release_comparison_sha256'],
+            'Previous release comparison changed')
+    require(previous['capability_contract_unchanged'] and previous['overlay_selector_delta'] == recipe.OVERLAYS and
+            previous['imports_unchanged'] and previous['exports_unchanged'] and
+            previous['physical_fit_qualified'] is False and
+            previous['successor_layout_sha256'] == record['layout_sha256'], 'Unbound previous release comparison')
+    for name in ('battery.elf','battery.json','command.json'):
+        require(recipe.digest((root/'previous-release'/name).read_bytes()) == previous['identity']['assets'][name]['sha256'],
+                'Frozen previous release bytes changed')
     require(record['source_files'], 'Missing source evidence')
     for name, sha in record['source_files'].items():
         path = Path(name)
@@ -115,13 +125,13 @@ def main():
                 if path.is_file(): archive.write(path,path.relative_to(root))
             archive.write(out/'publication.json','publication.json')
         (out/'SHA256SUMS').write_text(''.join(recipe.digest(p.read_bytes())+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file()))
-        notes = ('Standalone Native Battery1.2.0 development/software qualification. Exact source: '+args.source_sha+
+        notes = ('Standalone Native Battery1.2.1 development/software qualification. Exact source: '+args.source_sha+
                  '. Requires all15 manifest providers, deployment-owned bindings, preferences namespace1 and sufficient loader memory. '
                  'Physical-device fit, installation-path compatibility and hardware behavior are unqualified. '
                  'The optional app.catalog grant is not added; color BLE entry remains deferred. '
                  'Legacy Battery and the .59 firmware/payload are unchanged. Source, license notices and qualification evidence are included.')
         gh('release','create',TAG,'--repo',args.repository,'--target',args.source_sha,'--draft','--prerelease',
-           '--title','Battery Native1.2.0 development release','--notes',notes)
+           '--title','Battery Native1.2.1 development release','--notes',notes)
         gh('release','upload',TAG,'--repo',args.repository,*[str(out/name) for name in sorted(REQUIRED)])
         gh('release','edit',TAG,'--repo',args.repository,'--draft=false')
         print('Published '+TAG+' at '+args.source_sha)

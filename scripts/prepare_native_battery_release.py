@@ -11,13 +11,15 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import urllib.request
 
 import build_native_battery_qualification as recipe
 
-TAG = 'native-battery-1.2.0-dev1'
-VERSION = '1.2.0'
+TAG = 'native-battery-1.2.1-dev1'
+VERSION = '1.2.1'
 ROOT = recipe.ROOT
 MANIFEST = 'Apps/native/battery.json'
+PREVIOUS = 'profiles/native-battery-previous-release.json'
 REDUCED_PRODUCTION_INPUTS = {
     *('utilities:Apps/'+name for name in ('battery.c','battery_power.inc','battery_native_layout.h','battery_native_view.inc','utility_frame.h')),
     'system:lib/PortableApps/src/adapter.c', 'system:lib/PortableApps/src/battery_native_input.inc',
@@ -46,6 +48,10 @@ def validate_controls(root, target):
     native = next(m for m in target['modules'] if m['mode'] == 'native')
     proofs = {}
     for name, original, off, snapshot, sanitized, count in [
+        ('overlays-normal', False, False, False, False, 32),
+        ('overlays-sanitized', False, False, False, True, 32),
+        ('overlays-snapshot-normal', False, False, True, False, 32),
+        ('overlays-snapshot-sanitized', False, False, True, True, 32),
         ('temporal-normal', False, False, False, False, 57),
         ('temporal-sanitized', False, False, False, True, 57),
         ('snapshot-normal', False, False, True, False, 57),
@@ -56,6 +62,8 @@ def validate_controls(root, target):
         ('selector-off-sanitized', False, True, False, True, 13),
     ]:
         path = root/name/'receipt.json'; r = read(path)
+        overlays = name.startswith('overlays-')
+        require(bool(r.get('native_overlay_control')) == overlays, 'Wrong overlay control: '+name)
         require((r['original_failure_control'], r['selector_off'], r['snapshot'], r['sanitized']) ==
                 (original, off, snapshot, sanitized), 'Wrong control mode: '+name)
         require(r['target_receipt_sha256'] == target_sha and r['source_unchanged'] and
@@ -64,6 +72,8 @@ def validate_controls(root, target):
         expected = {(c, 240, 240) for c in (0,1,2,3,4,6,7,8,9,10,11,12,13)}
         if not (original or off):
             expected |= {(c,w,h) for c in range(14,25) for w,h in ((240,240),(410,502),(128,128),(320,180))}
+        if overlays:
+            expected = {(c,w,h) for c in range(25,33) for w,h in ((240,240),(410,502),(128,128),(320,180))}
         require({(x['case'], x['width'], x['height']) for x in r['results']} == expected,
                 'Temporal coverage changed: '+name)
         for item in r['results']:
@@ -72,6 +82,10 @@ def validate_controls(root, target):
         if original:
             expected_pins['system'] = '9d2c55b32e88c0b12b1fa16200f399164767f5d1'
         require(r['external_git_pins'] == expected_pins, 'Temporal source pins differ: '+name)
+        expected_defines = recipe.define_arguments(not off)
+        if original:
+            expected_defines = [flag for flag in expected_defines if flag not in ['-D'+item for item in recipe.OVERLAYS]]
+        require(r['build_defines'] == expected_defines, 'Temporal selectors differ: '+name)
         if not (original or off):
             require(native['source_sha256'].keys() <= r['compiled_dependency_sha256'].keys(),
                     'Missing full temporal production dependencies: '+name)
@@ -96,6 +110,47 @@ def validate_controls(root, target):
                 require(sha == native['source_sha256'][identity], 'UI matrix source differs: '+identity)
         proofs[name] = recipe.digest(path.read_bytes())
     return proofs
+
+
+def previous_release_control(root, shared, native_layout, native):
+    """Measure the published immutable baseline, never rebuild or replace it."""
+    identity = read(ROOT/PREVIOUS)
+    require(identity['tag'] == 'native-battery-1.2.0-dev1' and identity['version'] == '1.2.0' and
+            identity['source_commit'] == '68fa96840136817ec22f465245123a9581ff891c', 'Frozen release identity changed')
+    out = root/'previous-release'; out.mkdir()
+    for name in ('battery.elf', 'battery.json', 'command.json'):
+        url = 'https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/releases/download/'+identity['tag']+'/'+name
+        with urllib.request.urlopen(url, timeout=60) as response:
+            data = response.read(2000000)
+        expected = identity['assets'][name]
+        require(recipe.digest(data) == expected['sha256'] and
+                len(data) == expected.get('size_bytes',len(data)), 'Frozen release asset differs: '+name)
+        (out/name).write_bytes(data)
+    old_manifest = read(out/'battery.json')
+    require(old_manifest['requires'] == expected_manifest()['requires'], 'Released capability contract differs')
+    old_defines = [flag for flag in read(out/'command.json') if flag.startswith('-D')]
+    require(old_defines == [flag for flag in recipe.define_arguments(True)
+                           if flag not in ['-D'+name for name in recipe.OVERLAYS]], 'Released source recipe differs')
+    cc = read(root/'target/native/command.json')[0]
+    old_symbols = subprocess.check_output([cc.removesuffix('gcc')+'nm', '-D', str(out/'battery.elf')], text=True)
+    (out/'dynamic-symbols.txt').write_text(old_symbols)
+    old_imports, old_exports = recipe.symbol_contract(old_symbols)
+    require(old_imports == native['imports'] and old_exports == native['exports'], 'Successor import/export contract differs')
+    old_layout = shared.inspect(out/'battery.elf')
+    (out/'elf-layout.json').write_text(json.dumps(old_layout,indent=2)+'\n')
+    current = native_layout['section_loader']; old = old_layout['section_loader']
+    record = {'identity':identity, 'capability_contract_unchanged':True,
+              'overlay_selector_delta':recipe.OVERLAYS, 'baseline_layout':old_layout,
+              'imports_unchanged':True, 'exports_unchanged':True, 'imports':old_imports, 'exports':old_exports,
+              'successor_layout_sha256':recipe.digest((root/'app/elf-layout.json').read_bytes()),
+              'elf_size_delta_bytes':native_layout['file_size_bytes']-old_layout['file_size_bytes'],
+              'data_allocation_delta_bytes':current['data_allocation_request_bytes']-old['data_allocation_request_bytes'],
+              'executable_allocation_delta_bytes':current['executable_allocation_request_bytes']-old['executable_allocation_request_bytes'],
+              'resident_allocation_delta_bytes':current['resident_section_allocation_request_bytes']-old['resident_section_allocation_request_bytes'],
+              'uncached_input_plus_sections_delta_bytes':current['uncached_input_plus_section_allocations_bytes']-old['uncached_input_plus_section_allocations_bytes'],
+              'physical_fit_qualified':False}
+    path = out/'comparison.json'; path.write_text(json.dumps(record,indent=2)+'\n')
+    return recipe.digest(path.read_bytes())
 
 
 def qualify(args):
@@ -130,6 +185,7 @@ def qualify(args):
     require(shared.RUNTIME_PIN == recipe.PINS['runtime'], 'Admission Runtime mismatch')
     layout = shared.inspect(app/'battery.elf')
     (app/'elf-layout.json').write_text(json.dumps(layout,indent=2)+'\n')
+    previous_sha = previous_release_control(root,shared,layout,native)
     runtime = reporter.parent/'runtime'; hashes = {}
     for relative in shared.RUNTIME_INPUTS:
         data = recipe.git(args.runtime,'show',recipe.PINS['runtime']+':'+relative)
@@ -190,6 +246,7 @@ def qualify(args):
     record = {'schema':1,'tag':TAG,'version':VERSION,'source_commit':source,'working_tree_dirty':False,
               'external_git_pins':recipe.PINS,'required_capabilities':expected_manifest()['requires'],
               'target_receipt_sha256':recipe.digest((root/'target/qualification.json').read_bytes()),
+              'previous_release_comparison_sha256':previous_sha,
               'controls':controls,'source_files':source_files,'elf_sha256':native['sha256'],
               'elf_size_bytes':native['size_bytes'],'manifest_sha256':admission['manifest_sha256'],
               'admission_sha256':recipe.digest((app/'elf-memory-admission.json').read_bytes()),
@@ -200,7 +257,7 @@ def qualify(args):
                 'Optional app.catalog remains unavailable without a separately reviewed grant',
                 'Existing color BLE entry remains deferred; paper-only behavior retained']}
     (app/'battery-build-record.json').write_text(json.dumps(record,indent=2)+'\n')
-    print('Native Battery1.2.0: exact-source standalone preparation and production admission PASS')
+    print('Native Battery1.2.1: exact-source standalone preparation and production admission PASS')
     return record
 
 

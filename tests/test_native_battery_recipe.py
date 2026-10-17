@@ -34,6 +34,24 @@ class BatteryRecipeTests(unittest.TestCase):
         self.assertFalse(set(recipe.define_arguments()) & {'-D'+x for x in recipe.NATIVE})
         self.assertEqual(recipe.define_arguments(True), recipe.define_arguments()+['-D'+x for x in recipe.NATIVE])
 
+    def test_both_native_overlays_are_explicit_and_require_full_services(self):
+        self.assertEqual(recipe.NATIVE, ['PORTABLE_BATTERY_NATIVE_UI', 'PORTABLE_NATIVE_CANVAS',
+                                        'PORTABLE_QUICK_NATIVE', 'PORTABLE_ALARM_NATIVE'])
+        for flag in ('PORTABLE_ALARM_CLIENT', 'PORTABLE_QUICK_ACTIONS', 'PORTABLE_NOVA_UI',
+                     'PORTABLE_QUICK_ATOMIC_PREFERENCES', 'PORTABLE_ALARM_TERMINAL_RETENTION'):
+            self.assertIn(flag, recipe.COMMON)
+        for flag in recipe.NATIVE:
+            profile = copy.deepcopy(self.profile)
+            profile['native_selectors'].remove(flag)
+            with self.assertRaisesRegex(ValueError, 'opt-in'):
+                recipe.validate_profile(profile, self.baseline)
+
+    def test_successor_preserves_previous_release_identity(self):
+        import prepare_native_battery_release as release
+        self.assertEqual(release.TAG, 'native-battery-1.2.1-dev1')
+        self.assertEqual(release.VERSION, '1.2.1')
+        self.assertEqual(recipe.PINS['system'], 'b8e34df8b33096663d92b469dff225d130217354')
+
     def test_no_feature_can_be_silently_omitted(self):
         for selector in recipe.COMMON:
             with self.subTest(selector=selector):

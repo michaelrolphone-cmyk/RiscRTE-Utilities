@@ -54,6 +54,7 @@ def main():
     parser.add_argument('--sanitize', action='store_true')
     parser.add_argument('--snapshot', action='store_true')
     mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--overlays', action='store_true')
     mode.add_argument('--original', action='store_true')
     mode.add_argument('--selector-off', action='store_true')
     args = parser.parse_args()
@@ -68,7 +69,7 @@ def main():
     inputs = args.input_receipt.resolve().parent/'inputs'
     repos = {owner: getattr(args, owner).resolve() for owner in recipe.PINS}
     pins = dict(recipe.PINS)
-    cases = ORIGINAL_CASES if args.original or args.selector_off else (*ORIGINAL_CASES, *range(14, 25))
+    cases = tuple(range(25,33)) if args.overlays else ORIGINAL_CASES if args.original or args.selector_off else (*ORIGINAL_CASES, *range(14, 25))
     with tempfile.TemporaryDirectory(prefix='battery-temporal-', dir=out) as temporary:
         temporary = Path(temporary)
         roots = {owner: inputs/owner for owner in recipe.PINS}
@@ -90,7 +91,10 @@ def main():
                     app/'Apps', baseline/'Apps', baseline/'lib/Alarm/include', baseline/'lib/Contexts/include',
                     roots['profile_source']/'profiles/shared-editor-inputs', roots['runtime']/'sdk/app',
                     roots['bridges']/'sdk/app', roots['bridges']/'sdk/driver', roots['bridges']/'include']
-        flags = recipe.define_arguments(not args.selector_off)+['-I'+str(path) for path in includes]
+        selected = recipe.define_arguments(not args.selector_off)
+        if args.original:
+            selected = [flag for flag in selected if flag not in ['-D'+name for name in recipe.OVERLAYS]]
+        flags = selected+['-I'+str(path) for path in includes]
         if args.original or args.selector_off:
             flags += ['-DBATTERY_EXPECT_ORIGINAL=1']
         if args.snapshot:
@@ -158,11 +162,11 @@ def main():
         for path, expected in paths.items():
             if digest(path.read_bytes()) != expected:
                 raise ValueError('Source changed during temporal qualification: '+str(path))
-        receipt = {'schema': 1, 'original_failure_control': args.original, 'selector_off': args.selector_off,
+        receipt = {'schema': 1, 'native_overlay_control': args.overlays, 'original_failure_control': args.original, 'selector_off': args.selector_off,
                    'sanitized': args.sanitize, 'snapshot': args.snapshot, 'external_git_pins': pins,
                    'utilities_original': ORIGINAL_UTILITIES if args.original else None,
                    'target_receipt_sha256': digest(args.input_receipt.read_bytes()),
-                   'required_capabilities': target['required_capabilities'], 'build_defines': recipe.define_arguments(not args.selector_off),
+                   'required_capabilities': target['required_capabilities'], 'build_defines': selected,
                    'source_unchanged': True, 'compiled_dependency_sha256': dict(sorted(closure.items())),
                    'binary_sha256': digest(binary.read_bytes()), 'results': results,
                    'hardware_tested': False, 'target_instructions_executed': False,
