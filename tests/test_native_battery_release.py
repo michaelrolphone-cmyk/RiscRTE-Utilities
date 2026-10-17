@@ -10,6 +10,8 @@ sys.path.insert(0,str(ROOT/'scripts'))
 import prepare_native_battery_release as prepare
 import publish_native_battery as publish
 import build_native_battery_qualification as recipe
+import test_battery_native_temporal as temporal
+import test_battery_native as reduced
 
 
 def write(path,value):
@@ -132,6 +134,19 @@ class BatteryReleaseTests(unittest.TestCase):
         for field in ('elf_sha256','manifest_sha256'):
             wrong=dict(p);wrong[field]='0'*64
             with self.assertRaisesRegex(ValueError,'differs from the qualified'):publish.verify_existing(wrong,self.source,r)
+    def test_nested_ci_dependency_roots_take_precedence(self):
+        root=ROOT; stage=root/'dist/inputs'; roots={owner:stage/owner for owner in recipe.PINS}
+        baseline=stage/'utilities-baseline'; original=root/'dist/original/utilities'
+        for owner,base in roots.items():
+            self.assertEqual(temporal.dependency_owner(base/'example.c',root,roots,baseline),(owner,'example.c'))
+        self.assertEqual(temporal.dependency_owner(original/'Apps/battery.c',root,roots,baseline,original),('utilities-original','Apps/battery.c'))
+        self.assertEqual(temporal.dependency_owner(baseline/'Alarm.h',root,roots,baseline),('utilities-baseline','Alarm.h'))
+        self.assertEqual(temporal.dependency_owner(root/'Apps/battery.c',root,roots,baseline),('utilities','Apps/battery.c'))
+        with self.assertRaises(ValueError):temporal.dependency_owner(Path('/unowned/source.c'),root,roots,baseline)
+        catalog=root/'dist/host/catalog.c'
+        self.assertEqual(reduced.dependency_identity(roots['system']/'adapter.c',roots['system'],catalog),'system:adapter.c')
+        self.assertEqual(reduced.dependency_identity(catalog,roots['system'],catalog),'generated:catalog.c')
+        self.assertEqual(reduced.dependency_identity(root/'Apps/battery.c',roots['system'],catalog),'utilities:Apps/battery.c')
     def test_ci_is_main_only_and_dependencies_pinned(self):
         text=(ROOT/'.github/workflows/native-battery.yml').read_text()
         self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/main'",text)

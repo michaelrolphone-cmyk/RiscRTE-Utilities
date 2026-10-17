@@ -29,6 +29,22 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def dependency_owner(path, root, roots, baseline, original_app=None):
+    """Explicit staged owners take precedence over a containing CI checkout."""
+    if original_app is not None and path.is_relative_to(original_app):
+        return 'utilities-original', str(path.relative_to(original_app))
+    if path.is_relative_to(baseline):
+        return 'utilities-baseline', str(path.relative_to(baseline))
+    matches = [(owner, str(path.relative_to(base))) for owner, base in roots.items() if path.is_relative_to(base)]
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        raise ValueError('Ambiguous compiled dependency: '+str(path))
+    if path.is_relative_to(root):
+        return 'utilities', str(path.relative_to(root))
+    raise ValueError('Unowned compiled dependency: '+str(path))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input-receipt', type=Path, required=True)
@@ -97,17 +113,7 @@ def main():
             for name in shlex.split(raw.replace('\\\n', ' ').split(':', 1)[1]):
                 path = Path(name).resolve()
                 data = path.read_bytes()
-                if path.is_relative_to(ROOT):
-                    owner, relative = 'utilities', str(path.relative_to(ROOT))
-                elif args.original and path.is_relative_to(app):
-                    owner, relative = 'utilities-original', str(path.relative_to(app))
-                elif path.is_relative_to(baseline):
-                    owner, relative = 'utilities-baseline', str(path.relative_to(baseline))
-                else:
-                    matches = [(key, str(path.relative_to(root))) for key, root in roots.items() if path.is_relative_to(root)]
-                    if len(matches) != 1:
-                        raise ValueError('Unowned compiled dependency: '+str(path))
-                    owner, relative = matches[0]
+                owner, relative = dependency_owner(path, ROOT, roots, baseline, app if args.original else None)
                 if owner == 'system' and relative in ('lib/PortableApps/include/RiscRuntimeV1.h', 'lib/PortableApps/include/RiscKeyValueAtomicV1.h'):
                     owner, relative = 'runtime', 'sdk/app/'+path.name
                 identity = owner+':'+relative
