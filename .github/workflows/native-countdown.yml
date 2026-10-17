@@ -1,0 +1,216 @@
+name: Native Countdown qualification
+
+on:
+  push:
+    branches: [main, work/countdown-native-publisher-20261017]
+    paths:
+      - 'Apps/alarm*'
+      - 'Apps/countdown*'
+      - 'Apps/daily_draw.h'
+      - 'Apps/utility_frame.h'
+      - 'Apps/native/alarms.json'
+      - 'Apps/native/countdown.json'
+      - 'profiles/native-alarms*.json'
+      - 'scripts/*native_alarms*.py'
+      - 'scripts/*native_countdown*.py'
+      - 'scripts/test_alarms_native*.py'
+      - 'test/native_apps/alarms_native*'
+      - 'tests/test_native_alarms*.py'
+      - 'tests/test_native_countdown*.py'
+      - 'docs/native-alarms/**'
+      - 'docs/native-countdown/**'
+      - '.github/workflows/native-countdown.yml'
+  pull_request:
+    paths:
+      - 'Apps/alarm*'
+      - 'Apps/countdown*'
+      - 'Apps/daily_draw.h'
+      - 'Apps/utility_frame.h'
+      - 'Apps/native/alarms.json'
+      - 'Apps/native/countdown.json'
+      - 'profiles/native-alarms*.json'
+      - 'scripts/*native_alarms*.py'
+      - 'scripts/*native_countdown*.py'
+      - 'scripts/test_alarms_native*.py'
+      - 'test/native_apps/alarms_native*'
+      - 'tests/test_native_alarms*.py'
+      - 'tests/test_native_countdown*.py'
+      - 'docs/native-alarms/**'
+      - 'docs/native-countdown/**'
+      - '.github/workflows/native-countdown.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+      UBSAN_OPTIONS: halt_on_error=1
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout exact Utilities candidate and baseline history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout pinned Alarms input and native overlay foundation
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 02f65827d524ec7b1bd6a5d0576a9d731cc589d5
+          fetch-depth: 0
+          path: .dependencies/native-alarms-system
+          persist-credentials: false
+      - name: Checkout pinned generic Watch bridges
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Watch
+          ref: 6e82fdcaec0b73ed700d2104cfb4d94f011c19d4
+          path: .dependencies/native-alarms-watch
+          persist-credentials: false
+      - name: Checkout pinned Runtime SDK
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 48229bd1593a2e24e95bf4537b495ee615990fd3
+          path: .dependencies/native-alarms-runtime
+          persist-credentials: false
+      - name: Checkout pinned alarm compatibility headers
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Wavshare-S3-Touch-AMOLED-2.06
+          ref: b9862e1379813a0914d4926ef59a3feb6fcf656a
+          path: .dependencies/native-alarms-profile
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Recipe and publication contracts with exact CI input pins
+        run: |
+          set -euo pipefail
+          mkdir -p dist/native-countdown-ci/evidence
+          python -m unittest discover -s tests -p 'test_native_alarms*.py' -v 2>&1 | tee dist/native-countdown-ci/evidence/recipe.log
+          python -m unittest discover -s tests -p 'test_native_countdown*.py' -v 2>&1 | tee dist/native-countdown-ci/evidence/countdown-recipe.log
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import subprocess
+          profile = json.loads(Path('profiles/native-alarms-qualification.json').read_text())
+          directories = {
+              'system': '.dependencies/native-alarms-system',
+              'bridges': '.dependencies/native-alarms-watch',
+              'runtime': '.dependencies/native-alarms-runtime',
+              'profile_source': '.dependencies/native-alarms-profile',
+          }
+          for owner, directory in directories.items():
+              actual = subprocess.check_output(['git','-C',directory,'rev-parse','HEAD'],text=True).strip()
+              if actual != profile['pins'][owner]:
+                  raise SystemExit(owner + ': workflow/profile pin mismatch')
+          subprocess.run(['git','cat-file','-e',profile['utilities_base']+'^{commit}'],check=True)
+          Path('dist/native-countdown-ci/evidence/input-pins.json').write_text(json.dumps(profile['pins'],indent=2)+'\n')
+          PY
+      - name: Install official pinned ESP32-S3 compiler
+        run: |
+          set -euo pipefail
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Full-feature dual-app target admission and exact selector-off controls
+        env:
+          NATIVE_APP_CC: /home/runner/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc
+        run: |
+          set -euo pipefail
+          "$NATIVE_APP_CC" --version | head -1 | tee dist/native-countdown-ci/evidence/compiler.log
+          grep -F '8.4.0' dist/native-countdown-ci/evidence/compiler.log
+          grep -F '2021r2-patch5' dist/native-countdown-ci/evidence/compiler.log
+          python scripts/build_native_alarms_qualification.py \
+            --system .dependencies/native-alarms-system \
+            --bridges .dependencies/native-alarms-watch \
+            --runtime .dependencies/native-alarms-runtime \
+            --profile-source .dependencies/native-alarms-profile \
+            --output-dir dist/native-countdown-ci/target --native-ui \
+            2>&1 | tee dist/native-countdown-ci/evidence/target.log
+      - name: Controller and delayed presentation matrices normal and ASan UBSan
+        run: |
+          set -euo pipefail
+          for mode in host async; do
+            for san in normal sanitized; do
+              extra=()
+              if [[ "$mode-$san" == host-normal ]]; then extra+=(--captures); fi
+              if [[ "$mode" == async ]]; then extra+=(--async); fi
+              if [[ "$san" == sanitized ]]; then extra+=(--sanitize); fi
+              python scripts/test_alarms_native.py \
+                --input-receipt dist/native-countdown-ci/target/qualification.json \
+                --system-apps dist/native-countdown-ci/target/inputs/system \
+                --output "dist/native-countdown-ci/$mode-$san" "${extra[@]}" \
+                2>&1 | tee "dist/native-countdown-ci/evidence/$mode-$san.log"
+            done
+          done
+      - name: Full-feature temporal ownership and negative controls
+        run: |
+          set -euo pipefail
+          modes=$(python -c 'import json; p=json.load(open("profiles/native-alarms-controls.json")); assert p["temporal"], "Temporal contract missing"; print(" ".join(x["mode"] for x in p["temporal"]))')
+          for mode in $modes; do
+            for san in normal sanitized; do
+              extra=()
+              if [[ "$san" == sanitized ]]; then extra+=(--sanitize); fi
+              python scripts/test_alarms_native_temporal.py \
+                --input-receipt dist/native-countdown-ci/target/qualification.json \
+                --system .dependencies/native-alarms-system \
+                --bridges .dependencies/native-alarms-watch \
+                --runtime .dependencies/native-alarms-runtime \
+                --profile-source .dependencies/native-alarms-profile \
+                --mode "$mode" --output "dist/native-countdown-ci/$mode-$san" "${extra[@]}" \
+                2>&1 | tee "dist/native-countdown-ci/evidence/$mode-$san.log"
+            done
+          done
+      - name: Exact-source package and dual-app production loader and memory admission
+        run: |
+          set -euo pipefail
+          python scripts/prepare_native_alarms_release.py --artifact dist/native-countdown-ci \
+            --system .dependencies/native-alarms-system --runtime .dependencies/native-alarms-runtime \
+            2>&1 | tee dist/native-countdown-ci/evidence/standalone.log
+          python scripts/prepare_native_countdown_release.py --artifact dist/native-countdown-ci
+          python scripts/publish_native_countdown.py --artifact dist/native-countdown-ci \
+            --source-sha '${{ github.event.pull_request.head.sha || github.sha }}' \
+            --repository '${{ github.repository }}' --validate-only
+      - name: Retain exact source, target and qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-countdown-qualification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            dist/native-countdown-ci/
+            !dist/native-countdown-ci/**/alarms-native-test
+            !dist/native-countdown-ci/**/countdown-native-test
+            !dist/native-countdown-ci/target/validate-elf
+            !dist/native-countdown-ci/**/__pycache__/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-development:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: qualification
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-countdown-qualification-${{ github.sha }}
+          path: qualified
+      - name: Publish or verify immutable standalone development release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish_native_countdown.py --artifact qualified --repository '${{ github.repository }}' --source-sha '${{ github.sha }}' --publish
