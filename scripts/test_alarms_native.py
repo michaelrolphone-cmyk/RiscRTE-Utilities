@@ -10,7 +10,9 @@ import json
 import os
 from pathlib import Path
 import shlex
+import struct
 import subprocess
+import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 SIZES = ((120, 128), (128, 128), (160, 128), (160, 240), (240, 240),
@@ -19,6 +21,20 @@ SIZES = ((120, 128), (128, 128), (160, 128), (160, 240), (240, 240),
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def png_from_ppm(source, destination):
+    """Save the exact provider image without an optional imaging dependency."""
+    magic, size, maximum, pixels = source.read_bytes().split(b'\n', 3)
+    width, height = (int(value) for value in size.split())
+    if magic != b'P6' or maximum != b'255' or len(pixels) != width*height*3:
+        raise ValueError('Unexpected provider raster capture')
+    def chunk(kind, data):
+        return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind+data))
+    rows = b''.join(b'\0'+pixels[y*width*3:(y+1)*width*3] for y in range(height))
+    destination.write_bytes(b'\x89PNG\r\n\x1a\n' +
+        chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)) +
+        chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
 
 
 def dependency_identity(path, system, catalog):
@@ -88,14 +104,12 @@ def main():
             if result.returncode:
                 raise RuntimeError(str(log) + ': ' + log.read_text())
         if args.captures:
-            from PIL import Image
             for width, height in ((128, 128), (240, 240), (410, 502), (320, 180)):
                 for page in ((0, 1, 2, 3) if app == 'alarms' else (0, 1, 2)):
                     subprocess.run([str(binary), str(width), str(height), str(out), str(page)],
                                    check=True, capture_output=True, timeout=60)
                     ppm = out / 'frame.ppm'
-                    with Image.open(ppm) as im:
-                        im.save(out / f'{app}-{width}x{height}-page{page}.png')
+                    png_from_ppm(ppm, out / f'{app}-{width}x{height}-page{page}.png')
                     ppm.unlink()
         if any(sha(path) != digest for path, digest in before.items()):
             raise RuntimeError('Source changed during native controller qualification')

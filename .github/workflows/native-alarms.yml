@@ -134,6 +134,7 @@ jobs:
           for mode in host async; do
             for san in normal sanitized; do
               extra=()
+              if [[ "$mode-$san" == host-normal ]]; then extra+=(--captures); fi
               if [[ "$mode" == async ]]; then extra+=(--async); fi
               if [[ "$san" == sanitized ]]; then extra+=(--sanitize); fi
               python scripts/test_alarms_native.py \
