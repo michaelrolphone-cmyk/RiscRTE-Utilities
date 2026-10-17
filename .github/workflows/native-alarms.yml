@@ -183,7 +183,19 @@ jobs:
             !dist/native-alarms-ci/target/validate-elf
             !dist/native-alarms-ci/**/__pycache__/
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
+      - name: Download transported qualification artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: native-alarms-qualification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/native-alarms-downloaded
+      - name: Validate transported qualification artifact
+        run: |
+          python scripts/publish_native_alarms.py \
+            --artifact '${{ runner.temp }}/native-alarms-downloaded' \
+            --source-sha '${{ github.event.pull_request.head.sha || github.sha }}' \
+            --repository '${{ github.repository }}' --validate-only
 
   publish-development:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

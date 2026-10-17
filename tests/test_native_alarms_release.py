@@ -22,6 +22,10 @@ def write(path,value):
 def fixture(root):
     source = 'a'*40
     source_files = {}
+    workflow = root/'source/utilities'/prepare.RELEASE_WORKFLOW
+    workflow.parent.mkdir(parents=True,exist_ok=True)
+    workflow.write_bytes((ROOT/prepare.RELEASE_WORKFLOW).read_bytes())
+    source_files[str(workflow.relative_to(root))] = recipe.digest(workflow.read_bytes())
     source_sha = recipe.digest(b'synthetic source\n')
     modules = []
     for app in recipe.APPLICATIONS:
@@ -135,6 +139,15 @@ class AlarmsReleaseTests(unittest.TestCase):
         p = self.root/path;r = json.loads(p.read_text());fn(r);return write(p,r)
     def test_complete_synthetic_receipt_passes(self):
         self.assertEqual(publish.validate(self.root,self.source)['version'],'0.3.0')
+    def test_missing_workflow_provenance_rejected(self):
+        self.change('app/alarms-build-record.json',lambda r:r['source_files'].pop('source/utilities/'+prepare.RELEASE_WORKFLOW))
+        with self.assertRaisesRegex(ValueError,'workflow provenance'):publish.validate(self.root,self.source)
+    def test_hidden_workflow_removed_by_upload_rejected(self):
+        (self.root/'source/utilities'/prepare.RELEASE_WORKFLOW).unlink()
+        with self.assertRaises(FileNotFoundError):publish.validate(self.root,self.source)
+    def test_changed_workflow_bytes_rejected(self):
+        (self.root/'source/utilities'/prepare.RELEASE_WORKFLOW).write_bytes(b'changed workflow')
+        with self.assertRaisesRegex(ValueError,'Changed source evidence'):publish.validate(self.root,self.source)
     def test_changed_capture_rejected(self):
         (self.root/'host-normal'/sorted(prepare.CAPTURES)[0]).write_bytes(b'changed')
         with self.assertRaisesRegex(ValueError,'Changed provider capture'):publish.validate(self.root,self.source)
@@ -223,6 +236,10 @@ class AlarmsReleaseTests(unittest.TestCase):
         self.assertIn('needs: qualification',publish_job)
         self.assertIn('--publish',publish_job)
         self.assertIn('--validate-only',text)
+        self.assertIn('include-hidden-files: true',qualification)
+        self.assertIn('Download transported qualification artifact',qualification)
+        self.assertIn('Validate transported qualification artifact',qualification)
+        self.assertIn("--artifact '${{ runner.temp }}/native-alarms-downloaded'",qualification)
         self.assertIn('persist-credentials: false',text)
         for pin in recipe.PINS.values():self.assertIn(pin,text)
 
