@@ -27,6 +27,9 @@ REDUCED_PRODUCTION_INPUTS = {
 CONTROL_PROFILE = 'profiles/native-alarms-controls.json'
 HOST_SIZES = ((120,128),(128,128),(160,128),(160,240),(240,240),(410,502),(502,410),(320,180),(800,480))
 HOST_CASES = ('geometry-editor-persistence',)
+CAPTURES = {f'{app}-{w}x{h}-page{page}.png' for app in recipe.APPLICATIONS
+            for w,h in ((128,128),(240,240),(410,502),(320,180))
+            for page in (range(4) if app == 'alarms' else range(3))}
 
 
 def require(ok, text):
@@ -135,7 +138,14 @@ def validate_controls(root, target):
         for item in results:
             log = checked_path(root/name, item['log'])
             require(recipe.digest(log.read_bytes()) == item['log_sha256'], 'Changed control log: '+name)
+        if name == 'host-normal':
+            captures = r.get('capture_sha256', {})
+            require(set(captures) == CAPTURES, 'Incomplete provider captures')
+            for relative, sha in captures.items():
+                require(recipe.digest(checked_path(root/name,relative).read_bytes()) == sha, 'Changed provider capture')
         compiled = r['compiled_dependency_sha256']
+        runner = 'utilities:scripts/test_alarms_native'+('_temporal' if full else '')+'.py'
+        require(runner in compiled, 'Missing qualification runner provenance')
         expected_sources = native_sources
         if control is not None and control['mode'] == 'selector-off':
             expected_sources = {}
@@ -149,6 +159,11 @@ def validate_controls(root, target):
         for key, sha in compiled.items():
             if key in expected_sources:
                 require(sha == expected_sources[key], 'Control production source differs: '+key)
+            if key.startswith(('utilities:test/', 'utilities:tests/', 'utilities:scripts/', 'utilities:profiles/')):
+                relative = key.split(':',1)[1]
+                bundled = checked_path(root/'source/utilities',relative)
+                data = bundled.read_bytes() if bundled.is_file() else recipe.git(ROOT,'show',target['utilities_commit']+':'+relative)
+                require(recipe.digest(data) == sha, 'Control fixture source differs: '+key)
         proofs[name] = recipe.digest(path.read_bytes())
     return proofs
 

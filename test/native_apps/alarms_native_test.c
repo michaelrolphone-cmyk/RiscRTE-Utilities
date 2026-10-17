@@ -24,6 +24,25 @@ static void paint(void){
  assert(!pending_token&&!utility_frame_pending);
 }
 static void tap(alarms_native_rect r){assert(r.w>0&&r.h>0);assert(alarm_tap(r.x+r.w/2,r.y+r.h/2));paint();}
+static uint64_t region_hash(alarms_native_rect r){
+ uint64_t h=UINT64_C(1469598103934665603);
+ for(int y=r.y;y<r.y+r.h;y++)for(int x=r.x;x<r.x+r.w;x++){
+  h^=pixels[y*(test_width+4)+(unsigned)x];h*=UINT64_C(1099511628211);
+ }
+ return h;
+}
+static void prior_frame_clear_control(alarms_native_layout l){
+ alarm_page=alarm_field=0;paint();uint64_t header=region_hash(l.title);
+ for(unsigned page=0;page<(DAILY_ALARM_KIND==1?4u:3u);page++){
+  alarm_page=page;paint();assert(region_hash(l.title)==header);
+  uint64_t clean=image_hash();assert(!pending_token&&!frames);
+  /* Providers may return arbitrary prior pixels, including old title glyphs.
+   * Poison only visible pixels; the independent stride guard stays intact. */
+  for(unsigned y=0;y<test_height;y++)for(unsigned x=0;x<test_width;x++)pixels[y*(test_width+4)+x]=0xf81f;
+  assert(image_hash()!=clean);paint();assert(image_hash()==clean);
+ }
+ alarm_page=0;paint();
+}
 static void start(void){
  assert(app_module_init()==0);app=t5_app_get_api(1);portable_alarms_native_begin();assert(open_dependencies());
  storage=&error_kv;assert(alarm_writer_load(&writer,storage,DAILY_ALARM_KIND)==0);refresh_status();
@@ -78,6 +97,7 @@ int main(int argc,char **argv){
  service_state.occurrence.generation=7;assert(!alarm_tap(l.primary.x+1,l.primary.y+1));tap(l.secondary);assert(!alarm_page);assert(!alarm_back());
  tap(l.footer[0]);assert(acknowledge_count==1);service_state.occurrence.generation=0;
  tap(l.primary);assert(alarm_page==1);tap(l.fields[0]);assert(alarm_page==2);assert(!alarm_back()&&alarm_page==1);assert(!alarm_back()&&alarm_page==0);
+ prior_frame_clear_control(l);
  if(argc==5){directory=argv[3];alarm_page=(unsigned)atoi(argv[4]);alarm_field=0;paint();directory=NULL;}
  close_dependencies();app_module_fini();assert(!fixture_grants&&!frames&&!subs&&!pending_token);
  printf("Alarms native kind=%u %ux%u: fields/time/persistence/uncertainty/volume/navigation/stride PASS\n",DAILY_ALARM_KIND,test_width,test_height);

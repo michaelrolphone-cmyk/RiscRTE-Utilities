@@ -5,16 +5,15 @@ contract and builds both applications against immutable shared dependencies.
 The native view is opt-in. It does not replace the .59 firmware, its app bytes,
 the legacy manifests, or an existing catalog entry.
 
-The current pipeline is an interim implementation: the production temporal
-coverage contract is deliberately empty and packaging fails closed until the
-actual full-feature tests establish its cases. Passing the recipe's synthetic
-contract tests is not a target, controller, temporal, memory, or hardware pass.
+Packaging requires the actual full-feature temporal coverage contract and
+hash-bound passing receipts. Passing the recipe's synthetic contract tests is
+not a target, controller, temporal, memory, or hardware pass.
 
 ## Exact inputs
 
 - Utilities selector-off baseline: `4fdcad2495c33fe63f5f6faca9b11ced3c739a5b`
 - Initial Utilities candidate base: `68fa96840136817ec22f465245123a9581ff891c`
-- System checkpoint: `3f63826ddad9fa6950e8556ee6ee2976b1b56709`
+- System checkpoint: `02f65827d524ec7b1bd6a5d0576a9d731cc589d5`
 - Generic Watch bridges: `6e82fdcaec0b73ed700d2104cfb4d94f011c19d4`
 - Runtime: `48229bd1593a2e24e95bf4537b495ee615990fd3`
 - Compatibility profile: `b9862e1379813a0914d4926ef59a3feb6fcf656a`
@@ -78,6 +77,11 @@ Four reduced controller receipts are required: `host-normal`, `host-sanitized`,
 `async-normal`, and `async-sanitized`. Each has 18 rows: both applications at
 120x128, 128x128, 160x128, 160x240, 240x240, 410x502, 502x410, 320x180 and 800x480.
 The named host case is `geometry-editor-persistence`.
+The normal host run retains 28 exact provider raster captures, whose hashes are
+verified before publication. Geometry tests also check every integer width
+120–1024 and height128–1024 with both field counts, plus rejection and overflow
+boundaries. Header/footer controls keep native pixel sizes rather than scaling
+a completed viewport.
 
 All receipts bind the exact target receipt hash, capability list, external pins,
 compiled production dependency hashes, unchanged-source flag, sanitizer and
@@ -85,9 +89,15 @@ async mode, and individual application/case/geometry/exit-code/log hashes.
 Missing cases, duplicate rows, failed cases, changed logs, source mismatch or
 unbound receipts prevent packaging. Evidence paths cannot escape their root.
 
-`profiles/native-alarms-controls.json` owns the temporal contract. Its `temporal`
-array is currently empty. Add only coverage actually implemented and measured by
-`scripts/test_alarms_native_temporal.py`. Each entry needs `mode`,
+`profiles/native-alarms-controls.json` owns the measured temporal contract and
+case descriptions implemented by `scripts/test_alarms_native_temporal.py`.
+Native and raster-snapshot modes exercise 24 cases at240x240,410x502,128x128 and
+320x180 for both actual controllers. These cover raw queue watermarks, redraw
+continuity, stale page/invocation tokens, snapshot/presentation failure custody,
+Quick modal/atomic volume, persistence uncertainty and alarm interruption.
+Automatic idle uses the real local Watch bridge; explicit sleep tests call the
+production sleep boundary directly and do not claim a physical button gesture.
+Each entry needs `mode`,
 `applications: ["alarms", "countdown"]`, `cases`, and `sizes`. Every listed mode
 runs both normally and under ASan/UBSan. Supported mode identifiers are
 `temporal`, `snapshot`, `selector-off`, and `original`; listing a mode is not proof
@@ -96,6 +106,10 @@ explicit source hashes and any exact external pin overrides. Native/snapshot
 full-feature controls must compile the complete target dependency closure;
 selector-off controls must match the legacy closure. All temporal receipts use
 async RGB565 and include their `mode`.
+Qualification runners and fixture dependencies must also match the exact source
+commit or its enclosed source bundle. Original controls use the unchanged
+Utilities editor with the current pinned dependencies and measure legacy
+early-touch/cancellation behavior; they are not historical .59 execution.
 
 ## Immutable package and release gate
 
@@ -114,7 +128,10 @@ recipe/test sources, available license notices, commands and evidence hashes.
 
 `publish_native_alarms.py` validates only by default, including when
 `--validate-only` is explicit. Publication requires a separate authorized
-invocation with `--publish`. CI has read-only permissions and no publishing job.
+invocation with `--publish`. Qualification CI has read-only permissions. The
+main-only publisher depends on completed qualification, consumes the exact
+commit's retained artifact, and explicitly passes `--publish`. Pull requests
+and work branches cannot publish a release.
 The publisher refuses changed source, changed bytes, incomplete/detached evidence,
 wrong or partial existing releases, or an existing tag belonging to another
 source. It never overwrites assets. It verifies downloaded checksums and the

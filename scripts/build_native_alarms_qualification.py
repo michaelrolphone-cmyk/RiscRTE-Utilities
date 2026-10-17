@@ -18,7 +18,7 @@ PROFILE_PATH = 'profiles/native-alarms-qualification.json'
 BASELINE_MANIFEST_SHA256 = '0977a98cbf3c799ca13a89a9c6adce473b8f7538738c9148b019bcda03c02011'
 BASE = '4fdcad2495c33fe63f5f6faca9b11ced3c739a5b'
 PINS = {
-    'system': '3f63826ddad9fa6950e8556ee6ee2976b1b56709',
+    'system': '02f65827d524ec7b1bd6a5d0576a9d731cc589d5',
     'bridges': '6e82fdcaec0b73ed700d2104cfb4d94f011c19d4',
     'runtime': '48229bd1593a2e24e95bf4537b495ee615990fd3',
     'profile_source': 'b9862e1379813a0914d4926ef59a3feb6fcf656a',

@@ -66,12 +66,26 @@ def fixture(root):
                          [(a,'synthetic-fixture',240,240) for a in recipe.APPLICATIONS],'temporal'))
     for name,asynchronous,sanitized,triples,mode in coverage:
         results = []
+        compiled = dict(native_sources)
+        runner = 'scripts/test_alarms_native'+('_temporal' if mode else '')+'.py'
+        runner_path = root/'source/utilities'/runner
+        runner_path.parent.mkdir(parents=True,exist_ok=True)
+        runner_path.write_bytes(b'synthetic qualification fixture\n')
+        compiled['utilities:'+runner] = recipe.digest(runner_path.read_bytes())
+        source_files[str(runner_path.relative_to(root))] = compiled['utilities:'+runner]
+        captures = {}
+        if name == 'host-normal':
+            for filename in prepare.CAPTURES:
+                path = root/name/filename;path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_bytes(b'synthetic capture fixture\n')
+                captures[filename] = recipe.digest(path.read_bytes())
         for index,(app,case,w,h) in enumerate(triples):
             log = root/name/(str(index)+'.log');log.parent.mkdir(parents=True,exist_ok=True);log.write_text('fixture PASS\n')
             results.append({'app':app,'case':case,'width':w,'height':h,'exit_code':0,'log':log.name,'log_sha256':recipe.digest(log.read_bytes())})
         write(root/name/'receipt.json',{'sanitized':sanitized,'async_rgb565':asynchronous,'source_unchanged':True,
             'target_receipt_sha256':target_sha,'required_capabilities':target['required_capabilities'],
-            'external_git_pins':recipe.PINS,'mode':mode,'compiled_dependency_sha256':native_sources,'results':results})
+            'external_git_pins':recipe.PINS,'mode':mode,'compiled_dependency_sha256':compiled,'results':results,
+            'capture_sha256':captures})
     app_dir = root/'app';app_dir.mkdir()
     native = next(m for m in modules if (m['app'],m['mode']) == ('alarms','native'))
     (app_dir/'alarms.elf').write_bytes((root/'target/native/alarms.elf').read_bytes())
@@ -121,6 +135,18 @@ class AlarmsReleaseTests(unittest.TestCase):
         p = self.root/path;r = json.loads(p.read_text());fn(r);return write(p,r)
     def test_complete_synthetic_receipt_passes(self):
         self.assertEqual(publish.validate(self.root,self.source)['version'],'0.3.0')
+    def test_changed_capture_rejected(self):
+        (self.root/'host-normal'/sorted(prepare.CAPTURES)[0]).write_bytes(b'changed')
+        with self.assertRaisesRegex(ValueError,'Changed provider capture'):publish.validate(self.root,self.source)
+    def test_missing_capture_rejected(self):
+        self.change('host-normal/receipt.json',lambda r:r['capture_sha256'].pop(sorted(prepare.CAPTURES)[0]))
+        with self.assertRaisesRegex(ValueError,'Incomplete provider captures'):publish.validate(self.root,self.source)
+    def test_changed_fixture_rejected(self):
+        self.change('temporal-normal/receipt.json',lambda r:r['compiled_dependency_sha256'].update({'utilities:scripts/test_alarms_native_temporal.py':'0'*64}))
+        with self.assertRaisesRegex(ValueError,'Control fixture source differs'):publish.validate(self.root,self.source)
+    def test_missing_runner_rejected(self):
+        self.change('host-normal/receipt.json',lambda r:r['compiled_dependency_sha256'].pop('utilities:scripts/test_alarms_native.py'))
+        with self.assertRaisesRegex(ValueError,'runner provenance'):publish.validate(self.root,self.source)
     def test_unfinished_temporal_contract_fails_closed(self):
         write(self.root/'control-fixture.json',{'schema':1,'temporal':[]})
         with self.assertRaisesRegex(ValueError,'not finalized'):
@@ -189,10 +215,13 @@ class AlarmsReleaseTests(unittest.TestCase):
                    'manifest_sha256':record['manifest_sha256'],'build_record_sha256':recipe.digest((self.root/'app/alarms-build-record.json').read_bytes())}
         publish.verify_existing(published,self.source,record)
         with self.assertRaisesRegex(ValueError,'tag/source'):publish.verify_existing(published,'b'*40,record)
-    def test_ci_has_no_publication_job_and_pins_exact_dependencies(self):
+    def test_ci_publication_requires_qualified_main_and_exact_dependencies(self):
         text=(ROOT/'.github/workflows/native-alarms.yml').read_text()
-        self.assertNotIn('contents: write',text)
-        self.assertNotIn('publish-development:',text)
+        qualification,publish_job = text.split('  publish-development:',1)
+        self.assertNotIn('contents: write',qualification)
+        self.assertIn("github.event_name == 'push' && github.ref == 'refs/heads/main'",publish_job)
+        self.assertIn('needs: qualification',publish_job)
+        self.assertIn('--publish',publish_job)
         self.assertIn('--validate-only',text)
         self.assertIn('persist-credentials: false',text)
         for pin in recipe.PINS.values():self.assertIn(pin,text)
