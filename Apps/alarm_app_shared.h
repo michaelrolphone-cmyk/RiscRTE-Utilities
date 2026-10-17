@@ -3,6 +3,9 @@
 #else
 #ifndef UTILITIES_ALARM_APP_SHARED_H
 #define UTILITIES_ALARM_APP_SHARED_H
+#if defined(PORTABLE_ALARMS_NATIVE_UI) && !defined(DAILY_NOVA_APP)
+#error Native Alarms requires the explicit Nova app profile
+#endif
 #include "T5AppApi.h"
 #include "utility_frame.h"
 #include "RiscRuntimeV1.h"
