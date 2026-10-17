@@ -193,7 +193,18 @@ jobs:
             !dist/native-countdown-ci/target/validate-elf
             !dist/native-countdown-ci/**/__pycache__/
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
+      - name: Download qualification archive for independent transport validation
+        uses: actions/download-artifact@v4
+        with:
+          name: native-countdown-qualification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/native-countdown-downloaded
+      - name: Validate transported Countdown artifact and workflow provenance
+        run: |
+          python scripts/publish_native_countdown.py --artifact "$RUNNER_TEMP/native-countdown-downloaded" \
+            --source-sha '${{ github.event.pull_request.head.sha || github.sha }}' \
+            --repository '${{ github.repository }}' --validate-only
 
   publish-development:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

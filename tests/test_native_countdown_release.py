@@ -152,6 +152,9 @@ class CountdownReleaseTests(unittest.TestCase):
         self.assertIn('scripts/prepare_native_alarms_release.py', qualification)
         self.assertIn('scripts/prepare_native_countdown_release.py', qualification)
         self.assertIn('--validate-only', qualification)
+        self.assertIn('include-hidden-files: true', qualification)
+        self.assertIn('Validate transported Countdown artifact and workflow provenance', qualification)
+        self.assertIn('--artifact "$RUNNER_TEMP/native-countdown-downloaded"', qualification)
         self.assertIn('--publish', publisher)
         for pin in recipe.PINS.values(): self.assertIn(pin, workflow)
 
