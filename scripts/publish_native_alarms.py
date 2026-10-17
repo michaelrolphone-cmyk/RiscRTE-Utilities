@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
-from prepare_native_alarms_release import TAG, VERSION, expected_manifest, require, read, validate_controls, validate_target, CONTROL_PROFILE, checked_path
+from prepare_native_alarms_release import TAG, VERSION, expected_manifest, require, read, validate_controls, validate_target, CONTROL_PROFILE, RELEASE_WORKFLOW, checked_path
 import build_native_alarms_qualification as recipe
 
 DIRECT = ('alarms.elf','alarms.json','command.json','alarms-build-record.json',
@@ -58,6 +58,8 @@ def validate(root, source):
                 r['data_allocation_request_bytes'] == layout['section_loader']['data_allocation_request_bytes'], 'Failed admission')
     validate_memory(root,record,modules)
     require(record['source_files'], 'Missing source evidence')
+    require(record['source_files'].get('source/utilities/'+RELEASE_WORKFLOW) ==
+            recipe.digest((recipe.ROOT/RELEASE_WORKFLOW).read_bytes()), 'Missing or changed workflow provenance')
     for module in modules.values():
         if module['mode'] == 'native':
             for identity, sha in module['source_sha256'].items():

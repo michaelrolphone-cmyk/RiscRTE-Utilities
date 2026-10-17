@@ -25,6 +25,7 @@ REDUCED_PRODUCTION_INPUTS = {
     'system:lib/PortableApps/include/PortableAlarmsNative.h',
 }
 CONTROL_PROFILE = 'profiles/native-alarms-controls.json'
+RELEASE_WORKFLOW = '.github/workflows/native-alarms.yml'
 HOST_SIZES = ((120,128),(128,128),(160,128),(160,240),(240,240),(410,502),(502,410),(320,180),(800,480))
 HOST_CASES = ('geometry-editor-persistence',)
 CAPTURES = {f'{app}-{w}x{h}-page{page}.png' for app in recipe.APPLICATIONS
@@ -258,7 +259,7 @@ def qualify(args):
         require(recipe.digest(content) == expected, 'Production dependency changed: '+identity)
         dest = root/'source'/owner/relative; dest.parent.mkdir(parents=True,exist_ok=True); dest.write_bytes(content)
         source_files[str(dest.relative_to(root))] = expected
-    listing = recipe.git(ROOT,'ls-tree','-r','--name-only',source,'--','scripts','profiles','Apps/native/alarms.json','docs/native-alarms','test/native_apps','tests','LICENSE').decode().splitlines()
+    listing = recipe.git(ROOT,'ls-tree','-r','--name-only',source,'--','scripts','profiles','Apps/native/alarms.json','docs/native-alarms','test/native_apps','tests','LICENSE',RELEASE_WORKFLOW).decode().splitlines()
     for relative in listing:
         content = recipe.git(ROOT,'show',source+':'+relative)
         dest = root/'source/utilities'/relative; dest.parent.mkdir(parents=True,exist_ok=True); dest.write_bytes(content)
