@@ -109,3 +109,9 @@ The standalone release recipe stages the complete source closure and evidence,
 checks their hashes against the selected commit, and verifies immutable published
 assets by downloading them again. A native catalog identity uses
 `Apps/native/audio_spectrum.json`; the legacy catalog identity is not rebound.
+
+The publisher's immutability promise is its refusal to replace an existing tag or
+asset identity. Server-enforced GitHub release immutability is not asserted. A
+new tag is explicitly bound to the verified source before draft creation, then
+draft assets, final published state and downloaded published bytes are checked.
+The archive's publication identity must also match its direct sidecar.

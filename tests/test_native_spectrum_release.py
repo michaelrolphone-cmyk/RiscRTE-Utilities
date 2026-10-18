@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -213,6 +214,7 @@ class SpectrumReleaseTests(unittest.TestCase):
         with zipfile.ZipFile(out/(prepare.TAG+'.zip'),'w') as archive:
             for path in self.root.rglob('*'):
                 if path.is_file():archive.write(path,path.relative_to(self.root))
+            archive.write(out/'publication.json','publication.json')
             if extra:extra(archive)
         (out/'SHA256SUMS').write_text(''.join(prepare.digest(p)+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file()))
         return record
@@ -250,6 +252,19 @@ class SpectrumReleaseTests(unittest.TestCase):
             out=Path(directory);record=self.assets(out,symlink)
             with self.assertRaisesRegex(ValueError,'symlink'):publish.verify_release_assets(out,record)
 
+    def test_archived_publication_must_match_direct_asset(self):
+        for content in (None,b'{}\n'):
+            with tempfile.TemporaryDirectory() as directory:
+                out=Path(directory);record=self.assets(out)
+                archive_path=out/(prepare.TAG+'.zip')
+                with zipfile.ZipFile(archive_path) as archive:
+                    members=[(item,archive.read(item)) for item in archive.infolist() if item.filename!='publication.json']
+                with zipfile.ZipFile(archive_path,'w') as archive:
+                    for item,data in members:archive.writestr(item,data)
+                    if content is not None:archive.writestr('publication.json',content)
+                (out/'SHA256SUMS').write_text(''.join(prepare.digest(p)+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
+                with self.assertRaises((ValueError,FileNotFoundError)):publish.verify_release_assets(out,record)
+
     def test_workflow_explicit_publication_gate(self):
         workflow=(ROOT/'.github/workflows/native-spectrum.yml').read_text();qualify,publisher=workflow.split('  publish-development:',1)
         self.assertNotIn('contents: write',qualify)
@@ -259,6 +274,73 @@ class SpectrumReleaseTests(unittest.TestCase):
                       'name: native-spectrum-${{ github.event.pull_request.head.sha || github.sha }}'):self.assertIn(value,qualify)
         self.assertNotIn('publish_native_countdown.py',workflow)
         for pin in recipe.PINS.values():self.assertIn(pin,workflow)
+
+    def publish_with_fake_remote(self, initial_tag=None, create_failure=False, raced_tag=False, asset_failure=False):
+        """A draft does not create its Git tag; exercise real CLI orchestration."""
+        state = {'tag':initial_tag,'draft':False,'published':False,'calls':[]}
+        self.remote_state=state
+        repo='owner/RiscRTE-Utilities'
+        def remote(*args,check=True):
+            state['calls'].append(args)
+            ok=True; stdout=''; stderr=''
+            if args[:2] == ('api','repos/'+repo+'/commits/'+self.source): stdout=self.source
+            elif args[:3] == ('release','view',prepare.TAG):
+                if state['published']:
+                    stdout=json.dumps({'tagName':prepare.TAG,'isDraft':False,'isPrerelease':True,
+                                       'assets':[{'name':name} for name in publish.REQUIRED]})
+                else: ok=False;stderr='release not found'
+            elif args[:2] == ('api','repos/'+repo+'/git/ref/tags/'+prepare.TAG):
+                ok=state['tag'] is not None;stderr='' if ok else 'HTTP 404'
+            elif args[:2] == ('api','repos/'+repo+'/git/refs'):
+                self.assertIn('ref=refs/tags/'+prepare.TAG,args)
+                self.assertIn('sha='+self.source,args)
+                self.assertIsNone(state['tag'])
+                if create_failure: ok=False;stderr='HTTP 422 ref exists'
+                else: state['tag']='d'*40 if raced_tag else self.source
+            elif args[:2] == ('api','repos/'+repo+'/commits/'+prepare.TAG):
+                ok=state['tag'] is not None;stdout=state['tag'] or '';stderr='' if ok else 'HTTP 404'
+            elif args[:3] == ('release','create',prepare.TAG):
+                self.assertIn('--verify-tag',args);state['draft']=True
+            elif args[:2] in (('release','upload'),('release','download')): self.assertTrue(state['draft'])
+            elif args[:3] == ('release','edit',prepare.TAG):
+                self.assertTrue(state['draft']);self.assertEqual(state['tag'],self.source);state['published']=True
+            else: self.fail('Unexpected remote call: '+repr(args))
+            result=subprocess.CompletedProcess(args,0 if ok else 1,stdout,stderr)
+            if check and not ok: raise subprocess.CalledProcessError(result.returncode,args,stdout,stderr)
+            return result
+        argv=['publish','--artifact',str(self.root),'--source-sha',self.source,'--repository',repo,'--publish']
+        with mock.patch.object(sys,'argv',argv),mock.patch.object(publish,'gh',side_effect=remote), \
+             mock.patch.object(publish,'stage_assets'),mock.patch.object(publish,'verify_release_assets',
+                 side_effect=ValueError('asset readback failed') if asset_failure else None):
+            publish.main()
+        return state
+
+    def test_first_publication_creates_tag_before_draft(self):
+        state=self.publish_with_fake_remote()
+        self.assertTrue(state['published'])
+        calls=state['calls'];create=next(i for i,c in enumerate(calls) if c[:2]==('api','repos/owner/RiscRTE-Utilities/git/refs'))
+        draft=next(i for i,c in enumerate(calls) if c[:2]==('release','create'))
+        self.assertLess(create,draft)
+
+    def test_existing_matching_tag_is_not_recreated(self):
+        state=self.publish_with_fake_remote(self.source)
+        self.assertTrue(state['published'])
+        self.assertFalse(any(c[:2]==('api','repos/owner/RiscRTE-Utilities/git/refs') for c in state['calls']))
+
+    def test_existing_mismatched_tag_stops_publication(self):
+        with self.assertRaisesRegex(ValueError,'another source'):
+            self.publish_with_fake_remote('d'*40)
+        self.assertFalse(self.remote_state['draft'])
+
+    def test_failed_or_raced_tag_creation_stops_before_draft(self):
+        with self.assertRaises(subprocess.CalledProcessError):self.publish_with_fake_remote(create_failure=True)
+        self.assertFalse(self.remote_state['draft'])
+        with self.assertRaisesRegex(ValueError,'another source'):self.publish_with_fake_remote(raced_tag=True)
+        self.assertFalse(self.remote_state['draft'])
+
+    def test_failed_asset_readback_does_not_publish_draft(self):
+        with self.assertRaisesRegex(ValueError,'asset readback failed'):self.publish_with_fake_remote(asset_failure=True)
+        self.assertTrue(self.remote_state['draft']);self.assertFalse(self.remote_state['published'])
 
 
 if __name__ == '__main__':unittest.main()

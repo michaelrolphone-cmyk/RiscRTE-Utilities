@@ -82,6 +82,8 @@ def verify_release_assets(folder, record):
                 require((item.external_attr >> 16) & 0o170000 != 0o120000, 'Archive symlink is not admitted')
             archive.extractall(extracted)
         require(validate(extracted,record['source_commit']) == record, 'Published evidence bundle differs')
+        require(read(extracted/'publication.json') == publication_record(record),
+                'Archived publication identity differs')
 
 
 def stage_assets(root, out, record):
@@ -139,22 +141,25 @@ def main():
         verify_existing(published,tagged,record)
         print('Existing immutable release verified at '+tagged+'; current source remains '+args.source_sha);return
     require('404' in prior.stderr or 'not found' in prior.stderr.lower(), 'Release lookup failed')
-    tag = gh('api','repos/'+args.repository+'/git/ref/tags/'+TAG,check=False)
-    if tag.returncode == 0:
-        require(gh('api','repos/'+args.repository+'/commits/'+TAG,'--jq','.sha').stdout.strip() == args.source_sha,
-                'Existing tag belongs to another source')
-    else:
-        require('404' in tag.stderr,'Tag lookup failed')
     with tempfile.TemporaryDirectory() as temporary:
         out = Path(temporary)
         stage_assets(root,out,record)
+        # Draft creation does not create a new Git tag. Bind it explicitly
+        # before creating the draft; never overwrite or repoint an existing tag.
+        tag = gh('api','repos/'+args.repository+'/git/ref/tags/'+TAG,check=False)
+        if tag.returncode != 0:
+            require('404' in tag.stderr,'Tag lookup failed')
+            gh('api','repos/'+args.repository+'/git/refs','--method','POST',
+               '-f','ref=refs/tags/'+TAG,'-f','sha='+args.source_sha)
+        require(gh('api','repos/'+args.repository+'/commits/'+TAG,'--jq','.sha').stdout.strip() == args.source_sha,
+                'Existing tag belongs to another source')
         notes = ('Standalone Native Audio Spectrum 0.5.11-dev1 software qualification. Exact source: '+args.source_sha+
                  '. Requires all 21 manifest capability/API pairs, deployment-owned bindings, compatible public ABI and sufficient loader memory. '
                  'Production structural/import/lifecycle/alignment admission passes; device PSRAM fit, target instruction execution, '
                  'installation-path compatibility and hardware behavior remain unqualified. '
                  'Legacy Spectrum bindings and frozen .63 firmware/payload remain unchanged. '
                  'Source closure, license notices and all qualification controls are included.')
-        gh('release','create',TAG,'--repo',args.repository,'--target',args.source_sha,'--draft','--prerelease',
+        gh('release','create',TAG,'--repo',args.repository,'--target',args.source_sha,'--verify-tag','--draft','--prerelease',
            '--title','Audio Spectrum Native 0.5.11-dev1 development release','--notes',notes)
         gh('release','upload',TAG,'--repo',args.repository,*[str(out/name) for name in sorted(REQUIRED)])
         with tempfile.TemporaryDirectory() as downloaded:
@@ -163,6 +168,13 @@ def main():
         tagged = gh('api','repos/'+args.repository+'/commits/'+TAG,'--jq','.sha').stdout.strip()
         verify_existing(publication_record(record),tagged,record)
         gh('release','edit',TAG,'--repo',args.repository,'--draft=false')
+        final = json.loads(gh('release','view',TAG,'--repo',args.repository,
+                             '--json','tagName,isDraft,isPrerelease,assets').stdout)
+        require(final['tagName'] == TAG and not final['isDraft'] and final['isPrerelease'] and
+                REQUIRED <= {x['name'] for x in final['assets']}, 'Final published release differs')
+        with tempfile.TemporaryDirectory() as downloaded:
+            gh('release','download',TAG,'--repo',args.repository,'--dir',downloaded)
+            verify_release_assets(Path(downloaded),record)
         print('Published '+TAG+' at '+args.source_sha)
 
 if __name__ == '__main__':main()
