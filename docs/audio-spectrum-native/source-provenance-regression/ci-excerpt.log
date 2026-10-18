@@ -1,0 +1,30 @@
+2026-10-18T11:30:45.8312829Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:46.8601502Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:47.1079917Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:48.6288467Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:49.0861620Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:50.2586734Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:50.5072872Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:52.8821349Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:53.1160253Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:54.4207453Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:54.7056762Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:56.1701932Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:56.4175794Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:30:57.4193245Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:35:25.9088529Z [36;1mpython scripts/prepare_native_spectrum_release.py --artifact dist/native-spectrum --system .dependencies/system --legacy-system .dependencies/legacy-system --run-controls[0m
+2026-10-18T11:38:58.0212719Z [36;1mpython scripts/prepare_native_spectrum_release.py --artifact dist/native-spectrum --system .dependencies/system --runtime .dependencies/runtime --watch .dependencies/watch --bridges .dependencies/bridges --wave .dependencies/wave[0m
+2026-10-18T11:39:00.5547216Z fatal: path '.dependencies/system/lib/PortableApps/src/adapter.c' exists on disk, but not in '47b56ee1df099902203f0485b71d57731f4f6ec5'
+2026-10-18T11:39:00.5558998Z   File "/home/runner/work/RiscRTE-Utilities/RiscRTE-Utilities/scripts/prepare_native_spectrum_release.py", line 449, in <module>
+2026-10-18T11:39:00.5560843Z   File "/home/runner/work/RiscRTE-Utilities/RiscRTE-Utilities/scripts/prepare_native_spectrum_release.py", line 446, in main
+2026-10-18T11:39:00.5562308Z   File "/home/runner/work/RiscRTE-Utilities/RiscRTE-Utilities/scripts/prepare_native_spectrum_release.py", line 398, in qualify
+2026-10-18T11:39:00.5563081Z     copy_source(owner,relative,recipe.git(repo,'show',pin+':'+relative),sha)
+2026-10-18T11:39:00.5805130Z     raise CalledProcessError(retcode, process.args,
+2026-10-18T11:39:00.5806620Z subprocess.CalledProcessError: Command '['git', '-C', '/home/runner/work/RiscRTE-Utilities/RiscRTE-Utilities', 'show', '47b56ee1df099902203f0485b71d57731f4f6ec5:.dependencies/system/lib/PortableApps/src/adapter.c']' returned non-zero exit status 128.
+2026-10-18T11:39:09.2640558Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:39:09.4871043Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:39:09.7051605Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:39:09.9295867Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:39:10.1476176Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:39:10.3670597Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T11:39:10.5814020Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url

@@ -91,8 +91,11 @@ def native_module(target):
 
 def source_identity(name, pins):
     """Resolve original absolute receipt paths using its recorded source roots."""
-    for key, owner in (('legacy_utilities','utilities'),('system','system'),('runtime','runtime')):
-        base = Path(pins[key]['path'])
+    roots = [(Path(pins[key]['path']),owner) for key,owner in
+             (('legacy_utilities','utilities'),('system','system'),('runtime','runtime'))]
+    # CI checks dependencies out beneath Utilities. An outer-root-first search
+    # incorrectly assigns their files to Utilities; choose the longest root.
+    for base, owner in sorted(roots,key=lambda item:len(item[0].parts),reverse=True):
         if Path(name).is_relative_to(base):
             return owner+':'+Path(name).relative_to(base).as_posix()
     raise ValueError('Unbound host source: '+name)

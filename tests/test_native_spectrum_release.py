@@ -332,6 +332,19 @@ class SpectrumReleaseTests(unittest.TestCase):
             self.publish_with_fake_remote('d'*40)
         self.assertFalse(self.remote_state['draft'])
 
+    def test_nested_checkout_uses_most_specific_source_owner(self):
+        pins={'legacy_utilities':{'path':'/work/utilities'},
+              'system':{'path':'/work/utilities/.dependencies/system'},
+              'runtime':{'path':'/work/utilities/.dependencies/runtime'}}
+        self.assertEqual(prepare.source_identity('/work/utilities/.dependencies/system/lib/adapter.c',pins),
+                         'system:lib/adapter.c')
+        self.assertEqual(prepare.source_identity('/work/utilities/.dependencies/runtime/sdk/api.h',pins),
+                         'runtime:sdk/api.h')
+        self.assertEqual(prepare.source_identity('/work/utilities/Apps/audio_spectrum.c',pins),
+                         'utilities:Apps/audio_spectrum.c')
+        with self.assertRaisesRegex(ValueError,'Unbound'):
+            prepare.source_identity('/work/utilities-sibling/Apps/audio_spectrum.c',pins)
+
     def test_failed_or_raced_tag_creation_stops_before_draft(self):
         with self.assertRaises(subprocess.CalledProcessError):self.publish_with_fake_remote(create_failure=True)
         self.assertFalse(self.remote_state['draft'])
