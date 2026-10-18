@@ -373,7 +373,7 @@ def main(args):
         'retained_recipe_sha256':sha((roots['wave']/RECIPE).read_bytes()),
         'retained_flags_removed':['-Wl,--undefined=__divsf3'],
         'bridge_selection':'Retained Wave profiles/shared-editor-sources.json pins generic bridge6e82fdca; raw Watch93c portable_sleep is incompatible with the generic SDK and is not selected.',
-        'recipe_adjustment':'Retained libgcc linkage and all feature selectors; omit redundant forced __divsf3 because it reproducibly aborts the GCC8 linker. Actual undefined-import probe confirms __divsf3 is required and final libgcc resolves it. Source roots and aggregate SDK use recorded immutable pins. Two native selectors added only in native mode.',
+        'recipe_adjustment':'Retained libgcc linkage and all feature selectors; omit redundant forced __divsf3 after an observed baseline linker abort; later aborts also occurred without it, so removal is not a proven remedy. Actual undefined-import probe confirms __divsf3 is required and final libgcc resolves it. Source roots and aggregate SDK use recorded immutable pins. Two native selectors added only in native mode.',
         'native_manifest':native_manifest,'native_manifest_sha256':sha(native_manifest_bytes) if native_manifest_bytes else None,
         'legacy_manifest_sha256':sha(legacy_manifest.read_bytes()),'legacy_manifest_exact_base':True,
         'native_opt_in':args.native_ui,'native_selectors':NATIVE,'modules':records,

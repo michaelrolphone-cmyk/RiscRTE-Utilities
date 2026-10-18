@@ -71,8 +71,13 @@ The target recipe uses the retained GCC 8.4.0+2021r2-patch5 toolchain and checks
 source closure, all declared capabilities, narrow imports/exports and the exact
 Runtime structural ELF loader. Newer GCC 15 was rejected after baseline format
 errors. Retained `-lgcc` linkage passed the loader; the redundant forced
-`--undefined=__divsf3` flag caused a baseline linker crash and is omitted, with
-the actual import still resolved. These are recorded recipe adjustments, not a
+`--undefined=__divsf3` flag was omitted after a baseline linker crash, with
+the actual import still resolved. Later failures also occurred without this
+flag; its removal is not a proven remedy. The read-only linker investigation
+compared 1,555 identical target input files and reproduced both baseline and
+native ELFs in one successful unchanged attempt each. Failed invocations remain
+failed, even where their output bytes match. No linker flag correction is
+justified by these observations. These are recorded recipe adjustments, not a
 claim of historical binary reproduction.
 
 ### Evidence boundaries

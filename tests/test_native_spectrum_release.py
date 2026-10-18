@@ -45,7 +45,8 @@ def fixture(root):
     for mode in ('baseline','legacy','native'):
         elf = root/'target'/mode/'audio_spectrum.elf'
         sha = put(elf,(b'native ELF' if mode == 'native' else b'baseline ELF')*8)
-        command_sha = put(elf.parent/'command.json',b'[]\n')
+        command_sha = put(elf.parent/'command.json',json.dumps(['cc',*(recipe.NATIVE if mode=='native' else []),
+                                                              'source.c','-lgcc','-o',str(elf)]).encode()+b'\n')
         modules.append({'mode':mode,'sha256':sha,'size_bytes':elf.stat().st_size,'source_sha256':closure,
             'command_sha256':command_sha,'structural_loader_admission':'passed','target_instructions_executed':False,
             'native_ui':mode=='native','build_defines':recipe.NATIVE if mode=='native' else [],
@@ -344,6 +345,14 @@ class SpectrumReleaseTests(unittest.TestCase):
                          'utilities:Apps/audio_spectrum.c')
         with self.assertRaisesRegex(ValueError,'Unbound'):
             prepare.source_identity('/work/utilities-sibling/Apps/audio_spectrum.c',pins)
+
+    def test_actual_producer_module_shape_is_supported(self):
+        path='target/qualification.json'
+        def producer_shape(target):
+            for module in target['modules']:
+                module.pop('build_defines');module.pop('native_ui')
+        self.change(path,producer_shape)
+        prepare.validate_target(self.root)
 
     def test_failed_or_raced_tag_creation_stops_before_draft(self):
         with self.assertRaises(subprocess.CalledProcessError):self.publish_with_fake_remote(create_failure=True)

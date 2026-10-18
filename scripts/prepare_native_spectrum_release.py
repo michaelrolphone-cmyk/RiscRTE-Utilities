@@ -122,18 +122,29 @@ def validate_target(root):
     require(recipe.REQUIRED <= native['source_sha256'].keys(), 'Incomplete compiled source closure')
     require(set(native['exports']) == recipe.EXPORTS and set(native['imports']) <= recipe.IMPORTS,
             'Native import/export drift')
-    legacy = next(m for m in target['modules'] if m['mode'] == 'legacy')
-    require(native['build_defines'] == legacy['build_defines']+recipe.NATIVE and native['native_ui'], 'Native recipe selector drift')
+    definitions = {}
     for module in target['modules']:
         folder = root/'target'/module['mode']; elf = folder/'audio_spectrum.elf'
         require(digest(elf) == module['sha256'] and elf.stat().st_size == module['size_bytes'], 'Changed target ELF')
         require(digest(folder/'command.json') == module['command_sha256'], 'Changed target command')
+        command = read(folder/'command.json')
+        require(isinstance(command,list) and all(isinstance(arg,str) for arg in command), 'Invalid target command')
+        definitions[module['mode']] = [arg for arg in command if arg.startswith('-D')]
+        # The producer records the command itself. Historical reconciled local
+        # receipts may additionally expose these derived fields; check them if
+        # present, without requiring fields the real producer does not emit.
+        require('build_defines' not in module or module['build_defines'] == definitions[module['mode']],
+                'Recorded build defines differ from command')
+        require('native_ui' not in module or module['native_ui'] == (module['mode'] == 'native'),
+                'Recorded native mode differs')
         require(module['structural_loader_admission'] == 'passed' and not module['target_instructions_executed'],
                 'Wrong target qualification scope')
         for identity, sha in module['source_sha256'].items():
             if module['mode'] == 'baseline' and identity.startswith('utilities:'):
                 identity = identity.replace('utilities:','utilities-baseline:',1)
             verify_source(root,identity,sha)
+    require(definitions['baseline'] == definitions['legacy'] and
+            definitions['native'] == definitions['legacy']+recipe.NATIVE, 'Native recipe selector drift')
     require((root/'target/baseline/audio_spectrum.elf').read_bytes() ==
             (root/'target/legacy/audio_spectrum.elf').read_bytes(), 'Selector-off baseline bytes differ')
     verify_source(root,'utilities:scripts/build_native_spectrum_qualification.py',target['script_sha256'])
