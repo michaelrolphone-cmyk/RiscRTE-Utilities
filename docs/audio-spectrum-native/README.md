@@ -115,3 +115,8 @@ asset identity. Server-enforced GitHub release immutability is not asserted. A
 new tag is explicitly bound to the verified source before draft creation, then
 draft assets, final published state and downloaded published bytes are checked.
 The archive's publication identity must also match its direct sidecar.
+
+As with the existing Alarms and Countdown publishers, a reviewed merge to main
+qualifies and publishes the development package. Manual main-branch dispatch is
+also supported. Pull requests and work branches only qualify; they cannot
+publish. The publish job consumes the exact same-source transported artifact.

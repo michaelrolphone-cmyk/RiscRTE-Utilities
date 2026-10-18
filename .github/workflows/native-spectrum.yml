@@ -121,7 +121,7 @@ jobs:
         run: |
           python scripts/publish_native_spectrum.py --artifact "$RUNNER_TEMP/native-spectrum-downloaded" --source-sha "${{ github.event.pull_request.head.sha || github.sha }}" --repository "${{ github.repository }}" --validate-only
   publish-development:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_development
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_development))
     needs: qualify
     runs-on: ubuntu-24.04
     permissions:

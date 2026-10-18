@@ -268,7 +268,7 @@ class SpectrumReleaseTests(unittest.TestCase):
     def test_workflow_explicit_publication_gate(self):
         workflow=(ROOT/'.github/workflows/native-spectrum.yml').read_text();qualify,publisher=workflow.split('  publish-development:',1)
         self.assertNotIn('contents: write',qualify)
-        for value in ("github.event_name == 'workflow_dispatch'","github.ref == 'refs/heads/main'",'inputs.publish_development',
+        for value in ("github.event_name == 'workflow_dispatch'","github.event_name == 'push'","github.ref == 'refs/heads/main'",'inputs.publish_development',
                       'needs: qualify','GH_TOKEN: ${{ github.token }}','--publish'):self.assertIn(value,publisher)
         for value in ('--run-controls','--validate-only','include-hidden-files: true','native-spectrum-downloaded',
                       'name: native-spectrum-${{ github.event.pull_request.head.sha || github.sha }}'):self.assertIn(value,qualify)
