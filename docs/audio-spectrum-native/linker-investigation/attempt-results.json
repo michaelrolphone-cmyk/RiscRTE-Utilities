@@ -1,0 +1,20 @@
+[
+  {
+    "mode": "baseline",
+    "attempt": 1,
+    "returncode": 0,
+    "elapsed_seconds": 4.93,
+    "command_sha256": "dde79050a72ddcf5012fbbb61189bfd6e93d15815198eee6a96ec2af3a1edbe0",
+    "elf_sha256": "4a7be2c6ccf122d1f73f43094c598144431bfb60f03f2bfbbac5383136c1355b",
+    "structural_loader_exit": 0
+  },
+  {
+    "mode": "native",
+    "attempt": 1,
+    "returncode": 0,
+    "elapsed_seconds": 4.973,
+    "command_sha256": "f08d58523f387bd4a904c4be626d7b11d325ab33f9712d520c0cce87a5312727",
+    "elf_sha256": "ce95cf81f59f6d256f80ef632531f8ef1fbbfc60046e56d173bae3793e4fb262",
+    "structural_loader_exit": 0
+  }
+]
