@@ -78,9 +78,34 @@ claim of historical binary reproduction.
 ### Evidence boundaries
 
 Initial host qualification completed 236 executions at 240×240 and 410×502.
-The expanded matrix includes 61 cases per profile, normal and ASan/UBSan, plus
-450 ms application presentation and clean repeated entry. Final five-profile
-receipts are produced by CI and must be read before claiming completion.
+The final matrix passed 61 cases per profile, normal and ASan/UBSan, at 240×240,
+410×502, 502×410, 480×800 and 800×480: 610 executions. This includes 450 ms
+application presentation and clean repeated entry. Normal and sanitized frame
+bytes match. Both native CI attempts at source
+`37fc4eebfded7879a7f442c387eae7b2613737df` passed:
+[push](https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/actions/runs/39122467242)
+and [pull request](https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/actions/runs/39122492547).
 The default profile has separate exact-byte target comparison. Host frames do
 not establish physical display readability, microphone behavior or hardware
 sleep/USB behavior. Those remain physical qualification.
+
+The first qualified raw native ELF is 417,216 bytes, SHA-256
+`ce95cf81f59f6d256f80ef632531f8ef1fbbfc60046e56d173bae3793e4fb262`.
+It has 151,846 executable-section bytes and 1,037,744 BSS bytes. Native presentation
+adds 13,451 allocated-section bytes over the retained default build. These raw
+ELFs include nonloaded metadata, so their file sizes are not directly comparable
+to the compacted 0.5.10 firmware payload.
+
+Production `ElfAdmission` at Runtime
+`0aab2fd3b03b4190d638e23c79a465afeecf5dfb` accepts the ordinary app and rejects
+missing imports, unsafe lifecycle state and driver-role admission. Normal and
+ASan/UBSan execution passed all 64 data-placement alignment controls. The loader
+requests 1,101,284 bytes of data allocation including its alignment reserve;
+text plus data requests total 1,253,130 bytes. File size and the existing 8 MiB
+structural allocation bound pass. Provider heap, stack, framebuffer and actual
+free device memory are outside that structural check.
+
+The standalone release recipe stages the complete source closure and evidence,
+checks their hashes against the selected commit, and verifies immutable published
+assets by downloading them again. A native catalog identity uses
+`Apps/native/audio_spectrum.json`; the legacy catalog identity is not rebound.

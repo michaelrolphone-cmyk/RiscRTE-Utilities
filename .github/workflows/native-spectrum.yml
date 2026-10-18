@@ -6,6 +6,12 @@ on:
   pull_request:
     paths: ['Apps/audio_spectrum.c', 'Apps/spectrum_*', 'Apps/context_*', 'Apps/native/audio_spectrum.json', 'scripts/*spectrum*', 'test/native_apps/*spectrum*', 'tests/*spectrum*', 'docs/audio-spectrum-native/**', '.github/workflows/native-spectrum.yml']
   workflow_dispatch:
+    inputs:
+      publish_development:
+        description: 'Publish the qualified standalone native Spectrum development release'
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
 jobs:
@@ -88,19 +94,52 @@ jobs:
       - name: Existing analysis and storage lifecycle controls
         run: |
           set -euo pipefail
-          python scripts/test_audio_spectrum.py --system-apps .dependencies/legacy-system 2>&1 | tee dist/native-spectrum/models.log
-          python scripts/test_spectrum_storage_lifecycle.py --system-apps .dependencies/system 2>&1 | tee dist/native-spectrum/storage.log
+          python scripts/prepare_native_spectrum_release.py --artifact dist/native-spectrum --system .dependencies/system --legacy-system .dependencies/legacy-system --run-controls
       - name: Exact full-feature target and loader admission
         run: |
           set -euo pipefail
           python scripts/build_native_spectrum_qualification.py --system .dependencies/system --runtime .dependencies/runtime --watch .dependencies/watch --bridges .dependencies/bridges --wave .dependencies/wave --xtensa-cc "$HOME/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc" --native-ui --native-manifest Apps/native/audio_spectrum.json --output-dir dist/native-spectrum/target 2>&1 | tee dist/native-spectrum/target.log
+      - name: Standalone packaging contracts
+        run: python -m unittest discover -s tests -p test_native_spectrum_release.py -v
+      - name: Prepare standalone Spectrum with production memory admission
+        run: |
+          set -euo pipefail
+          python scripts/prepare_native_spectrum_release.py --artifact dist/native-spectrum --system .dependencies/system --runtime .dependencies/runtime --watch .dependencies/watch --bridges .dependencies/bridges --wave .dependencies/wave
+          python scripts/publish_native_spectrum.py --artifact dist/native-spectrum --source-sha "${{ github.event.pull_request.head.sha || github.sha }}" --repository "${{ github.repository }}" --validate-only
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-spectrum-evidence
-          path: |
-            dist/native-spectrum/**/*.json
-            dist/native-spectrum/**/*.log
-            dist/native-spectrum/**/*.png
-            dist/native-spectrum/target/**/*.elf
+          name: native-spectrum-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/native-spectrum/
+          include-hidden-files: true
           retention-days: 14
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-spectrum-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/native-spectrum-downloaded
+      - name: Validate transported Spectrum source and evidence bundle
+        run: |
+          python scripts/publish_native_spectrum.py --artifact "$RUNNER_TEMP/native-spectrum-downloaded" --source-sha "${{ github.event.pull_request.head.sha || github.sha }}" --repository "${{ github.repository }}" --validate-only
+  publish-development:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_development
+    needs: qualify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-spectrum-${{ github.sha }}
+          path: dist/native-spectrum
+      - name: Publish immutable standalone Spectrum with asset readback
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/publish_native_spectrum.py --artifact dist/native-spectrum --source-sha "${{ github.sha }}" --repository "${{ github.repository }}" --publish
