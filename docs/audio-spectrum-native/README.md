@@ -35,3 +35,52 @@ Native view and target integration is being qualified separately. The original
 profile remains the default. All capture, storage, shared-editor and retention
 controllers remain required; a reduced renderer-only build is not a release
 recipe.
+
+## Native source checkpoint
+
+`PORTABLE_SPECTRUM_NATIVE_UI` requires the existing native canvas, Nova primitives
+and shared text-input selectors. No default profile is changed. The app-local
+presenters cover the plot, waterfall, monitor, controls, labels, sound samples,
+temporal events/examples and shared Contexts training. They rebuild bounded hit
+targets from the current model without provider calls. Display size changes
+presentation geometry, not DSP arrays, history capacity or storage formats.
+
+`Apps/native/audio_spectrum.json` is a separate provisional 0.5.11-dev1 identity.
+It retains the exact 21 capability/version entries from the frozen 0.5.10 payload.
+The legacy `Apps/audio_spectrum.json` remains byte-identical. No immutable firmware
+or release asset is replaced by this checkpoint.
+
+The real-adapter host suite exercises shared editor accept/cancel/reopen, explicit
+saves, absent/delayed host frames, audio progress during three-second close
+latency, retained custody, repeated app entry, and the existing modal power/radio
+policy. The native subpage fixture verifies nine pages across eight geometries,
+pure current-model mapping, paint/input target equality and controller actions.
+Plain, Nova/alarm and shared-editor selector-off preprocessing is token-identical
+to the exact Utilities baseline.
+
+### Reproduction
+
+The pinned `.github/workflows/native-spectrum.yml` runs the host, geometry,
+subpage, default-source parity, existing DSP/storage controls and full target
+recipe. Its input roles are explicit: current Watch headers and the retained
+6e82fdca generic navigation/sleep bridges are separate source pins. The host
+runner can prepare its own recipe using `--watch-profile`; no local absolute
+profile paths are required.
+
+The target recipe uses the retained GCC 8.4.0+2021r2-patch5 toolchain and checks
+source closure, all declared capabilities, narrow imports/exports and the exact
+Runtime structural ELF loader. Newer GCC 15 was rejected after baseline format
+errors. Retained `-lgcc` linkage passed the loader; the redundant forced
+`--undefined=__divsf3` flag caused a baseline linker crash and is omitted, with
+the actual import still resolved. These are recorded recipe adjustments, not a
+claim of historical binary reproduction.
+
+### Evidence boundaries
+
+Initial host qualification completed 236 executions at 240×240 and 410×502.
+The expanded matrix includes 61 cases per profile, normal and ASan/UBSan, plus
+450 ms application presentation and clean repeated entry. Final five-profile
+receipts are produced by CI and must be read before claiming completion.
+The default profile has separate exact-byte target comparison. Host frames do
+not establish physical display readability, microphone behavior or hardware
+sleep/USB behavior. Those remain physical qualification.

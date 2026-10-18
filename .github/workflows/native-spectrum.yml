@@ -1,0 +1,106 @@
+name: Native Audio Spectrum qualification
+on:
+  push:
+    branches: [main, work/audio-spectrum-native-20261018]
+    paths: ['Apps/audio_spectrum.c', 'Apps/spectrum_*', 'Apps/context_*', 'Apps/native/audio_spectrum.json', 'scripts/*spectrum*', 'test/native_apps/*spectrum*', 'tests/*spectrum*', 'docs/audio-spectrum-native/**', '.github/workflows/native-spectrum.yml']
+  pull_request:
+    paths: ['Apps/audio_spectrum.c', 'Apps/spectrum_*', 'Apps/context_*', 'Apps/native/audio_spectrum.json', 'scripts/*spectrum*', 'test/native_apps/*spectrum*', 'tests/*spectrum*', 'docs/audio-spectrum-native/**', '.github/workflows/native-spectrum.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+      UBSAN_OPTIONS: halt_on_error=1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 947895afdb2ecef59654402cf08fe7ecdf92362f
+          path: .dependencies/system
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: fdc15395928a1fa8eee62a2823b3c8777dcf0fa0
+          path: .dependencies/legacy-system
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 0aab2fd3b03b4190d638e23c79a465afeecf5dfb
+          path: .dependencies/runtime
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Watch
+          ref: 93c87d05d4da54df49240141bf9ca993bc30b462
+          path: .dependencies/watch
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Watch
+          ref: 6e82fdcaec0b73ed700d2104cfb4d94f011c19d4
+          path: .dependencies/bridges
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Wavshare-S3-Touch-AMOLED-2.06
+          ref: f42a6e07133c599a22acfaa8b8a0672ff996dc1b
+          path: .dependencies/wave
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install existing qualification dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install Pillow platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Native production adapter and shared hosts
+        run: |
+          set -euo pipefail
+          mkdir -p dist/native-spectrum
+          python scripts/test_spectrum_native_ui.py --system-apps .dependencies/system --runtime .dependencies/runtime --watch-profile .dependencies/watch --output dist/native-spectrum/host 2>&1 | tee dist/native-spectrum/host.log
+      - name: Geometry, model purity and default source parity
+        run: |
+          set -euo pipefail
+          mkdir -p .dependencies/baseline
+          git archive 12c7440c4c2fd9b6b78e10f11a983947c145b346 Apps lib | tar -x -C .dependencies/baseline
+          python scripts/test_spectrum_native_contract.py --legacy-system .dependencies/legacy-system --sdk-include dist/native-spectrum/host/240x240/sdk/include --baseline .dependencies/baseline --output dist/native-spectrum/contracts 2>&1 | tee dist/native-spectrum/contracts.log
+      - name: Existing analysis and storage lifecycle controls
+        run: |
+          set -euo pipefail
+          python scripts/test_audio_spectrum.py --system-apps .dependencies/legacy-system 2>&1 | tee dist/native-spectrum/models.log
+          python scripts/test_spectrum_storage_lifecycle.py --system-apps .dependencies/system 2>&1 | tee dist/native-spectrum/storage.log
+      - name: Exact full-feature target and loader admission
+        run: |
+          set -euo pipefail
+          python scripts/build_native_spectrum_qualification.py --system .dependencies/system --runtime .dependencies/runtime --watch .dependencies/watch --bridges .dependencies/bridges --wave .dependencies/wave --xtensa-cc "$HOME/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc" --native-ui --native-manifest Apps/native/audio_spectrum.json --output-dir dist/native-spectrum/target 2>&1 | tee dist/native-spectrum/target.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-spectrum-evidence
+          path: |
+            dist/native-spectrum/**/*.json
+            dist/native-spectrum/**/*.log
+            dist/native-spectrum/**/*.png
+            dist/native-spectrum/target/**/*.elf
+          retention-days: 14
