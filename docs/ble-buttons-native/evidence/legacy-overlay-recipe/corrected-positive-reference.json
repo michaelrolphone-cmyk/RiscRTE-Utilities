@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "source_commit": "9bcf8481d95a83b3067b8af9800c8248ac5fc944",
+  "workflow_run": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/actions/runs/39200079601",
+  "scope": "Previously downloaded corrected full-feature positive matrix; a reference, not a substitute for the candidate passing matrices.",
+  "receipts": {
+    "host/normal-sync/receipt.json": {
+      "sha256": "7791151c43f4ea97c92a85fb3e04652f6d6403e8d5aa0f35dba45fe9db1a845c",
+      "passed_cases": 315,
+      "alarm_and_quick_cases": 14,
+      "target_qualification_sha256": "5e08f90353f38dc1bbe0ea68319d47e0a037d66a6813409e67c65c93c1af688c"
+    },
+    "host/sanitized-sync/receipt.json": {
+      "sha256": "3198368152104871aae548cbd06093c4eda2d02a763250a73919765fd64638b4",
+      "passed_cases": 315,
+      "alarm_and_quick_cases": 14,
+      "target_qualification_sha256": "5e08f90353f38dc1bbe0ea68319d47e0a037d66a6813409e67c65c93c1af688c"
+    },
+    "host/normal-async/receipt.json": {
+      "sha256": "313e2594af25800d4865e1b5f7fb4dc9bf9082b1d52b307de1804693e8c3e77a",
+      "passed_cases": 315,
+      "alarm_and_quick_cases": 14,
+      "target_qualification_sha256": "5e08f90353f38dc1bbe0ea68319d47e0a037d66a6813409e67c65c93c1af688c"
+    },
+    "host/sanitized-async/receipt.json": {
+      "sha256": "44b28150b03b486f59299954d314298a7498213f0fc0129574b996c7bd060bf9",
+      "passed_cases": 315,
+      "alarm_and_quick_cases": 14,
+      "target_qualification_sha256": "5e08f90353f38dc1bbe0ea68319d47e0a037d66a6813409e67c65c93c1af688c"
+    }
+  }
+}

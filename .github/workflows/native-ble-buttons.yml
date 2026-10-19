@@ -1,0 +1,139 @@
+name: Native BLE Buttons qualification
+on:
+  push:
+    branches: [main, work/ble-buttons-native-20261019]
+    paths: ['Apps/ble_*', 'Apps/native/ble_buttons.json', 'scripts/*ble_buttons*', 'scripts/*hid*', 'test/native_apps/*ble_buttons*', 'test/native_apps/hid*', 'tests/*ble_buttons*', 'tests/hid*', 'docs/ble-buttons-native/**', '.github/workflows/native-ble-buttons.yml']
+  pull_request:
+    paths: ['Apps/ble_*', 'Apps/native/ble_buttons.json', 'scripts/*ble_buttons*', 'scripts/*hid*', 'test/native_apps/*ble_buttons*', 'test/native_apps/hid*', 'tests/*ble_buttons*', 'tests/hid*', 'docs/ble-buttons-native/**', '.github/workflows/native-ble-buttons.yml']
+  workflow_dispatch:
+    inputs:
+      publish_development:
+        description: 'Publish the qualified standalone native BLE Buttons development release'
+        required: false
+        default: false
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+      UBSAN_OPTIONS: halt_on_error=1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: f3731ab02127dea86a308472e3780068c5a0a1cf
+          path: .dependencies/system
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: f1db70fcc3ba9df2a3551a711a9d3b0b714a5f8a
+          path: .dependencies/legacy-system
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 0aab2fd3b03b4190d638e23c79a465afeecf5dfb
+          path: .dependencies/runtime
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Watch
+          ref: 6e82fdcaec0b73ed700d2104cfb4d94f011c19d4
+          path: .dependencies/bridges
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install existing qualification dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install Pillow platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Exact deployed-feature target and loader admission
+        run: |
+          set -euo pipefail
+          mkdir -p dist/native-ble-buttons
+          python scripts/build_native_ble_buttons_qualification.py --system .dependencies/system --runtime .dependencies/runtime --bridges .dependencies/bridges --xtensa-cc "$HOME/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc" --native-ui --native-manifest Apps/native/ble_buttons.json --output-dir dist/native-ble-buttons/target 2>&1 | tee dist/native-ble-buttons/target.log
+      - name: Native production adapter, physical profiles, sanitizers and async controls
+        run: |
+          set -euo pipefail
+          for mode in normal-sync sanitized-sync normal-async sanitized-async; do
+            flags=()
+            [[ "$mode" == sanitized-* ]] && flags+=(--sanitize)
+            [[ "$mode" == *-async ]] && flags+=(--async)
+            python scripts/test_ble_buttons_native.py --system-apps .dependencies/system --runtime .dependencies/runtime --full-target dist/native-ble-buttons/target --output "dist/native-ble-buttons/host/$mode" "${flags[@]}" 2>&1 | tee "dist/native-ble-buttons/host-$mode.log"
+          done
+      - name: Native presentation ownership temporal controls
+        run: |
+          set -euo pipefail
+          for mode in normal sanitized; do
+            flags=()
+            [[ "$mode" == sanitized ]] && flags+=(--sanitize)
+            python scripts/test_ble_buttons_native.py --system-apps .dependencies/system --runtime .dependencies/runtime --full-target dist/native-ble-buttons/target --async --temporal --output "dist/native-ble-buttons/temporal/$mode" "${flags[@]}" 2>&1 | tee "dist/native-ble-buttons/temporal-$mode.log"
+          done
+      - name: Native geometry, controller and selector-off contracts
+        run: python scripts/test_ble_buttons_native_contract.py --system-apps .dependencies/system --output dist/native-ble-buttons/contracts
+      - name: Preserve existing HID models and legacy/paper renderer controls
+        run: |
+          python scripts/prepare_native_ble_buttons_release.py --artifact dist/native-ble-buttons --system .dependencies/system --legacy-system .dependencies/legacy-system --run-controls
+      - name: Standalone packaging contracts
+        run: python -m unittest discover -s tests -p test_native_ble_buttons_release.py -v
+      - name: Prepare standalone BLE Buttons with production memory admission
+        run: |
+          set -euo pipefail
+          python scripts/prepare_native_ble_buttons_release.py --artifact dist/native-ble-buttons --system .dependencies/system --runtime .dependencies/runtime --bridges .dependencies/bridges
+          python scripts/publish_native_ble_buttons.py --artifact dist/native-ble-buttons --source-sha "${{ github.event.pull_request.head.sha || github.sha }}" --repository "${{ github.repository }}" --validate-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ble-buttons-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/native-ble-buttons/
+          include-hidden-files: true
+          retention-days: 14
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-ble-buttons-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/native-ble-buttons-downloaded
+      - name: Validate transported BLE Buttons source and evidence bundle
+        run: |
+          python scripts/publish_native_ble_buttons.py --artifact "$RUNNER_TEMP/native-ble-buttons-downloaded" --source-sha "${{ github.event.pull_request.head.sha || github.sha }}" --repository "${{ github.repository }}" --validate-only
+  publish-development:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_development))
+    needs: qualify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-ble-buttons-${{ github.sha }}
+          path: dist/native-ble-buttons
+      - name: Publish immutable standalone BLE Buttons with asset readback
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/publish_native_ble_buttons.py --artifact dist/native-ble-buttons --source-sha "${{ github.sha }}" --repository "${{ github.repository }}" --publish
