@@ -37,6 +37,8 @@ def fixture(root):
         if name.startswith('system:'):staged(name.replace('system:','system-baseline:',1))
         if name.startswith('utilities:'):staged(name.replace('utilities:','utilities-baseline:',1))
     for name in prepare.EXTRA_SOURCE: staged('utilities:'+name,(ROOT/name).read_bytes())
+    for path in sorted((ROOT/prepare.NEGATIVE_WITNESSES).rglob('*')):
+        if path.is_file():staged('utilities:'+path.relative_to(ROOT).as_posix(),path.read_bytes())
     manifest_sha = prepare.digest(root/'source/utilities'/prepare.MANIFEST)
     legacy_sha = staged('utilities:Apps/ble_buttons.json',b'legacy manifest\n')
     staged('utilities-baseline:Apps/ble_buttons.json',b'legacy manifest\n')
@@ -147,6 +149,37 @@ class BleButtonsReleaseTests(unittest.TestCase):
         self.assertEqual(len(record['required_capabilities']),16)
         self.assertGreaterEqual(len(prepare.SCENARIOS)*len(prepare.PROFILES)*4,1000)
         self.assertNotEqual(record['target_original_source_commit'],record['source_commit'])
+
+    def test_historical_negative_witnesses_are_required_but_not_passing_cases(self):
+        record=publish.validate(self.root,self.source)
+        proof=record['historical_negative_witnesses']
+        self.assertFalse(proof['counts_toward_passing_matrices'])
+        self.assertFalse(proof['first_alarm_source_receipt_completed'])
+        self.assertEqual(len(proof['files_sha256']),24)
+        path=self.root/proof['source_prefix']/'back-and-quick/receipt.json'
+        outcomes={row['scene']:row['exit_code'] for row in prepare.read(path)['results']}
+        self.assertEqual(outcomes,{'alarm':0,'quick-controls':-6})
+
+    def test_missing_or_changed_historical_negative_witness_rejected(self):
+        folder=self.root/'source/utilities'/prepare.NEGATIVE_WITNESSES
+        files=['selection.json','baseline.json','alarm-no-visible-dismiss-320x180.ppm',
+               'back-and-quick/receipt.json','back-and-quick/320x180/quick-controls/run.log',
+               'back-and-quick/320x180/alarm/frame-004.ppm.gz','source-identities.json','README.md']
+        for name in files:
+            with self.subTest(name=name):
+                path=folder/name;original=path.read_bytes();path.unlink()
+                with self.assertRaisesRegex(ValueError,'Missing historical negative'):
+                    publish.validate(self.root,self.source)
+                path.write_bytes(original)
+        path=folder/'back-and-quick/receipt.json';original=path.read_bytes();path.write_bytes(original+b' ')
+        with self.assertRaisesRegex(ValueError,'Changed historical negative witness'):
+            publish.validate(self.root,self.source)
+
+    def test_untracked_historical_negative_witness_rejected(self):
+        name='source/utilities/'+prepare.NEGATIVE_WITNESSES+'/baseline.json'
+        self.change('source-provenance.json',lambda p:p['source_files'].pop(name))
+        with self.assertRaisesRegex(ValueError,'Missing tracked historical negative witness'):
+            publish.validate(self.root,self.source)
 
     def test_native_manifest_unchanged_and_distinct(self):
         self.assertEqual(prepare.read(ROOT/prepare.MANIFEST),prepare.expected_manifest())

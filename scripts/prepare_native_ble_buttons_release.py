@@ -24,6 +24,8 @@ VERSION = '0.1.30-dev1'
 PACKAGE = 'app'
 MANIFEST = 'Apps/native/ble_buttons.json'
 RECORD = 'ble_buttons-build-record.json'
+NEGATIVE_WITNESSES = 'docs/ble-buttons-native/evidence/legacy-overlay-recipe'
+NEGATIVE_SELECTION_SHA256 = '1bd8a8e5b7f13619f8ca6c803fd741352abe7cfba540c1f7f8e545ad0ea06f62'
 PROFILES = ('128x128', '160x128', '240x240', '410x502', '320x180', '502x410', '480x800')
 SCENARIOS = set(host_control.full_scenes(defaultdict(lambda: (0,0,1,1))))
 HOST_MODES = ('normal-sync', 'sanitized-sync', 'normal-async', 'sanitized-async')
@@ -408,11 +410,54 @@ def validate_admission(root, native):
     return admission
 
 
+def validate_negative_witnesses(root, provenance):
+    """Require durable historical evidence without counting it as passing tests."""
+    prefix='source/utilities/'+NEGATIVE_WITNESSES+'/'
+    folder=root/prefix
+    inventory=folder/'selection.json'
+    require(inventory.is_file(), 'Missing historical negative-witness selection')
+    require(digest(inventory)==NEGATIVE_SELECTION_SHA256, 'Changed historical negative-witness selection')
+    selection=read(inventory)
+    require(selection['classification']=='historical non-qualification witnesses' and
+            selection['original_files']==20 and len(selection['files'])==22,
+            'Historical witness selection scope differs')
+    hashes={name:entry['sha256'] for name,entry in selection['files'].items()}
+    hashes['selection.json']=NEGATIVE_SELECTION_SHA256
+    require((folder/'README.md').is_file(), 'Missing historical negative-witness limits')
+    hashes['README.md']=digest(folder/'README.md')
+    for name,expected in hashes.items():
+        path=checked_path(folder,name)
+        require(path.is_file(), 'Missing historical negative witness: '+name)
+        require(digest(path)==expected, 'Changed historical negative witness: '+name)
+        require(provenance['source_files'].get(prefix+name)==expected,
+                'Missing tracked historical negative witness: '+name)
+    baseline=read(folder/'baseline.json'); receipt=read(folder/baseline['source_bound_receipt'])
+    require(baseline['qualified'] is False and digest(folder/baseline['source_bound_receipt'])==
+            baseline['source_bound_receipt_sha256'], 'Historical baseline/receipt binding differs')
+    require({row['scene']:row['exit_code'] for row in receipt['results']}=={'alarm':0,'quick-controls':-6},
+            'Historical negative outcomes were reclassified')
+    for row in receipt['results']:
+        require(digest(checked_path(folder/'back-and-quick',row['log']))==row['log_sha256'],
+                'Historical negative log differs')
+    for name,expected in receipt['capture_sha256'].items():
+        require(digest(checked_path(folder/'back-and-quick',name))==expected,
+                'Historical negative capture differs')
+    identities=read(folder/'source-identities.json')
+    require(identities['source_sha256']==receipt['source_sha256'] and
+            identities['compiled_dependency_sha256']==receipt['compiled_dependency_sha256'] and
+            identities['receipt_sha256']==baseline['source_bound_receipt_sha256'],
+            'Historical source identities differ from original receipt')
+    return {'classification':'historical non-qualification witnesses',
+            'counts_toward_passing_matrices':False,'first_alarm_source_receipt_completed':False,
+            'source_prefix':prefix,'files_sha256':hashes}
+
+
 def qualified_record(root, source):
     provenance = read(root/'source-provenance.json')
     require(provenance['source_commit'] == source and not provenance['working_tree_dirty'], 'Wrong clean source identity')
     target,native = validate_target(root)
     controls = validate_controls(root,target)
+    negative_witnesses = validate_negative_witnesses(root,provenance)
     app = root/PACKAGE
     require(read(app/'ble_buttons.json') == expected_manifest() and
             digest(app/'ble_buttons.json') == target['native_manifest_sha256'], 'Standalone manifest differs')
@@ -430,7 +475,8 @@ def qualified_record(root, source):
         'working_tree_dirty':False,'external_git_pins':recipe.PINS,'target_original_source_commit':target['utilities_commit'],
         'source_correspondence':'Every target compiled input and host recorded source matches the committed source closure; original receipts preserved',
         'required_capabilities':expected_manifest()['requires'],'target_receipt_sha256':digest(root/'target/qualification.json'),
-        'controls':controls,'source_files':provenance['source_files'],'evidence_files':evidence,
+        'controls':controls,'historical_negative_witnesses':negative_witnesses,
+        'source_files':provenance['source_files'],'evidence_files':evidence,
         'elf_sha256':native['sha256'],'elf_size_bytes':native['size_bytes'],'manifest_sha256':digest(app/'ble_buttons.json'),
         'command_sha256':native['command_sha256'],'layout_sha256':digest(app/'elf-layout.json'),
         'admission_sha256':digest(app/'elf-memory-admission.json'),'memory_budgets':admission['budgets'],
