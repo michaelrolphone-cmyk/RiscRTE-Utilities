@@ -355,22 +355,29 @@ class BleButtonsReleaseTests(unittest.TestCase):
     def test_workflow_explicit_publication_gate(self):
         workflow=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text();qualify,publisher=workflow.split('  publish-development:',1)
         self.assertNotIn('contents: write',qualify)
-        for value in ("github.event_name == 'workflow_dispatch'","github.event_name == 'push'","github.ref == 'refs/heads/main'",'inputs.publish_development',
+        for value in ("github.event_name == 'workflow_dispatch'","github.ref == 'refs/heads/main'",'inputs.publish_development',
                       'needs: qualify','GH_TOKEN: ${{ github.token }}','--publish'):self.assertIn(value,publisher)
+        self.assertNotIn("github.event_name == 'push'",publisher)
         for value in ('--run-controls','--validate-only','include-hidden-files: true','native-ble-buttons-downloaded',
                       'name: native-ble-buttons-${{ github.event.pull_request.head.sha || github.sha }}'):self.assertIn(value,qualify)
         self.assertNotIn('--publish',qualify)
         self.assertNotIn('publish_native_countdown.py',workflow)
         for pin in recipe.PINS.values():self.assertIn(pin,workflow)
 
-    def test_workflow_main_push_gate_matches_spectrum_and_event_matrix(self):
-        def publication_condition(name):
-            publisher=(ROOT/'.github/workflows'/name).read_text().split('  publish-development:',1)[1]
-            return next(line.strip()[4:] for line in publisher.splitlines() if line.startswith('    if: ')),publisher
-        condition,publisher=publication_condition('native-ble-buttons.yml')
-        expected="github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_development))"
+    def test_workflow_preserves_push_and_pull_request_qualification(self):
+        workflow=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text()
+        triggers=workflow.split('\npermissions:',1)[0]
+        paths="['Apps/ble_*', 'Apps/native/ble_buttons.json', 'scripts/*ble_buttons*', 'scripts/*hid*', 'test/native_apps/*ble_buttons*', 'test/native_apps/hid*', 'tests/*ble_buttons*', 'tests/hid*', 'docs/ble-buttons-native/**', '.github/workflows/native-ble-buttons.yml']"
+        self.assertIn('  push:\n    branches: [main, work/ble-buttons-native-20261019]\n    paths: '+paths,triggers)
+        self.assertIn('  pull_request:\n    paths: '+paths,triggers)
+        self.assertIn('  workflow_dispatch:\n    inputs:\n      publish_development:',triggers)
+        self.assertIn('        default: false\n        type: boolean',triggers)
+
+    def test_workflow_explicit_dispatch_event_matrix(self):
+        publisher=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text().split('  publish-development:',1)[1]
+        condition=next(line.strip()[4:] for line in publisher.splitlines() if line.startswith('    if: '))
+        expected="github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish_development"
         self.assertEqual(condition,expected)
-        self.assertEqual(condition,publication_condition('native-spectrum.yml')[0])
         self.assertIn('\n    needs: qualify\n',publisher)
         self.assertNotIn('always()',publisher)
         self.assertNotIn('continue-on-error:',publisher)
@@ -386,7 +393,7 @@ class BleButtonsReleaseTests(unittest.TestCase):
                                 {'github':SimpleNamespace(ref=ref,event_name=event),
                                  'inputs':SimpleNamespace(publish_development=requested)})
                             expected_allowed=(qualification=='success' and ref=='refs/heads/main' and
-                                              (event=='push' or (event=='workflow_dispatch' and requested)))
+                                              event=='workflow_dispatch' and requested)
                             self.assertEqual(allowed,expected_allowed)
 
     def test_workflow_publisher_binds_qualified_source_and_artifact(self):
@@ -402,6 +409,45 @@ class BleButtonsReleaseTests(unittest.TestCase):
         self.assertIn('default: false',qualify)
         self.assertNotIn('continue-on-error:',workflow)
         self.assertEqual(workflow.count(' --publish'),1)
+
+    def test_existing_published_release_with_different_qualification_stops_before_remote_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            existing_assets=Path(directory)
+            existing=self.assets(existing_assets)
+            publish.verify_release_assets(existing_assets,existing)
+            # Both bundles are valid and keep the same ELF, manifest and source,
+            # but new qualification evidence cannot replace the fixed release.
+            self.change('target/qualification.json',lambda d:d.update(utilities_commit='d'*40))
+            target_sha=prepare.digest(self.root/'target/qualification.json')
+            for mode,*_ in prepare.CONTROL_RUNS:
+                self.change(mode+'/receipt.json',lambda d:d.update(target_qualification_sha256=target_sha))
+            prepare.write(self.root/'app'/prepare.RECORD,prepare.qualified_record(self.root,self.source))
+            current=publish.validate(self.root,self.source)
+            for key in ('elf_sha256','manifest_sha256','source_commit'):
+                self.assertEqual(existing[key],current[key])
+            self.assertNotEqual(existing['target_receipt_sha256'],current['target_receipt_sha256'])
+            repo='owner/RiscRTE-Utilities';calls=[]
+            def remote(*args,check=True):
+                calls.append(args)
+                if args == ('api','repos/'+repo+'/commits/'+self.source,'--jq','.sha'):
+                    stdout=self.source
+                elif args == ('release','view',prepare.TAG,'--repo',repo,'--json','tagName,isDraft,isPrerelease,assets'):
+                    stdout=json.dumps({'tagName':prepare.TAG,'isDraft':False,'isPrerelease':True,
+                                       'assets':[{'name':name} for name in sorted(publish.REQUIRED)]})
+                elif args[:6] == ('release','download',prepare.TAG,'--repo',repo,'--dir') and len(args)==7:
+                    shutil.copytree(existing_assets,Path(args[6]),dirs_exist_ok=True);stdout=''
+                else:
+                    self.fail('Unexpected remote call before immutable rejection: '+repr(args))
+                return subprocess.CompletedProcess(args,0,stdout,'')
+            argv=['publish','--artifact',str(self.root),'--source-sha',self.source,'--repository',repo,'--publish']
+            with mock.patch.object(sys,'argv',argv),mock.patch.object(publish,'gh',side_effect=remote), \
+                 mock.patch.object(publish,'stage_assets',wraps=publish.stage_assets) as stage:
+                with self.assertRaisesRegex(ValueError,'Published qualified artifact differs: qualification.json'):
+                    publish.main()
+                stage.assert_not_called()
+            self.assertEqual([call[:2] for call in calls],[('api','repos/'+repo+'/commits/'+self.source),
+                                                         ('release','view'),('release','download')])
+            publish.verify_release_assets(existing_assets,existing)
 
     def publish_with_fake_remote(self, initial_tag=None, create_failure=False, raced_tag=False, asset_failure=False):
         """A draft does not create its Git tag; exercise real CLI orchestration."""
