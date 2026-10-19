@@ -1,0 +1,420 @@
+"""Synthetic fail-closed packaging controls; real target admission is separate."""
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest import mock
+import zipfile
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'scripts'))
+import build_native_ble_buttons_qualification as recipe
+import prepare_native_ble_buttons_release as prepare
+import publish_native_ble_buttons as publish
+
+
+def put(path, content=b'fixture\n'):
+    path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(content)
+    return prepare.digest(path)
+
+
+def fixture(root):
+    source = 'a'*40
+    manifest = prepare.expected_manifest()
+    write = prepare.write
+    files = {}
+    def staged(identity,content=b'fixture\n'):
+        owner,name = identity.split(':',1)
+        path = root/'source'/owner/name
+        sha = put(path,content); files[path.relative_to(root).as_posix()] = sha
+        return sha
+    closure = {name:staged(name) for name in recipe.REQUIRED|recipe.NATIVE_REQUIRED}
+    for name in recipe.REQUIRED|recipe.NATIVE_REQUIRED:
+        if name.startswith('system:'):staged(name.replace('system:','system-baseline:',1))
+        if name.startswith('utilities:'):staged(name.replace('utilities:','utilities-baseline:',1))
+    for name in prepare.EXTRA_SOURCE: staged('utilities:'+name,(ROOT/name).read_bytes())
+    manifest_sha = prepare.digest(root/'source/utilities'/prepare.MANIFEST)
+    legacy_sha = staged('utilities:Apps/ble_buttons.json',b'legacy manifest\n')
+    staged('utilities-baseline:Apps/ble_buttons.json',b'legacy manifest\n')
+    script_sha = staged('utilities:scripts/build_native_ble_buttons_qualification.py')
+    recipe_sha = staged('system:'+recipe.RECIPE,json.dumps({'ble_buttons':{'command':['cc']}}).encode())
+    recipe.RECIPE_SHA256 = recipe_sha
+    generated = {}
+    for name in recipe.GENERATED_NAMES:
+        content = 'fixture '+name+'\n';sha=staged('generated:'+name,content.encode())
+        generated[name]={'source':'system:replay-fixtures.json','key':name,'sha256':sha}
+    generated_spec={name:{'text':'fixture '+name+'\n','sha256':proof['sha256'],'template_sha256':proof['sha256']} for name,proof in generated.items()}
+    generated_sha=staged('system:replay-fixtures.json',json.dumps(generated_spec).encode())
+    closure['generated:empty_catalog.c']=generated['empty_catalog.c']['sha256']
+    shared_sha = staged('utilities:scripts/test_ble_buttons_native.py',(ROOT/'scripts/test_ble_buttons_native.py').read_bytes())
+    modules = []
+    for mode in ('baseline','legacy','native'):
+        elf = root/'target'/mode/'ble_buttons.elf'
+        sha = put(elf,(b'native ELF' if mode == 'native' else b'baseline ELF')*8)
+        command_sha = put(elf.parent/'command.json',json.dumps(['cc',*(recipe.NATIVE if mode=='native' else []),
+                                                              'source.c','-lgcc','-o',str(elf)]).encode()+b'\n')
+        modules.append({'mode':mode,'sha256':sha,'size_bytes':elf.stat().st_size,'source_sha256':closure,
+            'command_sha256':command_sha,'structural_loader_admission':'passed','target_instructions_executed':False,
+            'native_ui':mode=='native','build_defines':recipe.NATIVE if mode=='native' else [],
+            'exports':sorted(recipe.EXPORTS),'imports':['risc_runtime_get_api']})
+    target = {'modules':modules,'utilities_base':recipe.BASE,'baseline_system_pin':recipe.BASE_SYSTEM,'utilities_commit':'b'*40,
+        'exact_external_git_pins':recipe.PINS,'native_opt_in':True,'native_selectors':recipe.NATIVE,
+        'selector_off_exact_baseline_bytes':True,'legacy_manifest_exact_base':True,'native_manifest':manifest,
+        'native_manifest_sha256':manifest_sha,'capability_contract':manifest['requires'],
+        'legacy_manifest_sha256':legacy_sha,'hardware_qualified':False,'firmware_assembled':False,
+        'retained_flags_removed':[], 'historical_recipe_current_deployed_bytes_proven':False,'predecessor_version':'0.1.29',
+        'recipe_sources':{'system:'+recipe.RECIPE:recipe_sha,'system:replay-fixtures.json':generated_sha},'generated_sources':generated,'script_sha256':script_sha,'retained_recipe_sha256':recipe_sha}
+    write(root/'target/qualification.json',target)
+    for mode,sanitized,asynchronous,temporal,scenarios in prepare.CONTROL_RUNS:
+        folder=root/mode
+        sources={identity:staged(identity) for identity in prepare.HOST_INPUTS}
+        results=[];captures={}
+        for profile in prepare.PROFILES:
+            width,height=map(int,profile.split('x'))
+            for scene in sorted(scenarios):
+                base=profile+'/'+scene
+                log=base+'/run.log'; capture=base+'/frame.ppm.gz'
+                log_sha=put(folder/log);captures[capture]=put(folder/capture,b'synthetic pixels')
+                results.append({'width':width,'height':height,'scene':scene,'exit_code':0,
+                                'log':log,'log_sha256':log_sha,'captures':[capture]})
+        write(folder/'receipt.json',{'sanitized':sanitized,'async_rgb565':asynchronous,'temporal':temporal,
+            'system_git_pin':recipe.PINS['system'],'source_unchanged_during_run':True,
+            'full_profile':True,'full_feature_profile':True,'system_working_tree_allowed':False,'target_qualification_sha256':prepare.digest(root/'target/qualification.json'),
+            'hardware_tested':False,'target_instructions_executed':False,'build_defines':recipe.NATIVE,
+            'results':results,'required_scenarios':sorted(scenarios),'counterexamples':[],
+            'native_pixel_audit':{'title_raster':[1,60,18,100,42],'icon_rasters':{'20':[10,42]}},
+            'source_sha256':{},'compiled_dependency_sha256':sources,'capture_sha256':captures})
+    write(root/'contracts/qualification.json',{'system_git_pin':recipe.PINS['system'],
+        'stable_source_verified':True,'hardware_tested':False,'physical_radio':False,
+        'cases':[{'sanitized':mode,'passed':True,'output':' '.join(prepare.PROFILES)} for mode in (False,True)],
+        'parity':[{'touchpad':pad,'paper':paper,'identical':True} for pad in (0,1) for paper in (False,True)],
+        'source_hashes':{},'compiled_dependency_sha256':{'utilities:Apps/ble_buttons_native_layout.h':closure['utilities:Apps/ble_buttons_native_layout.h']},
+        'log_sha256':{name:put(root/'contracts'/name) for name in ('normal.log','sanitized.log')},
+        'command_sha256':{'normal-command.json':put(root/'contracts/normal-command.json',b'[]')}})
+    runs=[]
+    for name,script in [('models','scripts/test_hid_apps.py'),('legacy-renderer','scripts/test_hid_renderer.py'),('paper-renderer','scripts/test_hid_renderer.py')]:
+        sha=put(root/(name+'.log'));staged('utilities:'+script)
+        runs.append({'id':name,'script':script,'returncode':0,'log':name+'.log','log_sha256':sha})
+    write(root/'existing-controls.json',{'legacy_system_commit':prepare.LEGACY_SYSTEM,'runs':runs,'source_files':{},
+          'external_sources':{'legacy-system:lib/PortableApps/include/PortableApps.h':staged('legacy-system:lib/PortableApps/include/PortableApps.h')}})
+    app = root/prepare.PACKAGE; app.mkdir()
+    shutil.copyfile(root/'target/native/ble_buttons.elf',app/'ble_buttons.elf')
+    shutil.copyfile(root/'target/native/command.json',app/'command.json')
+    shutil.copyfile(root/'source/utilities'/prepare.MANIFEST,app/'ble_buttons.json')
+    native = modules[-1]
+    layout = {'sha256':native['sha256'],'file_size_bytes':native['size_bytes'],
+        'sections':[{'type':8,'flags':3,'size_bytes':8}], 'shf_alloc_size_sum_bytes':24,
+        'section_loader':{'executable_allocation_request_bytes':16,'data_allocation_request_bytes':11,
+            'resident_section_allocation_request_bytes':27,'data_allocation_components':[{'alignment':4}]}}
+    write(app/'elf-layout.json',layout)
+    path = 'src/runtime/packages/ElfAdmission.h'
+    runtime_sha = put(root/'admission/runtime'/path); staged('runtime:'+path)
+    reporter_sha = put(root/'admission/report_native_settings_memory.py'); staged('system:scripts/report_native_settings_memory.py')
+    harness_sha = put(root/'admission/admit.cpp')
+    result = {'ordinary_application_admitted':True,'missing_import_rejected':True,'unsafe_state_rejected':True,
+        'driver_role_rejected':True,'data_allocation_request_bytes':11,'alignment_placements_checked':16}
+    write(app/'elf-memory-admission.json',{'runtime_commit':recipe.PINS['runtime'],'elf_sha256':native['sha256'],
+        'layout_sha256':prepare.digest(app/'elf-layout.json'),'manifest_sha256':manifest_sha,
+        'budgets':prepare.memory_budgets(layout),'target_instructions_executed':False,'linked_device_memory_fit_qualified':False,
+        'runs':[{'sanitized':mode,'returncode':0,'result':result} for mode in (False,True)],
+        'runtime_source_sha256':{path:runtime_sha},'shared_inspector_source':'system:scripts/report_native_settings_memory.py',
+        'shared_inspector_sha256':reporter_sha,'admission_harness_sha256':harness_sha,'unqualified_requirements':['device fit']})
+    write(root/'source-provenance.json',{'source_commit':source,'source_tree':'c'*40,'working_tree_dirty':False,'source_files':files})
+    write(app/prepare.RECORD,prepare.qualified_record(root,source))
+    return source
+
+
+class BleButtonsReleaseTests(unittest.TestCase):
+    def setUp(self):
+        self.original_recipe_sha=recipe.RECIPE_SHA256
+        self.temp = tempfile.TemporaryDirectory(); self.root = Path(self.temp.name)
+        self.source = fixture(self.root)
+
+    def tearDown(self):
+        recipe.RECIPE_SHA256=self.original_recipe_sha
+        self.temp.cleanup()
+
+    def change(self,name,fn):
+        path = self.root/name; data = prepare.read(path); fn(data); prepare.write(path,data)
+
+    def test_complete_synthetic_package(self):
+        record = publish.validate(self.root,self.source)
+        self.assertEqual(record['version'],'0.1.30-dev1')
+        self.assertEqual(len(record['required_capabilities']),16)
+        self.assertGreaterEqual(len(prepare.SCENARIOS)*len(prepare.PROFILES)*4,1000)
+        self.assertNotEqual(record['target_original_source_commit'],record['source_commit'])
+
+    def test_native_manifest_unchanged_and_distinct(self):
+        self.assertEqual(prepare.read(ROOT/prepare.MANIFEST),prepare.expected_manifest())
+        self.assertNotEqual(prepare.read(ROOT/'Apps/ble_buttons.json')['version'],prepare.VERSION)
+        self.assertNotIn('minimum_firmware_version',prepare.expected_manifest())
+
+    def test_wrong_source_rejected(self):
+        with self.assertRaisesRegex(ValueError,'source identity'): publish.validate(self.root,'d'*40)
+
+    def test_dirty_source_rejected(self):
+        self.change('source-provenance.json',lambda d:d.update(working_tree_dirty=True))
+        with self.assertRaisesRegex(ValueError,'source identity'): publish.validate(self.root,self.source)
+
+    def test_each_direct_tamper_rejected(self):
+        for name in publish.DIRECT:
+            path = self.root/('target' if name=='qualification.json' else prepare.PACKAGE)/name
+            content=path.read_bytes();path.write_bytes(content+b' ')
+            with self.assertRaises(ValueError,msg=name): publish.validate(self.root,self.source)
+            path.write_bytes(content)
+
+    def test_failed_missing_duplicate_or_unsanitized_host_rejected(self):
+        path='host/sanitized-async/receipt.json';original=(self.root/path).read_bytes()
+        for mutate in (lambda d:d['results'][0].update(exit_code=1),lambda d:d['results'].pop(),
+                       lambda d:d['results'].__setitem__(0,d['results'][1]),lambda d:d.update(sanitized=False)):
+            self.change(path,mutate)
+            with self.assertRaises(ValueError):publish.validate(self.root,self.source)
+            (self.root/path).write_bytes(original)
+
+    def test_missing_temporal_profile_or_worktree_evidence_rejected(self):
+        path='temporal/sanitized/receipt.json'; original=(self.root/path).read_bytes()
+        for mutate in (lambda d:d['results'].pop(),lambda d:d.update(system_working_tree_allowed=True),
+                       lambda d:d.update(full_feature_profile=False),lambda d:d.update(temporal=False)):
+            self.change(path,mutate)
+            with self.assertRaises(ValueError):publish.validate(self.root,self.source)
+            (self.root/path).write_bytes(original)
+
+    def test_changed_host_source_rejected(self):
+        put(self.root/'source/system/lib/PortableApps/src/adapter.c',b'changed')
+        with self.assertRaisesRegex(ValueError,'source evidence'):publish.validate(self.root,self.source)
+
+    def test_missing_compiled_source_rejected(self):
+        (self.root/'source/utilities/Apps/ble_buttons.c').unlink()
+        with self.assertRaises(FileNotFoundError):publish.validate(self.root,self.source)
+
+    def test_changed_pixels_rejected(self):
+        r=prepare.read(self.root/'host/normal-sync/receipt.json')
+        capture=next(iter(r['capture_sha256']))
+        put(self.root/'host/normal-sync'/capture,b'changed')
+        with self.assertRaisesRegex(ValueError,'Changed host capture'):publish.validate(self.root,self.source)
+
+    def test_counterexamples_and_self_declared_reduced_scenarios_rejected(self):
+        path='host/normal-sync/receipt.json';original=(self.root/path).read_bytes()
+        for mutate in (lambda d:d.update(counterexamples=[{'scene':'previsible-tap'}]),
+                       lambda d:d.update(required_scenarios=['idle'],results=[x for x in d['results'] if x['scene']=='idle'])):
+            self.change(path,mutate)
+            with self.assertRaises(ValueError):publish.validate(self.root,self.source)
+            (self.root/path).write_bytes(original)
+
+    def test_missing_or_failed_contract_control_rejected(self):
+        self.change('contracts/qualification.json',lambda d:d['parity'][0].update(identical=False))
+        with self.assertRaisesRegex(ValueError,'token parity'):publish.validate(self.root,self.source)
+
+    def test_generated_fixture_provenance_rejected(self):
+        self.change('source/system/replay-fixtures.json',lambda d:d['empty_catalog.c'].update(text='changed'))
+        with self.assertRaises(ValueError):publish.validate(self.root,self.source)
+
+    def test_legacy_elf_difference_rejected(self):
+        put(self.root/'target/legacy/ble_buttons.elf',b'changed')
+        with self.assertRaises(ValueError):publish.validate(self.root,self.source)
+
+    def test_failed_models_or_changed_log_rejected(self):
+        self.change('existing-controls.json',lambda d:d['runs'][0].update(returncode=1))
+        with self.assertRaisesRegex(ValueError,'controls failed'):publish.validate(self.root,self.source)
+
+    def test_memory_limits_and_alignment_fail_closed(self):
+        original=prepare.read(self.root/'app/elf-layout.json')
+        for key in ('executable_allocation_request_bytes','data_allocation_request_bytes','resident_section_allocation_request_bytes'):
+            layout=json.loads(json.dumps(original));layout['section_loader'][key]=8*1024*1024+1
+            with self.assertRaisesRegex(ValueError,'budget exceeded'):prepare.memory_budgets(layout)
+        layout=json.loads(json.dumps(original));layout['sections'][0]['size_bytes']=8*1024*1024+1
+        with self.assertRaisesRegex(ValueError,'budget exceeded'):prepare.memory_budgets(layout)
+        layout=json.loads(json.dumps(original));layout['section_loader']['data_allocation_components'][0]['alignment']=32
+        with self.assertRaisesRegex(ValueError,'alignment residue'):prepare.memory_budgets(layout)
+
+    def test_wrong_runtime_or_hardware_claim_rejected(self):
+        path='app/elf-memory-admission.json';original=(self.root/path).read_bytes()
+        for mutate in (lambda d:d.update(runtime_commit='d'*40),lambda d:d.update(linked_device_memory_fit_qualified=True),
+                       lambda d:d['runs'][1]['result'].update(unsafe_state_rejected=False)):
+            self.change(path,mutate)
+            with self.assertRaises(ValueError):publish.validate(self.root,self.source)
+            (self.root/path).write_bytes(original)
+
+    def test_immutable_tag_and_hashes(self):
+        record=publish.validate(self.root,self.source); published=publish.publication_record(record)
+        publish.verify_existing(published,self.source,record)
+        with self.assertRaises(ValueError):publish.verify_existing(published,'d'*40,record)
+        published['elf_sha256']='0'*64
+        with self.assertRaises(ValueError):publish.verify_existing(published,self.source,record)
+
+    def assets(self,out,extra=None):
+        record=publish.validate(self.root,self.source)
+        for name in publish.DIRECT:
+            shutil.copyfile(self.root/('target' if name=='qualification.json' else 'app')/name,out/name)
+        prepare.write(out/'publication.json',publish.publication_record(record))
+        with zipfile.ZipFile(out/(prepare.TAG+'.zip'),'w') as archive:
+            for path in self.root.rglob('*'):
+                if path.is_file():archive.write(path,path.relative_to(self.root))
+            archive.write(out/'publication.json','publication.json')
+            if extra:extra(archive)
+        (out/'SHA256SUMS').write_text(''.join(prepare.digest(p)+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file()))
+        return record
+
+    def test_local_stager_and_nested_output_rejection(self):
+        record=publish.validate(self.root,self.source)
+        with self.assertRaisesRegex(ValueError,'outside'):publish.stage_assets(self.root,self.root/'assets',record)
+        with tempfile.TemporaryDirectory() as directory:
+            out=Path(directory);publish.stage_assets(self.root,out,record)
+            self.assertEqual({p.name for p in out.iterdir()},publish.REQUIRED)
+
+    def test_owned_header_symlinks_are_flattened_and_external_links_rejected(self):
+        record=publish.validate(self.root,self.source)
+        target=self.root/'source/utilities/Apps/ble_buttons.c'
+        link=self.root/'target/owned-header.h';link.symlink_to(target)
+        # Restamp immutable evidence after adding this synthetic internal link.
+        prepare.write(self.root/'app'/prepare.RECORD,prepare.qualified_record(self.root,self.source))
+        record=publish.validate(self.root,self.source)
+        with tempfile.TemporaryDirectory() as directory:
+            publish.stage_assets(self.root,Path(directory),record)
+        link.unlink();link.symlink_to('/etc/passwd')
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError,'escapes evidence'):
+                publish.stage_assets(self.root,Path(directory),record)
+
+    def test_ten_asset_roundtrip_and_tamper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out=Path(directory);record=self.assets(out)
+            self.assertEqual(len(publish.REQUIRED),10);publish.verify_release_assets(out,record)
+            put(out/'ble_buttons.elf',b'changed')
+            with self.assertRaisesRegex(ValueError,'Published asset changed'):publish.verify_release_assets(out,record)
+
+    def test_incomplete_checksums_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out=Path(directory);record=self.assets(out)
+            path=out/'SHA256SUMS';path.write_text('\n'.join(path.read_text().splitlines()[1:])+'\n')
+            with self.assertRaisesRegex(ValueError,'Incomplete release checksums'):publish.verify_release_assets(out,record)
+
+    def test_archive_traversal_and_duplicate_rejected(self):
+        for name in ('../escape','/absolute','app/ble_buttons.elf'):
+            with tempfile.TemporaryDirectory() as directory:
+                out=Path(directory);record=self.assets(out,lambda archive:archive.writestr(name,b'bad'))
+                with self.assertRaises(ValueError):publish.verify_release_assets(out,record)
+
+    def test_archive_symlink_rejected(self):
+        def symlink(archive):
+            info=zipfile.ZipInfo('link');info.create_system=3;info.external_attr=0o120777<<16;archive.writestr(info,'target')
+        with tempfile.TemporaryDirectory() as directory:
+            out=Path(directory);record=self.assets(out,symlink)
+            with self.assertRaisesRegex(ValueError,'symlink'):publish.verify_release_assets(out,record)
+
+    def test_archived_publication_must_match_direct_asset(self):
+        for content in (None,b'{}\n'):
+            with tempfile.TemporaryDirectory() as directory:
+                out=Path(directory);record=self.assets(out)
+                archive_path=out/(prepare.TAG+'.zip')
+                with zipfile.ZipFile(archive_path) as archive:
+                    members=[(item,archive.read(item)) for item in archive.infolist() if item.filename!='publication.json']
+                with zipfile.ZipFile(archive_path,'w') as archive:
+                    for item,data in members:archive.writestr(item,data)
+                    if content is not None:archive.writestr('publication.json',content)
+                (out/'SHA256SUMS').write_text(''.join(prepare.digest(p)+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
+                with self.assertRaises((ValueError,FileNotFoundError)):publish.verify_release_assets(out,record)
+
+    def test_workflow_explicit_publication_gate(self):
+        workflow=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text();qualify,publisher=workflow.split('  publish-development:',1)
+        self.assertNotIn('contents: write',qualify)
+        for value in ("github.event_name == 'workflow_dispatch'","github.ref == 'refs/heads/main'",'inputs.publish_development',
+                      'needs: qualify','GH_TOKEN: ${{ github.token }}','--publish'):self.assertIn(value,publisher)
+        for value in ('--run-controls','--validate-only','include-hidden-files: true','native-ble-buttons-downloaded',
+                      'name: native-ble-buttons-${{ github.event.pull_request.head.sha || github.sha }}'):self.assertIn(value,qualify)
+        self.assertNotIn("github.event_name == 'push'",publisher)
+        self.assertNotIn('publish_native_countdown.py',workflow)
+        for pin in recipe.PINS.values():self.assertIn(pin,workflow)
+
+    def publish_with_fake_remote(self, initial_tag=None, create_failure=False, raced_tag=False, asset_failure=False):
+        """A draft does not create its Git tag; exercise real CLI orchestration."""
+        state = {'tag':initial_tag,'draft':False,'published':False,'calls':[]}
+        self.remote_state=state
+        repo='owner/RiscRTE-Utilities'
+        def remote(*args,check=True):
+            state['calls'].append(args)
+            ok=True; stdout=''; stderr=''
+            if args[:2] == ('api','repos/'+repo+'/commits/'+self.source): stdout=self.source
+            elif args[:3] == ('release','view',prepare.TAG):
+                if state['published']:
+                    stdout=json.dumps({'tagName':prepare.TAG,'isDraft':False,'isPrerelease':True,
+                                       'assets':[{'name':name} for name in publish.REQUIRED]})
+                else: ok=False;stderr='release not found'
+            elif args[:2] == ('api','repos/'+repo+'/git/ref/tags/'+prepare.TAG):
+                ok=state['tag'] is not None;stderr='' if ok else 'HTTP 404'
+            elif args[:2] == ('api','repos/'+repo+'/git/refs'):
+                self.assertIn('ref=refs/tags/'+prepare.TAG,args)
+                self.assertIn('sha='+self.source,args)
+                self.assertIsNone(state['tag'])
+                if create_failure: ok=False;stderr='HTTP 422 ref exists'
+                else: state['tag']='d'*40 if raced_tag else self.source
+            elif args[:2] == ('api','repos/'+repo+'/commits/'+prepare.TAG):
+                ok=state['tag'] is not None;stdout=state['tag'] or '';stderr='' if ok else 'HTTP 404'
+            elif args[:3] == ('release','create',prepare.TAG):
+                self.assertIn('--verify-tag',args);state['draft']=True
+            elif args[:2] in (('release','upload'),('release','download')): self.assertTrue(state['draft'])
+            elif args[:3] == ('release','edit',prepare.TAG):
+                self.assertTrue(state['draft']);self.assertEqual(state['tag'],self.source);state['published']=True
+            else: self.fail('Unexpected remote call: '+repr(args))
+            result=subprocess.CompletedProcess(args,0 if ok else 1,stdout,stderr)
+            if check and not ok: raise subprocess.CalledProcessError(result.returncode,args,stdout,stderr)
+            return result
+        argv=['publish','--artifact',str(self.root),'--source-sha',self.source,'--repository',repo,'--publish']
+        with mock.patch.object(sys,'argv',argv),mock.patch.object(publish,'gh',side_effect=remote), \
+             mock.patch.object(publish,'stage_assets'),mock.patch.object(publish,'verify_release_assets',
+                 side_effect=ValueError('asset readback failed') if asset_failure else None):
+            publish.main()
+        return state
+
+    def test_first_publication_creates_tag_before_draft(self):
+        state=self.publish_with_fake_remote()
+        self.assertTrue(state['published'])
+        calls=state['calls'];create=next(i for i,c in enumerate(calls) if c[:2]==('api','repos/owner/RiscRTE-Utilities/git/refs'))
+        draft=next(i for i,c in enumerate(calls) if c[:2]==('release','create'))
+        self.assertLess(create,draft)
+
+    def test_existing_matching_tag_is_not_recreated(self):
+        state=self.publish_with_fake_remote(self.source)
+        self.assertTrue(state['published'])
+        self.assertFalse(any(c[:2]==('api','repos/owner/RiscRTE-Utilities/git/refs') for c in state['calls']))
+
+    def test_existing_mismatched_tag_stops_publication(self):
+        with self.assertRaisesRegex(ValueError,'another source'):
+            self.publish_with_fake_remote('d'*40)
+        self.assertFalse(self.remote_state['draft'])
+
+    def test_nested_checkout_uses_most_specific_source_owner(self):
+        pins={'utilities':'/work/utilities', 'system':'/work/utilities/.dependencies/system',
+              'runtime':'/work/utilities/.dependencies/runtime'}
+        self.assertEqual(prepare.source_identity('/work/utilities/.dependencies/system/lib/adapter.c',pins),
+                         'system:lib/adapter.c')
+        self.assertEqual(prepare.source_identity('/work/utilities/.dependencies/runtime/sdk/api.h',pins),
+                         'runtime:sdk/api.h')
+        self.assertEqual(prepare.source_identity('/work/utilities/Apps/ble_buttons.c',pins),
+                         'utilities:Apps/ble_buttons.c')
+        with self.assertRaisesRegex(ValueError,'Unbound'):
+            prepare.source_identity('/work/utilities-sibling/Apps/ble_buttons.c',pins)
+
+    def test_actual_producer_module_shape_is_supported(self):
+        path='target/qualification.json'
+        def producer_shape(target):
+            for module in target['modules']:
+                module.pop('build_defines');module.pop('native_ui')
+        self.change(path,producer_shape)
+        prepare.validate_target(self.root)
+
+    def test_failed_or_raced_tag_creation_stops_before_draft(self):
+        with self.assertRaises(subprocess.CalledProcessError):self.publish_with_fake_remote(create_failure=True)
+        self.assertFalse(self.remote_state['draft'])
+        with self.assertRaisesRegex(ValueError,'another source'):self.publish_with_fake_remote(raced_tag=True)
+        self.assertFalse(self.remote_state['draft'])
+
+    def test_failed_asset_readback_does_not_publish_draft(self):
+        with self.assertRaisesRegex(ValueError,'asset readback failed'):self.publish_with_fake_remote(asset_failure=True)
+        self.assertTrue(self.remote_state['draft']);self.assertFalse(self.remote_state['published'])
+
+
+if __name__ == '__main__':unittest.main()
