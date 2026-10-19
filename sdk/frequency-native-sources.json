@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "system_apps": "6ab1eb9329da20480dc1f84d992d85196aeca00a",
+  "system_apps": "8f320011f685e8854468fa0a9d8ab5557250f863",
   "purpose": "Independent native Frequency source qualification; legacy product pins unchanged",
   "defines": [
     "PORTABLE_FREQUENCY_NATIVE_UI",
