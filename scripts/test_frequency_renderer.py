@@ -10,6 +10,9 @@ for legacy in ([True] if a.legacy_source else [False]):
   catalog=out/'catalog.c';catalog.write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[1]={{.compatible=false}};\nconst unsigned portable_catalog_count=0;\n')
   source=a.legacy_source.resolve() if legacy else ROOT/'Apps/frequency_generator.c'
   flags=['-DPORTABLE_AUDIO_SESSION','-DPORTABLE_ALARM_CLIENT','-DPORTABLE_FORCE_FULL_FRAMES','-DPORTABLE_INPUT_NAVIGATION','-DPORTABLE_INPUT_NAVIGATION_LOCAL','-DPORTABLE_APP_SLEEP_LOCAL','-DPORTABLE_QUICK_ACTIONS','-DPORTABLE_QUICK_RADIOS','-DPORTABLE_RETURN_APP="springboard.elf"','-DFREQUENCY_APP_SOURCE='+json.dumps(str(source))]
+  # Match the pinned peripheral fixture clock: historical pins use polls.
+  clock='script_step()' if 'static unsigned script_step(void)' in (s/'test/native_apps/nova_peripherals.h').read_text() else 'polls'
+  flags+=['-DFREQUENCY_FIXTURE_STEP()='+clock]
   if not legacy:flags+=['-DPORTABLE_NOVA_UI']
   if sanitized:flags+=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
   exe=out/'renderer'

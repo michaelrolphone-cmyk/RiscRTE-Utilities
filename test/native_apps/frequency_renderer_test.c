@@ -15,7 +15,7 @@ static unsigned fixture_scene,combined_stop_writes;
 static bool nav_sent;
 static bool audio_open(void *c,uint32_t rate,uint8_t channels){(void)c;assert(!audio_live&&rate==16000&&channels==1);audio_live=true;++audio_opens;return true;}
 static bool audio_write(void *c,const int16_t *pcm,size_t n){(void)c;assert(audio_live&&pcm&&n==256);++audio_writes;ticks+=16;return true;}
-static bool audio_close(void *c){(void)c;assert(audio_live);audio_live=false;++audio_closes;if(fixture_scene==9)stop_poll=script_step()+1;return true;}
+static bool audio_close(void *c){(void)c;assert(audio_live);audio_live=false;++audio_closes;if(fixture_scene==9)stop_poll=FREQUENCY_FIXTURE_STEP()+1;return true;}
 static const twatch_audio_out_api_v1 audio_api={.api_version=1,.struct_size=sizeof(audio_api),.open=audio_open,.write=audio_write,.close=audio_close};
 static bool acquire_audio(const char *name,uint32_t version,uint64_t id,risc_runtime_capability_v1 *g){
  if(!strcmp(name,"audio.output")&&version==1){g->api=&audio_api;++grants;return true;}
@@ -28,8 +28,8 @@ const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t version){
 static bool nav_audio(void *c,risc_input_navigation_frame_v1 *out){
     (void)c;*out=(risc_input_navigation_frame_v1){0};
     /* Scripted touch uses elapsed time, so navigation must share its clock. */
-    if(fixture_scene==6&&!nav_sent&&script_step()>=30){out->pressed=T5_APP_BUTTON_BACK;nav_sent=true;}
-    if(fixture_scene==10&&!nav_sent&&script_step()>=31){out->pressed=T5_APP_BUTTON_CONFIRM;nav_sent=true;combined_stop_writes=audio_writes;}
+    if(fixture_scene==6&&!nav_sent&&FREQUENCY_FIXTURE_STEP()>=30){out->pressed=T5_APP_BUTTON_BACK;nav_sent=true;}
+    if(fixture_scene==10&&!nav_sent&&FREQUENCY_FIXTURE_STEP()>=31){out->pressed=T5_APP_BUTTON_CONFIRM;nav_sent=true;combined_stop_writes=audio_writes;}
     return true;
 }
 const risc_input_navigation_api_v1 *portable_input_navigation_open(const risc_runtime_api_v1 *rt){
