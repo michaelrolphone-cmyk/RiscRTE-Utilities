@@ -1,0 +1,68 @@
+name: Contexts capability-sized UI
+on:
+  push:
+    branches: [main]
+    paths: ['Apps/contexts*', 'test/contexts/**', 'scripts/test_contexts_native.py', 'scripts/test_contexts_shared_input.py', '.github/workflows/contexts-native.yml']
+  pull_request:
+    paths: ['Apps/contexts*', 'test/contexts/**', 'scripts/test_contexts_native.py', 'scripts/test_contexts_shared_input.py', '.github/workflows/contexts-native.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ASAN_OPTIONS: detect_leaks=0:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 14998a9581f871e2a5729db93ca450471c458c40
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 64c8e52e46fd91e8fdafd636db04eed88f0c51a9
+          path: .dependencies/runtime
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test image dependency
+        run: python -m pip install Pillow==12.3.0
+      - name: Native renderer, input, ownership and text lifecycle
+        run: |
+          python scripts/test_contexts_native.py --runtime .dependencies/runtime --system-apps .dependencies/system --output build/contexts-native
+          python scripts/test_contexts_native.py --runtime .dependencies/runtime --system-apps .dependencies/system --output build/contexts-native-sanitized --sanitize
+      - name: Existing watch and paper contracts
+        run: >-
+          python scripts/test_contexts_shared_input.py
+          --runtime .dependencies/runtime --system-apps .dependencies/system
+          --output build/contexts-display-regressions --sanitize
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Validate source-only target ELFs
+        env:
+          PYTHONPATH: .dependencies/system/scripts
+        run: |
+          python scripts/build_contexts_scene.py --runtime .dependencies/runtime --system-apps .dependencies/system --shared-text-input --output build/contexts-target-watch
+          python scripts/build_contexts_scene.py --runtime .dependencies/runtime --system-apps .dependencies/system --shared-text-input --target x4 --output build/contexts-target-paper
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contexts-native-${{ github.sha }}
+          path: |
+            build/contexts-native*/results.json
+            build/contexts-native*/**/run.log
+            build/contexts-display-regressions/results.json
+            build/contexts-target-*/
+          if-no-files-found: error
+          retention-days: 14
