@@ -20,6 +20,7 @@ jobs:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
           ref: b2805a166e89c4c03aa83b375fabfee02264f41c
           path: .dependencies/touchpad-system
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
