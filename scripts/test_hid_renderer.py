@@ -3,7 +3,8 @@
 import argparse,os,subprocess,gzip
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--system-apps',required=True,type=Path);p.add_argument('--paper',action='store_true');p.add_argument('--watch',type=Path,help='Link the production Watch FT6336U driver over simulated I2C reports');p.add_argument('--runtime',type=Path,help='Link the production Runtime serial logger with its existing USB host shim');p.add_argument('--watch-touch-source',type=Path,help='Explicit Watch touch source, relative to --watch (defaults to the current provider if present)');p.add_argument('--low-battery',action='store_true',help='Use the delivered low-battery lifecycle policy');p.add_argument('--scene',action='append',help='Run only the named scene (repeatable)');a=p.parse_args();system=a.system_apps.resolve();watch=a.watch.resolve() if a.watch else None
+p=argparse.ArgumentParser();p.add_argument('--system-apps',required=True,type=Path);p.add_argument('--paper',action='store_true');p.add_argument('--native-touchpad',action='store_true',help='Verify selector bypass on the legacy paper profile');p.add_argument('--watch',type=Path,help='Link the production Watch FT6336U driver over simulated I2C reports');p.add_argument('--runtime',type=Path,help='Link the production Runtime serial logger with its existing USB host shim');p.add_argument('--watch-touch-source',type=Path,help='Explicit Watch touch source, relative to --watch (defaults to the current provider if present)');p.add_argument('--low-battery',action='store_true',help='Use the delivered low-battery lifecycle policy');p.add_argument('--scene',action='append',help='Run only the named scene (repeatable)');a=p.parse_args();system=a.system_apps.resolve();watch=a.watch.resolve() if a.watch else None
+if a.native_touchpad and not a.paper:p.error('--native-touchpad requires --paper')
 if a.watch_touch_source and not watch:p.error('--watch-touch-source requires --watch')
 touch_source=(watch/a.watch_touch_source if a.watch_touch_source else watch/'drivers/current/twatch_touch/driver.c') if watch else None
 if watch and not a.watch_touch_source and not touch_source.is_file():touch_source=watch/'drivers/twatch_touch/driver.c'
@@ -77,6 +78,7 @@ for san in (False,True):
   flags+=['-DPORTABLE_PAPER_HID','-DPORTABLE_HOME_APP="default.elf"']
   if a.paper:
    flags.remove('-DPORTABLE_QUICK_RADIOS');flags.remove('-DPORTABLE_FORCE_FULL_FRAMES');flags+=['-DHID_RENDER_PAPER','-DPORTABLE_DISPLAY_ROTATION=90']
+  if a.native_touchpad:flags+=['-DPORTABLE_BLE_TOUCHPAD_NATIVE_UI','-DPORTABLE_NATIVE_CANVAS']
   if a.low_battery:flags+=['-DPORTABLE_LOW_BATTERY']
   if san:flags+=['-fsanitize='+os.environ.get('HID_SANITIZERS','address,undefined'),'-fno-sanitize-recover=all','-fno-omit-frame-pointer']
   exe=out/'renderer';sources=[ROOT/'test/native_apps/hid_renderer_test.c',ROOT/'Apps'/f'{name}.c',system/'lib/PortableApps/src/adapter.c',catalog]+[system/'lib/PortableApps/src'/s for s in ['quick_actions.c','quick_render.c','quick_session.c','quick_radios.c']]

@@ -1,0 +1,58 @@
+name: Native BLE Touchpad qualification
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: b2805a166e89c4c03aa83b375fabfee02264f41c
+          path: .dependencies/touchpad-system
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Actual native Touchpad and ownership
+        run: |
+          python .dependencies/touchpad-system/scripts/test_ble_touchpad_native_input.py
+          python .dependencies/touchpad-system/scripts/test_ble_touchpad_native_optout.py
+          python scripts/test_ble_touchpad_native.py --system-apps .dependencies/touchpad-system
+          python scripts/test_ble_touchpad_native.py --system-apps .dependencies/touchpad-system --sanitize
+          python scripts/test_ble_touchpad_native.py --system-apps .dependencies/touchpad-system --slow
+          python scripts/test_ble_touchpad_native.py --system-apps .dependencies/touchpad-system --slow --sanitize
+      - name: Existing HID regressions
+        run: |
+          python scripts/test_ble_buttons_native_contract.py --system-apps .dependencies/touchpad-system --output build/touchpad-buttons-contract
+          python scripts/test_hid_apps.py --system-apps .dependencies/touchpad-system
+          python scripts/test_hid_renderer.py --system-apps .dependencies/touchpad-system
+          python scripts/test_hid_renderer.py --system-apps .dependencies/touchpad-system --paper --native-touchpad
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Native target and paper-selector bypass admission
+        run: |
+          python scripts/build_hid_apps.py --system-apps .dependencies/touchpad-system --native-touchpad --output-dir dist/ble-touchpad-native
+          python scripts/build_hid_apps.py --system-apps .dependencies/touchpad-system --native-touchpad --paper-profile --output-dir dist/ble-touchpad-native-paper
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-ble-scanner-source-${{ github.sha }}
+          path: |
+            dist/ble-touchpad-native/
+            dist/ble-touchpad-native-paper/
+          if-no-files-found: error
+          retention-days: 14
