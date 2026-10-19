@@ -1,0 +1,109 @@
+{
+  "schema": 1,
+  "publish_to_catalog": false,
+  "purpose": "Mutually exclusive RTC and native UTC Stopwatch source qualification; no product recipe activation",
+  "applications": {
+    "rtc": {
+      "type": "application",
+      "id": "stopwatch",
+      "version": "0.1.26",
+      "display_name": "Stopwatch (native RTC qualification)",
+      "architecture": "xtensa-esp32s3",
+      "file_name": "stopwatch.elf",
+      "entry": "app_main",
+      "grants": [
+        {
+          "capability": "display.output",
+          "api": 1,
+          "instance_id": 0
+        },
+        {
+          "capability": "input.touch.raw",
+          "api": 1,
+          "instance_id": 0
+        },
+        {
+          "capability": "input.navigation",
+          "api": 1,
+          "instance_id": 0
+        },
+        {
+          "capability": "alarm.service",
+          "api": 1,
+          "instance_id": 0
+        },
+        {
+          "capability": "rtc.clock",
+          "api": 2,
+          "instance_id": 0
+        },
+        {
+          "capability": "storage.key-value",
+          "api": 1,
+          "instance_id": 2
+        },
+        {
+          "capability": "storage.key-value",
+          "api": 1,
+          "instance_id": 1
+        },
+        {
+          "capability": "board.battery",
+          "api": 1,
+          "instance_id": 0
+        }
+      ]
+    },
+    "utc": {
+      "type": "application",
+      "id": "stopwatch",
+      "version": "0.1.26",
+      "display_name": "Stopwatch (native UTC qualification)",
+      "architecture": "xtensa-esp32s3",
+      "file_name": "stopwatch.elf",
+      "entry": "app_main",
+      "grants": [
+        {
+          "capability": "display.output",
+          "api": 1,
+          "instance_id": 0
+        },
+        {
+          "capability": "input.touch.raw",
+          "api": 1,
+          "instance_id": 0
+        },
+        {
+          "capability": "input.navigation",
+          "api": 1,
+          "instance_id": 0
+        },
+        {
+          "capability": "alarm.service",
+          "api": 2,
+          "instance_id": 0
+        },
+        {
+          "capability": "runtime.realtime",
+          "api": 1,
+          "instance_id": 0
+        },
+        {
+          "capability": "storage.key-value",
+          "api": 1,
+          "instance_id": 2
+        },
+        {
+          "capability": "storage.key-value",
+          "api": 1,
+          "instance_id": 1
+        },
+        {
+          "capability": "board.battery",
+          "api": 1,
+          "instance_id": 0
+        }
+      ]
+    }
+  }
+}
