@@ -16,7 +16,7 @@ import subprocess
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = '2d0e03a58d1d78cec10033dfa384368281156a46'
+BASELINE = '1e5108f2c1da2d2bb2e98c75258e40919a17c8e1'
 TIME_SOURCES = ('PortableNativeTimeSource.c', 'PortableRealtimeClient.c',
                 'PortableTimeZone.c', 'PortableTimeZoneCatalog.c',
                 'PortableTimeZonePreference.c')

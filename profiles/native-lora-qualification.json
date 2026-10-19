@@ -1,0 +1,129 @@
+{
+  "schema": 1,
+  "profile": "native-lora-source-pinned-minimal-qualification",
+  "scope": "Standalone target structural qualification of the existing minimal LoRa build plus its complete shared-input safety composition; not a full Watch/product build",
+  "default": "legacy",
+  "utilities_base": "95f39010ed89d76fc583f1c09a111cfc3cf21f41",
+  "system_base": "4b11af9e44bc7ec71a7a63d14d898b6141c616b4",
+  "pins": {
+    "system": "b366491a850851989079fe1d3ba967541b57954f",
+    "runtime": "13eca114cb58469cf6004fafc3da84fbd9d29beb"
+  },
+  "compiler_package": "espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5",
+  "common_defines": [
+    "PORTABLE_FORCE_FULL_FRAMES",
+    "PORTABLE_ALARM_CLIENT",
+    "PORTABLE_RADIO_SESSION",
+    "PORTABLE_NOVA_UI",
+    "PORTABLE_APP_OWNS_TOUCH_CHROME"
+  ],
+  "shared_input_defines": [
+    "PORTABLE_LORA_SHARED_TEXT_INPUT",
+    "PORTABLE_TEXT_INPUT_CLIENT",
+    "PORTABLE_APP_LAUNCH_GUARD",
+    "PORTABLE_CHECKED_STORAGE_RUNTIME",
+    "PORTABLE_NATIVE_CUSTODY_FENCE",
+    "PORTABLE_ALARM_TERMINAL_RETENTION"
+  ],
+  "native_selectors": [
+    "PORTABLE_LORA_NATIVE_UI",
+    "PORTABLE_NATIVE_CANVAS"
+  ],
+  "native_required_inputs": [
+    "utilities:Apps/lora_messages_native_layout.h",
+    "system:lib/PortableApps/include/PortableLoRaNative.h",
+    "system:lib/PortableApps/src/lora_native_input.inc",
+    "utilities:Apps/lora_messages_native_view.inc"
+  ],
+  "translation_units": [
+    "utilities:Apps/lora_messages.c",
+    "system:lib/PortableApps/src/adapter.c",
+    "qualification:catalog.c"
+  ],
+  "provenance": {
+    "minimal_recipe": "utilities-base:scripts/build_lora_apps.py",
+    "shared_safety_defines": "utilities-base:scripts/test_lora_shared_input.py",
+    "full_product_reference_only": "system-base:docs/shared-app-crashes/replay/twatch.json#/lora_messages"
+  },
+  "limitations": [
+    "Only the minimal production LoRa app/adapter and complete shared-input safety selectors are linked; no full Watch navigation/sleep/Quick/context/broadcast composition is qualified.",
+    "The full deployed product recipe additionally depends on exact bridge/forced-header/profile closure, product-specific compiler flags and product capability grants; it is not reconstructed or silently approximated here.",
+    "The empty app catalog is the existing development recipe, not the installed product catalog. No package manifest is emitted or altered.",
+    "Pinned Runtime loader validation checks target ELF structure and public imports; Xtensa instructions, Runtime integration and physical hardware/RF are not executed.",
+    "ELF allocation totals exclude runtime heap, stack, framebuffers and provider allocations; they do not establish product memory admission.",
+    "No product pins, firmware recipes, manifests, release assets, installation or publication are changed."
+  ],
+  "display_contract": {
+    "native": "Opt-in capability-sized RGB565 color only; selected by PORTABLE_LORA_NATIVE_UI and PORTABLE_NATIVE_CANVAS. No fixed target resolution is compiled.",
+    "selector_off": "Existing legacy color and retaining monochrome/paper paths remain in the same source-pinned ELF. Byte parity compares both selectors absent, not a separate product paper build.",
+    "paper_behavior": "Native selection must not activate on paper; behavioral paper parity belongs to the host test matrix, not ELF structural validation."
+  },
+  "capability_contract": {
+    "required_for_selected_features": [
+      {
+        "capability": "display.output",
+        "api": 1
+      },
+      {
+        "capability": "input.touch.raw",
+        "api": 1
+      },
+      {
+        "capability": "radio.lora",
+        "api": 2
+      },
+      {
+        "capability": "storage.key-value",
+        "api": 1
+      },
+      {
+        "capability": "rtc.clock",
+        "api": 2
+      },
+      {
+        "capability": "alarm.service",
+        "api": 1
+      },
+      {
+        "capability": "ui.text-input",
+        "api": 1
+      }
+    ],
+    "optional_acquisitions": [
+      {
+        "capability": "board.battery",
+        "api": 1
+      }
+    ],
+    "installation_manifest_emitted": false,
+    "legacy_manifest_is_not_native_install_authority": true,
+    "note": "ui.text-input long-request support is checked at runtime; API v1 alone does not establish the long-text extension. This records acquisition requirements, not a complete deployable capability grant."
+  },
+  "host_only_composition": {
+    "shared_editor_defines": [
+      "PORTABLE_INPUT_NAVIGATION",
+      "PORTABLE_INPUT_NAVIGATION_LOCAL",
+      "PORTABLE_ASYNC_RGB565"
+    ],
+    "local_editor_defines": [
+      "PORTABLE_INPUT_NAVIGATION",
+      "PORTABLE_INPUT_NAVIGATION_LOCAL",
+      "PORTABLE_ASYNC_RGB565",
+      "PORTABLE_NATIVE_CUSTODY_FENCE",
+      "LORA_RETURN_APP=\"springboard.elf\""
+    ],
+    "scope": "Host fixtures model navigation/return and async presentation interfaces; no Watch navigation or sleep bridge is linked into the qualified target. Actual host command receipts are authoritative.",
+    "optional_quick_defines": [
+      "PORTABLE_QUICK_ACTIONS",
+      "PORTABLE_QUICK_RADIOS",
+      "PORTABLE_QUICK_NATIVE"
+    ],
+    "optional_quick_sources": [
+      "system:lib/PortableApps/src/quick_actions.c",
+      "system:lib/PortableApps/src/quick_render.c",
+      "system:lib/PortableApps/src/quick_session.c",
+      "system:lib/PortableApps/src/quick_radios.c"
+    ]
+  },
+  "utilities_source_policy": "Exact --utilities-commit must equal clean HEAD; all target source comes from immutable Git objects."
+}

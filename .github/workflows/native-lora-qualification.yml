@@ -1,0 +1,109 @@
+name: Native LoRa qualification only
+on:
+  push:
+    branches: [main, work/lora-native-20261019]
+    paths:
+      - 'Apps/lora_messages*'
+      - 'scripts/*lora*'
+      - 'profiles/native-lora-qualification.json'
+      - 'test/native_apps/lora_native*'
+      - 'tests/*lora*'
+      - 'docs/NATIVE_LORA_QUALIFICATION.md'
+      - '.github/workflows/native-lora-qualification.yml'
+  pull_request:
+    paths:
+      - 'Apps/lora_messages*'
+      - 'scripts/*lora*'
+      - 'profiles/native-lora-qualification.json'
+      - 'test/native_apps/lora_native*'
+      - 'tests/*lora*'
+      - 'docs/NATIVE_LORA_QUALIFICATION.md'
+      - '.github/workflows/native-lora-qualification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+      UBSAN_OPTIONS: halt_on_error=1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: b366491a850851989079fe1d3ba967541b57954f
+          path: .dependencies/system
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 13eca114cb58469cf6004fafc3da84fbd9d29beb
+          path: .dependencies/runtime
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install qualification dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install Pillow platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Fail-closed source and target contract tests
+        run: python -m unittest discover -s tests -p test_native_lora_qualification.py -v
+      - name: Exact pinned target and selector-off parity
+        run: |
+          set -euo pipefail
+          mkdir -p dist/native-lora-qualification
+          python scripts/build_native_lora_qualification.py \
+            --utilities-commit "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --system .dependencies/system --runtime .dependencies/runtime \
+            --xtensa-cc "$HOME/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc" \
+            --native-ui --output-dir dist/native-lora-qualification/target \
+            2>&1 | tee dist/native-lora-qualification/target.log
+      - name: System private ownership and exact feature-off contracts
+        run: |
+          set -euo pipefail
+          python .dependencies/system/scripts/test_lora_native_input.py \
+            2>&1 | tee dist/native-lora-qualification/system-input.log
+          python .dependencies/system/scripts/test_lora_native_optout.py \
+            --output dist/native-lora-qualification/system-optout \
+            2>&1 | tee dist/native-lora-qualification/system-optout.log
+      - name: Native local-editor production adapter and temporal controls
+        run: |
+          set -euo pipefail
+          python scripts/test_lora_native.py --system-apps .dependencies/system \
+            --output dist/native-lora-qualification/native-host \
+            2>&1 | tee dist/native-lora-qualification/native-host.log
+      - name: Native optional Quick interfaces and ownership controls
+        run: |
+          set -euo pipefail
+          python scripts/test_lora_native.py --system-apps .dependencies/system \
+            --quick --skip-legacy --scene temporal --scene back --scene rf-picker \
+            --scene rf-picker-back --scene compose --scene keyboard-edit --scene receive-detail \
+            --output dist/native-lora-qualification/native-quick \
+            2>&1 | tee dist/native-lora-qualification/native-quick.log
+      - name: Native shared-editor production composition
+        run: |
+          set -euo pipefail
+          python scripts/test_lora_native_shared.py \
+            --system-apps .dependencies/system --runtime .dependencies/runtime \
+            --output dist/native-lora-qualification/shared \
+            2>&1 | tee dist/native-lora-qualification/shared.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-lora-qualification-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/native-lora-qualification/
+          retention-days: 14
