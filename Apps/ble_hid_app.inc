@@ -289,12 +289,13 @@ static const risc_bluetooth_hid_scroll_api_v1 *scroll_api(void){
  const risc_bluetooth_hid_scroll_api_v1 *v=(const void*)hid;return v->mouse_scroll?v:NULL;
 }
 static bool touch_pad(const risc_touch_snapshot_v1*s,uint32_t now){
- hid_gesture_output o;
 #if defined(HID_NATIVE_UI) && HID_TOUCHPAD
+ hid_gesture_output o;
  if(hid_native_enabled()){hid_native_rect r=hid_touchpad_native_pad(hid_native_geometry());o=hid_gesture_sample_bounds(&gesture,s,now,r.x,r.y,r.x+r.w,r.y+r.h);}
- else
+ else o=paper?hid_gesture_sample_bounds(&gesture,s,now,32,224,448,624):hid_gesture_sample(&gesture,s,now);
+#else
+ hid_gesture_output o=paper?hid_gesture_sample_bounds(&gesture,s,now,32,224,448,624):hid_gesture_sample(&gesture,s,now);
 #endif
- o=paper?hid_gesture_sample_bounds(&gesture,s,now,32,224,448,624):hid_gesture_sample(&gesture,s,now);
  const risc_bluetooth_hid_scroll_api_v1 *scroll=scroll_api();
  /* Refresh a stationary drag well inside the provider's release watchdog. */
  bool report=o.dx||o.dy||o.button_changed||(o.buttons&&(uint32_t)(now-reported)>=400);
