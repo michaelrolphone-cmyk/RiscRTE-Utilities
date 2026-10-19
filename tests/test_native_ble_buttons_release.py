@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+from types import SimpleNamespace
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -321,13 +322,53 @@ class BleButtonsReleaseTests(unittest.TestCase):
     def test_workflow_explicit_publication_gate(self):
         workflow=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text();qualify,publisher=workflow.split('  publish-development:',1)
         self.assertNotIn('contents: write',qualify)
-        for value in ("github.event_name == 'workflow_dispatch'","github.ref == 'refs/heads/main'",'inputs.publish_development',
+        for value in ("github.event_name == 'workflow_dispatch'","github.event_name == 'push'","github.ref == 'refs/heads/main'",'inputs.publish_development',
                       'needs: qualify','GH_TOKEN: ${{ github.token }}','--publish'):self.assertIn(value,publisher)
         for value in ('--run-controls','--validate-only','include-hidden-files: true','native-ble-buttons-downloaded',
                       'name: native-ble-buttons-${{ github.event.pull_request.head.sha || github.sha }}'):self.assertIn(value,qualify)
-        self.assertNotIn("github.event_name == 'push'",publisher)
+        self.assertNotIn('--publish',qualify)
         self.assertNotIn('publish_native_countdown.py',workflow)
         for pin in recipe.PINS.values():self.assertIn(pin,workflow)
+
+    def test_workflow_main_push_gate_matches_spectrum_and_event_matrix(self):
+        def publication_condition(name):
+            publisher=(ROOT/'.github/workflows'/name).read_text().split('  publish-development:',1)[1]
+            return next(line.strip()[4:] for line in publisher.splitlines() if line.startswith('    if: ')),publisher
+        condition,publisher=publication_condition('native-ble-buttons.yml')
+        expected="github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_development))"
+        self.assertEqual(condition,expected)
+        self.assertEqual(condition,publication_condition('native-spectrum.yml')[0])
+        self.assertIn('\n    needs: qualify\n',publisher)
+        self.assertNotIn('always()',publisher)
+        self.assertNotIn('continue-on-error:',publisher)
+        # Evaluate only the exact, asserted expression above. Successful needs
+        # is GitHub's default prerequisite when no status override is present.
+        expression=condition.replace('&&','and').replace('||','or')
+        for ref in ('refs/heads/main','refs/heads/work/ble-buttons-native-20261019','refs/pull/77/merge'):
+            for event in ('push','workflow_dispatch','pull_request','pull_request_target','release'):
+                for requested in (False,True):
+                    for qualification in ('success','failure','cancelled','skipped'):
+                        with self.subTest(ref=ref,event=event,requested=requested,qualification=qualification):
+                            allowed=qualification=='success' and eval(expression,{'__builtins__':{}},
+                                {'github':SimpleNamespace(ref=ref,event_name=event),
+                                 'inputs':SimpleNamespace(publish_development=requested)})
+                            expected_allowed=(qualification=='success' and ref=='refs/heads/main' and
+                                              (event=='push' or (event=='workflow_dispatch' and requested)))
+                            self.assertEqual(allowed,expected_allowed)
+
+    def test_workflow_publisher_binds_qualified_source_and_artifact(self):
+        workflow=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text()
+        qualify,publisher=workflow.split('  publish-development:',1)
+        for value in ('ref: ${{ github.sha }}','name: native-ble-buttons-${{ github.sha }}',
+                      '--source-sha "${{ github.sha }}"','--repository "${{ github.repository }}"',
+                      'publish_native_ble_buttons.py --artifact dist/native-ble-buttons',
+                      'Publish immutable standalone BLE Buttons with asset readback'):
+            self.assertIn(value,publisher)
+        self.assertIn('--source-sha "${{ github.event.pull_request.head.sha || github.sha }}"',qualify)
+        self.assertIn('Validate transported BLE Buttons source and evidence bundle',qualify)
+        self.assertIn('default: false',qualify)
+        self.assertNotIn('continue-on-error:',workflow)
+        self.assertEqual(workflow.count(' --publish'),1)
 
     def publish_with_fake_remote(self, initial_tag=None, create_failure=False, raced_tag=False, asset_failure=False):
         """A draft does not create its Git tag; exercise real CLI orchestration."""

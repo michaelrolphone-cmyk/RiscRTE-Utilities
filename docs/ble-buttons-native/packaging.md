@@ -62,9 +62,15 @@ fragmentation, target instructions, Bluetooth transport or physical behavior.
 and verifies the ten standalone assets without remote writes. `--publish` is an
 explicit separate action: exact source and immutable tag are verified, draft
 assets are downloaded and checked before publication, then public assets are
-read back again. CI publication is manual-dispatch-only and additionally requires
-`publish_development=true`, `main`, and successful qualification. No firmware or
-catalog update is part of this tooling.
+read back again. Following the existing Spectrum workflow, CI publishes on a
+`main` push only after the complete `qualify` job succeeds, including transported
+artifact validation. Manual dispatch on `main` also permits publication when
+`publish_development=true` (default false). Pull requests, non-main refs and
+failed, cancelled or skipped qualification never publish. The publication job
+checks out the exact event SHA, downloads the artifact named for that SHA, and
+passes the same SHA to the immutable publisher; it cannot substitute another
+source or qualification bundle. No firmware or catalog update is part of this
+tooling.
 
 See `.github/workflows/native-ble-buttons.yml` for the reproducible command order.
 Local qualification may inspect an uncommitted snapshot, but a release package
