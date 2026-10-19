@@ -62,15 +62,19 @@ fragmentation, target instructions, Bluetooth transport or physical behavior.
 and verifies the ten standalone assets without remote writes. `--publish` is an
 explicit separate action: exact source and immutable tag are verified, draft
 assets are downloaded and checked before publication, then public assets are
-read back again. Following the existing Spectrum workflow, CI publishes on a
-`main` push only after the complete `qualify` job succeeds, including transported
-artifact validation. Manual dispatch on `main` also permits publication when
-`publish_development=true` (default false). Pull requests, non-main refs and
-failed, cancelled or skipped qualification never publish. The publication job
-checks out the exact event SHA, downloads the artifact named for that SHA, and
+read back again. Pushes and pull requests retain the complete `qualify` job,
+including transported artifact validation, without publishing. CI publication
+requires an explicit manual dispatch on `main` with `publish_development=true`
+(default false), after the complete `qualify` job succeeds. Pushes, pull requests,
+non-main refs and failed, cancelled or skipped qualification never publish. The
+publication job checks out the exact event SHA, downloads the artifact named for that SHA, and
 passes the same SHA to the immutable publisher; it cannot substitute another
-source or qualification bundle. No firmware or catalog update is part of this
-tooling.
+source or qualification bundle. The fixed `native-ble-buttons-0.1.30-dev1` release
+is immutable: if an existing release has different qualification evidence, even
+with the same ELF and manifest, the publisher fails before any remote mutation.
+An explicit dispatch does not permit replacing those assets or repointing the
+tag; a later publication needs a separately reviewed new version and tag. No
+firmware or catalog update is part of this tooling.
 
 See `.github/workflows/native-ble-buttons.yml` for the reproducible command order.
 Local qualification may inspect an uncommitted snapshot, but a release package
