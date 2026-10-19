@@ -11,10 +11,11 @@ const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t version);
 #include FREQUENCY_APP_SOURCE
 static bool audio_live;
 static unsigned audio_opens,audio_writes,audio_closes,launch_count;
-static unsigned fixture_scene;
+static unsigned fixture_scene,combined_stop_writes;
+static bool nav_sent;
 static bool audio_open(void *c,uint32_t rate,uint8_t channels){(void)c;assert(!audio_live&&rate==16000&&channels==1);audio_live=true;++audio_opens;return true;}
 static bool audio_write(void *c,const int16_t *pcm,size_t n){(void)c;assert(audio_live&&pcm&&n==256);++audio_writes;ticks+=16;return true;}
-static bool audio_close(void *c){(void)c;assert(audio_live);audio_live=false;++audio_closes;if(fixture_scene==9)stop_poll=polls+1;return true;}
+static bool audio_close(void *c){(void)c;assert(audio_live);audio_live=false;++audio_closes;if(fixture_scene==9)stop_poll=script_step()+1;return true;}
 static const twatch_audio_out_api_v1 audio_api={.api_version=1,.struct_size=sizeof(audio_api),.open=audio_open,.write=audio_write,.close=audio_close};
 static bool acquire_audio(const char *name,uint32_t version,uint64_t id,risc_runtime_capability_v1 *g){
  if(!strcmp(name,"audio.output")&&version==1){g->api=&audio_api;++grants;return true;}
@@ -26,8 +27,9 @@ const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t version){
 }
 static bool nav_audio(void *c,risc_input_navigation_frame_v1 *out){
     (void)c;*out=(risc_input_navigation_frame_v1){0};
-    if(fixture_scene==6&&polls==30)out->pressed=T5_APP_BUTTON_BACK;
-    if(fixture_scene==10&&polls==31)out->pressed=T5_APP_BUTTON_CONFIRM;
+    /* Scripted touch uses elapsed time, so navigation must share its clock. */
+    if(fixture_scene==6&&!nav_sent&&script_step()>=30){out->pressed=T5_APP_BUTTON_BACK;nav_sent=true;}
+    if(fixture_scene==10&&!nav_sent&&script_step()>=31){out->pressed=T5_APP_BUTTON_CONFIRM;nav_sent=true;combined_stop_writes=audio_writes;}
     return true;
 }
 const risc_input_navigation_api_v1 *portable_input_navigation_open(const risc_runtime_api_v1 *rt){
@@ -62,7 +64,7 @@ int main(int argc,char **argv){
  if(scene==7)assert(frequency==TONE_MAX_HZ);
  if(scene==8)assert(frequency==TONE_MIN_HZ);
  if(scene==9)assert(!playing&&audio_closes==1&&ticks>=60000&&!strcmp(message,"60 s limit - tap Start"));
- if(scene==10)assert(audio_opens==1&&audio_closes==1&&!playing&&audio_writes==20);
+ if(scene==10)assert(audio_opens==1&&audio_closes==1&&!playing&&nav_sent&&combined_stop_writes>0&&audio_writes==combined_stop_writes);
  if(scene==11)assert(volume==100);
  if(scene==12||scene==13)assert(audio_opens==1&&audio_closes==1&&!playing&&volume==(scene==13?99u:100u)&&presents>50);
 #endif
