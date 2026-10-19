@@ -398,6 +398,60 @@ class BleButtonsReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Unbound'):
             prepare.source_identity('/work/utilities-sibling/Apps/ble_buttons.c',pins)
 
+    def test_nested_ci_relative_bridge_input_uses_pinned_owner(self):
+        checkout='/home/runner/work/RiscRTE-Utilities/RiscRTE-Utilities'
+        relative='dist/native-ble-buttons/target/inputs/bridges/apps/clock/PortableSleepPolicy.h'
+        roots={'utilities':checkout,'bridges':checkout+'/dist/native-ble-buttons/target/inputs/bridges'}
+        identity=prepare.source_identity(relative,roots)
+        self.assertEqual(identity,'bridges:apps/clock/PortableSleepPolicy.h')
+        sha=put(self.root/'source/bridges/apps/clock/PortableSleepPolicy.h',b'pinned bridge bytes')
+        receipt_path='host/normal-sync/receipt.json'
+        self.change(receipt_path,lambda r:r.update(source_roots=roots,source_sha256={relative:sha}))
+        prepare.validate_controls(self.root,prepare.read(self.root/'target/qualification.json'))
+        put(self.root/'source/bridges/apps/clock/PortableSleepPolicy.h',b'tampered bridge bytes')
+        with self.assertRaisesRegex(ValueError,'Changed source evidence: bridges:'):
+            prepare.validate_controls(self.root,prepare.read(self.root/'target/qualification.json'))
+
+    def test_nested_ci_runner_receipt_owns_sdk_and_staged_inputs(self):
+        host=prepare.host_control
+        checkout=self.root/'checkout';target=checkout/'dist/native-ble-buttons/target'
+        system=checkout/'.dependencies/system'
+        roots={owner:target/'inputs'/owner for owner in ('utilities','system','runtime','bridges','generated')}
+        expected={
+            checkout/'Apps/ble_buttons.c':'utilities:Apps/ble_buttons.c',
+            roots['bridges']/'apps/clock/PortableSleepPolicy.h':'bridges:apps/clock/PortableSleepPolicy.h',
+            roots['system']/'lib/PortableApps/src/adapter.c':'system:lib/PortableApps/src/adapter.c',
+            roots['runtime']/'sdk/app/RiscRuntimeV1.h':'runtime:sdk/app/RiscRuntimeV1.h',
+            roots['generated']/'watch-alarm-profile.h':'generated:watch-alarm-profile.h',
+            roots['utilities']/'lib/Alarm/include/AlarmServiceV1.h':'utilities:lib/Alarm/include/AlarmServiceV1.h',
+            system/'Apps/NativeUi.h':'system:Apps/NativeUi.h',
+        }
+        before={p:put(p,str(p).encode()) for p in expected}
+        aggregate=target/'sdk/include/RiscRuntimeV1.h'
+        before[aggregate]=put(aggregate,(roots['runtime']/'sdk/app/RiscRuntimeV1.h').read_bytes())
+        expected[aggregate]='runtime:sdk/app/RiscRuntimeV1.h'
+        identity=lambda p:host.dependency_identity(p,roots=roots,utilities=checkout,system=system,
+                                                  catalog=checkout/'dist/host/catalog.c',target=target)
+        for path,name in expected.items():self.assertEqual(identity(path),name)
+        with mock.patch.object(host,'ROOT',checkout):sources,dependencies=host.receipt_source_hashes(before,identity)
+        self.assertEqual(sources,{name.split(':',1)[1]:before[path] for path,name in expected.items() if name.startswith('utilities:')})
+        self.assertEqual(dependencies,{name:before[path] for path,name in expected.items()})
+        self.assertFalse(any(name.startswith(('dist/','.dependencies/')) for name in sources))
+        # The aggregate and pinned Runtime alias have the same hash and collapse
+        # to one canonical input, while different bytes must never be matched.
+        self.assertEqual(len(dependencies),len(before)-1)
+        put(aggregate,b'changed aggregate header')
+        with self.assertRaisesRegex(ValueError,'Unowned aggregate header'):
+            identity(aggregate)
+        with self.assertRaisesRegex(ValueError,'Unowned dependency'):
+            identity(self.root/'unowned.h')
+
+    def test_conflicting_staged_and_checkout_source_bytes_are_rejected(self):
+        host=prepare.host_control
+        paths={self.root/'Apps/a.h':'a'*64,self.root/'dist/inputs/utilities/Apps/a.h':'b'*64}
+        with self.assertRaisesRegex(ValueError,'Conflicting consumed source identity: utilities:Apps/a.h'):
+            host.receipt_source_hashes(paths,lambda p:'utilities:Apps/a.h')
+
     def test_actual_producer_module_shape_is_supported(self):
         path='target/qualification.json'
         def producer_shape(target):

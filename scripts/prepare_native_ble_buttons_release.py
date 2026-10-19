@@ -101,7 +101,13 @@ def source_identity(name, roots):
         return name
     if not name.startswith('/'):
         checked_path(Path('/source'),name)
-        return 'utilities:'+name
+        if 'utilities' not in roots:
+            return 'utilities:'+name
+        # CI stages dependencies beneath the Utilities checkout. Relative
+        # producer paths must still select their most specific recorded owner.
+        base = Path(roots['utilities'])
+        require(base.is_absolute(), 'Host Utilities root must be absolute')
+        name = str(base/name)
     for owner, value in sorted(roots.items(),key=lambda item:len(Path(item[1]).parts),reverse=True):
         base = Path(value)
         if Path(name).is_relative_to(base):

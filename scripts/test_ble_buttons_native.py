@@ -99,6 +99,34 @@ def full_scenes(layout):
  planned['physical-back']=(planned['reconnect'][0],{'ACTIVE':'1','BACK':'1','FULL_BACK':'1'})
  return planned
 
+def dependency_identity(path, *, roots, utilities, system, catalog, target=None):
+ if path==catalog:return 'generated:catalog.c'
+ if target:
+  if path.is_relative_to(target/'sdk'):
+   for owner,relative in [('runtime','sdk/app'),('runtime','sdk/driver'),('system','sdk/app'),('system','lib/PortableApps/include'),('utilities','lib/Alarm/include'),('utilities','lib/Bluetooth/include'),('utilities','lib/Contexts/include')]:
+    other=roots[owner]/relative/path.name
+    if other.exists() and sha(other.read_bytes())==sha(path.read_bytes()):return owner+':'+relative+'/'+path.name
+   if path.is_relative_to(target/'sdk/time'):return 'system:lib/PortableApps/time/'+str(path.relative_to(target/'sdk/time'))
+   raise ValueError('Unowned aggregate header '+str(path))
+ candidates=[*roots.items(),('system',system),('utilities',utilities)]
+ # Keep staged Utilities and the checkout as separate aliases of one owner.
+ # Most-specific paths win when CI nests every dependency under the checkout.
+ for owner,root in sorted(candidates,key=lambda item:len(item[1].parts),reverse=True):
+  if path.is_relative_to(root):return owner+':'+str(path.relative_to(root))
+ raise ValueError('Unowned dependency '+str(path))
+
+def receipt_source_hashes(before, identity):
+ # Files inside the checkout are not necessarily Utilities-owned: the target
+ # SDK and pinned dependency inputs are nested below it on GitHub Actions.
+ dependencies={}
+ for path,digest in sorted(before.items()):
+  name=identity(path)
+  if name in dependencies and dependencies[name]!=digest:
+   raise ValueError('Conflicting consumed source identity: '+name)
+  dependencies[name]=digest
+ sources={name.split(':',1)[1]:digest for name,digest in dependencies.items() if name.startswith('utilities:')}
+ return sources,dependencies
+
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--system-apps',required=True,type=Path);p.add_argument('--output',required=True,type=Path)
  p.add_argument('--allow-system-changes',action='store_true',help='Diagnostic worktree run; exact compiled hashes recorded, no pin-only claim');p.add_argument('--full-target',type=Path,help='Full-profile target qualification folder with immutable inputs and aggregate SDK');p.add_argument('--runtime',type=Path);p.add_argument('--sanitize',action='store_true');p.add_argument('--async',dest='async_rgb565',action='store_true');p.add_argument('--scene',action='append');p.add_argument('--temporal',action='store_true');p.add_argument('--snapshot',action='store_true');p.add_argument('--size',action='append')
@@ -127,19 +155,7 @@ def main():
   raw=subprocess.check_output([cc,'-std=c11','-MM',*flags,str(source)],text=True)
   deps.update(Path(s).resolve() for s in shlex.split(raw.replace('\\\n',' ').split(':',1)[1]))
  def identity(path):
-  if path==catalog:return 'generated:catalog.c'
-  if target:
-   if path.is_relative_to(target/'sdk'):
-    for owner,relative in [('runtime','sdk/app'),('runtime','sdk/driver'),('system','sdk/app'),('system','lib/PortableApps/include'),('utilities','lib/Alarm/include'),('utilities','lib/Bluetooth/include'),('utilities','lib/Contexts/include')]:
-     other=roots[owner]/relative/path.name
-     if other.exists() and sha(other.read_bytes())==sha(path.read_bytes()):return owner+':'+relative+'/'+path.name
-    if path.is_relative_to(target/'sdk/time'):return 'system:lib/PortableApps/time/'+str(path.relative_to(target/'sdk/time'))
-    raise ValueError('Unowned aggregate header '+str(path))
-   for owner,root in roots.items():
-    if path.is_relative_to(root):return owner+':'+str(path.relative_to(root))
-  if path.is_relative_to(system):return 'system:'+str(path.relative_to(system))
-  if path.is_relative_to(ROOT):return 'utilities:'+str(path.relative_to(ROOT))
-  raise ValueError('Unowned dependency '+str(path))
+  return dependency_identity(path,roots=roots,utilities=ROOT,system=system,catalog=catalog,target=target)
  before={path:sha(path.read_bytes()) for path in deps}
  for path in deps:
   if path.is_relative_to(system) and not target and not a.allow_system_changes:
@@ -187,7 +203,8 @@ def main():
   if sha(path.read_bytes())!=digest:raise RuntimeError('Source changed during qualification: '+str(path))
  assert all(len(values)==1 for values in raster_icons.values()),'Icon changed pixel raster for the same physical box'
  assert a.snapshot or len(raster_titles)==1,'Title raster unexpectedly changes with display dimensions'
- receipt={'schema':1,'recipe':'deployed full-feature BLE Buttons recipe; actual System adapter and Watch navigation/sleep bridges' if target else 'expanded existing HID host recipe; modeled local navigation/sleep','system_git_pin':SYSTEM_PIN,'system_working_tree_allowed':a.allow_system_changes,'build_defines':defines,'command':command,'sanitized':a.sanitize,'async_rgb565':a.async_rgb565,'required_scenarios':list(planned),'temporal_cases':{f'temporal-{i}':v for i,v in TEMPORAL_CASES.items()} if a.temporal else {},'temporal':a.temporal,'snapshot':a.snapshot,'full_profile':bool(target),'full_feature_profile':bool(target),'source_roots':{'utilities':str(ROOT),**{owner:str(path) for owner,path in roots.items() if owner!='utilities'}},'target_qualification_sha256':sha((target/'qualification.json').read_bytes()) if target and (target/'qualification.json').exists() else None,'results':results,'counterexamples':counterexamples,'source_sha256':{str(p.relative_to(ROOT)):v for p,v in sorted(before.items()) if p.is_relative_to(ROOT)},'compiled_dependency_sha256':{identity(p):v for p,v in sorted(before.items())},'source_unchanged_during_run':True,'binary_sha256':sha(binary.read_bytes()),'native_pixel_audit':{'title_raster':list(next(iter(raster_titles))) if raster_titles else None,'title_fields':['face','width','height','changed_pixels','fnv64_rgb565'],'icon_rasters':{str(size):list(next(iter(values))) for size,values in raster_icons.items()},'icon_fields':['changed_pixels','fnv64_rgb565'],'description':'Production native raster called directly; identical physical glyph pixels across capability dimensions. Icon box is independently sized.'},'capture_sha256':captures,'hardware_tested':False,'target_instructions_executed':False,'coverage_limits':['Modeled raw touch, RGB565 display, Bluetooth, alarm, radio, storage, power-key and power services; actual Watch navigation/sleep bridge code is linked in full-profile mode.','Native raster calls are production implementations; wrappers verify physical bounds, allowed faces and arrow-left icon.','The historical recipe without native overlays placed Alarm Dismiss below320x180 and rejected non240 Quick surfaces. Candidate explicitly selects the existing native Alarm/Quick overlays; touch dismissal and Quick open/close are tested on all seven profiles.','Async delay is modeled; no physical panel, touch controller, Bluetooth transport, radio behavior or target instructions executed.','Executed host temporal controls validate the native presentation/input owner, layout generations, stale contact suppression, held releases, queued taps, and terminal custody under modeled faults. They do not qualify physical timing or real hardware.','ASan/UBSan enabled only with --sanitize; LeakSanitizer disabled under ptrace.']}
+ source_hashes,dependency_hashes=receipt_source_hashes(before,identity)
+ receipt={'schema':1,'recipe':'deployed full-feature BLE Buttons recipe; actual System adapter and Watch navigation/sleep bridges' if target else 'expanded existing HID host recipe; modeled local navigation/sleep','system_git_pin':SYSTEM_PIN,'system_working_tree_allowed':a.allow_system_changes,'build_defines':defines,'command':command,'sanitized':a.sanitize,'async_rgb565':a.async_rgb565,'required_scenarios':list(planned),'temporal_cases':{f'temporal-{i}':v for i,v in TEMPORAL_CASES.items()} if a.temporal else {},'temporal':a.temporal,'snapshot':a.snapshot,'full_profile':bool(target),'full_feature_profile':bool(target),'source_roots':{'utilities':str(ROOT),**{owner:str(path) for owner,path in roots.items() if owner!='utilities'}},'target_qualification_sha256':sha((target/'qualification.json').read_bytes()) if target and (target/'qualification.json').exists() else None,'results':results,'counterexamples':counterexamples,'source_sha256':source_hashes,'compiled_dependency_sha256':dependency_hashes,'source_unchanged_during_run':True,'binary_sha256':sha(binary.read_bytes()),'native_pixel_audit':{'title_raster':list(next(iter(raster_titles))) if raster_titles else None,'title_fields':['face','width','height','changed_pixels','fnv64_rgb565'],'icon_rasters':{str(size):list(next(iter(values))) for size,values in raster_icons.items()},'icon_fields':['changed_pixels','fnv64_rgb565'],'description':'Production native raster called directly; identical physical glyph pixels across capability dimensions. Icon box is independently sized.'},'capture_sha256':captures,'hardware_tested':False,'target_instructions_executed':False,'coverage_limits':['Modeled raw touch, RGB565 display, Bluetooth, alarm, radio, storage, power-key and power services; actual Watch navigation/sleep bridge code is linked in full-profile mode.','Native raster calls are production implementations; wrappers verify physical bounds, allowed faces and arrow-left icon.','The historical recipe without native overlays placed Alarm Dismiss below320x180 and rejected non240 Quick surfaces. Candidate explicitly selects the existing native Alarm/Quick overlays; touch dismissal and Quick open/close are tested on all seven profiles.','Async delay is modeled; no physical panel, touch controller, Bluetooth transport, radio behavior or target instructions executed.','Executed host temporal controls validate the native presentation/input owner, layout generations, stale contact suppression, held releases, queued taps, and terminal custody under modeled faults. They do not qualify physical timing or real hardware.','ASan/UBSan enabled only with --sanitize; LeakSanitizer disabled under ptrace.']}
  (out/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
  failures=[r for r in results if r['exit_code']]
  print(f'Native BLE Buttons: {len(results)-len(failures)}/{len(results)} passed; {len(counterexamples)} previsibility counterexamples')
