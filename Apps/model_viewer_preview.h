@@ -107,7 +107,7 @@ static bool mv_preview_finish(mv_preview_t *p, float yaw, float pitch, bool shad
 /* Fixed-point bilinear filtering retains fractional pan/zoom movement. Four
  * byte reads per destination sample; no floating-point work inside the row.
  * Coordinates are texel-center coordinates. White borders are intentional. */
-static uint8_t mv_preview_sample(const uint8_t *ink, int side, int32_t x, int32_t y) {
+static inline uint8_t mv_preview_sample(const uint8_t *ink, int side, int32_t x, int32_t y) {
     if (x < 0 || y < 0 || x >= (side-1)*65536 || y >= (side-1)*65536) return 0;
     const unsigned fx = ((uint32_t)x >> 8) & 255u, fy = ((uint32_t)y >> 8) & 255u;
     const size_t index = (size_t)((uint32_t)y >> 16) * side + ((uint32_t)x >> 16);
