@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "purpose": "development-ble-scanner-no-hardware-qualification",
+  "source_pins": {
+    "schema": 1,
+    "system_apps": "d79406e71ef7f59e54e1079259bca3aa040b5e2f",
+    "bluetooth_driver_minimum": "0.3.0",
+    "runtime_minimum": "0.1.27",
+    "sensor_driver_repository": "michaelrolphone-cmyk/RiscRTE-Drivers",
+    "sensor_driver_commit": "a7ae39994603c4545a3c014f09051ecfc12084d2",
+    "sensor_driver_minimum": "0.1.0"
+  },
+  "profile": {
+    "native_ui": true,
+    "paper": false,
+    "display_rotation": 0,
+    "navigation": true,
+    "partial_damage": false,
+    "return_app": "springboard.elf",
+    "home_app": null,
+    "quick_actions": true
+  },
+  "repository_sha": "1e87ef6ce3db735dd4e5e3e04bc952c247a7dc5d",
+  "working_tree_dirty": true,
+  "compiler": "xtensa-esp32s3-elf-gcc (crosstool-NG esp-2021r2-patch5) 8.4.0",
+  "apps": [
+    {
+      "id": "ble_scanner",
+      "version": "0.2.19",
+      "size_bytes": 218272,
+      "sha256": "8bac1d7be138e7eb6548efeb42c2ab301ff4771e0bbf40b8939a6c99dfbba3e7",
+      "imports": [
+        "free",
+        "malloc",
+        "memchr",
+        "memcmp",
+        "memcpy",
+        "memset",
+        "risc_runtime_get_api",
+        "snprintf",
+        "strcmp",
+        "strcpy",
+        "strlen"
+      ]
+    }
+  ]
+}
