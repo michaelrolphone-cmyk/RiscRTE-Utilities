@@ -41,7 +41,13 @@ static void save_frame(void) {
  } else {fprintf(f,"P6\n240 240\n255\n");for(unsigned y=0;y<240;y++){for(unsigned x=0;x<240;x++){uint16_t v=pixels[y*244+x];unsigned char rgb[]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};assert(fwrite(rgb,1,3,f)==3);}for(unsigned x=240;x<244;x++)assert(pixels[y*244+x]==0xa5a5);}}
  assert(!fclose(f));
 }
-static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;return polls<stop_poll;}
+static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;
+#ifdef TEST_STOPWATCH_ORDERED_TOUCH
+ return true; /* Script completion is an explicit Back, not a runtime fault. */
+#else
+ return polls<stop_poll;
+#endif
+}
 static void fake_yield(uint32_t n){ticks+=n;}
 static bool fake_diag(const char*s){
 #ifdef PORTABLE_PAPER_TRANSITIONS
@@ -58,6 +64,9 @@ static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_pre
 static const risc_display_output_api_v1 display_api={.api_version=1,.struct_size=sizeof(display_api),.get_info=fake_info,.acquire=fake_frame,.release=fake_frame_release,.submit=fake_submit,.present_status=fake_present};
 static uint64_t fake_sub(void*c){(void)c;subs++;return 1;}
 static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n==1&&subs);subs--;return true;}
+#ifdef TEST_STOPWATCH_ORDERED_TOUCH
+#include "stopwatch_ordered_touch_fixture.h"
+#else
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
 /* Current shared touch reducer requires ordered edges and matching snapshots;
  * this opt-in fixture never fabricates an old snapshot-only tap. */
@@ -90,6 +99,7 @@ static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;*s=(risc_touc
  if(paper_profile&&getenv("TEST_PAPER_FLIP"))for(unsigned n=0;n<s->contact_count;n++)if(s->contacts[n].x<480&&s->contacts[n].y<800){s->contacts[n].x=479-s->contacts[n].x;s->contacts[n].y=799-s->contacts[n].y;}
 #endif
  return true;}
+#endif /* TEST_STOPWATCH_ORDERED_TOUCH */
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
 static bool fake_battery(void*c,risc_battery_sample_v1*s){(void)c;assert(!battery_release_uncertain);if(battery_case==12||(battery_case==15&&polls<40))return false;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};if(battery_case==13){s->percent=0;s->flags=RISC_BATTERY_PROFILE_MISSING;}if(battery_case==14)s->flags=255;return true;}
 static const risc_battery_gauge_api_v1 battery_api={1,sizeof(battery_api),NULL,fake_battery};
@@ -109,16 +119,29 @@ static int32_t fake_alarm_step(void*c){(void)c;return ALARM_OK;}
 static int32_t fake_alarm_ack(void*c,const alarm_token_v1*t){(void)c;(void)t;return ALARM_OK;}
 static int32_t fake_alarm_prepare(void*c,alarm_sleep_v1*s){(void)c;*s=(alarm_sleep_v1){.struct_size=sizeof(*s)};return ALARM_OK;}
 static alarm_service_outputs_v1 alarm_api={.service={1,sizeof(alarm_api),NULL,fake_alarm_status,fake_alarm_step,fake_alarm_step,fake_alarm_ack,fake_alarm_prepare,fake_alarm_step},.output_modes=ALARM_MODE_VISUAL};
-static bool fake_nav(void*c,risc_input_navigation_frame_v1*s){(void)c;*s=(risc_input_navigation_frame_v1){0};if(home_at&&polls==home_at){s->buttons=RISC_NAV_HOME;s->pressed=RISC_NAV_HOME;}return true;}
+static bool fake_nav(void*c,risc_input_navigation_frame_v1*s){(void)c;*s=(risc_input_navigation_frame_v1){0};if(home_at&&polls==home_at){s->buttons=RISC_NAV_HOME;s->pressed=RISC_NAV_HOME;}
+#ifdef TEST_STOPWATCH_ORDERED_TOUCH
+ if(polls>=stop_poll){s->buttons=RISC_NAV_BACK;s->pressed=RISC_NAV_BACK;}
+#endif
+ return true;}
 static bool fake_foreground(void*c,const risc_input_foreground_v1*s,size_t n){(void)c;(void)s;(void)n;return true;}
 static bool fake_reset(void*c){(void)c;return true;}
 static const risc_input_navigation_api_v1 nav_api={1,sizeof(nav_api),NULL,fake_nav,fake_foreground,fake_reset};
 const risc_input_navigation_api_v1 *portable_input_navigation_open(const risc_runtime_api_v1*r){(void)r;return &nav_api;}
 void portable_input_navigation_close(const risc_runtime_api_v1*r){(void)r;}
-int portable_app_alarm_sleep(const risc_runtime_api_v1*r,const risc_display_output_api_v1*d,const risc_battery_gauge_api_v1*b,const alarm_service_v1*a){(void)r;(void)d;(void)b;(void)a;assert(!"Unexpected hardware sleep in audit");return 0;}
+int portable_app_alarm_sleep(const risc_runtime_api_v1*r,const risc_display_output_api_v1*d,const risc_battery_gauge_api_v1*b,const alarm_service_v1*a){(void)r;(void)d;(void)b;(void)a;
+#ifdef TEST_STOPWATCH_EXTRA_LIFECYCLE
+ return stopwatch_test_sleep();
+#else
+ assert(!"Unexpected hardware sleep in audit");return 0;
+#endif
+}
 static bool fake_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&touch_api;else if(!strcmp(n,"board.battery")&&v==1){g->api=&battery_api;battery_owner=g;battery_acquires++;}else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1){assert(id==1 || (NOVA_APP_ID==2&&id==2) || ((NOVA_APP_ID==5||NOVA_APP_ID==4)&&id==3));if(deny_private_store&&id!=1)return false;g->api=&kv_api;}
 else if(!strcmp(n,"input.navigation")&&v==1)g->api=&nav_api;else if(!strcmp(n,"alarm.service")&&v==1)g->api=&alarm_api;else {return false;}
 if(strcmp(n,"storage.key-value"))assert(id==0);
+#ifdef TEST_STOPWATCH_ORDERED_TOUCH
+g->slot=1;g->generation=1;
+#endif
 fixture_grants++;return true;
 }
 static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&fixture_grants);
@@ -126,6 +149,15 @@ static bool fake_release(risc_runtime_capability_v1*g){assert(g->api&&fixture_gr
   if(fail_battery_release){fail_battery_release=false;battery_release_uncertain=true;battery_release_failures++;return false;}
   battery_release_uncertain=false;
  }
-g->api=NULL;fixture_grants--;return true;}
+g->api=NULL;
+#ifdef TEST_STOPWATCH_ORDERED_TOUCH
+*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};
+#endif
+fixture_grants--;return true;}
+#ifdef TEST_STOPWATCH_ORDERED_TOUCH
+static bool fake_retain_invocation(void){assert(!"Unexpected retention in RTC paper compatibility");return true;}
+static const risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=fake_acquire,.release=fake_release,.retain_invocation=fake_retain_invocation};
+#else
 static const risc_runtime_api_v1 runtime_api={1,sizeof(runtime_api),fake_health,fake_yield,fake_diag,fake_launch,fake_acquire,fake_release};
+#endif
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&runtime_api:NULL;}

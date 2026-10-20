@@ -108,7 +108,17 @@ int main(int argc,char **argv) {
 #endif
  }
  if(scenario==8||scenario==10){assert(paper_profile);touch(20,200,20,0,0);touch(21,200,100,0,0);touch(40,130,345,0,0);touch(60,140,450,0,0);touch(80,340,553,0,0);touch(120,240,620,0,0);touch(121,240,560,0,0);home_at=160;}
- assert(app_module_init()==0);app_main();
+ assert(app_module_init()==0);
+#if NOVA_APP_ID == 2 && defined(PORTABLE_STOPWATCH_NATIVE_UI)
+ if(paper_profile)assert(!portable_stopwatch_native_available());
+#endif
+ app_main();
+#if NOVA_APP_ID == 2 && defined(TEST_STOPWATCH_ORDERED_TOUCH)
+ fprintf(stderr,"Stopwatch compatibility case=%u paper=%u running=%u elapsed=%u saved=%u puts=%u polls=%u ticks=%u status=%s\n",scenario,paper_profile,clock_state.running,clock_state.elapsed_ms,clock_state.saved.elapsed_ms,puts_count,polls,ticks,status);
+#endif
+#if NOVA_APP_ID == 2 && defined(PORTABLE_STOPWATCH_NATIVE_UI)
+ if(paper_profile)assert(!stopwatch_native_active&&!portable_stopwatch_native_available());
+#endif
  if(scenario==10){assert(launches==1&&!strcmp(destination,"default.elf"));
 #if NOVA_APP_ID == 1
  assert(!strcmp(calculator_state.text,"7")&&!puts_count);

@@ -125,14 +125,23 @@ static void reset(void) {
  sw_record record={0};
  if(save(record)){pending_pause=false;sw_restore(&clock_state,&record,false,0,app->millis());status="RESET";}
 }
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+#include "stopwatch_native.inc"
+#endif
 #ifdef PORTABLE_PAPER_UTILITIES
 #include "stopwatch_paper.inc"
 #endif
 static void draw(void) {
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+ if(stopwatch_native_active)stopwatch_native_mapping();
+#endif
  if(!utility_frame_begin(app))return;
  if(halted())return;
 #ifdef PORTABLE_PAPER_UTILITIES
  if(utility_paper){stopwatch_paper_draw();return;}
+#endif
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+ if(stopwatch_native_active){stopwatch_native_render();return;}
 #endif
 #ifdef PORTABLE_NOVA_UI
  portable_nova_begin();portable_nova_header("STOPWATCH");
@@ -188,17 +197,29 @@ void app_main(void) {
  utility_frame_reset();
  app=t5_app_get_api(1);status="";loaded=reset_armed=pending_pause=save_uncertain=false;clock_state=(sw_clock){0};
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->draw_text||!app->draw_label||!app->fill_rect||!app->present)return;
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+ if(!stopwatch_native_select())return;
+ if(!stopwatch_native_active)
+#endif
  if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
 #ifdef PORTABLE_PAPER_UTILITIES
  up_open(app);
 #endif
  if(!open_state()){if(halted())return;status="UTC OR STORAGE UNAVAILABLE";draw();
-  for(;;){if(utility_frame_pending)draw();t5_app_input_t input={0};if(!app->poll(&input,50)) {
+  for(;;){if(utility_frame_pending
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+   ||(stopwatch_native_active&&portable_stopwatch_native_repaint())
+#endif
+   )draw();
+   t5_app_input_t input={0};if(!app->poll(&input,50)) {
 #ifdef PORTABLE_ALARM_CLIENT
    if(portable_app_sleep_retained())return;
 #endif
    break;
   }
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+   if(stopwatch_native_active)stopwatch_native_input(&input);
+#endif
 #ifdef PORTABLE_PAPER_UTILITIES
    if(input.exit_requested&&!(input.buttons&T5_APP_BUTTON_BACK))break;
    if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,416,88))input.buttons|=T5_APP_BUTTON_BACK;}
@@ -217,6 +238,9 @@ void app_main(void) {
 #endif
    break;
   }
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+  if(stopwatch_native_active)stopwatch_native_input(&input);
+#endif
 #ifdef PORTABLE_PAPER_UTILITIES
   if(input.exit_requested&&!(input.buttons&T5_APP_BUTTON_BACK))break;
   if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,416,88))input.buttons|=T5_APP_BUTTON_BACK;}
@@ -236,6 +260,20 @@ void app_main(void) {
   }
   if(input.buttons&T5_APP_BUTTON_CONFIRM){toggle();dirty=true;}
   if(input.tapped) {
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+   if(stopwatch_native_active) {
+    int target=stopwatch_native_target(input.touch_x,input.touch_y);
+    if(target==STOPWATCH_TOGGLE){toggle();dirty=true;}
+    else if(target==STOPWATCH_RESET){reset();dirty=true;}
+    else if(target==STOPWATCH_RETRY){
+     if(save_uncertain)retry_save();
+     else if(pending_pause)toggle();
+     else if(clock_state.running)status="RUNNING - NO RETRY NEEDED";
+     else restore();
+     reset_armed=false;dirty=true;
+    }
+   } else {
+#endif
 #ifdef PORTABLE_NOVA_UI
    int x=input.touch_x,y=input.touch_y;
 #ifdef PORTABLE_PAPER_UTILITIES
@@ -268,9 +306,16 @@ void app_main(void) {
     else restore();
     reset_armed=false;dirty=true;
    }
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+   }
+#endif
   }
   if(halted())return;
-  if(dirty||utility_frame_pending||(clock_state.running&&(uint32_t)(now-rendered)>=
+  if(dirty||utility_frame_pending||
+#ifdef PORTABLE_STOPWATCH_NATIVE_UI
+    (stopwatch_native_active&&portable_stopwatch_native_repaint())||
+#endif
+    (clock_state.running&&(uint32_t)(now-rendered)>=
 #ifdef PORTABLE_PAPER_UTILITIES
     (utility_paper?1000u:50u)
 #else
