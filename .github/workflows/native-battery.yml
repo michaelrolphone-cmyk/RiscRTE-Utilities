@@ -2,7 +2,7 @@ name: Native Battery qualification
 
 on:
   push:
-    branches: [main, work/battery-native-input-20261017]
+    branches: [main, work/battery-native-overlays-20261017]
     paths:
       - 'Apps/battery.c'
       - 'Apps/battery_power.inc'
@@ -64,7 +64,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: fca52ae3a3e452d309408268e6e485cb43ac2c04
+          ref: b8e34df8b33096663d92b469dff225d130217354
           fetch-depth: 0
           path: .dependencies/native-battery-system
           persist-credentials: false
@@ -169,6 +169,21 @@ jobs:
               if [[ "$san" == sanitized ]]; then extra+=(--sanitize); fi
               python scripts/test_battery_native_temporal.py "${args[@]}" "${extra[@]}" \
                 --output "dist/native-battery-ci/$mode-$san" 2>&1 | tee "dist/native-battery-ci/evidence/$mode-$san.log"
+            done
+          done
+      - name: Full-feature native Quick and alarm overlays
+        run: |
+          set -euo pipefail
+          args=(--input-receipt dist/native-battery-ci/target/qualification.json
+            --system .dependencies/native-battery-system --bridges .dependencies/native-battery-watch
+            --runtime .dependencies/native-battery-runtime --profile-source .dependencies/native-battery-profile)
+          for snapshot in direct snapshot; do
+            for san in normal sanitized; do
+              extra=(--overlays); name=overlays
+              if [[ "$snapshot" == snapshot ]]; then extra+=(--snapshot); name+=-snapshot; fi
+              if [[ "$san" == sanitized ]]; then extra+=(--sanitize); fi
+              python scripts/test_battery_native_temporal.py "${args[@]}" "${extra[@]}" \
+                --output "dist/native-battery-ci/$name-$san" 2>&1 | tee "dist/native-battery-ci/evidence/$name-$san.log"
             done
           done
       - name: Exact-source standalone package and production loader admission

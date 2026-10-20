@@ -26,16 +26,33 @@ static unsigned details_at;
 static bool cue_started,cue_finished,contact_injected;
 static unsigned snapshot_fault;static bool presentation_fault;
 static void held_now(void);
+#if defined(PORTABLE_QUICK_NATIVE) && defined(PORTABLE_ALARM_NATIVE)
+#define BATTERY_OVERLAY_CONTROLS
+static void overlay_case(void);
+static bool overlay_raw(void *,size_t);
+static int32_t overlay_status(void *,alarm_status_v1 *);
+static int32_t overlay_ack(void *,const alarm_token_v1 *);
+static int32_t overlay_get(void *,const char *,void *,uint32_t,uint32_t *);
+static unsigned overlay_brightness;
+#endif
 static const risc_runtime_api_v1 diag_runtime;
 static void action_seen(void){if(power_details&&!details_seen){details_seen=true;details_at=ticks;printf("DETAILS time=%u first_visible=%u pending=%llu\n",ticks,first_visible,(unsigned long long)pending_token);}}
 static bool healthy(risc_runtime_health_v1*h){action_seen();h->struct_size=sizeof(*h);h->uptime_ms=ticks;return true;}
 static bool retain(void){retained++;fprintf(stderr,"RETAIN mode=%u ticks=%u\n",mode,ticks);return true;}
 static bool exit_requested(void){action_seen();return mode>=11&&mode<=13?(light_entries||ticks>=60300):((mode==6||mode==7||mode==9||mode==10)&&ticks>=500);}
 static bool info(void*c,risc_display_info_v1*s){fake_info(c,s);s->api_version=1;s->struct_size=sizeof(*s);s->flags|=RISC_DISPLAY_INFO_BRIGHTNESS;if(mode==9||mode==10)s->flags&=~RISC_DISPLAY_INFO_ASYNC_PRESENT;return true;}
-static bool brightness(void*c,uint16_t l,uint16_t max){(void)c;assert(max&&l<=max);return true;}
+static bool brightness(void*c,uint16_t l,uint16_t max){(void)c;assert(max&&l<=max);
+#ifdef BATTERY_OVERLAY_CONTROLS
+ if(mode>=25)overlay_brightness=l;
+#endif
+ return true;}
 static bool presented(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){if(presentation_fault)return false;bool ok=fake_present(c,t,s);if(!first_visible&&s->state==RISC_DISPLAY_PRESENT_COMPLETE){first_visible=ticks;printf("VISIBLE token=%llu time=%u\n",(unsigned long long)t,ticks);}return ok;}
 static risc_display_output_api_v1 output;
-static bool raw_poll(void*c,size_t n){if(mode>=14){(void)c;assert(n==1);polls++;return true;}if(mode==11&&cue_finished&&diag_cancel()&&!contact_injected){contact_injected=true;held_now();}uint64_t before=fake_touch_state.sequence;bool ok=fake_touch_poll(c,n);if(fake_touch_state.sequence!=before)printf("RAW time=%u seq=%llu contacts=%u queued=%u visible=%u pending=%llu cancel=%u\n",ticks,(unsigned long long)fake_touch_state.sequence,fake_touch_state.contact_count,fake_event_count,first_visible,(unsigned long long)pending_token,diag_cancel());return ok;}
+static bool raw_poll(void*c,size_t n){
+#ifdef BATTERY_OVERLAY_CONTROLS
+ if(mode>=25)return overlay_raw(c,n);
+#endif
+if(mode>=14){(void)c;assert(n==1);polls++;return true;}if(mode==11&&cue_finished&&diag_cancel()&&!contact_injected){contact_injected=true;held_now();}uint64_t before=fake_touch_state.sequence;bool ok=fake_touch_poll(c,n);if(fake_touch_state.sequence!=before)printf("RAW time=%u seq=%llu contacts=%u queued=%u visible=%u pending=%llu cancel=%u\n",ticks,(unsigned long long)fake_touch_state.sequence,fake_touch_state.contact_count,fake_event_count,first_visible,(unsigned long long)pending_token,diag_cancel());return ok;}
 static bool raw_unsub(void*c,uint64_t n){if(fake_touch_state.contact_count||fake_event_count)printf("UNSUB time=%u contacts=%u queued=%u cancel=%u\n",ticks,fake_touch_state.contact_count,fake_event_count,diag_cancel());return fake_unsub(c,n);}
 static bool raw_snapshot(void*c,risc_touch_snapshot_v1*s){assert(!retained);if(snapshot_fault&&!pending_token){if(snapshot_fault==1)return false;fake_snapshot(c,s);if(snapshot_fault==2)s->sequence=0;else s->width=0;return true;}return fake_snapshot(c,s);}
 static risc_touch_api_v1 raw_touch;
@@ -63,10 +80,20 @@ static int32_t context_label(void*c,uint32_t a,uint32_t b,contexts_label_v1*d){(
 static bool context_claim(void*c,uint32_t a,uint32_t b,const char*n,uint32_t d){(void)c;(void)a;(void)b;(void)n;(void)d;return true;}
 static bool context_result(void*c,uint32_t a,uint32_t b,uint32_t d){(void)c;(void)a;(void)b;(void)d;return true;}
 static const contexts_service_v1 context_api={.api_version=1,.struct_size=CONTEXTS_SERVICE_V1_SIZE,.step=context_step,.pause=yes,.status=context_status,.request_export=context_export,.begin_export=context_export,.export_record=context_record,.finish_export=context_finish,.label=context_label,.claim_preset=context_claim,.preset_result=context_result,.capture_audio=yes};
-static int32_t alarm_status(void*c,alarm_status_v1*s){(void)c;if((mode==11||mode==13)&&!cue_started&&ticks>=(mode==13?58996:59996)){cue_started=alarm_cue=true;alarm_pumps=0;printf("CUE start=%u\n",ticks);}*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=alarm_cue?ALARM_STATE_CUE:ALARM_STATE_READY,.mode=ALARM_MODE_BOTH};return ALARM_OK;}
+static int32_t alarm_status(void*c,alarm_status_v1*s){
+#ifdef BATTERY_OVERLAY_CONTROLS
+ if(mode>=25)return overlay_status(c,s);
+#endif
+(void)c;if((mode==11||mode==13)&&!cue_started&&ticks>=(mode==13?58996:59996)){cue_started=alarm_cue=true;alarm_pumps=0;printf("CUE start=%u\n",ticks);}*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=alarm_cue?ALARM_STATE_CUE:ALARM_STATE_READY,.mode=ALARM_MODE_BOTH};return ALARM_OK;}
 static int32_t alarm_step(void*c){(void)c;if(alarm_cue&&++alarm_pumps>=2){alarm_cue=false;cue_finished=true;printf("CUE finish=%u\n",ticks);}return ALARM_OK;}
 static int32_t alarm_resume(void*c,const alarm_sleep_v1*s){(void)c;(void)s;return ALARM_OK;}
-static const alarm_service_sleep_v1 alarm_full={.base={1,sizeof(alarm_full),NULL,alarm_status,alarm_step,fake_alarm_step,fake_alarm_ack,fake_alarm_prepare,fake_alarm_step},.resume_sleep=alarm_resume};
+static int32_t temporal_alarm_ack(void *c,const alarm_token_v1 *t){
+#ifdef BATTERY_OVERLAY_CONTROLS
+ if(mode>=25)return overlay_ack(c,t);
+#endif
+ return fake_alarm_ack(c,t);
+}
+static const alarm_service_sleep_v1 alarm_full={.base={1,sizeof(alarm_full),NULL,alarm_status,alarm_step,fake_alarm_step,temporal_alarm_ack,fake_alarm_prepare,fake_alarm_step},.resume_sleep=alarm_resume};
 static bool wake_pending(void*c,bool*p){(void)c;*p=false;return true;}
 static int32_t light_for(void*c,uint32_t ms,risc_light_sleep_result_v1*r){(void)c;light_entries++;assert(!frames&&!subs&&!pending_token);printf("LIGHT time=%u requested_ms=%u pending_raw=%u queued=%u\n",ticks,ms,fake_touch_state.contact_count,fake_event_count);*r=(risc_light_sleep_result_v1){.struct_size=sizeof(*r),.wake_cause=RISC_LIGHT_SLEEP_WAKE_GPIO};ticks+=3100;return RISC_LIGHT_SLEEP_OK;}
 static int32_t deep_set(void*c,uint32_t ms){(void)c;(void)ms;assert(!"Unexpected Deep");return RISC_DEEP_SLEEP_UNSUPPORTED;}
@@ -76,13 +103,20 @@ static bool tap_observe(void*c,twatch_tap_observation_v1*v){(void)c;*v=(twatch_t
 static const twatch_motion_api_v1 motion={.api_version=1,.struct_size=sizeof(motion),.prepare_wake=yes,.wake_pending=wake_pending,.resume_wake=yes,.tap_info=tap_info,.tap_configure=tap_config,.tap_observe_begin=tap_config,.tap_observe=tap_observe};
 static const risc_power_sleep_api_v1 pmu={.api_version=1,.struct_size=sizeof(pmu),.prepare_sleep=yes,.resume=yes,.light_sleep_for=light_for,.sleep_wake_pending=wake_pending,.light_sleep_set=light_for,.deep_sleep_set=deep_set};
 static const risc_display_power_api_v1 panel={.api_version=1,.struct_size=RISC_DISPLAY_POWER_LIGHT_SLEEP_SIZE,.prepare_sleep=yes,.resume=yes};
+#ifdef BATTERY_OVERLAY_CONTROLS
+static const risc_key_value_v1 overlay_kv={1,sizeof(overlay_kv),NULL,overlay_get,fake_put};
+#endif
 static bool acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){
  assert(g->struct_size==sizeof(*g));const void*api=NULL;
  if(!strcmp(n,"display.output")&&v==1&&id==0)api=&output;
  else if(!strcmp(n,"input.touch.raw")&&v==1&&id==0)api=&raw_touch;
  else if(!strcmp(n,"board.battery")&&v==1&&id==0)api=&gauge;
  else if(!strcmp(n,"rtc.clock")&&v==2&&id==0)api=&rtc_api;
- else if(!strcmp(n,"storage.key-value")&&v==1&&id==1)api=&kv_api;
+ else if(!strcmp(n,"storage.key-value")&&v==1&&id==1)api=
+#ifdef BATTERY_OVERLAY_CONTROLS
+ mode>=25?&overlay_kv:
+#endif
+ &kv_api;
  else if(!strcmp(n,"storage.key-value.atomic")&&v==1&&id==1)api=&uat_api;
  else if(!strcmp(n,"alarm.service")&&v==1&&id==0)api=mode==8?&alarm_api:&alarm_full.base;
  else if(!strcmp(n,"input.power-key")&&v==1&&id==0)api=&key_api;
@@ -152,9 +186,15 @@ static void temporal_case(void){
  assert(!pending_token&&!frames);printf("TEMPORAL case=%u visible=%u generation=%llu raw_sequence=%llu PASS\n",mode,diag_visible(),diag_generation(),(unsigned long long)fake_touch_state.sequence);
 }
 #endif
+#ifdef BATTERY_OVERLAY_CONTROLS
+#include "battery_native_overlay_cases.h"
+#endif
 int main(int argc,char**argv){setvbuf(stdout,NULL,_IONBF,0);assert(argc==2||argc==4);if(argc==4){test_width=(unsigned)atoi(argv[2]);test_height=(unsigned)atoi(argv[3]);}mode=(unsigned)atoi(argv[1]);uat_reset();raw_touch=touch_api;raw_touch.poll=raw_poll;raw_touch.snapshot=raw_snapshot;raw_touch.unsubscribe=raw_unsub;output=display_api;output.get_info=info;output.present_status=presented;output.set_brightness=brightness;memset(pixels,0xa5,sizeof(pixels));present_delay=3;
  assert(app_module_init()==0);diag_trace("initialized");
  #if defined(PORTABLE_BATTERY_NATIVE_UI) && !defined(BATTERY_EXPECT_ORIGINAL)
+ #ifdef BATTERY_OVERLAY_CONTROLS
+ if(mode>=25)overlay_case();else
+#endif
  if(mode>=14)temporal_case();else
 #endif
  if(mode==6||mode==7||mode==9||mode==10||(mode>=11&&mode<=13)){present_delay=mode>=11?3:120;if(mode==12||mode==13)for(unsigned i=0;i<8;i++)actions[action_count++]=(typeof(actions[0])){2400+i,60,210};if(mode<11)actions[action_count++]=(typeof(actions[0])){mode==6||mode==9?2:8,60,210};app_main();printf("ACTION mode=%u first_visible=%u details_seen=%u details_at=%u entries=%u\n",mode,first_visible,details_seen,details_at,bridge_entries);if(mode==11)assert(bridge_entries==

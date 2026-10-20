@@ -16,3 +16,16 @@ bool diag_visible(void){return battery_native_visible;}
 unsigned long long diag_generation(void){return battery_native_generation;}
 unsigned diag_owner(void){return native_token_owner;}
 #endif
+
+#if defined(PORTABLE_QUICK_NATIVE) && defined(PORTABLE_ALARM_NATIVE)
+#include "PortableQuickLayout.h"
+pqa_layout diag_quick_layout(void){return pqa_layout_for(&quick.ui);}
+unsigned diag_quick_state(unsigned field){
+ switch(field){case 0:return quick_modal;case 1:return quick_restore_pending;
+ case 2:return quick.ui.native_width;case 3:return quick.ui.logical_height;
+ case 4:return quick.brightness;case 5:return quick.volume;
+ case 6:return quick.ui.error_flags;case 7:return quick.ui.torch;
+ case 8:return quick_atomic_queue_count;case 9:return alarm_modal;
+ case 10:return pqa_visible(&quick.ui);default:return 0;}
+}
+#endif

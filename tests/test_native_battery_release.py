@@ -35,18 +35,22 @@ def fixture(root):
             'required_capabilities':prepare.expected_manifest()['requires'],'modules':[native]}
     target_sha=write(root/'target/qualification.json',target)
     cases=[(c,240,240) for c in (0,1,2,3,4,6,7,8,9,10,11,12,13)]
-    for mode in ('temporal','snapshot','original','selector-off'):
+    for mode in ('temporal','snapshot','original','selector-off','overlays','overlays-snapshot'):
         for sanitized in (False,True):
             name=mode+'-'+('sanitized' if sanitized else 'normal')
             triples=cases if mode in ('original','selector-off') else cases+[(c,w,h) for c in range(14,25) for w,h in ((240,240),(410,502),(128,128),(320,180))]
+            if mode.startswith('overlays'):
+                triples=[(c,w,h) for c in range(25,33) for w,h in ((240,240),(410,502),(128,128),(320,180))]
             results=[]
             for c,w,h in triples:
                 filename=f'{c}-{w}-{h}.log'; path=root/name/filename;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('PASS\n')
                 results.append({'case':c,'width':w,'height':h,'exit_code':0,'log':filename,'log_sha256':recipe.digest(path.read_bytes())})
             pins=dict(recipe.PINS)
             if mode=='original':pins['system']='9d2c55b32e88c0b12b1fa16200f399164767f5d1'
-            write(root/name/'receipt.json',{'original_failure_control':mode=='original','selector_off':mode=='selector-off',
-                  'snapshot':mode=='snapshot','sanitized':sanitized,'target_receipt_sha256':target_sha,'source_unchanged':True,
+            selected=recipe.define_arguments(mode!='selector-off')
+            if mode=='original':selected=[flag for flag in selected if flag not in ['-D'+item for item in recipe.OVERLAYS]]
+            write(root/name/'receipt.json',{'build_defines':selected,'native_overlay_control':mode.startswith('overlays'),'original_failure_control':mode=='original','selector_off':mode=='selector-off',
+                  'snapshot':mode in ('snapshot','overlays-snapshot'),'sanitized':sanitized,'target_receipt_sha256':target_sha,'source_unchanged':True,
                   'required_capabilities':target['required_capabilities'],'results':results,'external_git_pins':pins,
                   'compiled_dependency_sha256':native['source_sha256']})
     sizes=((128,128),(160,240),(240,240),(320,180),(410,502),(502,410),(320,480),(480,320),(800,480))
@@ -66,11 +70,17 @@ def fixture(root):
                'layout_sha256':layout_sha,'linked_device_memory_fit_qualified':False,'target_instructions_executed':False,
                'runs':[{'sanitized':s,'result':copy.deepcopy(result)} for s in (False,True)]}
     admission_sha=write(app/'elf-memory-admission.json',admission)
+    previous={'identity':{'assets':{}},'capability_contract_unchanged':True,'overlay_selector_delta':recipe.OVERLAYS,
+              'imports_unchanged':True,'exports_unchanged':True,'physical_fit_qualified':False,'successor_layout_sha256':layout_sha}
+    for name in ('battery.elf','battery.json','command.json'):
+        dest=root/'previous-release'/name;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes((app/name).read_bytes())
+        previous['identity']['assets'][name]={'sha256':recipe.digest(dest.read_bytes())}
+    previous_sha=write(root/'previous-release/comparison.json',previous)
     sf=root/'source/utilities/fixture.c';sf.parent.mkdir(parents=True);sf.write_text('source\n')
     record={'source_commit':source,'working_tree_dirty':False,'tag':prepare.TAG,'version':prepare.VERSION,
             'external_git_pins':recipe.PINS,'required_capabilities':target['required_capabilities'],
             'hardware_qualified':False,'firmware_replacement':False,'legacy_manifest_unchanged':True,
-            'target_receipt_sha256':target_sha,'controls':controls,'elf_sha256':elf_sha,'elf_size_bytes':len(data),
+            'previous_release_comparison_sha256':previous_sha,'target_receipt_sha256':target_sha,'controls':controls,'elf_sha256':elf_sha,'elf_size_bytes':len(data),
             'manifest_sha256':manifest_sha,'command_sha256':command_sha,'layout_sha256':layout_sha,
             'admission_sha256':admission_sha,'source_files':{'source/utilities/fixture.c':recipe.digest(sf.read_bytes())}}
     write(app/'battery-build-record.json',record)
@@ -82,7 +92,26 @@ class BatteryReleaseTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);self.source=fixture(self.root)
     def tearDown(self):self.temp.cleanup()
     def test_complete_receipt_passes(self):
-        self.assertEqual(publish.validate(self.root,self.source)['version'],'1.2.0')
+        self.assertEqual(publish.validate(self.root,self.source)['version'],'1.2.1')
+    def test_previous_release_tamper_rejected(self):
+        (self.root/'previous-release/battery.elf').write_bytes(b'changed')
+        with self.assertRaisesRegex(ValueError, 'Frozen previous release bytes'):
+            publish.validate(self.root,self.source)
+    def test_missing_overlay_case_rejected(self):
+        p=self.root/'overlays-snapshot-sanitized/receipt.json';r=json.loads(p.read_text())
+        r['results'][0]=r['results'][1];write(p,r)
+        with self.assertRaisesRegex(ValueError, 'coverage'):
+            publish.validate(self.root,self.source)
+    def test_overlay_mode_cannot_be_substituted(self):
+        p=self.root/'overlays-normal/receipt.json';r=json.loads(p.read_text())
+        r['native_overlay_control']=False;write(p,r)
+        with self.assertRaisesRegex(ValueError, 'Wrong overlay control'):
+            publish.validate(self.root,self.source)
+    def test_overlay_selector_receipt_drift_rejected(self):
+        p=self.root/'overlays-normal/receipt.json';r=json.loads(p.read_text())
+        r['build_defines'].remove('-DPORTABLE_ALARM_NATIVE');write(p,r)
+        with self.assertRaisesRegex(ValueError, 'selectors differ'):
+            publish.validate(self.root,self.source)
     def test_wrong_source_rejected(self):
         with self.assertRaises(ValueError):publish.validate(self.root,'0'*40)
     def test_manifest_is_distinct_and_fifteen_capabilities(self):

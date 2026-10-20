@@ -1,0 +1,14 @@
+{
+  "tag": "native-battery-1.2.0-dev1",
+  "version": "1.2.0",
+  "source_commit": "68fa96840136817ec22f465245123a9581ff891c",
+  "system_commit": "fca52ae3a3e452d309408268e6e485cb43ac2c04",
+  "release_url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/releases/tag/native-battery-1.2.0-dev1",
+  "assets": {
+    "battery.elf": {"size_bytes": 296844, "sha256": "8074b7c6e907a3072bb24ed6f79f9902f7170bf83313f336f00380c65aa32f30"},
+    "battery.json": {"size_bytes": 1170, "sha256": "60fcd7e192356b89ccccf1594ff13ab3ed018dbc5d1bba3fb8a797181436b9ba"},
+    "command.json": {"sha256": "1edc198be7e2453281b3e29316e5935505b018f54ae8ffe072c3eaf14efc1156"},
+    "native-battery-1.2.0-dev1.zip": {"sha256": "fad52ea14b99922abe213782df036dbfa844615e5528b2f835753af1e87b8bd8"}
+  },
+  "hardware_qualified": false
+}
