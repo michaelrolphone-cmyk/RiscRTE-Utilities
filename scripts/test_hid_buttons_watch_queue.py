@@ -17,6 +17,8 @@ exe=out/('app-seam.so' if a.seam else 'buttons')
 includes=[root/'Apps',root/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include',system/'lib/PortableApps/src']
 cmd=['cc',*flags,*(['-DHID_REPORT_SEAM','-Wno-unused-function','-shared'] if a.seam else ['-no-pie']),*['-I'+str(x) for x in includes],str(root/'tests/hid_buttons_watch_queue_test.c'),*map(str,objects),'-o',str(exe)];commands.append(cmd);subprocess.run(cmd,check=True)
 cases=[] if a.seam else ['pending-generation','pending-disconnect','pending-cancel','pending-settings','pending-subscription','burst','burst-full','queued','move-inside','sampled','held-release','deadline100','mouse','wheel','motion','multi-contact','move-outside','changed-id','second-tap','deadline101','clock-rollback','queue-overflow','keyboard-unready','no-auth','no-encryption','generation-change','disconnected','settings','unarmed','poll-fail','press-fail','release-fail']
+if not a.seam:
+ cases += ['mixed-queued','mixed-burst','mixed-long-hold','mixed-other-tile','mixed-following-held','mixed-mouse','mixed-wheel','mixed-move-outside','mixed-multicontact','mixed-changed-id','mixed-deadline','mixed-poll-fail','mixed-generation','mixed-disconnect','mixed-no-auth','mixed-subscription','mixed-release-fail','mixed-press-fail']
 cases=a.case or cases
 for case in cases:
  r=subprocess.run([str(exe),case],capture_output=True,text=True,env={**os.environ,'ASAN_OPTIONS':'detect_leaks=0','UBSAN_OPTIONS':'halt_on_error=1'})
