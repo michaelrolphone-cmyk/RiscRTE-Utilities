@@ -74,6 +74,18 @@ def type_name(text):
 
 def target_scenes(target):
     result=dict(scenes)
+    # Fill and wrap the production ring through capture, then switch via real
+    # input. Existing lifecycle coverage switches after only a few bursts.
+    transitions=['wait 260',check('history',228),check('running',1)]
+    for _ in range(12):
+        transitions += [tap(84,26),check('view',1),check('running',1),
+                        tap(28,26),check('view',0),check('running',1)]
+    transitions += [tap(84,26),check('view',1),check('history',228),
+                    'snapshot full-history-fall','nav 32',check('frozen',1),
+                    check('running',0),'remember captures','remember history',
+                    tap(28,26),check('view',0),tap(84,26),check('view',1),
+                    'wait 5','same captures','same history','finish']
+    result['full-history-switch']=(scene(*transitions),{})
     height=400 if target=='x4' else 240
     max_scroll=624-(height-94)
     def setting(number,x=215):

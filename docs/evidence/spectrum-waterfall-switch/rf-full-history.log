@@ -1,0 +1,93 @@
+SDR app enter
+SDR startup stage=preferences phase=begin
+SDR startup stage=preferences phase=end elapsed_ms=0
+SDR startup stage=signatures phase=begin
+SDR startup stage=signatures phase=end elapsed_ms=0
+SDR startup stage=events phase=begin
+SDR startup stage=events phase=end elapsed_ms=0
+SDR startup stage=fingerprints phase=begin
+SDR startup stage=fingerprints phase=end elapsed_ms=0
+SDR startup stage=dsp phase=begin
+SDR startup stage=dsp phase=end elapsed_ms=0
+SDR startup stage=receiver phase=begin
+SDR acquire begin
+SDR acquire ok=1
+SDR startup stage=receiver phase=end elapsed_ms=0
+SDR startup ready
+SDR capture begin
+SDR stage=host-coherent
+SDR capture rc=0 pairs=256
+SDR cleanup ok=1
+SDR app exit
+RF Runtime serial journal survives application return; no sample/name secrets
+RF ./build/rf-application/watch/normal/lifecycle/commands.txt: checks=17 polls=32 captures=22 presents=26 kv-writes=0 app-writes=0 retained=0
+SDR app enter
+SDR startup stage=preferences phase=begin
+SDR startup stage=preferences phase=end elapsed_ms=0
+SDR startup stage=signatures phase=begin
+SDR startup stage=signatures phase=end elapsed_ms=0
+SDR startup stage=events phase=begin
+SDR startup stage=events phase=end elapsed_ms=0
+SDR startup stage=fingerprints phase=begin
+SDR startup stage=fingerprints phase=end elapsed_ms=0
+SDR startup stage=dsp phase=begin
+SDR startup stage=dsp phase=end elapsed_ms=0
+SDR startup stage=receiver phase=begin
+SDR acquire begin
+SDR acquire ok=1
+SDR startup stage=receiver phase=end elapsed_ms=0
+SDR startup ready
+SDR capture begin
+SDR stage=host-coherent
+SDR capture rc=0 pairs=256
+SDR cleanup ok=1
+SDR app exit
+RF Runtime serial journal survives application return; no sample/name secrets
+RF ./build/rf-application/watch/normal/full-history-switch/commands.txt: checks=59 polls=323 captures=311 presents=316 kv-writes=0 app-writes=0 retained=0
+SDR app enter
+SDR startup stage=preferences phase=begin
+SDR startup stage=preferences phase=end elapsed_ms=0
+SDR startup stage=signatures phase=begin
+SDR startup stage=signatures phase=end elapsed_ms=0
+SDR startup stage=events phase=begin
+SDR startup stage=events phase=end elapsed_ms=0
+SDR startup stage=fingerprints phase=begin
+SDR startup stage=fingerprints phase=end elapsed_ms=0
+SDR startup stage=dsp phase=begin
+SDR startup stage=dsp phase=end elapsed_ms=0
+SDR startup stage=receiver phase=begin
+SDR acquire begin
+SDR acquire ok=1
+SDR startup stage=receiver phase=end elapsed_ms=0
+SDR startup ready
+SDR capture begin
+SDR stage=host-coherent
+SDR capture rc=0 pairs=256
+SDR cleanup ok=1
+SDR app exit
+RF Runtime serial journal survives application return; no sample/name secrets
+RF ./build/rf-application/watch/sanitized/lifecycle/commands.txt: checks=17 polls=32 captures=22 presents=26 kv-writes=0 app-writes=0 retained=0
+SDR app enter
+SDR startup stage=preferences phase=begin
+SDR startup stage=preferences phase=end elapsed_ms=0
+SDR startup stage=signatures phase=begin
+SDR startup stage=signatures phase=end elapsed_ms=0
+SDR startup stage=events phase=begin
+SDR startup stage=events phase=end elapsed_ms=0
+SDR startup stage=fingerprints phase=begin
+SDR startup stage=fingerprints phase=end elapsed_ms=0
+SDR startup stage=dsp phase=begin
+SDR startup stage=dsp phase=end elapsed_ms=0
+SDR startup stage=receiver phase=begin
+SDR acquire begin
+SDR acquire ok=1
+SDR startup stage=receiver phase=end elapsed_ms=0
+SDR startup ready
+SDR capture begin
+SDR stage=host-coherent
+SDR capture rc=0 pairs=256
+SDR cleanup ok=1
+SDR app exit
+RF Runtime serial journal survives application return; no sample/name secrets
+RF ./build/rf-application/watch/sanitized/full-history-switch/commands.txt: checks=59 polls=323 captures=311 presents=316 kv-writes=0 app-writes=0 retained=0
+RF actual controller/adapter regression passed: 4 scene runs and 0 Runtime storage runs; host simulation only.

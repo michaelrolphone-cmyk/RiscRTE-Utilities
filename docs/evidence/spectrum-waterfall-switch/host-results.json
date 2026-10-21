@@ -1,0 +1,231 @@
+{
+  "schema": 1,
+  "observed_at": "2026-10-21",
+  "scope": "Host regression coverage only; historical crash not reproduced",
+  "utilities_base": "6b2047500905f8f45087cb49989103a926fc5c63",
+  "dependencies": {
+    "legacy-system": "fdc15395928a1fa8eee62a2823b3c8777dcf0fa0",
+    "native-system": "947895afdb2ecef59654402cf08fe7ecdf92362f",
+    "RiscRTE": "0aab2fd3b03b4190d638e23c79a465afeecf5dfb",
+    "RiscRTE-Watch": "93c87d05d4da54df49240141bf9ca993bc30b462"
+  },
+  "source_sha256": {
+    "Apps/audio_spectrum.c": "673534fe7e46eb56e816cdf9eab2facc469e4c5425b8ec871757013e647d52c9",
+    "Apps/spectrum_native_view.inc": "c127e19e7b3d8286cfafbdce35110d4d36ad0334766ac973617c5f1541444fbd",
+    "Apps/rf_application.inc": "31e48088dc6d2c928a83ed95ad301ec3b1a7a18a122c3cd0e91b0432fe3e61cb",
+    "scripts/test_spectrum_native_ui.py": "42d0e8ea8ca851ac4db8e267f7ded49545aa348cc48f620ad8bb21ba17ef0d3f",
+    "scripts/test_rf_application.py": "8447cb3348c5a6f1d5a1039737faa04876ce094fdde584381f54f75523074ed5",
+    "test/native_apps/spectrum_shared_renderer_test.c": "099606c887cde24e6c9caed6e358324d4cb1934a58dce8e4c919eb5d91e55e4f"
+  },
+  "native_baseline": [
+    {
+      "profile": "240x240",
+      "mode": "native-plot-history-toast",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-plot-delayed",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-repeated-entry",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-plot-history-toast",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-plot-delayed",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-repeated-entry",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-plot-history-toast",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-plot-delayed",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-repeated-entry",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-plot-history-toast",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-plot-delayed",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-repeated-entry",
+      "sanitized": true,
+      "returncode": 0
+    }
+  ],
+  "native_full_history": [
+    {
+      "profile": "240x240",
+      "mode": "native-full-history-switch-0",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-full-history-delayed-0",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-full-history-switch-227",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-full-history-delayed-227",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-full-history-switch-0",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-full-history-delayed-0",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-full-history-switch-227",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "240x240",
+      "mode": "native-full-history-delayed-227",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-full-history-switch-0",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-full-history-delayed-0",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-full-history-switch-227",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-full-history-delayed-227",
+      "sanitized": false,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-full-history-switch-0",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-full-history-delayed-0",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-full-history-switch-227",
+      "sanitized": true,
+      "returncode": 0
+    },
+    {
+      "profile": "410x502",
+      "mode": "native-full-history-delayed-227",
+      "sanitized": true,
+      "returncode": 0
+    }
+  ],
+  "rf": {
+    "profiles": [
+      "watch normal",
+      "watch ASan/UBSan"
+    ],
+    "scenes": [
+      "lifecycle",
+      "full-history-switch"
+    ],
+    "full_history_assertions_per_run": 59,
+    "captures_per_full_history_run": 311,
+    "polls_per_full_history_run": 323,
+    "presents_per_full_history_run": 316
+  },
+  "claims_not_made": [
+    "original report device or installed build identity",
+    "crash reproduction",
+    "physical audio or RF",
+    "physical display timing",
+    "hardware pass",
+    "production repair",
+    "firmware publication",
+    "LeakSanitizer pass"
+  ],
+  "legacy_renderer": {
+    "scenes": 16,
+    "profiles": [
+      "normal",
+      "ASan/UBSan"
+    ],
+    "runs": 32,
+    "returncode": 0,
+    "sanitizer_environment": {
+      "ASAN_OPTIONS": "detect_leaks=0",
+      "UBSAN_OPTIONS": "halt_on_error=1"
+    },
+    "log": "spectrum-renderer-confirmation.log"
+  },
+  "total_successful_runs": 64
+}

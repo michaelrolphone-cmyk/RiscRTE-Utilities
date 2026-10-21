@@ -1,0 +1,15 @@
+Spectrum production shared input normal native-plot-history-toast PASS
+Spectrum production shared input normal native-plot-delayed PASS
+Spectrum production shared input normal native-repeated-entry PASS
+Spectrum production shared input ASan/UBSan native-plot-history-toast PASS
+Spectrum production shared input ASan/UBSan native-plot-delayed PASS
+Spectrum production shared input ASan/UBSan native-repeated-entry PASS
+Evidence: ./build/mode-switch-baseline/240x240/qualification.json
+Spectrum production shared input normal native-plot-history-toast PASS
+Spectrum production shared input normal native-plot-delayed PASS
+Spectrum production shared input normal native-repeated-entry PASS
+Spectrum production shared input ASan/UBSan native-plot-history-toast PASS
+Spectrum production shared input ASan/UBSan native-plot-delayed PASS
+Spectrum production shared input ASan/UBSan native-repeated-entry PASS
+Evidence: ./build/mode-switch-baseline/410x502/qualification.json
+Native Spectrum actual-adapter qualification completed
