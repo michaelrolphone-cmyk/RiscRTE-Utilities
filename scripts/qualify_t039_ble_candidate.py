@@ -67,6 +67,14 @@ def safe(root, relative):
     return result
 
 
+def target_input(folder, owner, relative):
+    require(owner in {*frozen.PINS, 'utilities', 'utilities-baseline', 'system-baseline', 'generated', 'toolchain'},
+            'Unknown target source owner')
+    # Frozen SDK aliases may cross owner roots to preserve pragma-once identity,
+    # but they must never resolve outside this particular target artifact.
+    return safe(folder, 'inputs/'+owner+'/'+relative)
+
+
 def git(root, *args):
     return subprocess.check_output(['git', '-C', str(root), *args], timeout=120)
 
@@ -135,7 +143,7 @@ def validate_target(folder, *, source, parity):
             owner, relative = identity.split(':', 1)
             if mode == 'baseline' and owner in ('utilities', 'system'):
                 owner += '-baseline'
-            require(digest(safe(folder/'inputs'/owner, relative)) == expected, 'Changed target input '+identity)
+            require(digest(target_input(folder, owner, relative)) == expected, 'Changed target input '+identity)
     return r
 
 
@@ -235,8 +243,8 @@ def check_host(out, relative, sanitized, asynchronous, temporal, scenarios, sour
     require(HOST_INPUTS <= r['compiled_dependency_sha256'].keys(), 'Missing actual-adapter host source binding')
     for identity, value in r['compiled_dependency_sha256'].items():
         owner, relative_path = identity.split(':', 1)
-        base = out/'source/utilities' if owner == 'utilities' else out/'target/inputs'/owner
-        require(digest(safe(base, relative_path)) == value, 'Changed host source '+identity)
+        path = safe(out/'source/utilities', relative_path) if owner == 'utilities' else target_input(out/'target', owner, relative_path)
+        require(digest(path) == value, 'Changed host source '+identity)
     return len(actual)
 
 
@@ -306,7 +314,7 @@ def validate(out, source, check_inventory=True):
     for relative, code in r['run_exit_codes'].items():
         record = read(safe(out, relative)); log = safe(out, relative.removesuffix('.json')+'.log')
         require(record['exit_code'] == code and digest(log) == record['log_sha256'], 'Run evidence changed')
-        require(code == 0 or relative == 'runs/candidate-frozen-target.json' and code == 1, 'Unexpected failed run')
+        require(code == (1 if relative == 'runs/candidate-frozen-target.json' else 0), 'Unexpected control exit code')
     for mode in ('normal', 'sanitized'):
         queue = read(out/'queue'/mode/'qualification.json')
         require(len(queue['cases']) == 50 and set(queue['cases']) == queue_cases(),
@@ -355,6 +363,10 @@ def qualify(args):
               'LICENSE', '.github/workflows/native-ble-buttons.yml', '.github/workflows/t039-ble-candidate.yml',
               'docs/t039/candidate-qualification'])
     contracts(out)
+    # Legacy/Watch controls compile fresh Git-object snapshots, not mutable
+    # dependency worktrees or ignored/untracked shadow headers.
+    copy_git(args.watch, WATCH, out/'source/watch-touch', ['sdk/driver', 'include', 'drivers/current/twatch_touch'])
+    copy_git(args.legacy_system, LEGACY_SYSTEM, out/'source/legacy-system', ['Apps', 'lib/PortableApps', 'lib/NativeApps'])
     for relative, sanitized, asynchronous, temporal, scenes, extra in control_matrix():
         command = [sys.executable, ROOT/'scripts/test_ble_buttons_native.py', '--system-apps', args.system,
                    '--runtime', args.runtime, '--full-target', out/'target', '--output', out/relative, *extra]
@@ -362,18 +374,16 @@ def qualify(args):
         if asynchronous: command += ['--async']
         run(command, out, relative.replace('/', '-'))
     for mode in ('normal', 'sanitized'):
-        command = [sys.executable, ROOT/'scripts/test_hid_buttons_watch_queue.py', '--system-apps', args.legacy_system,
-                   '--watch', args.watch, '--output', out/'queue'/mode]
+        command = [sys.executable, ROOT/'scripts/test_hid_buttons_watch_queue.py', '--system-apps', out/'source/legacy-system',
+                   '--watch', out/'source/watch-touch', '--output', out/'queue'/mode]
         if mode == 'sanitized': command += ['--sanitize']
         run(command, out, 'queue-'+mode)
     for label, script, extra in [('hid-apps', 'test_hid_apps.py', []),
                                   ('renderer-color', 'test_hid_renderer.py', []),
                                   ('renderer-paper', 'test_hid_renderer.py', ['--paper'])]:
-        run([sys.executable, ROOT/'scripts'/script, '--system-apps', args.legacy_system, *extra], out, label)
+        run([sys.executable, ROOT/'scripts'/script, '--system-apps', out/'source/legacy-system', *extra], out, label)
     for name in ('hid-apps', 'hid-renderer', 'hid-paper-renderer'):
         shutil.copytree(ROOT/'build'/name, out/'controls-generated'/name)
-    copy_git(args.watch, WATCH, out/'source/watch-touch', ['sdk/driver', 'include', 'drivers/current/twatch_touch'])
-    copy_git(args.legacy_system, LEGACY_SYSTEM, out/'source/legacy-system', ['Apps', 'lib/PortableApps', 'lib/NativeApps'])
     # Artifact upload/download materializes symlinks. Freeze their bytes first,
     # without editing any source inputs or the frozen result receipts.
     for p in sorted(out.rglob('*')):

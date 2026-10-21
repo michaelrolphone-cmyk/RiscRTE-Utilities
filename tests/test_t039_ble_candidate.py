@@ -97,6 +97,20 @@ class CandidateContracts(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'must not acquire a release identity'):
                 candidate.validate_target(root, source='source', parity=False)
 
+    def test_target_allows_frozen_sdk_alias_but_not_external_escape(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)/'target'; header = root/'inputs/system/header.h'
+            header.parent.mkdir(parents=True); (root/'sdk').mkdir()
+            (root/'sdk/header.h').write_text('shared')
+            header.symlink_to(root/'sdk/header.h')
+            self.assertEqual(candidate.target_input(root, 'system', 'header.h').read_text(), 'shared')
+            header.unlink(); (Path(d)/'outside.h').write_text('outside')
+            header.symlink_to(Path(d)/'outside.h')
+            with self.assertRaisesRegex(ValueError, 'escapes root'):
+                candidate.target_input(root, 'system', 'header.h')
+            with self.assertRaisesRegex(ValueError, 'Unknown target source owner'):
+                candidate.target_input(root, 'unknown', 'header.h')
+
     def test_safe_paths(self):
         with tempfile.TemporaryDirectory() as d:
             for relative in ('../outside', '/tmp/outside', 'a//b', 'a/./b', 'a/../b', 'a\\b', ''):
