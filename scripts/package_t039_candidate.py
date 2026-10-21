@@ -70,6 +70,9 @@ def source_copy(root, repo, pin, owner, relative):
 def verify_correspondence(root):
     target = read(root/'evidence/target/qualification.json')
     native = admission.native_module(target)
+    parent_native = admission.native_module(read(root/'evidence/parent-target/qualification.json'))
+    require(set(native['imports']) == set(parent_native['imports']) and
+            set(native['exports']) == set(parent_native['exports']), 'Candidate public symbols changed')
     for module in target['modules']:
         if module['mode'] == 'baseline':
             continue
@@ -155,6 +158,7 @@ def validate(root, source, receipt_sha256):
 
 def build(args):
     source = source_guard(); out = args.output.resolve(); original = args.evidence.resolve()
+    require(not out.is_relative_to(original), 'Output must not be nested inside evidence')
     require(not out.exists(), 'Output must be new; refusing stale candidate data')
     require(digest(original/'candidate-evidence.json') == args.evidence_sha256,
             'Incoming qualification receipt does not match independently supplied digest')

@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -144,12 +145,26 @@ class CandidatePackageContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             payload = b'target source'
-            target = {'modules': [{'mode': m, 'source_sha256': {'utilities:Apps/ble_buttons.c': candidate.evidence.sha(payload)}}
+            target = {'modules': [{'mode': m, 'imports': ['memcpy'], 'exports': ['app_main'], 'source_sha256': {'utilities:Apps/ble_buttons.c': candidate.evidence.sha(payload)}}
                                   for m in ('baseline', 'legacy', 'native')]}
             candidate.write(root/'evidence/target/qualification.json', target)
+            candidate.write(root/'evidence/parent-target/qualification.json', target)
             with patch.object(candidate, 'git', return_value=payload): candidate.verify_correspondence(root)
             with patch.object(candidate, 'git', return_value=b'changed'):
                 with self.assertRaisesRegex(ValueError, 'compiled source differs'): candidate.verify_correspondence(root)
+            mutated = copy.deepcopy(target); mutated['modules'][2]['imports'].append('malloc')
+            candidate.write(root/'evidence/target/qualification.json', mutated)
+            with self.assertRaisesRegex(ValueError, 'public symbols changed'):
+                candidate.verify_correspondence(root)
+
+    def test_builder_rejects_output_nested_inside_input_evidence(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            args = SimpleNamespace(evidence=root, output=root/'nested')
+            with patch.object(candidate, 'source_guard', return_value='source'):
+                with self.assertRaisesRegex(ValueError, 'nested inside evidence'):
+                    candidate.build(args)
+            self.assertFalse((root/'nested').exists())
 
     def test_scope_does_not_claim_installation_or_hardware_acceptance(self):
         self.assertIn('NOT APPROVED FOR INSTALLATION', candidate.NOTICE)
