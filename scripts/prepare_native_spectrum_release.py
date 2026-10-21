@@ -26,6 +26,8 @@ PROFILES = ('240x240', '410x502', '502x410', '480x800', '800x480')
 SCENARIOS = {
     'native-pages', 'native-plot-history-toast', 'native-controls-scroll',
     'native-plot-delayed', 'native-repeated-entry',
+    *(f'native-full-history-{case}-{ring}' for case in ('switch','delayed')
+      for ring in (0,227)),
     *(f'native-{editor}-{case}' for editor in ('frequency','signature','temporal','shared')
       for case in ('cancel','done','reopen','limit','delayed','no-present',
                    'live-delayed-done','live-delayed-back','live-delayed-home','explicit-save')),

@@ -1,0 +1,154 @@
+{
+  "checked_source_commit": "a5ff718923d57188f41502618f33f8e66296bb43",
+  "diagnosis": {
+    "added_contract_cases": [
+      "native-full-history-switch-0",
+      "native-full-history-switch-227",
+      "native-full-history-delayed-0",
+      "native-full-history-delayed-227"
+    ],
+    "consumer_scenarios_before": 61,
+    "producer_scenarios": 65,
+    "required_normal_sanitized_runs_all_profiles": 650,
+    "required_scenarios_after": 65
+  },
+  "exact_external_git_pins": {
+    "bridges": "6e82fdcaec0b73ed700d2104cfb4d94f011c19d4",
+    "runtime": "0aab2fd3b03b4190d638e23c79a465afeecf5dfb",
+    "system": "947895afdb2ecef59654402cf08fe7ecdf92362f",
+    "watch": "93c87d05d4da54df49240141bf9ca993bc30b462",
+    "wave": "f42a6e07133c599a22acfaa8b8a0672ff996dc1b"
+  },
+  "fresh_exact_head": {
+    "artifact_id": 12356310500,
+    "artifact_zip_sha256": "28dfef6d93186202c983afd63e7dd0a271c0f8e6009b80499896e6a4481fc8bc",
+    "error": "Failed/incomplete host matrix: 240x240",
+    "failed_stage": "Prepare standalone Spectrum with production memory admission",
+    "host_results": {
+      "240x240": {
+        "all_returncodes_zero": true,
+        "non_keyboard_views": 18,
+        "normal_sanitized_pixel_pairs": 186,
+        "result_count": 130,
+        "scenario_count": 65
+      },
+      "410x502": {
+        "all_returncodes_zero": true,
+        "non_keyboard_views": 18,
+        "normal_sanitized_pixel_pairs": 186,
+        "result_count": 130,
+        "scenario_count": 65
+      },
+      "480x800": {
+        "all_returncodes_zero": true,
+        "non_keyboard_views": 18,
+        "normal_sanitized_pixel_pairs": 186,
+        "result_count": 130,
+        "scenario_count": 65
+      },
+      "502x410": {
+        "all_returncodes_zero": true,
+        "non_keyboard_views": 18,
+        "normal_sanitized_pixel_pairs": 186,
+        "result_count": 130,
+        "scenario_count": 65
+      },
+      "800x480": {
+        "all_returncodes_zero": true,
+        "non_keyboard_views": 18,
+        "normal_sanitized_pixel_pairs": 186,
+        "result_count": 130,
+        "scenario_count": 65
+      }
+    },
+    "run_id": 39620790516,
+    "selector_off_exact_baseline_bytes": true,
+    "target_modules": [
+      {
+        "mode": "baseline",
+        "sha256": "4a7be2c6ccf122d1f73f43094c598144431bfb60f03f2bfbbac5383136c1355b",
+        "size_bytes": 403900,
+        "structural_loader_admission": "passed",
+        "target_instructions_executed": false
+      },
+      {
+        "mode": "legacy",
+        "sha256": "4a7be2c6ccf122d1f73f43094c598144431bfb60f03f2bfbbac5383136c1355b",
+        "size_bytes": 403900,
+        "structural_loader_admission": "passed",
+        "target_instructions_executed": false
+      },
+      {
+        "mode": "native",
+        "sha256": "ce95cf81f59f6d256f80ef632531f8ef1fbbfc60046e56d173bae3793e4fb262",
+        "size_bytes": 417216,
+        "structural_loader_admission": "passed",
+        "target_instructions_executed": false
+      }
+    ],
+    "workflow_result": "failure"
+  },
+  "preserved_source_commit": "498b0906c83877810dd7d96a2d3dc5e3d9c26c71",
+  "preserved_source_tree": "0414eed7c5771e27f4c1de9fa0517a87d091ebf4",
+  "prior_failure": {
+    "artifact_id": 12352660372,
+    "artifact_zip_sha256": "35bda065da3a785f4c355f0bdc2796d01b2fac40250a13990377709580fc0022",
+    "failure_log": "collect2: fatal error: ld terminated with signal 6 [Aborted], core dumped\ncompilation terminated.\ndouble free or corruption (out)\n",
+    "root_cause": "Unresolved intermittent linker abort; this repair does not claim to fix it",
+    "run_id": 39612929536,
+    "stage": "target/legacy/retained-recipe-build"
+  },
+  "schema": 1,
+  "scope": "Packaging-contract integration repair; not runtime behavior or hardware qualification",
+  "toolchain": {
+    "cc": {
+      "sha256": "732bebd44b70a21687ffa3ac5da55edc9b555080ad21cfd74503b2288a143d3f",
+      "version": "xtensa-esp32s3-elf-gcc (crosstool-NG esp-2021r2-patch5) 8.4.0"
+    },
+    "nm": {
+      "sha256": "af632d7578c77d53fe9767298b0fc0b46763f855df5cab7d40343f51e9b2f0bf",
+      "version": "GNU nm (crosstool-NG esp-2021r2-patch5) 2.35.1.20201223"
+    },
+    "readelf": {
+      "sha256": "25e2332b0a8fede4c285ee6b9f59857458e82af1e8545932b949cbf92ccabc2b",
+      "version": "GNU readelf (crosstool-NG esp-2021r2-patch5) 2.35.1.20201223"
+    }
+  },
+  "unchanged_input_comparison": {
+    "common_staged_target_input_count": 1324,
+    "comparisons": {
+      "target/baseline/audio_spectrum.elf": {
+        "byte_identical": true,
+        "sha256": "4a7be2c6ccf122d1f73f43094c598144431bfb60f03f2bfbbac5383136c1355b"
+      },
+      "target/cc-version.log": {
+        "byte_identical": true,
+        "sha256": "fa43396ea39cdac5a7abdb9112bbef32c80358e7cf411794bb6f2312d69a0778"
+      },
+      "target/inputs/wave/docs/t069/audio_spectrum-command.json": {
+        "byte_identical": true,
+        "sha256": "45ea129bbd939c2ee44371cf5076db36562786e6f30331ab078b367d3f757969"
+      },
+      "target/legacy/retained-recipe-build-command.json": {
+        "byte_identical": true,
+        "sha256": "6ab77dc172bb85a9375ced81197569a2a277ba3b4d26d70f42eb7b31a23afb11"
+      }
+    },
+    "differing_common_staged_target_inputs": [],
+    "toolchain_comparison_limit": "Version logs match. Earlier failed build did not write the complete toolchain-hash receipt, so byte identity of every installed tool between runs is not established."
+  },
+  "verification": {
+    "application_behavior_changed": false,
+    "compiler_flags_changed": false,
+    "fresh_post_repair_ci": "pending",
+    "hardware_exercised": false,
+    "merged": false,
+    "new_target_compilation_performed_locally": false,
+    "original_artifact_mismatch_reproduced": true,
+    "product_pins_changed": false,
+    "read_only_corrected_consumer_replay": "passed target and all 7 control receipts",
+    "released": false,
+    "specific_missing_duplicate_failed_stress_case_subtests": 24,
+    "synthetic_packaging_tests": 30
+  }
+}
