@@ -36,7 +36,7 @@ static bool receiver_change(unsigned field,int direction){
  if(field>=RF_RECEIVER_ROWS)return false;
  if(field==16){notify(receiver_extended?"NOMINAL MHz / RAW CODES / dBFS":"LEGACY @1: DEFAULTS / 256 ONLY");return false;}
  if(load_errors&1u){notify("RETRY PREFERENCE STORAGE");return false;}
- if(signature_goal||signature_pending||temporal_exit_blocked()){notify("SAVE OR CANCEL CAPTURE FIRST");return false;}
+ if(signature_goal||signature_pending||temporal_exit_blocked()||cfa_unsaved()||cfa_learning_kind){notify("SAVE OR CANCEL CAPTURE FIRST");return false;}
  if(!receiver_extended&&field!=14){notify("LEGACY @1 / DEFAULTS ONLY");return false;}
  if(field<14&&!(receiver_caps.controls&receiver_control(field))){notify("RECEIVER CONTROL UNAVAILABLE");return false;}
  rf_capture_identity changed=prefs.identity;
