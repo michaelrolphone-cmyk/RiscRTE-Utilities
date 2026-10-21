@@ -14,7 +14,7 @@ def build(runtime,system,drivers,out):
  cc=os.environ.get('NATIVE_APP_CC') or shutil.which('xtensa-esp32s3-elf-gcc') or str(Path.home()/'.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc')
  flags=['-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-ffreestanding','-fno-builtin','-fvisibility=hidden','-ffunction-sections','-fdata-sections','-fstack-usage','-Wall','-Wextra','-Werror','-Wno-misleading-indentation']
  objects=[]
- for name in ('elm','app'):
+ for name in ('elm','dashboard','math','app'):
   obj=out/(name+'.o');objects.append(obj)
   subprocess.run([cc,*flags,'-I'+str(inc),'-c',str(ROOT/'Apps/obd_dashboard'/f'{name}.c'),'-o',str(obj)],check=True)
  mapping=out/'exports.map';mapping.write_text('{ global: app_main; risc_resident_app_descriptor_v1; local: *; };\n')

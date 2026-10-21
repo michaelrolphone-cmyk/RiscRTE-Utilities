@@ -1,101 +1,137 @@
-# OBD Dashboard 0.1.1 — X4
+# OBD Dashboard 0.2.0 — NOVA-7 X4
 
-A native foreground ELF with an intent-driven NOVA scene interface. The app uses
-only `ui.scene@1` and `bluetooth.serial@1`; panel/touch/HCI details belong to
-providers. `elm.c` is an original bounded presenter-independent ELM client.
-`app.c` declares shared components and consumes revision-bound intents.
+Implements the owner's `obd-dashboard.html` design as a native intent-driven app.
+Reference SHA-256: `9ca9bf25f1b4bd6bc4c3ccf7eebf5a463747e94314d06b5cb4dea3f314a26770`. The HTML's simulated-car controls, example VIN,
+placeholder faults and assumed Classic/PIN/baud text are not production data.
 
-## Adapter compatibility
+## Screens and actions
 
-Requested adapter: ViaBecs Amazon ASIN **B0CCYKZ8YF**, checked 2026-10-11 at
-https://www.amazon.com/dp/B0CCYKZ8YF. The current listing describes Bluetooth LE
-and iPhone in-app connection. It does not publish the GATT UUIDs, and this is not
-a hardware validation of the owner's particular adapter revision.
+LIVE has the large speed readout, RPM bar with hatched upper range, eight
+selectable sensor tiles, mini trends, actual BLE/protocol badges, settings and
+customization buttons, and fixed LIVE / GRAPH / FAULTS / INFO navigation.
+Tapping a tile opens its graph, 30 s / 2 min / 10 min span, min/average/max,
+upper/lower limit controls and dashboard selection. Speed and RPM stay visible.
 
-Requires an **ELM-compatible, unpaired/open BLE serial** adapter. Scan results
-are real advertisements, not a hardcoded OBDII name. Unique recognized FFE0,
-FFF0 or Nordic UART candidates are selected after service discovery; otherwise
-the user chooses a discovered vendor channel. CCC acknowledgement, ELM banner,
-AT setup, positive ECU Mode01 support reply and protocol agreement must all
-succeed before a LIVE state. A successful BLE connection alone is not vehicle
-data. Classic-SPP-only and pairing/bonding-required adapters are not supported
-by this initial provider. The X4's ESP32-S3 is BLE-only, as documented at
-https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-guides/ble/overview.html.
+GRAPH overlays up to three sensors using solid, dashed and dotted strokes.
+The full-range overlay and auto-scaled detail plot use elapsed monotonic time,
+not a fabricated sample frequency. Missing/stale samples make gaps. Graph pause
+freezes its series, range and legend values; it does not stop vehicle polling.
+Settings has a separate Pause polling command. At most eight dashboard tiles and
+three graph series are accepted. At least one graph series is retained.
 
-## Screens and values
+FAULTS reads stored (03), pending (07) and permanent (0A) codes from the selected
+ECU. A small local dictionary reproduces the seven examples, labels and possible
+causes in the supplied design; those priorities are reference labels, not an
+ECU-provided severity or a diagnosis. All other codes are shown numerically with
+an explicit missing-description notice. Lists are bounded to 32 codes each.
+Mode 02 frame 0 is read only after verifying its associated DTC. It is not
+presented as a distinct freeze frame for every code. Readiness uses actual PID
+01 support/completion bits, including spark/compression-ignition distinctions.
+It does not certify inspection eligibility.
 
-Drive: RPM, vehicle speed, coolant temperature, ECU voltage, throttle and engine
-load. Engine: manifold pressure, mass airflow, short/long bank-1 fuel trim, oil
-and intake temperature. More: fuel level/rate, engine run time, check-engine lamp
-and reported code count (not code descriptions). Link: selected adapter/ELM ID,
-ECU/protocol, last round trip, reply/error counts and transport counters.
+INFO reads VIN (0902), OBD standard, fuel type, clear/MIL distances, runtime,
+selected ECU/protocol, actual ELM identity, input voltage (ATRV), and counters.
+Adapter log shows the latest 30 real TX/RX lines, bounded and clipped to the UI.
+Neither a second ECU nor a VIN is invented. Available PIDs depend on the vehicle.
 
-Supported PID bitmaps select only available readings. Unsupported, waiting,
-stale and paused readings show `--` with their status, never a made-up zero.
-Units toggle between mph/F and km/h/C; pressure remains kPa, airflow g/s and fuel
-rate L/h with explicit units. Adapter selection and unit choice last for the
-current app invocation; no persistent pairing/profile is written.
+Threshold limits have per-sensor enable, a global switch, sustained fresh-sample
+debounce, an inverted warning tile, alert modal, acknowledgement, five-minute
+mute, See graph and a 32-entry history for this drive. History times are elapsed
+seconds because no wall-clock capability is required. These configurable limits
+are user preferences, not vehicle-specific protection thresholds.
 
-Polls are serialized with at least 150ms between requests. Due supported PIDs
-are serviced fairly; actual cadence depends on the adapter/vehicle. UI updates
-are coalesced to at most one per second for live values and published only if
-the document changes, after touch/display custody settles. This is not a claim
-of measured hardware frame rate. Pausing drains any outstanding reply and stops
-new queries. Resume requests fresh readings; Disconnect/Home release the radio.
-Shared Quick Controls close the BLE session and return to disconnected setup.
-Live radio sessions inhibit idle-policy sleep; normal policy resumes on exit.
+## Real transport versus design assumptions
 
-## Protocol and failure handling
+The existing reusable BLE serial 0.1.0 provider is unchanged. Scan and explicitly
+select the adapter; discover real GATT characteristics (FFE0/FFF0/NUS or a selected
+vendor channel). Connection steps reflect adapter/ECU responses, not timed fake
+progress. A dropped connection retries the same selected address/type up to three
+times; only a sustained fresh ECU session resets that budget. Forget clears this
+invocation's selection. Pairing/bonds are not claimed. Classic SPP and
+bonding-required BLE services remain unsupported. The physical ViaBecs adapter
+has not been tested.
 
-Only ATZ, ATE0, ATL0, ATS1, ATH1, ATSP0, ATDPN and explicit Mode01 PID reads are
-sent. No raw terminal, clearing codes, programming, actuator tests or manufacturer
-ABS/SRS decoding. Standard PIDs: 01,04,05,06,07,0B,0C,0D,0F,10,11,1F,2F,42,5C,5E;
-00/20/40 are capability queries. Implementation/formula references are the
-original python-OBD project's command/decoder and ELM protocol documentation:
-https://github.com/brendan-w/python-OBD/blob/master/obd/commands.py,
-https://github.com/brendan-w/python-OBD/blob/master/obd/decoders.py and
-https://github.com/brendan-w/python-OBD/tree/master/obd/protocols.
-No source from that project is bundled into this original client.
+The setup retains headers (ATH1), unlike the mockup's example, to validate which
+ECU sent a response. The original single-command-at-a-time parser is retained
+and extended with bounded ISO-TP/legacy VIN assembly, diagnostics, explicit
+negative/no-data states and seven additional generic PIDs (23 decoded readings
+in total). Protocol AUTO/CAN/KWP/ISO selections apply on the next connection.
 
-Handles byte-fragmented echoes/status/hex/prompt replies, CAN 11/29-bit
-single-frame headers and ELM legacy protocol headers. Selects the lowest
-responding ECU from 0100 and keeps all later PID data bound to that identity;
-different ECUs are not combined. Protocol/header mismatches, invalid PID/mode,
-short/oversized/non-ASCII frames, negative replies, NO DATA and timeouts cannot
-be shown as valid samples. Timeout disconnects rather than allowing a late reply
-to satisfy the next request. This small Mode01 client does not implement
-multi-frame VIN/DTC retrieval or custom vehicle PIDs.
+GEAR (EST) shows `--`: neither calibrated vehicle ratios nor a generic gear PID
+is available. Economy uses a fresh ECU fuel-rate PID when reported; otherwise
+it is explicitly estimated from MAF only when the ECU reports gasoline. The
+MAF estimate assumes stoichiometric gasoline (14.7 air/fuel, 745 g/L); it is not
+applied to unknown, diesel, electric or hybrid fuel-type codes. Stale/zero-speed
+inputs show `--`. No simulated gear or fuel consumption is shipped.
 
-## Deployment and validation
+## Deliberate code clearing
 
-The X4 firmware needs the new BLE provider, installed app/grant registration and
-Home/Springboard catalog entry. An ELF-only copy to the preceding firmware is
-not sufficient. SD path: `Apps/obd-dashboard/obd_dashboard.elf`, accompanied by
-`manifest.json`. Keep the existing SD apps, books, fonts and state.
+Normal polling is read-only. The design's CLEAR action is the sole exception:
+it opens the warning/KEEP dialog, then one explicitly confirmed Mode 04 request
+can be sent only while RPM and speed both report zero, are fresh within 1.5 s,
+and belong to the same selected ECU. The confirmation expires after 1.5 s and
+is checked again after serial backpressure. It cannot replay across reconnect.
+The UI reports success only on a valid positive 44 response, then rescans. It
+never claims to erase permanent codes. Clearing may erase freeze-frame data and
+reset readiness. Configure and use interactive controls only while parked.
 
-```
-python scripts/test_obd_dashboard.py --runtime ../Runtime --system ../System --drivers ../Drivers --output build/obd-tests
-python scripts/test_obd_dashboard.py --runtime ../Runtime --system ../System --drivers ../Drivers --output build/obd-tests-san --sanitize
-NATIVE_APP_CC=/path/to/xtensa-esp32s3-elf-gcc python scripts/build_obd_dashboard.py --runtime ../Runtime --system ../System --drivers ../Drivers --output build/obd-target
-```
+## SD state and trip recording
 
-Tests execute the real app and real scene with independent board/serial fixtures:
-scanning, selection, live screens, pause/resume with no static redraw or new
-queries, disconnect, ECU timeout, missing provider, lost native authority,
-uncertain close retention and shared-controls radio handoff. Separate engine
-tests cover all 16 decoders, units, masks, multi-ECU isolation, header families,
-malformed streams, clock wrap and a 200-request read-only session. Test values
-and native framebuffer captures are simulated inputs, not vehicle measurements.
-Both normal and ASan/UBSan runs and Xtensa structural/import/stack checks are
-performed; hardware and owned-adapter compatibility remain pending.
+The app acquires `ui.scene@1`, `bluetooth.serial@1` and `storage.volume@1` through
+the capabilities API. The X4 assembly binds only the already-existing SD volume
+(instance 9); no Arduino, panel, GPIO or NimBLE internals enter the app.
 
-Perform initial connection and setup while parked. Use proper engine ventilation;
-this display is informational, not a replacement for vehicle instruments/alerts.
+Preferences are CRC-validated and transactionally replaced at
+`/Apps/obd-dashboard/settings.v1`. Layout, units, graph choices, refresh interval,
+protocol and alert limits persist. Missing/corrupt/failed SD state is reported
+without inventing a successful save. The adapter selection is session-only.
 
-## 0.1.1 native integration correction
+Log trip creates `/OBD/trip-00000001.csv` and increments the name, using exclusive
+creation and skipping existing paths; it never truncates an earlier trip. Rows
+contain elapsed_ms, ECU, PID, canonical value_milli and unit. Only fresh new
+responses are appended. Sync occurs every two seconds and on stop; failures stop
+recording and report an error. Exit/shared controls close the file and Bluetooth
+session before handing off. Abrupt power loss can lose unsynced rows. Old books,
+fonts and Reader state are not modified.
 
-The first component-only JSON used catalog fields that the native loader rejects.
-The delivered manifest now contains the required architecture/entry, native
-supported_file_types, and explicit foreground lifecycle. Vehicle protocol and
-GUI behavior are unchanged. Build metadata reads the declared manifest version;
-full-image qualification independently runs the real Runtime manifest parser.
+## Shared UI and deployment
+
+Generic instruments, two-column tiles, code rows, normalized line plots, status
+tiles and fixed tabs are implemented in scene-host 0.4.0. The app submits copied
+semantic documents/curves; geometry, raster glyphs, clipping, hit regions and
+lifecycle remain provider-owned. Existing scene/page/Reader prefixes are intact.
+Refresh waits for completed presentation before its next 1/2/5-second interval,
+so continuous updates do not starve taps. Unchanged documents are skipped.
+
+Both the updated provider/firmware registration (including the SD grant) and the
+0.2.0 SD app/manifest are needed. Old providers show UPDATE FIRMWARE and close
+cleanly instead of reading beyond an old API table. Full 0x0 images replace
+internal settings/NVS/bonds/AppData; they are not preserving OTA updates.
+
+## Tests and build
+
+Run `scripts/test_obd_dashboard.py --runtime R --system S --drivers D --output O`
+and repeat with `--sanitize`. The protocol suite covers all old decoders, new
+PIDs, CAN11/CAN29/legacy VIN, codes, frame association, malformed fragments,
+negative replies, clearing constraints and serial backpressure. Model tests cover
+bounded history, stale gaps, frozen values, statistics, limits/debounce/mute and
+CRC. Private PIC division helpers are compared to 100,000 native divisions.
+
+Twelve actual app+scene scenarios inject DOWN/UP and swipe events: navigation,
+persistence/reopen, recording, timeout, ambiguous cleanup, lost native custody,
+provider absence, shared controls, alerts/mute/history, old-provider fallback,
+confirmed clear/ack, short SD writes and trip failures, SD retained ownership,
+and reconnect to the selected peer. Captures use clearly identified fixtures,
+not vehicle measurements. Host tests do not execute Xtensa instructions or RF.
+
+`scripts/build_obd_dashboard.py` produces the Xtensa ELF, native manifest and
+source/import/static-frame receipt. Hardware, vehicle-specific compatibility,
+actual sample cadence and physical display timing remain untested.
+
+## Protocol references
+
+ELM Electronics, ELM327DSJ (2016): Mode 04 reset/positive response (p.35), VIN
+(p.42), CAN headers/ISO-TP (p.44). The adapter handles bus flow control.
+https://www.elmelectronics.com/wp-content/uploads/2016/07/ELM327DS.pdf
+Generic PID definitions cross-checked with the published CSS Electronics table:
+https://www.csselectronics.com/pages/obd2-pid-table-on-board-diagnostics-j1979
