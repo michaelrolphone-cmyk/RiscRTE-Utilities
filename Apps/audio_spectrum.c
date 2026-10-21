@@ -174,6 +174,7 @@ static void draw_shared(void);
 static void shared_tap(int,int);
 static void shared_open(unsigned);
 static bool shared_back(void);
+static bool shared_learning_active(void);
 static void shared_buttons(uint32_t);
 static void shared_keyboard_done(void);
 static bool shared_keyboard;
@@ -198,6 +199,7 @@ static void cfa_apply(void);
 #define CFA_MATCH_REASON ST_RESULT_MATCH
 #define CFA_UNKNOWN_REASON ST_RESULT_UNKNOWN
 #include "context_fingerprint_app.inc"
+static bool shared_learning_active(void){return cfa_learning_kind!=0;}
 
 bool portable_audio_services_safe(void){return !uncertain&&!temporal_retained()
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT

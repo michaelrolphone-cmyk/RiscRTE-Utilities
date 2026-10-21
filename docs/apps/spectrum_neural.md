@@ -29,8 +29,10 @@ pitch. No recording is created, relabeled, replaced or deleted automatically.
 For each eligible label, the newest positive and newest negative recording are
 held out. Neither is used to train the model or normalize its inputs. The other
 examples train a candidate in interruptible one-example idle updates. Recording,
-ongoing event matching, touch/navigation, room capture, pending writes, audio
-warm-up and foreground sound above the user's event floor take precedence.
+ongoing event matching, touch/navigation, legacy or shared room/event capture,
+pending writes, audio warm-up and foreground sound above the user's event floor
+take precedence. Shared capture retains this priority while paused or awaiting
+Save; successful Save or explicit Cancel releases it so neural work can resume.
 Tiny high-SNR bins below that floor do not starve learning. The existing temporal
 matcher continues operating throughout preparation, training and checking.
 
@@ -38,10 +40,10 @@ After 256 epochs, the candidate must improve on the simpler temporal matcher on
 the held-out examples, with no new wrong labels or rejected correct answers.
 Each held-out negative must actually exercise the plausible temporal region;
 an easy distant sound alone cannot qualify unknown-result calibration. A second
-check uses the complete saved collection, excludes each queried recording from
-its own template comparison, and requires improvement without regression again.
-This catches apparent held-out gains that disappear after all saved negative
-examples participate in live matching.
+check uses all saved examples of the eligible trained labels, excludes each
+queried recording from its own template comparison, and requires improvement
+without regression again. This catches apparent held-out gains that disappear
+after all saved negative examples of those labels participate in matching.
 
 Only a passing candidate can resolve an ambiguous or confusing-negative result.
 At least 80% temporal similarity is still required, and every plausible rival
@@ -109,7 +111,8 @@ the last valid matching cache can be loaded without retraining.
   recordings plus an unrelated octave. These are generated signals, not a
   measured physical-acoustic success rate.
 - The real app fixture checks cached activation, Monitor selection, editing,
-  idle priorities, full/uncertain/corrupt/read failures, exact retry, unchanged
+  idle priorities including shared room/event capture, paused capture and
+  cancel/save resumption, full/uncertain/corrupt/read failures, exact retry, unchanged
   event-bank bytes, microphone resume and the retained cleanup barrier.
 - The model codec rejects all single-byte mutations and CRC-correct hostile
   dimensions, metrics, NaNs, infinities, parameter ranges and stale identities
