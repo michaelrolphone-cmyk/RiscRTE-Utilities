@@ -106,7 +106,9 @@ def run(command, out, label, expected=0):
 
 
 def copy_git(repo, ref, destination, selections):
-    for relative in git(repo, 'ls-tree', '-r', '--name-only', ref, '--', *selections).decode().splitlines():
+    for relative in git(repo, 'ls-tree', '-rz', '--name-only', ref, '--', *selections).decode().rstrip('\0').split('\0'):
+        if not relative:
+            continue
         target = safe(destination, relative)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(git(repo, 'show', ref+':'+relative))

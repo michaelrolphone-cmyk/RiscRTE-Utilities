@@ -35,6 +35,17 @@ class GuardEvidenceTests(unittest.TestCase):
     def test_unsafe_paths_rejected(self):
         for p in ('','../x','/tmp/x','a//b','a/./b','a\\b'):
             with self.assertRaises(ValueError):q.safe(self.root,p)
+    def test_git_snapshot_preserves_unicode_and_space_paths(self):
+        names='lib/μ.h\0lib/spaced name.h\0'.encode()
+        with mock.patch.object(q,'git',side_effect=[names,b'first',b'second']) as git:
+            q.copy_git(self.root,'pinned',self.root/'snapshot',['lib'])
+        self.assertIn('-rz',git.call_args_list[0].args)
+        self.assertEqual((self.root/'snapshot/lib/μ.h').read_bytes(),b'first')
+        self.assertEqual((self.root/'snapshot/lib/spaced name.h').read_bytes(),b'second')
+    def test_empty_git_selection_is_safe(self):
+        with mock.patch.object(q,'git',return_value=b''):
+            q.copy_git(self.root,'pinned',self.root/'snapshot',['absent'])
+        self.assertFalse((self.root/'snapshot').exists())
     def test_external_symlink_rejected(self):
         (self.root/'link').symlink_to('/tmp')
         with self.assertRaises(ValueError):q.safe(self.root,'link/evil')
