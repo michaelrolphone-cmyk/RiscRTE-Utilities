@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Build the exact-pinned, read-only NOVA Battery power screens."""
+"""Build a non-distributable frozen NOVA power-profile qualification ELF.
+
+This is not the complete Watch 1.1.46 producer recipe or shipped-byte reproduction.
+"""
 import argparse,hashlib,json,os,subprocess,sys
 import native_idle_build as idle
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-SYSTEM_PIN='4cf36b1c46641b00d88535eb9a0e9b0797928aff'
+SYSTEM_PIN='96742a20af660808cae6cd3a36eadd12a83a460f'
 p=argparse.ArgumentParser();p.add_argument('--system-apps',required=True,type=Path);p.add_argument('--runtime',type=Path);p.add_argument('--output',type=Path);idle.options(p);a=p.parse_args();system=a.system_apps.resolve();name='battery'
 if idle.selected(a) or a.x4_idle_sdk or a.x4_idle_runtime_sdk:
  if not a.runtime:p.error('Native Battery idle requires --runtime')
@@ -25,5 +28,5 @@ subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcal
 syms=subprocess.check_output([cc.removesuffix('gcc')+'nm','-D',str(elf)],text=True);imports={l.split()[-1] for l in syms.splitlines() if ' U ' in ' '+l};exports={l.split()[-1] for l in syms.splitlines() if len(l.split())>=3 and l.split()[-2] in ('T','D','B','R')}
 assert imports<={'risc_runtime_get_api','memcpy','memset','memcmp','strcmp','strlen','snprintf','malloc','free','strcpy'} and exports==export
 validator=out/'validate-elf';subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror','-I'+str(system/'test/native_apps/stubs'),'-I'+str(system/'lib/elf_loader/include'),str(system/'lib/elf_loader/src/esp_elf_validate.c'),str(system/'test/native_apps/validate_test.c'),'-o',str(validator)],check=True);subprocess.run([str(validator),str(elf)],check=True)
-m=json.loads((ROOT/'Apps'/(name+'.json')).read_text());record={'schema':1,'app':name,'version':m['version'],'repository_sha':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','-C',str(ROOT),'status','--porcelain'],text=True).strip()),'system_sha':SYSTEM_PIN,'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'defines':flags,'sha256':hashlib.sha256(elf.read_bytes()).hexdigest(),'size':elf.stat().st_size,'imports':sorted(imports),'exports':sorted(exports),'qualification':'target structural/import/export only; no physical qualification'}
+m=json.loads((ROOT/'Apps'/(name+'.json')).read_text());record={'schema':1,'app':name,'version':m['version'],'repository_sha':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','-C',str(ROOT),'status','--porcelain'],text=True).strip()),'system_sha':SYSTEM_PIN,'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'defines':flags,'sha256':hashlib.sha256(elf.read_bytes()).hexdigest(),'size':elf.stat().st_size,'imports':sorted(imports),'exports':sorted(exports),'qualification':'non-distributable frozen power-profile target structural/import/export only; not shipped Battery reproduction; no physical qualification','distributable':False,'shipped_battery_reproduction':False}
 (out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n');print(name+': pinned target Nova ELF validated')
