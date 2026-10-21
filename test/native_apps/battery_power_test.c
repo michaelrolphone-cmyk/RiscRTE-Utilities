@@ -26,9 +26,11 @@ static bool test_read(void *c,risc_battery_sample_v1 *s) {
       case 10: s->flags|=PORTABLE_POWER_INPUT_READY;break;
       case 11: *s=(risc_battery_sample_v1){4200,100,255};return false;
       case 12:
-        if(polls<40){s->flags|=PORTABLE_POWER_INPUT_READY|RISC_BATTERY_CHARGING;saw_charging=true;}
-        else if(polls<100){*s=(risc_battery_sample_v1){4200,100,255};first_failed=true;return false;}
-        else if(polls<140){s->flags|=PORTABLE_POWER_INPUT_READY|PORTABLE_POWER_CHARGE_DONE;saw_complete=true;}
+        /* Hardware capture frequency is not elapsed time. Match the common
+         * peripheral fixture's 25 ms script clock, including raster polls. */
+        if(script_step()<40){s->flags|=PORTABLE_POWER_INPUT_READY|RISC_BATTERY_CHARGING;saw_charging=true;}
+        else if(script_step()<100){*s=(risc_battery_sample_v1){4200,100,255};first_failed=true;return false;}
+        else if(script_step()<140){s->flags|=PORTABLE_POWER_INPUT_READY|PORTABLE_POWER_CHARGE_DONE;saw_complete=true;}
         else {recovered=true;s->percent=39;}
         break;
       case 13: s->percent=100;break; /* Gauge100 never establishes charger done. */
@@ -46,7 +48,12 @@ static bool test_launch(const char *s) {
     if(scenario==15 && launch_calls==1)return false;
     return fake_launch(s);
 }
-static const risc_runtime_api_v1 test_runtime={1,sizeof(test_runtime),fake_health,fake_yield,fake_diag,test_launch,test_acquire,fake_release};
+/* Keep the host fixture compatible with append-only Runtime suffixes. */
+static const risc_runtime_api_v1 test_runtime={
+    .api_version=1,.struct_size=sizeof(test_runtime),.health=fake_health,
+    .yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=test_launch,
+    .acquire=test_acquire,.release=fake_release
+};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&test_runtime:NULL;}
 #include NOVA_APP_SOURCE
 int portable_app_alarm_sleep(const risc_runtime_api_v1 *r,const risc_display_output_api_v1 *d,
@@ -59,7 +66,9 @@ int portable_app_alarm_sleep(const risc_runtime_api_v1 *r,const risc_display_out
 static void tap(unsigned at,int x,int y) {actions[action_count].at=at;actions[action_count].x=x;actions[action_count++].y=y;}
 int main(int argc,char**argv) {
     assert(argc==3);directory=argv[1];scenario=(unsigned)atoi(argv[2]);
-    stop_poll=scenario>=16?2000:200;memset(pixels,0xa5,sizeof(pixels));
+    /* 2800 script steps allow 70 seconds, past the 60-second idle deadline
+     * but before a second idle interval after the simulated wake. */
+    stop_poll=scenario>=16?2800:200;memset(pixels,0xa5,sizeof(pixels));
     if(scenario>=16)tap(10,50,212);
     if(scenario==14) {
         /* Open all detail pages, repeated next/previous, refresh, nested Back,
@@ -75,7 +84,7 @@ int main(int argc,char**argv) {
     if(scenario==12)assert(first_failed&&recovered&&saw_complete&&saw_charging&&power_read_ok&&power_sample.percent==39);
     if(scenario==13)assert(!power_flag(PORTABLE_POWER_CHARGE_DONE));
     if(scenario==9)assert(!power_extended()&&!strcmp(power_yes_no(PORTABLE_POWER_INPUT_READY),"Unknown"));
-    if(scenario==14)assert(!power_details && launch_calls==1 && polls<stop_poll+2);
+    if(scenario==14)assert(!power_details && launch_calls==1 && script_step()<=stop_poll);
     if(scenario==15)assert(power_navigation_failed && launch_calls==2);
     if(scenario>=16){assert(sleep_calls==1 && power_details && power_detail_page==0);if(scenario>=18)assert(sample_reads==reads_at_sleep);}
 
