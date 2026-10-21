@@ -1,0 +1,31 @@
+{
+  "key": "rf",
+  "repo": "michaelrolphone-cmyk/RiscRTE-Utilities",
+  "branch": "tasker/labeled-rf-qualification-20261021",
+  "base": "main",
+  "local": "2b46c6ced6849200c0646bf29a751567b73a28ae",
+  "parent": "6b2047500905f8f45087cb49989103a926fc5c63",
+  "tree": "ff56658cc4fd428ea7db912a5aedbdcd0fa3d6e4",
+  "remote_source": "055f86ea32df0f10ca96c5aa48cbb64199eadcba",
+  "changed_paths": [
+    "Apps/context_fingerprint_app.inc",
+    "Apps/context_signal_library.inc",
+    "Apps/rf_application.inc",
+    "Apps/rf_controls.inc",
+    "Apps/rf_signature_app.inc",
+    "Apps/rf_temporal_app.inc",
+    "docs/qualification/rf-labeled-capture-20261021.md",
+    "scripts/test_rf_labeled_capture.py",
+    "test/native_apps/rf_capture_identity_guard_test.inc",
+    "test/native_apps/rf_labeled_capture_test.c"
+  ],
+  "source_tree_identical": true,
+  "original_commit_restoration": "The incremental original-source.bundle needs its original parent. For stacked checkpoints, restore the parent checkpoint bundle first. The GitHub source commit has the exact original tree but different commit metadata.",
+  "publication_scope": "Existing source and historical software evidence only; no new tests, target build, merge, tag, firmware release, deployment, or hardware acceptance is claimed.",
+  "historical_reports": "Reports and logs are preserved from before publication; local-only/unpublished statements describe that earlier observation. This source lock supersedes only their publication state.",
+  "archive_included_files": null,
+  "archive_omitted_files": null,
+  "archive_included_files_count": 119,
+  "archive_sha256": "bc74a68537465eb14f9f7a65f9d994ebba06a2c21b6811f9e295c52a1e7c9cfd",
+  "archive_bytes": 155440
+}
