@@ -1,0 +1,22 @@
+{
+  "key": "power",
+  "repo": "michaelrolphone-cmyk/RiscRTE-Utilities",
+  "branch": "tasker/watch-power-released-qualification-20261021",
+  "base": "tasker/watch-power-frozen-base-20261021",
+  "local": "1f80de804698972780b9f6be5cef1665dda03680",
+  "parent": "ca7fe82f43adc4ad8a8fa477a5336c8f5c693770",
+  "tree": "49c774c3c9190fe87aa4b5f6228f86c83b819f6f",
+  "remote_source": "76bde74fee5455dca7d58110b26d813fd9009740",
+  "changed_paths": [
+    "test/native_apps/battery_power_test.c"
+  ],
+  "source_tree_identical": true,
+  "original_commit_restoration": "The incremental original-source.bundle needs its original parent. For stacked checkpoints, restore the parent checkpoint bundle first. The GitHub source commit has the exact original tree but different commit metadata.",
+  "publication_scope": "Existing source and historical software evidence only; no new tests, target build, merge, tag, firmware release, deployment, or hardware acceptance is claimed.",
+  "historical_reports": "Reports and logs are preserved from before publication; local-only/unpublished statements describe that earlier observation. This source lock supersedes only their publication state.",
+  "archive_included_files": null,
+  "archive_omitted_files": null,
+  "archive_included_files_count": 25,
+  "archive_sha256": "f1a5a980cbb40c0a079e7e607796de18bc36a30432b846b09a96c47c4bdd757b",
+  "archive_bytes": 62779
+}
