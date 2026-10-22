@@ -56,6 +56,17 @@ def cases(w,h):
  delayed=list(result['native-plot-history-toast'][0]);first=delayed[0];delayed[0]=(first[0],'visible',*first[2:])
  result['native-plot-delayed']=(delayed,{'SPECTRUM_EXPECT_OPENS':'0','SPECTRUM_APP_DELAY_MS':'450'})
  result['native-repeated-entry']=(tap(*start)+[(700,'app','idle',0,0)]+check(5)+nav('home'),{'SPECTRUM_REPEAT_ENTRY':'1','SPECTRUM_EXPECT_OPENS':'0'})
+ # Full/wrapped history is a separate boundary from the short live captures
+ # above. Do not claim these seeded synthetic frames reproduce a device crash.
+ for ring in (0,227):
+  transitions=tap(*start)+[(700,'app','idle',0,0)]+check(10,ring)
+  for _ in range(12):
+   transitions+=tap(fall_x,head//2)+check(11,1)
+   transitions+=tap(tab_w//2,head//2)+check(11,0)
+  transitions+=tap(fall_x,head//2)+check(11,1)+capture()+nav('home')
+  result[f'native-full-history-switch-{ring}']=(transitions,{'SPECTRUM_EXPECT_OPENS':'0','SPECTRUM_EXPECT_KV_WRITES':'0','SPECTRUM_EXPECT_DATA_WRITES':'0'})
+  result[f'native-full-history-delayed-{ring}']=(transitions,{'SPECTRUM_EXPECT_OPENS':'0','SPECTRUM_EXPECT_KV_WRITES':'0','SPECTRUM_EXPECT_DATA_WRITES':'0','SPECTRUM_APP_DELAY_MS':'450'})
+
  names=[center(row(c,1,3)),center(row(c,1,4)),center(row(c,0,5)),center(row(c,1,4))]
  # Event-name and shared-name controls have their own native row partitions;
  # explicit positions below are checked against the renderer's target geometry.

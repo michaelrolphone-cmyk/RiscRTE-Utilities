@@ -229,6 +229,11 @@ static void draw_receiver(void);
 static void receiver_tap(int,int);
 
 static void cfa_restore(void);
+static bool cfa_identity_allowed(void);
+static bool cfa_identity_current(void);
+static bool cfa_live_identity_current(void);
+static bool cfa_require_identity(void);
+static bool cfa_prepare_identity(void);
 static const uint32_t*cfa_background(void);
 static bool cfa_filter_select(unsigned,const char*);
 static void draw_shared(void);
@@ -356,6 +361,7 @@ static void configure_dsp(void){
 
 static void toggle(void){
  if(running){stop();frozen=false;return;}
+ if(!cfa_prepare_identity())return;
  capture_requested=true;
  if(!acquire_receiver()){capture_requested=false;message=waterfall_status==WATERFALL_AIRPLANE?"AIRPLANE MODE":waterfall_status==WATERFALL_NO_POLICY?"RADIO POLICY UNAVAILABLE":"RF UNAVAILABLE / START RETRY";capture_error=true;notify(message);return;}
  if(!receiver_extended){rf_capture_identity defaults=rf_identity_default();if(prefs.fft_size!=256||!rf_identity_equal(&prefs.identity,&defaults)){capture_requested=false;message="LEGACY: 256 / DEFAULT RF ONLY";capture_error=true;notify(message);return;}}
@@ -391,6 +397,7 @@ static void capture_discontinuity(bool lost_input){
 }
 
 static void capture(void){
+ if(!cfa_prepare_identity()){if(running)stop();return;}
 #ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE
  if(!capture_requested||!running||!owned||uncertain||waterfall_uncertain)return;
 #endif
@@ -411,7 +418,7 @@ static void capture(void){
   if(!rf_timed_running){rf_timed_format=(risc_radio_iq_format_v1){.struct_size=sizeof(rf_timed_format)};result=rf_timed->start_envelope(waterfall_radio->context,&settings,1000,&rf_timed_format);if(!result){rf_timed_running=true;rf_fft_stamp=0;}}else result=RISC_RADIO_IQ_OK;
   if(!result){
    format=rf_timed_format;format.pair_count=count;
-   if(prefs.identity.lo_hz!=format.center_hz){prefs.identity.lo_hz=format.center_hz;cfa_begin();}
+   if(prefs.identity.lo_hz!=format.center_hz){rf_capture_identity previous=prefs.identity;prefs.identity.lo_hz=format.center_hz;if(!cfa_prepare_identity()){prefs.identity=previous;stop();return;}}
    for(unsigned batch=0;batch<16;batch++){uint32_t n=0,dropped=0;result=rf_timed->read_envelope(waterfall_radio->context,rf_envelope,256,&n,&dropped);if(result)break;for(unsigned j=0;j<n;j++)cfa_envelope(&rf_envelope[j]);if(n<256)break;}
    uint64_t stamp=0;if(!result)result=rf_timed->latest_iq(waterfall_radio->context,burst_pairs,count,&stamp);
    if(result==RISC_RADIO_IQ_BUSY||(!result&&stamp==rf_fft_stamp))return;
@@ -445,6 +452,11 @@ static void capture(void){
 
  if(receiver_extended&&(format.struct_size<sizeof(format)||format.component_bits!=10u||format.component_full_scale!=512u||format.pair_count!=count||format.sample_rate_hz!=prefs.identity.sample_rate_hz||format.bandwidth_hz!=prefs.identity.width_hz||format.sample_format!=RISC_RADIO_IQ_FORMAT_S10_I0_Q10||!(format.flags&RISC_RADIO_IQ_FLAG_COHERENT_BURST))){stop();capture_error=true;message="INCOMPATIBLE CAPTURE FORMAT";dirty=true;return;}
  rf_capture_identity identity=prefs.identity;if(receiver_extended)identity.lo_hz=format.center_hz;
+ if(!rf_identity_equal(&identity,&prefs.identity)){
+  rf_capture_identity previous=prefs.identity;prefs.identity=identity;
+  bool allowed=cfa_prepare_identity();prefs.identity=previous;
+  if(!allowed){stop();return;}
+ }
  if(!rf_identity_equal(&identity,&prefs.identity)){/* Quantized nominal LO defines compatibility; live calibration values do not. */prefs.identity=identity;prefs.low_hz=rf_identity_low_hz(&identity);prefs.high_hz=rf_identity_high_hz(&identity);bool empty=true;for(unsigned i=0;i<8;i++)if(event_library.labels[i].present)empty=false;if(empty&&!event_files.exists)event_library.identity=identity;configure_dsp();temporal_start();rf_room_reset(&room_tracker);pending_save|=1;}
  if(!rf_signature_burst(&signature_audio,&identity,burst_pairs,count)||!rf_dsp_burst(&spectrum,burst_pairs,count)){stop();capture_error=true;message="INVALID COHERENT BURST";dirty=true;return;}
 #ifdef PORTABLE_RADIO_CONTINUOUS_CAPTURE

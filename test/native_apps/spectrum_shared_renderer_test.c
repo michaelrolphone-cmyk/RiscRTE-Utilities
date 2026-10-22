@@ -261,6 +261,7 @@ static void setup_scene(int which){
  else assert(!"unknown scene");
 }
 #ifdef PORTABLE_SPECTRUM_NATIVE_UI
+static unsigned mode_switch_reads;
 static void verify_native(int check,int value){
  if(check==0)assert(page==(unsigned)value);
  else if(check==1)assert(view==(unsigned)value&&started);
@@ -272,6 +273,22 @@ static void verify_native(int check,int value){
  else if(check==7){toast_message="CURRENT TOAST";toast_until=ticks+100000;cursor_visible=false;dirty=true;}
  else if(check==8){assert(!toast_message&&!cursor_visible);}
  else if(check==9){assert(controls_scroll>0);}
+ else if(check==10){
+  /* Seed the ring boundary only; subsequent transitions use real touch,
+   * capture and presentation. A short capture never reaches a wrapped ring. */
+  assert(started&&running&&mic_owned&&mic_opens==1&&!mic_closes);
+  history_count=PLOT_W;history_next=(unsigned)value%PLOT_W;
+  for(unsigned x=0;x<PLOT_W;x++)for(unsigned y=0;y<PLOT_H;y++)
+   history[x][y]=(uint8_t)((x*37u+y*19u)&255u);
+  mode_switch_reads=mic_reads;dirty=true;
+ }
+ else if(check==11){
+  assert(view==(unsigned)value&&page==PAGE_MAIN&&started&&running);
+  assert(mic_owned&&mic_opens==1&&!mic_closes&&mic_reads>mode_switch_reads);
+  assert(history_count==PLOT_W&&history_next<PLOT_W&&!capture_error);
+  assert(!kv_writes&&!data_writes&&!native_retained&&!runtime_lost);
+  mode_switch_reads=mic_reads;
+ }
  else assert(!"unknown native assertion");
 }
 #endif

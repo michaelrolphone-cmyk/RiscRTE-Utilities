@@ -80,7 +80,65 @@ static void check_live_guard(void){
  event_neural_tick();assert(event_neural.ticks==ticks+1);ambient.foreground=false;
  finish_training();assert(running&&owned&&live&&neural_writes==1);set_page(PAGE_MAIN);
 }
+static unsigned shared_test_kind;
+static bool shared_test_save,shared_test_discard;
+static void shared_neural_quiet(void){
+ ambient.ready=true;ambient.foreground=false;input_waiting=false;
+ event_match.running=false;event_segment.collecting=event_segment.ready=false;
+}
+static void check_shared_learning_guard(void){
+ sn_reset(&event_neural,&event_library,255);event_neural_checkpoint=false;
+ /* The save cases begin one tick before a genuinely trained candidate can
+  * promote, not with a fabricated active model or pending cache write. */
+ if(shared_test_save){
+  unsigned ticks=0;
+  while(event_neural.full_checks<10){sn_tick(&event_neural,&event_library);assert(++ticks<3000);}
+  assert(event_neural.state==SN_CHECKING&&!event_neural.has_active);
+ }
+ shared_kind=shared_test_kind;shared_selected=-1;shared_discard_confirm=false;strcpy(shared_name,"Shared capture");
+ set_page(PAGE_SHARED_EDIT);shared_tap(120,130);
+ assert(page==PAGE_SHARED_CAPTURE&&cfa_learning_kind==shared_test_kind&&running&&owned&&live);
+ assert(!signature_goal&&!event_armed&&!event_training.ready);
+ shared_neural_quiet();
+ unsigned ticks=event_neural.ticks,writes=neural_writes,closed=closes;
+ for(unsigned i=0;i<3000;i++)event_neural_tick();
+ if(event_neural.ticks!=ticks||neural_writes!=writes||closes!=closed)
+  fprintf(stderr,"shared capture kind %u: neural ticks %u -> %u, checkpoint writes %u -> %u, microphone closes %u -> %u\n",shared_test_kind,ticks,event_neural.ticks,writes,neural_writes,closed,closes);
+ assert(event_neural.ticks==ticks&&!event_neural.has_active&&neural_writes==writes&&closes==closed&&running&&live);
+ /* Pause retains the explicit capture intent, so idle work must still wait. */
+ toggle();assert(!running&&cfa_learning_kind==shared_test_kind);closed=closes;
+ event_neural_tick();assert(event_neural.ticks==ticks&&neural_writes==writes&&closes==closed);
+ toggle();assert(running&&live);shared_neural_quiet();
+ if(shared_test_save){
+  /* Bounded canonical feature fixture, not a physical microphone recording. */
+  cf_feature feature={.flags=CF_TEMPORAL,.identity=sample_rate,.windows=1,.bins=1,.coverage=1.f};
+  feature.repetition[0]=(cf_bin){100,1.f};assert(cf_feature_valid(&feature));
+  for(unsigned i=0;i<3;i++)cfa_learn_observe(&feature,shared_test_kind==CF_EVENT);
+  now+=30000;assert(cfa_learn_ready());
+  file_error=RISC_APP_DATA_NO_SPACE;assert(!cfa_learn_save());
+  assert(cfa_learning_kind==shared_test_kind&&cfa_learning_saved&&running&&live);
+  shared_neural_quiet();closed=closes;
+  event_neural_tick();assert(event_neural.ticks==ticks&&!event_neural.has_active&&neural_writes==writes&&closes==closed);
+  file_error=0;
+  if(shared_test_discard){
+   shared_tap(120,210);assert(shared_discard_confirm&&cfa_learning_kind==shared_test_kind);
+   shared_tap(120,210);assert(!cfa_learning_kind&&!cfa_learning_saved&&!event_sizes[3]);
+  }else{
+   assert(cfa_learn_save());assert(!cfa_learning_kind&&!cfa_learning_saved&&event_sizes[3]);
+  }
+ }else{
+  shared_tap(120,210);assert(!cfa_learning_kind&&page==PAGE_SHARED_EDIT);
+ }
+ /* Both terminal paths release the guard and permit the original one-time
+  * checkpoint, without changing either authoritative event bank. */
+ shared_neural_quiet();closed=closes;
+ finish_training();assert(neural_writes==writes+1&&closes==closed+1&&running&&owned&&live);
+ set_page(PAGE_MAIN);
+}
 int main(void){
+ for(shared_test_kind=CF_ROOM;shared_test_kind<=CF_EVENT;shared_test_kind++)for(unsigned end=0;end<3;end++){
+  shared_test_save=end!=0;shared_test_discard=end==2;neural_fresh();start();advance(164);check(check_shared_learning_guard);back();run();assert(!files_live&&!store_live&&!live);
+ }
  neural_fresh();check(check_idle_guards);check(check_active_reload);back();run();assert(!files_live&&!store_live&&!live);
  neural_fresh();check(check_full_cache);back();run();assert(!files_live&&!store_live&&!live);
  neural_fresh();check(check_unknown_cache);back();run();assert(!files_live&&!store_live&&!live);
@@ -88,5 +146,5 @@ int main(void){
  neural_fresh();neural_read_error=true;check(check_read_failure);back();run();assert(!files_live&&!live);
  neural_fresh();start();advance(164);check(check_live_guard);back();run();assert(!files_live&&!store_live&&!live);
  neural_fresh();check(check_retained_cache);run();assert(files_live&&file_retained&&file_releases+1==file_acquires&&!store_releases&&!live);
- puts("Neural app: idle-only learning, temporal fallback, actual Monitor selection, one checkpoint, exact reload/edit invalidation, full/unknown/corrupt/read failures, unchanged source banks, capture resume and retained cleanup PASS");return 0;
+ puts("Neural app: shared room/event capture and pause fence idle training/promotion/checkpoint; cancel/save resume; temporal fallback, Monitor selection, one checkpoint, reload/edit invalidation, full/unknown/corrupt/read failures, unchanged banks and retained cleanup PASS");return 0;
 }

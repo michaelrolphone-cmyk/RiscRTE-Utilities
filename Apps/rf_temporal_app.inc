@@ -105,6 +105,7 @@ static void temporal_reset_context(void){
 }
 static void temporal_start(void){rf_background_reset(&ambient);temporal_reset_context();}
 static void event_retry(void){
+ if(!cfa_require_identity())return;
  pause_capture();if(temporal_retained())return;
  if(event_files.pending>=0){int32_t result=rt_files_save(&event_files);event_message=event_error(result);if(!temporal_retained())event_neural_refresh();if(!temporal_retained())portable_rf_capture_resume();if(!temporal_retained())notify(result?event_message:running?"SAVED / LIVE":"SAVED / RF OFF");}
  else{event_load();if(!temporal_retained())portable_rf_capture_resume();if(!temporal_retained())notify(event_message?event_message:"EVENT COLLECTIONS LOADED");}
@@ -122,10 +123,12 @@ static void event_discard(void){
  event_delete_slot=event_delete_example=-1;dirty=true;
 }
 static bool event_begin_edit(unsigned slot){
+ if(!cfa_require_identity())return false;
  if(slot>=8||event_files.pending>=0||event_armed||event_training.ready||signature_goal){notify("SAVE OR DISCARD CURRENT EDIT");return false;}
  pause_capture();int32_t result=rt_files_begin(&event_files,&event_library,slot/4);if(result){if(!temporal_retained())portable_rf_capture_resume();notify(event_error(result));return false;}memset(&event_neural,0,sizeof(event_neural));event_neural_checkpoint=event_neural_used=false;event_match.running=false;event_match.selected=-1;return true;
 }
 static void event_finish_edit(void){
+ if(!cfa_require_identity())return;
  if(!rt_files_freeze(&event_files,&event_library)){event_neural_refresh();if(!temporal_retained()){portable_rf_capture_resume();notify("INVALID EVENT EDIT");}return;}int32_t result=rt_files_save(&event_files);event_message=event_error(result);if(!temporal_retained())event_neural_refresh();if(!temporal_retained())portable_rf_capture_resume();if(!temporal_retained()){notify(result?event_message:running?"SAVED / LIVE":"SAVED / RF OFF");if(event_files.pending>=0)set_page(PAGE_EVENTS);}dirty=true;
 }
 static void event_open(int slot){
@@ -143,6 +146,7 @@ static void event_save_name(void){
  rt_label*l=&event_library.labels[event_edit_slot];l->present=true;l->shift_limit=(uint8_t)event_edit_shift;if(!l->next_id)l->next_id=1;cfa_rename_event((unsigned)event_edit_slot,editing.name);memcpy(l->name,editing.name,17);event_finish_edit();if(!temporal_retained()&&event_files.pending<0)cfa_save();
 }
 static void event_arm(unsigned kind){
+ if(!cfa_prepare_identity())return;
  if(event_edit_slot<0||kind<RT_POSITIVE||kind>RT_NEGATIVE)return;
  if(!rf_identity_equal(&event_library.identity,&prefs.identity)){notify("RECEIVER MISMATCH / RESTORE RF");return;}
  if(event_files.pending>=0||event_training.ready||signature_goal){notify("SAVE OR DISCARD CURRENT EDIT");return;}
@@ -158,6 +162,7 @@ static void event_arm(unsigned kind){
 }
 static void event_cancel_capture(void){event_armed=false;rt_segment_reset(&event_training);event_message="CAPTURE CANCELLED";set_page(PAGE_EVENT_LABEL);}
 static void event_save_capture(void){
+ if(!cfa_require_identity())return;
  if(!event_training.ready||event_edit_slot<0)return;
  cfa_event_boundary(true,event_training.collecting,event_training.ready);
  if(!cfa_save_event((unsigned)event_edit_slot,event_library.labels[event_edit_slot].name,event_capture_kind==RT_POSITIVE)){notify("TEMPORAL SAMPLE NOT READY / RECORD AGAIN");return;}
@@ -178,6 +183,7 @@ static void event_delete_saved(unsigned index){
  memset(&event_library.labels[event_edit_slot].examples[index],0,sizeof(rt_example));event_finish_edit();if(!temporal_retained()&&event_files.pending<0)cfa_save();event_delete_slot=event_delete_example=-1;
 }
 static void temporal_observe(void){
+ if(!cfa_prepare_identity())return;
  ambient.freeze_upward=event_armed||event_training.ready||event_match.running||event_known_hold;
  rf_background_observe(&ambient,signature_audio.power);
  uint64_t active_power=rf_background_salient(&ambient,foreground_power);
@@ -199,6 +205,7 @@ static void temporal_observe(void){
  if(page==PAGE_EVENTS||page==PAGE_EVENT_CAPTURE)dirty=true;
 }
 static void temporal_tick(void){
+ if(!cfa_prepare_identity())return;
  if(event_match.running){rt_match_tick(&event_match,&event_library,64);if(event_match.complete){event_neural_used=rn_apply(&event_neural,&event_match);event_result_at=app->millis();event_known_hold=event_match.reason==RT_RESULT_MATCH;dirty=true;}}
  if(event_match.complete&&(uint32_t)(app->millis()-event_result_at)>4000u){event_match.complete=false;dirty=true;}
 }

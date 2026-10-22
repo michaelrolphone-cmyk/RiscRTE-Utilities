@@ -64,6 +64,9 @@ static void event_neural_save(void){
  portable_audio_capture_resume();dirty=true;
 }
 static void event_neural_tick(void){
+ /* Shared room/event capture keeps its intent while paused or awaiting Save.
+  * Do not let candidate promotion borrow its microphone for checkpoint I/O. */
+ if(shared_learning_active())return;
  if(!event_initialized||event_files.ready!=3||event_files.pending>=0||temporal_retained()||event_armed||event_training.ready||signature_goal||event_match.running||event_segment.collecting||event_segment.ready||(running&&(!ambient.ready||(ambient.foreground&&spectrum_background_db(spectrum_signature_total(foreground_power))>=prefs.threshold_db*100)||input_waiting)))return;
  unsigned before=event_neural.state;sn_tick(&event_neural,&event_library);
  if(event_neural.state!=before){dirty=true;if(event_neural.state==SN_ACTIVE)event_neural_checkpoint=true;}

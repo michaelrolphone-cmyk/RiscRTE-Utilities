@@ -1,0 +1,22 @@
+{
+  "key": "acoustic",
+  "repo": "michaelrolphone-cmyk/RiscRTE-Utilities",
+  "branch": "tasker/labeled-acoustic-qualification-20261021",
+  "base": "main",
+  "local": "117bc544e70d2a08f6fcd7532de1289e50497e34",
+  "parent": "6b2047500905f8f45087cb49989103a926fc5c63",
+  "tree": "2f4795115290f1e47dc91e59250f20e4554e815a",
+  "remote_source": "8400b8db2c605ea76e200f93adaef476a1204562",
+  "changed_paths": [
+    "test/native_apps/shared_signal_library_test.c"
+  ],
+  "source_tree_identical": true,
+  "original_commit_restoration": "The incremental original-source.bundle needs its original parent. For stacked checkpoints, restore the parent checkpoint bundle first. The GitHub source commit has the exact original tree but different commit metadata.",
+  "publication_scope": "Existing source and historical software evidence only; no new tests, target build, merge, tag, firmware release, deployment, or hardware acceptance is claimed.",
+  "historical_reports": "Reports and logs are preserved from before publication; local-only/unpublished statements describe that earlier observation. This source lock supersedes only their publication state.",
+  "archive_included_files": null,
+  "archive_omitted_files": null,
+  "archive_included_files_count": 21,
+  "archive_sha256": "642fe692bb113da19f3ea3621ec6a4e1285cf046185ac89d18d5eef52ab527df",
+  "archive_bytes": 32174
+}

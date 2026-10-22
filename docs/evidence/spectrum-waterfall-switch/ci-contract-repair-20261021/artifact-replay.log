@@ -1,0 +1,6 @@
+Read-only replay of downloaded exact-head artifact a5ff718: PASS
+Target baseline/legacy/native ELF, source closure, imports, exports, selector-off parity: PASS
+Host 65 scenarios x 5 profiles x normal/sanitized = 650 passed runs: PASS
+Host pixels, source hashes, geometry, selector-off tokens and existing controls: PASS
+Validated control receipts: 7
+Artifact source files and historical receipts not modified. No new target compilation or hardware execution.
