@@ -375,7 +375,7 @@
     },
     "scripts/consolidated_source_guard.py": {
       "mode": "100644",
-      "blob": "b84ad47782dde2b92a8a66a969978cfe4a53fde6",
+      "blob": "ce8a30fbae820a4698a552020066811480cf8413",
       "original_blob": null,
       "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
     },
@@ -399,7 +399,7 @@
     },
     "tests/test_consolidated_source_guard.py": {
       "mode": "100644",
-      "blob": "28ecb67edab91f39fb1ee916d3a574803f13e7ec",
+      "blob": "2af6b74f9519bb16421e73198bd6debcc64f3176",
       "original_blob": null,
       "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
     },

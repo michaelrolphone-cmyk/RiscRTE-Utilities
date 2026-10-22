@@ -6,6 +6,9 @@ release-byte, artifact-transport, or hardware qualification.
 """
 import argparse
 import json
+import hashlib
+import os
+import stat
 from pathlib import Path, PurePosixPath
 import subprocess
 
@@ -20,7 +23,11 @@ def require(value, message):
 
 
 def git(root, *args):
-    return subprocess.check_output(['git', '-C', str(root), *args], text=True).strip()
+    env = {k:v for k,v in os.environ.items() if not k.startswith('GIT_')}
+    env.update(GIT_NO_REPLACE_OBJECTS='1', GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull)
+    return subprocess.check_output(['git', '-C', str(root), '--work-tree='+str(Path(root).resolve()),
+        '-c', 'core.fsmonitor=false', '-c', 'core.ignoreStat=false',
+        '-c', 'core.excludesFile='+os.devnull, *args], text=True, env=env).strip()
 
 
 def safe_path(path):
@@ -79,11 +86,30 @@ def validate_delta(base, current, records):
 
 def validate(root):
     root = Path(root).resolve()
-    require(not git(root, 'status', '--porcelain'), 'composition checkout must be clean')
+    # Candidate builders launched after admission must inherit the same Git
+    # interpretation, not redirected repositories or replacement objects.
+    for name in list(os.environ):
+        if name.startswith('GIT_'):
+            del os.environ[name]
+    os.environ['GIT_NO_REPLACE_OBJECTS'] = '1'
+    require(Path(git(root, 'rev-parse', '--show-toplevel')).resolve() == root, 'redirected Git worktree')
+    require(all(line.startswith('H ') for line in git(root, 'ls-files', '-v').splitlines()),
+            'assume-unchanged or skip-worktree source entry')
+    require(not git(root, 'status', '--porcelain', '--untracked-files=all', '--ignore-submodules=none'),
+            'composition checkout must be clean')
     records = {name: json.loads((root/f'{DIRECTORY}/{name}.json').read_text())
                for name in MANIFESTS if (root/f'{DIRECTORY}/{name}.json').is_file()}
     require(records, 'missing composition manifest')
     current = inventory(root, 'HEAD')
+    for name, identity in current.items():
+        path = root / safe_path(name)
+        require(path.resolve().is_relative_to(root), 'source path escapes checkout: '+name)
+        mode = path.lstat().st_mode
+        require(stat.S_ISREG(mode), 'nonregular working source: '+name)
+        actual_mode = '100755' if mode & 0o111 else '100644'
+        data = path.read_bytes()
+        blob = hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+        require(identity == {'mode':actual_mode, 'blob':blob}, 'working source blob/mode mismatch: '+name)
     expected = validate_delta(inventory(root, BASE), current, records)
     revisions = {}
     for record in records.values():
