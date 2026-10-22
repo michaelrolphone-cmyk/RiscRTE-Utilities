@@ -9,8 +9,8 @@
  * Repeat with -DPORTABLE_SPECTRUM_SHARED_TEXT_INPUT for the shared-text build.
  * This is host synthetic-PCM evidence, not microphone or hardware qualification.
  */
-#ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
-/* Match the controller-only shared-input fixture: no Contexts provider. */
+#ifndef PORTABLE_CONTEXTS_CLIENT
+/* Match the controller-only fixtures in both selector states: no Contexts provider. */
 #define PORTABLE_CONTEXTS_LIVE() true
 #define PORTABLE_CONTEXTS_CHECK_LIVE() do {} while (0)
 #define portable_contexts_callback(value) (value)

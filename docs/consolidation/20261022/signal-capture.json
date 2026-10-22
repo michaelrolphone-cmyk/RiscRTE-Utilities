@@ -433,7 +433,7 @@
       "mode": "100644",
       "blob": "c458a1d8c8d48e8e32b00e47625696d9f2850806",
       "original_blob": "52f0539e4314102f97ed1bd70f30a0709ab54b01",
-      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
     },
     ".github/workflows/rf-shared-input.yml": {
       "mode": "100644",
@@ -481,7 +481,7 @@
       "mode": "100644",
       "blob": "a1c8f177d676740abb07de02767c29624bb6ff6c",
       "original_blob": null,
-      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
     },
     "docs/consolidation/20261022/frozen-watch-spectrum-shared-input.yml": {
       "mode": "100644",
@@ -491,9 +491,9 @@
     },
     "profiles/rf-labeled-candidate-v1.json": {
       "mode": "100644",
-      "blob": "0c59c579c3cf05e228d9c8d72ae9c4211b6cc610",
+      "blob": "17f1e762b5b8445ec4519ea1384ef4b480b57e1d",
       "original_blob": "a1c8f177d676740abb07de02767c29624bb6ff6c",
-      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
     },
     "scripts/consolidated_source_guard.py": {
       "mode": "100644",
@@ -503,15 +503,21 @@
     },
     "scripts/qualify_rf_labeled_candidate.py": {
       "mode": "100644",
-      "blob": "7972ca2e613ec2562d9dee7916848fea88fea234",
+      "blob": "d5ece7845c73c0014d9bdb9beab35b74bb8bab47",
       "original_blob": "6cb6b3e8dd1ee17e958173bccff26d45e4095a8e",
-      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
     },
     "scripts/qualify_t040_neural_guard.py": {
       "mode": "100644",
       "blob": "768d4d88ea4ac7018ca7078677d93ffd1b9164c0",
       "original_blob": "4d2d699eb7ed7894c9ef37dd3029f7c7f85700dd",
       "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance."
+    },
+    "test/native_apps/rf_candidate_audio_differential_test.c": {
+      "mode": "100644",
+      "blob": "08aaa16cb3cc3ceb2e0627a5aa499b07c4ef1b87",
+      "original_blob": "1883f3b66b73f13a0a1f0a91ee49578cedf082da",
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
     },
     "tests/test_consolidated_source_guard.py": {
       "mode": "100644",
@@ -533,9 +539,9 @@
     },
     "tests/test_rf_labeled_candidate_qualification.py": {
       "mode": "100644",
-      "blob": "039b6fb829a360a5ed1dd86875d6815b0ba02f02",
+      "blob": "df697b6c86127ebf7400008896e66354392221b4",
       "original_blob": "29de6b3e6244a2cbffa1ac622a1695826548f3e6",
-      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
     },
     "tests/test_t040_neural_guard.py": {
       "mode": "100644",

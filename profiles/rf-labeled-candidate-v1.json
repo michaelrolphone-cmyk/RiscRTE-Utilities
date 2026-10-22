@@ -45,5 +45,10 @@
       "PORTABLE_RETURN_APP=\"springboard.elf\""
     ]
   },
-  "payload_origin": "bounded reconstruction; not the absent original six-file payload"
+  "payload_origin": "bounded reconstruction; not the absent original six-file payload",
+  "no_context_host_hooks": [
+    "PORTABLE_CONTEXTS_LIVE()=true",
+    "PORTABLE_CONTEXTS_CHECK_LIVE()=((void)0)",
+    "portable_contexts_callback(value)=(value)"
+  ]
 }

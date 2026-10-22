@@ -151,7 +151,7 @@ class CompositionAdmission(unittest.TestCase):
         facts['composition']['source']='b'*40
         with self.assertRaisesRegex(ValueError,'exact signal'):q.validate_admission(q.CONTRACT,facts)
 
-    def test_old_contexts_incomplete_cohort_is_not_current(self):
+    def test_prior_cohort_is_not_current(self):
         self.reject('system','fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0')
         self.assertEqual(q.SYSTEMS['ci-composition'],'f3731ab02127dea86a308472e3780068c5a0a1cf')
 
@@ -163,3 +163,13 @@ class CompositionAdmission(unittest.TestCase):
         q.validate_result(result)
         result['audio_comparison_baseline']['overlay']['Apps/audio_spectrum.c']['sha256']='0'*64
         with self.assertRaisesRegex(ValueError,'overlay'):q.validate_result(result)
+
+
+class NoContextsHostProfile(unittest.TestCase):
+    def test_explicit_neutral_hooks_match_sdk_default_contract(self):
+        self.assertEqual(q.HOST_CONTEXT_HOOKS, ['PORTABLE_CONTEXTS_LIVE()=true',
+            'PORTABLE_CONTEXTS_CHECK_LIVE()=((void)0)', 'portable_contexts_callback(value)=(value)'])
+        self.assertEqual(q.CONTRACT['no_context_host_hooks'],q.HOST_CONTEXT_HOOKS)
+        fixture=(ROOT/'test/native_apps/rf_candidate_audio_differential_test.c').read_text()
+        self.assertIn('#ifndef PORTABLE_CONTEXTS_CLIENT',fixture)
+        self.assertNotIn('#ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT\n/* Match',fixture)

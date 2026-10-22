@@ -38,13 +38,15 @@ PROFILES = {'plain': [], 'nova-alarm': ['PORTABLE_NOVA_UI', 'PORTABLE_ALARM_CLIE
     'resident-contexts': ['PORTABLE_RADIO_CONTINUOUS_CAPTURE', 'PORTABLE_RESIDENT_POLICY',
     'PORTABLE_CONTEXTS_CLIENT', 'PORTABLE_BLE_BROADCAST', 'PORTABLE_HOME_APP="default.elf"',
     'PORTABLE_RETURN_APP="springboard.elf"']}
+HOST_CONTEXT_HOOKS = ['PORTABLE_CONTEXTS_LIVE()=true', 'PORTABLE_CONTEXTS_CHECK_LIVE()=((void)0)',
+                      'portable_contexts_callback(value)=(value)']
 COUNTS = {'rf-labeled': 4, 'rf-optout': 4, 'rf-safety': 9, 'rf-models': 6, 'audio-behavior': 8, 'audio-code-data': 12}
 CONTRACT = {'schema': 1, 'base': BASE, 'guard_source': '055f86ea32df0f10ca96c5aa48cbb64199eadcba',
     'predecessor': PREDECESSOR, 'frozen': FROZEN, 'systems': SYSTEMS, 'additions': ADDITIONS,
     'optional_evidence_archive': EVIDENCE_ARCHIVE, 'production_delta': GUARD_FILES,
     'default_identity_hash': 2931434081, 'distributable': False, 'hardware_verified': False,
     'target_elf_qualified': False, 'historical_nondefault_cfp_provenance': 'unresolved',
-    'profiles': PROFILES, 'payload_origin': 'bounded reconstruction; not the absent original six-file payload'}
+    'profiles': PROFILES, 'no_context_host_hooks': HOST_CONTEXT_HOOKS, 'payload_origin': 'bounded reconstruction; not the absent original six-file payload'}
 
 
 def require(value, message):
@@ -258,6 +260,10 @@ def main():
     san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie']
     def build(spec):
         name, source, tree, defines, flags, execute = spec
+        # The no-Contexts host profile has no provider or liveness fence.
+        # Use the SDK's neutral defaults explicitly, identically on both sides.
+        if name.startswith('audio-code/') and 'PORTABLE_CONTEXTS_CLIENT' not in defines:
+            defines = [*defines, *HOST_CONTEXT_HOOKS]
         target = out / name
         target.parent.mkdir(parents=True, exist_ok=True)
         dep = Path(str(target) + '.d')
