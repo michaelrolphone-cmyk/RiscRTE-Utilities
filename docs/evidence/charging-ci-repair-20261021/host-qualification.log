@@ -1,0 +1,105 @@
+test_artifact_identity_matches_the_tested_checkout (test_battery_power_ci.FrozenBatteryPowerCI.test_artifact_identity_matches_the_tested_checkout) ... ok
+test_both_unchanged_fixtures_are_exercised (test_battery_power_ci.FrozenBatteryPowerCI.test_both_unchanged_fixtures_are_exercised) ... ok
+test_host_and_target_use_the_frozen_adapter (test_battery_power_ci.FrozenBatteryPowerCI.test_host_and_target_use_the_frozen_adapter) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+OK
+Power production UI case0: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case1: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case2: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case3: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case4: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case5: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case6: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case7: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case8: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case9: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case10: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case11: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case12: 5 reads, 4 frames, bounded retry, stride and cleanup PASS
+Power production UI case13: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+launch=springboard.elf
+Power production UI case14: 3 reads, 11 frames, bounded retry, stride and cleanup PASS
+launch=springboard.elf
+Power production UI case15: 1 reads, 2 frames, bounded retry, stride and cleanup PASS
+PORTABLE_APP sleep=idle
+PORTABLE_APP sleep=resumed
+Power production UI case16: 68 reads, 2 frames, bounded retry, stride and cleanup PASS
+PORTABLE_APP sleep=idle
+PORTABLE_APP sleep=refused
+Power production UI case17: 68 reads, 2 frames, bounded retry, stride and cleanup PASS
+PORTABLE_APP sleep=idle
+Power production UI case18: 61 reads, 2 frames, bounded retry, stride and cleanup PASS
+PORTABLE_APP sleep=idle
+Power production UI case19: 61 reads, 2 frames, bounded retry, stride and cleanup PASS
+Power production UI case0: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case1: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case2: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case3: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case4: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case5: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case6: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case7: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case8: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case9: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case10: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case11: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+Power production UI case12: 5 reads, 4 frames, bounded retry, stride and cleanup PASS
+Power production UI case13: 5 reads, 1 frames, bounded retry, stride and cleanup PASS
+launch=springboard.elf
+Power production UI case14: 3 reads, 11 frames, bounded retry, stride and cleanup PASS
+launch=springboard.elf
+Power production UI case15: 1 reads, 2 frames, bounded retry, stride and cleanup PASS
+PORTABLE_APP sleep=idle
+PORTABLE_APP sleep=resumed
+Power production UI case16: 68 reads, 2 frames, bounded retry, stride and cleanup PASS
+PORTABLE_APP sleep=idle
+PORTABLE_APP sleep=refused
+Power production UI case17: 68 reads, 2 frames, bounded retry, stride and cleanup PASS
+PORTABLE_APP sleep=idle
+Power production UI case18: 61 reads, 2 frames, bounded retry, stride and cleanup PASS
+PORTABLE_APP sleep=idle
+Power production UI case19: 61 reads, 2 frames, bounded retry, stride and cleanup PASS
+Charging case 0: CHARGING; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 1: CHARGE COMPLETE; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 2: USB POWER; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 3: CHARGING; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 4: CHARGE COMPLETE; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 5: CHARGE DISABLED; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 6: THERMAL LIMIT; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 7: NO BATTERY; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 8: CHARGING; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 9: READ ERROR; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 10: USB POWER; 6 reads, 4 frames; no writes, stride and cleanup PASS
+launch=springboard.elf
+Charging case 11: CHARGING; 7 reads, 15 frames; no writes, stride and cleanup PASS
+Charging case 12: BATTERY STATUS; 6 reads, 1 frames; no writes, stride and cleanup PASS
+launch=springboard.elf
+Charging case 13: CHARGING; 1 reads, 2 frames; no writes, stride and cleanup PASS
+Charging case 0: CHARGING; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 1: CHARGE COMPLETE; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 2: USB POWER; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 3: CHARGING; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 4: CHARGE COMPLETE; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 5: CHARGE DISABLED; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 6: THERMAL LIMIT; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 7: NO BATTERY; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 8: CHARGING; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 9: READ ERROR; 6 reads, 1 frames; no writes, stride and cleanup PASS
+Charging case 10: USB POWER; 6 reads, 4 frames; no writes, stride and cleanup PASS
+launch=springboard.elf
+Charging case 11: CHARGING; 7 reads, 15 frames; no writes, stride and cleanup PASS
+Charging case 12: BATTERY STATUS; 6 reads, 1 frames; no writes, stride and cleanup PASS
+launch=springboard.elf
+Charging case 13: CHARGING; 1 reads, 2 frames; no writes, stride and cleanup PASS
+gps: host fixture passed
+lora: host fixture passed
+battery: host fixture passed
+battery_failures: failure fixture passed
+battery_unknown_failures: failure fixture passed
+calculator core: 60,000 arithmetic + 30,000 divider oracle cases and decimal/recovery sequences passed
+calculator_core_failures: failure fixture passed
+gps_failures: failure fixture passed
+lora_failures: failure fixture passed

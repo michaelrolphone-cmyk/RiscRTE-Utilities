@@ -1,0 +1,339 @@
+{
+  "schema": 1,
+  "replacement": "controls-power",
+  "base": "6b2047500905f8f45087cb49989103a926fc5c63",
+  "inputs": [
+    {
+      "number": 88,
+      "title": "Preserve T039 BLE shortcut repair and qualification evidence",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/88",
+      "head": "39e9247528b39519397e3857d75074dddc4cac82",
+      "branch": "tasker/t039-ble-delivery",
+      "base": "6b2047500905f8f45087cb49989103a926fc5c63",
+      "baseRef": "main",
+      "changed_files": 11
+    },
+    {
+      "number": 90,
+      "title": "Preserve frozen Watch power-status qualification and evidence",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/90",
+      "head": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "branch": "tasker/watch-power-released-qualification-20261021",
+      "base": "ca7fe82f43adc4ad8a8fa477a5336c8f5c693770",
+      "baseRef": "tasker/watch-power-frozen-base-20261021",
+      "changed_files": 6
+    },
+    {
+      "number": 91,
+      "title": "Preserve frozen Watch charging-screen tests and evidence",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/91",
+      "head": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "branch": "tasker/watch-charging-qualification-20261021",
+      "base": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "baseRef": "tasker/watch-power-released-qualification-20261021",
+      "changed_files": 6
+    },
+    {
+      "number": 94,
+      "title": "Qualify T039 separately without replacing frozen BLE release gates",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/94",
+      "head": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "branch": "work/t039-candidate-qualification-20261021",
+      "base": "39e9247528b39519397e3857d75074dddc4cac82",
+      "baseRef": "tasker/t039-ble-delivery",
+      "changed_files": 4
+    },
+    {
+      "number": 96,
+      "title": "Repair frozen Watch charging qualification cohort",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/96",
+      "head": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "branch": "tasker/watch-charging-ci-repair-20261021",
+      "base": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "baseRef": "tasker/watch-charging-qualification-20261021",
+      "changed_files": 6
+    },
+    {
+      "number": 98,
+      "title": "Integrate separate T039 BLE candidate package 0.1.31",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/98",
+      "head": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "branch": "work/t039-candidate-package-20261021",
+      "base": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "baseRef": "work/t039-candidate-qualification-20261021",
+      "changed_files": 7
+    }
+  ],
+  "source_files": {
+    "Apps/ble_hid_app.inc": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "7e209046b623aa75489485373cd030ab128b10d5",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t039/README.md": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "083180c0c83a2d8cf7af21dabc989ccebe6b5bcc",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t039/evidence.tar.gz": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "13073bbd3a59b06bdbded8cfcebe9a64d59a0c37",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t039/qualification-report.md": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "20f9c820bc4a4930a84f7b3fc6dfcce00af79bd2",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t039/source-checkpoint.json": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "bd661604c10cfd7dd7a1cb167c33bf41f586a8bd",
+      "mode": "100644"
+    },
+    "docs/t039/MIXED_CONTACT_REPEATS.md": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "31e238ae2801593273bf1647d734aa580aeb1e5e",
+      "mode": "100644"
+    },
+    "scripts/test_ble_buttons_native.py": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "dccdfd2a2cb5298dc37f632601c60c88ece65533",
+      "mode": "100644"
+    },
+    "scripts/test_hid_buttons_watch_queue.py": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "2843db3164cdcb13eae3b3d66110fad75cde0a5a",
+      "mode": "100644"
+    },
+    "scripts/test_hid_buttons_wire.py": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "2ad465d23ee5765a40401b7430b7af33df77b210",
+      "mode": "100644"
+    },
+    "test/native_apps/ble_buttons_native_temporal.inc": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "03854b551e5b28469931f2493a2b4299f27b6bbf",
+      "mode": "100644"
+    },
+    "tests/hid_buttons_watch_queue_test.c": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "7dc4338988fd38424fadd268ca58df59f65d2cb6",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/README.md": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "dfd879d0e2f07ad69d626fa18b4c2cb53a21c904",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/checksums-verified.log": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "3f875d76544ff5467d937f6b62a095de49aea11c",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/evidence.tar.gz": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "faad937d3cc87f0ddea3ffb73c48c4fa7b4db298",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/qualification-report.md": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "53b640cc60a1803dce0135e7ead154a768473d30",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/source-checkpoint.json": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "7de160618da7814a48a18178c3dbe8d23f873c89",
+      "mode": "100644"
+    },
+    "test/native_apps/battery_power_test.c": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "bffb2396b0584ee186f79d9665924c82083a8972",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/charging/README.md": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "d72f6b774127fe4d92207a9099c3284c7178f6f8",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/charging/evidence.tar.gz": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "46ca11fd15158db43da311e6de3f0fe7ca1277b2",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/charging/qualification-report.md": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "d177dd955e22b1dbd540e077df6eaff66b3a66a3",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/charging/source-checkpoint.json": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "665ec2e3c7c0b77cb05601ccfce455e7bb10dad1",
+      "mode": "100644"
+    },
+    "scripts/test_battery_charging.py": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "3b6fadc9e4749b8f5545c5e8f1a722f5eb998561",
+      "mode": "100644"
+    },
+    "test/native_apps/battery_charging_test.c": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "3ca2e6463ef5b8638900fb1247068c568303fc6a",
+      "mode": "100644"
+    },
+    ".github/workflows/t039-ble-candidate.yml": {
+      "pr": 94,
+      "commit": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "blob": "46ed17a9f8da58a27430f4af016b96df3ce691a2",
+      "mode": "100644"
+    },
+    "docs/t039/candidate-qualification/README.md": {
+      "pr": 94,
+      "commit": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "blob": "bf0586af2776b786aaf6edb8ec6b094501a0bded",
+      "mode": "100644"
+    },
+    "scripts/qualify_t039_ble_candidate.py": {
+      "pr": 94,
+      "commit": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "blob": "a5fc37411f556b40b3a6d1c1e5b741946ce99ef3",
+      "mode": "100644"
+    },
+    "tests/test_t039_ble_candidate.py": {
+      "pr": 94,
+      "commit": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "blob": "0f598d8125eca7b1f67488c167379a91d37a9110",
+      "mode": "100644"
+    },
+    ".github/workflows/battery-power.yml": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "f68aa44bbbdc29daf65b389d989832eb712342d6",
+      "mode": "100644"
+    },
+    "docs/evidence/charging-ci-repair-20261021/README.md": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "1a1e983cb5be72ee4ad1f3364f099139e161a146",
+      "mode": "100644"
+    },
+    "docs/evidence/charging-ci-repair-20261021/host-qualification.log": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "dd5fdb92931863e99159a131278ffa902f18275a",
+      "mode": "100644"
+    },
+    "docs/evidence/charging-ci-repair-20261021/unit-tests.log": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "88b69a0ec6172cb14fe65eb0927397736203a035",
+      "mode": "100644"
+    },
+    "scripts/build_battery_power.py": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "9766ec763df90d0308d641562b2e42408e11876a",
+      "mode": "100644"
+    },
+    "tests/test_battery_power_ci.py": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "84339464ea640900d23845141ed920ab61afb833",
+      "mode": "100644"
+    },
+    ".github/workflows/t039-ble-package.yml": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "7c3531f41f99446be214be74c0bdb2370c0726b4",
+      "mode": "100644"
+    },
+    "Apps/candidates/t039/ble_buttons.json": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "3dea15e5ea2d6d87d4b18bfa7cb2a88636f584e0",
+      "mode": "100644"
+    },
+    "docs/t039/candidate-package/README.md": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "bc05edc66d571a78d5eb78932ab3021e7aaab589",
+      "mode": "100644"
+    },
+    "scripts/package_t039_candidate.py": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "8c3baf5b67c16a7b006c2dee0da3ba4e82d1393a",
+      "mode": "100644"
+    },
+    "scripts/t039_candidate_manifest.py": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "0ba25075ac691b8fd74bfae587b3bcf7a945a1c6",
+      "mode": "100644"
+    },
+    "tests/t039_candidate_manifest_test.cpp": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "3f4d4c70951b195178f8664b3525bcdcf0a45d48",
+      "mode": "100644"
+    },
+    "tests/test_t039_candidate_package.py": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "9a6fdf11c80b9768c686118ade29ff45b5fc421e",
+      "mode": "100644"
+    }
+  },
+  "integration_resolutions": [
+    {
+      "path": "docs/evidence/publication-20261021/power/README.md",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    },
+    {
+      "path": "docs/evidence/publication-20261021/power/checksums-verified.log",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    },
+    {
+      "path": "docs/evidence/publication-20261021/power/evidence.tar.gz",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    },
+    {
+      "path": "docs/evidence/publication-20261021/power/qualification-report.md",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    },
+    {
+      "path": "docs/evidence/publication-20261021/power/source-checkpoint.json",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    }
+  ],
+  "frozen_baselines_changed": false,
+  "released": false,
+  "hardware_qualified": false
+}

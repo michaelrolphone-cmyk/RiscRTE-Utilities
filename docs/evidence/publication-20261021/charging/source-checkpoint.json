@@ -1,0 +1,23 @@
+{
+  "key": "charging",
+  "repo": "michaelrolphone-cmyk/RiscRTE-Utilities",
+  "branch": "tasker/watch-charging-qualification-20261021",
+  "base": "tasker/watch-power-released-qualification-20261021",
+  "local": "1ce0c6518b56aa29f7cc11dd9b5ead99f5f0a0ed",
+  "parent": "1f80de804698972780b9f6be5cef1665dda03680",
+  "tree": "adb4829b6bbd521acda1a00c58f2d351e0005a45",
+  "remote_source": "6b941d3f7d8df2b4719925d53d17f1f52adce8f4",
+  "changed_paths": [
+    "scripts/test_battery_charging.py",
+    "test/native_apps/battery_charging_test.c"
+  ],
+  "source_tree_identical": true,
+  "original_commit_restoration": "The incremental original-source.bundle needs its original parent. For stacked checkpoints, restore the parent checkpoint bundle first. The GitHub source commit has the exact original tree but different commit metadata.",
+  "publication_scope": "Existing source and historical software evidence only; no new tests, target build, merge, tag, firmware release, deployment, or hardware acceptance is claimed.",
+  "historical_reports": "Reports and logs are preserved from before publication; local-only/unpublished statements describe that earlier observation. This source lock supersedes only their publication state.",
+  "archive_included_files": null,
+  "archive_omitted_files": null,
+  "archive_included_files_count": 13,
+  "archive_sha256": "6b394024b71a955e7b22ba5534c2e0396aa3b9742bd8187f45c093b0d834c9b3",
+  "archive_bytes": 58135
+}

@@ -130,7 +130,9 @@ def receipt_source_hashes(before, identity):
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--system-apps',required=True,type=Path);p.add_argument('--output',required=True,type=Path)
  p.add_argument('--allow-system-changes',action='store_true',help='Diagnostic worktree run; exact compiled hashes recorded, no pin-only claim');p.add_argument('--full-target',type=Path,help='Full-profile target qualification folder with immutable inputs and aggregate SDK');p.add_argument('--runtime',type=Path);p.add_argument('--sanitize',action='store_true');p.add_argument('--async',dest='async_rgb565',action='store_true');p.add_argument('--scene',action='append');p.add_argument('--temporal',action='store_true');p.add_argument('--snapshot',action='store_true');p.add_argument('--size',action='append')
+ p.add_argument('--mixed-contacts',action='store_true',help='Run the sampled-hold/queued-repeat controller regression; leaves the frozen release matrix unchanged')
  a=p.parse_args();system=a.system_apps.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True)
+ if a.mixed_contacts and not (a.temporal and a.async_rgb565):p.error('--mixed-contacts requires --temporal --async')
  if subprocess.check_output(['git','-C',str(system),'rev-parse','HEAD'],text=True).strip()!=SYSTEM_PIN:raise ValueError('System checkout must match pinned adapter')
  catalog=out/'catalog.c';catalog.write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[1]={{.compatible=false}};\nconst unsigned portable_catalog_count=0;\n')
  defines=['-D'+s for s in BASE_DEFINES]+(['-DPORTABLE_ASYNC_RGB565'] if a.async_rgb565 else [])
@@ -177,6 +179,7 @@ def main():
   if a.temporal:
    if not a.async_rgb565:raise ValueError('--temporal requires --async')
    planned={f'temporal-{i}':([],{'TEMPORAL':str(i)}) for i in range(16) if target or i not in (7,10)}
+   if a.mixed_contacts:planned={'temporal-16':([],{'TEMPORAL':'16'})}
   if a.scene and set(a.scene)-planned.keys():raise ValueError('Unknown scene')
   for name,(actions,checks) in planned.items():
    if a.scene and name not in a.scene:continue
