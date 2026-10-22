@@ -68,6 +68,7 @@ class RealGitAdmission(unittest.TestCase):
         git('config','maintenance.auto','false')
         git('config','gc.auto','0')
         git('config','core.fsmonitor','false')
+        (self.root/'.gitignore').write_text('/build/\n/dist/\n')
         (self.root/'untouched').write_text('baseline\n')
         self.commit('baseline')
         base=git('rev-parse','HEAD')
@@ -107,6 +108,22 @@ class RealGitAdmission(unittest.TestCase):
         self.git('config','status.showUntrackedFiles','no')
         (self.root/'Apps/unreviewed.h').write_text('unreviewed\n')
         with self.assertRaisesRegex(ValueError,'clean'):self.check()
+
+    def test_local_exclude_cannot_hide_source_header(self):
+        (self.root/'.git/info/exclude').write_text('Apps/unreviewed.h\n')
+        (self.root/'Apps/unreviewed.h').write_text('unreviewed\n')
+        with self.assertRaisesRegex(ValueError,'locally ignored'):self.check()
+
+    def test_only_tracked_output_exclusions_are_honored(self):
+        (self.root/'.git/info/exclude').write_text('Apps/.gitignore\nApps/unreviewed.h\n')
+        (self.root/'Apps/.gitignore').write_text('unreviewed.h\n')
+        (self.root/'Apps/unreviewed.h').write_text('unreviewed\n')
+        with self.assertRaisesRegex(ValueError,'locally ignored'):self.check()
+
+    def test_tracked_build_output_exclusion_is_allowed(self):
+        (self.root/'build').mkdir()
+        (self.root/'build/evidence.log').write_text('generated output\n')
+        self.check()
 
     def test_working_mode_checked_when_git_ignores_mode(self):
         self.git('config','core.filemode','false')
