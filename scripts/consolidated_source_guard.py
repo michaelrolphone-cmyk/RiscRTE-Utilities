@@ -111,6 +111,11 @@ def validate(root):
         data = path.read_bytes()
         blob = hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
         require(identity == {'mode':actual_mode, 'blob':blob}, 'working source blob/mode mismatch: '+name)
+    # Honor only the tracked, byte-verified output exclusions. Local Git info
+    # excludes must not hide a source header from exact working-tree admission.
+    exclusions = ['--exclude-from='+str(root/'.gitignore')] if '.gitignore' in current else []
+    require(not git(root, 'ls-files', '--others', *exclusions),
+            'untracked or locally ignored source entry')
     expected = validate_delta(inventory(root, BASE), current, records)
     revisions = {}
     for record in records.values():
