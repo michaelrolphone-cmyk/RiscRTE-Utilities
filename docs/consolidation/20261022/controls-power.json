@@ -403,6 +403,18 @@
       "original_blob": null,
       "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
     },
+    "tests/test_consolidated_workflow_routing.py": {
+      "mode": "100644",
+      "blob": "b51a6d62311373d7192babedd19d7002e614272a",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_native_ble_buttons_release.py": {
+      "mode": "100644",
+      "blob": "35ee397c5c771dfa7f2fb5443eb38d65167dfa42",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
     "tests/test_t039_ble_candidate.py": {
       "mode": "100644",
       "blob": "5f6067fecf032e62c6984b46e920411da4067a86",
