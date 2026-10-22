@@ -63,6 +63,11 @@ class RealGitAdmission(unittest.TestCase):
             return subprocess.check_output(['git','-C',str(self.root),*args],text=True,stderr=subprocess.DEVNULL).strip()
         self.git = git
         git('init','-q')
+        # Git 2.55 may spawn automatic background maintenance after writes.
+        # Keep these disposable repositories hermetic through cleanup.
+        git('config','maintenance.auto','false')
+        git('config','gc.auto','0')
+        git('config','core.fsmonitor','false')
         (self.root/'untouched').write_text('baseline\n')
         self.commit('baseline')
         base=git('rev-parse','HEAD')

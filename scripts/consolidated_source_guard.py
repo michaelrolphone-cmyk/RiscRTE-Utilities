@@ -27,6 +27,7 @@ def git(root, *args):
     env.update(GIT_NO_REPLACE_OBJECTS='1', GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull)
     return subprocess.check_output(['git', '-C', str(root), '--work-tree='+str(Path(root).resolve()),
         '-c', 'core.fsmonitor=false', '-c', 'core.ignoreStat=false',
+        '-c', 'maintenance.auto=false', '-c', 'gc.auto=0',
         '-c', 'core.excludesFile='+os.devnull, *args], text=True, env=env).strip()
 
 
