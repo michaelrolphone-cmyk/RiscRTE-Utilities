@@ -1,4 +1,4 @@
-name: Watch Spectrum shared input
+name: Historical Watch Spectrum shared input
 on:
   push:
     branches: [work/spectrum-shared-input-20261012, work/spectrum-input-policy-20261012]
@@ -18,6 +18,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: 432e54bbf35fee6e66aa487826d719f231cb4db4
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@v4
         with:

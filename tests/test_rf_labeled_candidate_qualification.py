@@ -137,3 +137,29 @@ class AudioSections(unittest.TestCase):
 
 
 if __name__ == '__main__': unittest.main()
+
+
+class CompositionAdmission(unittest.TestCase):
+    facts = CandidateAdmission.facts
+    reject = CandidateAdmission.reject
+    result = CandidateAdmission.result
+    def test_composition_binds_exact_head(self):
+        facts=self.facts()
+        facts.update(base_ancestor=False,delta={'Apps/audio_spectrum.c':'M'},
+            composition={'source':facts['candidate'],'partitions':['signal-capture']})
+        q.validate_admission(q.CONTRACT,facts)
+        facts['composition']['source']='b'*40
+        with self.assertRaisesRegex(ValueError,'exact signal'):q.validate_admission(q.CONTRACT,facts)
+
+    def test_old_contexts_incomplete_cohort_is_not_current(self):
+        self.reject('system','fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0')
+        self.assertEqual(q.SYSTEMS['ci-composition'],'f3731ab02127dea86a308472e3780068c5a0a1cf')
+
+    def test_composed_audio_overlay_is_exact(self):
+        result=self.result()
+        result['admission']={'composition':{'source':'a'*40,'partitions':['signal-capture']}}
+        with self.assertRaisesRegex(ValueError,'overlay'):q.validate_result(result)
+        result['audio_comparison_baseline']={'base':q.PREDECESSOR,'overlay':copy.deepcopy(q.AUDIO_OVERLAY)}
+        q.validate_result(result)
+        result['audio_comparison_baseline']['overlay']['Apps/audio_spectrum.c']['sha256']='0'*64
+        with self.assertRaisesRegex(ValueError,'overlay'):q.validate_result(result)

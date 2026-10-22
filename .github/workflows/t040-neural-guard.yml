@@ -1,7 +1,8 @@
 name: T040 neural guard qualification only
 on:
   pull_request:
-    paths: ['scripts/qualify_t040_neural_guard.py', 'tests/test_t040_neural_guard.py', 'docs/t040/candidate-qualification/**', '.github/workflows/t040-neural-guard.yml']
+  push:
+    branches: [main]
 permissions:
   contents: read
 jobs:

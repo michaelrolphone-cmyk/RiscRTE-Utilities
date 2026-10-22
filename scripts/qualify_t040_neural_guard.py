@@ -25,9 +25,12 @@ ADDITIONS = {'.github/workflows/t040-neural-guard.yml', 'scripts/qualify_t040_ne
              'tests/test_t040_neural_guard.py', 'docs/t040/candidate-qualification/README.md'}
 FROZEN_FILES = ('scripts/build_native_spectrum_qualification.py',
                 'scripts/test_spectrum_native_contract.py', 'scripts/test_spectrum_shared_input_safety.py',
-                'scripts/prepare_native_spectrum_release.py', 'scripts/publish_native_spectrum.py',
-                '.github/workflows/native-spectrum.yml', '.github/workflows/watch-spectrum-shared-input.yml',
+                'docs/consolidation/20261022/frozen-prepare-native-spectrum-release.py', 'scripts/publish_native_spectrum.py',
+                'docs/consolidation/20261022/frozen-native-spectrum.yml', 'docs/consolidation/20261022/frozen-watch-spectrum-shared-input.yml',
                 'Apps/native/audio_spectrum.json', 'Apps/audio_spectrum.json')
+FROZEN_SOURCE_SHA256 = {'scripts/build_native_spectrum_qualification.py': '857f92e510f363d8495cc994c6eeb95fb5e2a9558d4516a34b5800a4fc83c069', 'scripts/test_spectrum_native_contract.py': '4484af1ed888569a240d51272bdcb51acba7a17993a5e36019ac1ab085a7aa06', 'scripts/test_spectrum_shared_input_safety.py': '5c4273ebe7c2c4270a1f6c5df2abc8055e922267cfb8a1df10172353a37c18cf', 'docs/consolidation/20261022/frozen-prepare-native-spectrum-release.py': 'dfba398b73c5bdf850ed437fedc18fbb99cc4b653ec7cb035815f7f91ab5b949', 'scripts/publish_native_spectrum.py': '639493b155437fe44dd90dc4180a814271b567911ad337bfb3ade242521b0475', 'docs/consolidation/20261022/frozen-native-spectrum.yml': 'd686cfad81de396354c3876a28d1b7ad6d652437c937d979d1427b74f83f8dfd', 'docs/consolidation/20261022/frozen-watch-spectrum-shared-input.yml': '7f878934081931a592a055f69536272b5cc68647f297108c14a35df21ea9510e', 'Apps/native/audio_spectrum.json': '21e4be6d8d8ae15ec8d85b346ba1c2052b5282dc69897c01688a3b418058d01c', 'Apps/audio_spectrum.json': 'a1157a49b5b9e656b9f146481fb0a993210b1634d416f2518dce35e62044d9d4'}
+REGRESSION_SOURCE_SHA256 = '01c70953e15ed388d8e598fcf09fd12f3e7860af2b267786de0626bd8fd88396'
+COMPOSED_SIGNAL_FILES = ('Apps/context_fingerprint_app.inc', 'Apps/context_signal_library.inc')
 GUARD_FILES = {'Apps/audio_spectrum.c': '974ba8acf763df90999140711bea6edff00765bbcd46e5221003fd1babe971d3',
                'Apps/spectrum_temporal_app.inc': '42853d31cba4a26976c6b0f0f5f5e21471d96acba5db860ae688e25466804d39'}
 FIXTURE = 'test/native_apps/spectrum_neural_app_test.c'
@@ -82,10 +85,16 @@ def git(root, *args):
 
 def source_guard():
     require(not git(ROOT, 'status', '--porcelain').strip(), 'Tracked source must be clean')
-    changes = git(ROOT, 'diff', '--name-status', CAPTURED, 'HEAD').decode().splitlines()
-    require(all(row.startswith('A\t') and row[2:] in ADDITIONS for row in changes),
-            'Candidate lane may add qualification files only; captured source and all frozen gates must remain unchanged')
+    import consolidated_source_guard as composition
+    if composition.available(ROOT):
+        composition.validate(ROOT)
+    else:
+        changes = git(ROOT, 'diff', '--name-status', CAPTURED, 'HEAD').decode().splitlines()
+        require(all(row.startswith('A\t') and row[2:] in ADDITIONS for row in changes),
+                'Candidate lane may add qualification files only; captured source and all frozen gates must remain unchanged')
     require(all(digest(ROOT/n) == h for n,h in GUARD_FILES.items()) and digest(ROOT/FIXTURE) == FIXTURE_SHA, 'Captured guard or fixture changed')
+    require(all(digest(ROOT/path) == value for path,value in FROZEN_SOURCE_SHA256.items()), 'Immutable historical source contract changed')
+    require(digest(ROOT/'scripts/prepare_native_spectrum_release.py') == REGRESSION_SOURCE_SHA256, 'Approved Spectrum regression contract changed')
     return git(ROOT, 'rev-parse', 'HEAD').decode().strip()
 
 
@@ -164,7 +173,11 @@ def target_delta(out, source):
     for mode in ('legacy', 'native'):
         a,b = pm[mode]['source_sha256'],cm[mode]['source_sha256']
         changed = sorted(k for k in set(a)|set(b) if a.get(k) != b.get(k))
-        require(changed == sorted('utilities:'+p for p in GUARD_FILES), 'Unrelated compiled source change')
+        approved = set(GUARD_FILES) | set(COMPOSED_SIGNAL_FILES)
+        expected = sorted('utilities:'+p for p in approved if a.get('utilities:'+p) != b.get('utilities:'+p))
+        require(changed == expected, 'Unrelated compiled source change')
+        require(all(b['utilities:'+p] == digest(ROOT/p) for p in COMPOSED_SIGNAL_FILES if 'utilities:'+p in b),
+                'Composed RF source differs from admitted exact head')
         require(all(b['utilities:'+p] == h for p,h in GUARD_FILES.items()), 'Wrong guard bytes')
         require(pm[mode]['sha256'] != cm[mode]['sha256'], 'Expected guard target change absent')
         changes[mode] = changed
@@ -220,11 +233,11 @@ def check_neural(out):
 
 
 def check_hosts(out,source):
-    require(len(frozen_package.SCENARIOS) == 61, 'Wrong T040 host scenario contract')
+    require(len(frozen_package.SCENARIOS) == 65, 'Wrong T040 host scenario contract')
     total = 0
     for profile in frozen_package.PROFILES:
         folder = out/'host'/profile; r = read(folder/'qualification.json')
-        require(r['source_commit'] == source and len(r['results']) == 122 and
+        require(r['source_commit'] == source and len(r['results']) == 130 and
                 {(x['mode'],x['sanitized']) for x in r['results']} ==
                 {(case,mode) for case in frozen_package.SCENARIOS for mode in (False,True)} and
                 all(x['returncode'] == 0 for x in r['results']), 'Incomplete host matrix')
@@ -242,7 +255,7 @@ def check_hosts(out,source):
         for row in r['results']:
             p = folder/('sanitized' if row['sanitized'] else 'normal')/row['mode']/'run.log'
             require(p.is_file() and p.stat().st_size > 0, 'Missing or empty host run log')
-        require(len(r['non_keyboard_views']) == 18 and len(r['normal_sanitized_pixel_identical']) >= 61,
+        require(len(r['non_keyboard_views']) == 18 and len(r['normal_sanitized_pixel_identical']) >= 65,
                 'Missing host pixel evidence')
         for name in r['normal_sanitized_pixel_identical']:
             require(digest(safe(folder/'normal',name)) == digest(safe(folder/'sanitized',name)), 'Host pixels differ')
@@ -307,7 +320,7 @@ def validate(out,source):
     require(all(digest(out/'source/utilities'/p) == h for p,h in GUARD_FILES.items()) and
             digest(out/'source/utilities'/FIXTURE) == FIXTURE_SHA, 'Wrong guard source or regression fixture')
     check_neural(out); check_runs(out,r['run_exit_codes'])
-    require(check_hosts(out,source) == r['host_executions'] == 610, 'Wrong host execution count')
+    require(check_hosts(out,source) == r['host_executions'] == 650, 'Wrong host execution count')
     require(inventory(out) == r['artifact_sha256'], 'Absent, modified or extra artifact file')
     return r
 
@@ -331,7 +344,7 @@ def qualify(args):
     delta = target_delta(out,source)
     copy_git(ROOT,source,out/'source/utilities',['Apps','lib','scripts','tests','test','profiles','LICENSE',
              '.github/workflows/native-spectrum.yml','.github/workflows/watch-spectrum-shared-input.yml',
-             '.github/workflows/t040-neural-guard.yml','docs/t040/candidate-qualification'])
+             '.github/workflows/t040-neural-guard.yml','docs/t040/candidate-qualification','docs/consolidation/20261022'])
     for owner,repo,pin in [('legacy-system',args.legacy_system,LEGACY_SYSTEM),
                             ('shared-system',args.shared_system,SHARED_SYSTEM),
                             *[(n,p,frozen.PINS[n]) for n,p in repos.items()]]:

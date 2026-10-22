@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Bounded RF host qualification, reconstructed from the pinned PR93 contracts.
 
-This is not recovery of the absent six-file candidate payload. No production,
-codec, default hash, product pin, frozen token gate or target ELF gate is changed.
-Both System cohorts are explicit and never pooled. Historical nondefault CFP
+This is not recovery of the absent six-file candidate payload. The frozen codec,
+default hash, product pins, token gate and target ELF gate remain unchanged.
+The current composition and its exact neural comparison overlay are separately
+admitted. Both System cohorts are explicit and never pooled. Historical nondefault CFP
 provenance is unresolved. Synthetic callbacks are not physical acceptance.
 """
 import argparse
@@ -25,7 +26,8 @@ BASE = '3565ac151765705457b34b7d0ac4bbcc5125c753'
 PREDECESSOR = '6b2047500905f8f45087cb49989103a926fc5c63'
 FROZEN = '82d17d0d902d427938af95aae0e976c8f78041ed'
 SYSTEMS = {'historical-host': 'f1db70fcc3ba9df2a3551a711a9d3b0b714a5f8a',
-           'ci-composition': 'fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0'}
+           'ci-composition': 'f3731ab02127dea86a308472e3780068c5a0a1cf'}
+AUDIO_OVERLAY = {'Apps/audio_spectrum.c': {'commit': '390b8ee8580db7d7b3e37b99c38cb10378d6d413', 'sha256': '974ba8acf763df90999140711bea6edff00765bbcd46e5221003fd1babe971d3'}, 'Apps/spectrum_temporal_app.inc': {'commit': '390b8ee8580db7d7b3e37b99c38cb10378d6d413', 'sha256': '42853d31cba4a26976c6b0f0f5f5e21471d96acba5db860ae688e25466804d39'}}
 ADDITIONS = sorted(['profiles/rf-labeled-candidate-v1.json', 'scripts/qualify_rf_labeled_candidate.py',
     'test/native_apps/rf_candidate_optout_test.c', 'test/native_apps/rf_candidate_audio_differential_test.c',
     'tests/test_rf_labeled_candidate_qualification.py', '.github/workflows/rf-labeled-candidate.yml'])
@@ -96,13 +98,19 @@ def validate_admission(profile, facts):
     require(profile == CONTRACT, 'qualification contract changed')
     require(facts['candidate'] == facts['expected_candidate'] and
             re.fullmatch('[0-9a-f]{40}', facts['candidate']), 'full exact candidate revision required')
-    require(facts['base_ancestor'], 'PR93 is not an ancestor')
+    composition = facts.get('composition')
+    if composition:
+        require(composition.get('source') == facts['candidate'] and 'signal-capture' in composition.get('partitions', []),
+                'composition does not bind the exact signal candidate')
+    else:
+        require(facts['base_ancestor'], 'PR93 is not an ancestor')
     require(facts['predecessor'] == PREDECESSOR and facts['frozen'] == FROZEN, 'comparison pin mismatch')
     require(facts['cohort'] in SYSTEMS and facts['system'] == SYSTEMS[facts['cohort']], 'System cohort mismatch')
     require(set(facts['dirty']) == {'candidate', 'predecessor', 'frozen', 'system'} and not any(facts['dirty'].values()), 'dirty or missing input tree')
-    require({p: state for p, state in facts['delta'].items() if p != EVIDENCE_ARCHIVE} ==
-            {p: 'A' for p in ADDITIONS}, 'only six qualification source additions admitted')
-    require(facts['delta'].get(EVIDENCE_ARCHIVE, 'A') == 'A', 'evidence must be additive')
+    if not composition:
+        require({p: state for p, state in facts['delta'].items() if p != EVIDENCE_ARCHIVE} ==
+                {p: 'A' for p in ADDITIONS}, 'only six qualification source additions admitted')
+        require(facts['delta'].get(EVIDENCE_ARCHIVE, 'A') == 'A', 'evidence must be additive')
     require(sorted(facts['production_delta']) == GUARD_FILES, 'unexpected PR93 production delta')
 
 
@@ -152,6 +160,9 @@ def validate_result(record):
     require(record['source_hashes_unchanged'] is True and record.get('inputs') and
             all(valid_hash(h) for h in record['inputs'].values()), 'missing or changed input evidence')
     require(record['default_identity_hash'] == 2931434081, 'default hash changed')
+    if record.get('admission', {}).get('composition'):
+        require(record.get('audio_comparison_baseline') == {'base': PREDECESSOR, 'overlay': AUDIO_OVERLAY},
+                'RF comparison omitted or substituted the approved neural overlay')
     require(record['historical_nondefault_cfp_provenance'] == 'unresolved', 'historical provenance overclaim')
     require(record['counts'] == COUNTS, 'missing matrix row count')
     require(set(record['stages']) == set(COUNTS) | {'manifest-tests'} and
@@ -217,6 +228,9 @@ def main():
         base_ancestor=subprocess.run(['git', '-C', str(ROOT), 'merge-base', '--is-ancestor', BASE, 'HEAD']).returncode == 0,
         delta={line.split('\t')[1]: line.split('\t')[0] for line in git(ROOT, 'diff', '--name-status', BASE, 'HEAD').splitlines()},
         production_delta=git(ROOT, 'diff', '--name-only', PREDECESSOR, BASE, '--', 'Apps', 'lib').splitlines())
+    import consolidated_source_guard as composition
+    if composition.available(ROOT):
+        facts['composition'] = composition.validate(ROOT)
     (out / 'admission.json').write_text(json.dumps(facts, indent=2) + '\n')
     validate_admission(json.loads((ROOT / 'profiles/rf-labeled-candidate-v1.json').read_text()), facts)
     inputs = {}
@@ -298,6 +312,27 @@ def main():
         record['stages'][name] = {'status': 'failed' if errors else 'passed', 'errors': errors}
         receipt()
         print(name, record['stages'][name]['status'], flush=True)
+    # Isolate RF invariance from the independently approved neural guard. The
+    # real predecessor remains untouched and is still compared against frozen
+    # and candidate tokens below. Every synthetic baseline input is recorded.
+    audio_predecessor = predecessor
+    if facts.get('composition'):
+        audio_predecessor = out / 'audio-predecessor-with-approved-neural-guard'
+        for path in git(predecessor, 'ls-files').splitlines():
+            source = predecessor / path
+            if not source.is_file():
+                continue
+            target = audio_predecessor / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+        for path, identity in AUDIO_OVERLAY.items():
+            approved = subprocess.check_output(['git','-C',str(ROOT),'show',identity['commit']+':'+path])
+            require(digest(approved) == identity['sha256'] and sha(ROOT/path) == identity['sha256'],
+                    'approved neural overlay changed: '+path)
+            (audio_predecessor/path).write_bytes(approved)
+        record['audio_comparison_baseline'] = {'base': PREDECESSOR, 'overlay': AUDIO_OVERLAY}
+        for path in audio_predecessor.rglob('*'):
+            if path.is_file(): inputs[str(path)] = sha(path)
     native = ROOT / 'test/native_apps'
     for stage, fixture in [('rf-labeled', 'rf_labeled_capture_test.c'), ('rf-optout', 'rf_candidate_optout_test.c')]:
         matrix(stage, [(f'{stage}/{c}-{s}', native / fixture, ROOT, ['PORTABLE_RADIO_CONTINUOUS_CAPTURE'] if c else [], san if s else [], True)
@@ -312,7 +347,7 @@ def main():
     matrix('rf-models', [(f'rf-models/{fixture.stem}{s}', fixture, ROOT, [], san if s else [], True)
         for fixture in sorted(native.glob('rf_*_model_test.c')) for s in (0, 1)])
     audio = []
-    for side, tree in [('predecessor', predecessor), ('candidate', ROOT)]:
+    for side, tree in [('predecessor', audio_predecessor), ('candidate', ROOT)]:
         overlay = out / 'audio-fixtures' / side / 'rf_candidate_audio_differential_test.c'
         overlay.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(native / overlay.name, overlay)
@@ -343,7 +378,7 @@ def main():
     matrix('audio-code-data', [(f'audio-code/{profile}-{shared}-{side}.o', tree / 'Apps/audio_spectrum.c', tree,
         defines + (['PORTABLE_SPECTRUM_SHARED_TEXT_INPUT'] if shared else []), [], False)
         for profile, defines in PROFILES.items() for shared in (False, True)
-        for side, tree in [('predecessor', predecessor), ('candidate', ROOT)]], audio_code)
+        for side, tree in [('predecessor', audio_predecessor), ('candidate', ROOT)]], audio_code)
     try:
         spec = importlib.util.spec_from_file_location('frozen_runner', ROOT / 'scripts/test_rf_shared_input_safety.py')
         runner = importlib.util.module_from_spec(spec)

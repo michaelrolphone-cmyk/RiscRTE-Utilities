@@ -6,7 +6,7 @@
   "frozen": "82d17d0d902d427938af95aae0e976c8f78041ed",
   "systems": {
     "historical-host": "f1db70fcc3ba9df2a3551a711a9d3b0b714a5f8a",
-    "ci-composition": "fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0"
+    "ci-composition": "f3731ab02127dea86a308472e3780068c5a0a1cf"
   },
   "additions": [
     ".github/workflows/rf-labeled-candidate.yml",

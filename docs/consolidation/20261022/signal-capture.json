@@ -415,5 +415,133 @@
   "integration_resolutions": [],
   "frozen_baselines_changed": false,
   "released": false,
-  "hardware_qualified": false
+  "hardware_qualified": false,
+  "integration_files": {
+    ".github/workflows/consolidation.yml": {
+      "mode": "100644",
+      "blob": "d8f0de011ad2fbc55ae2f1400688cf96db8c4423",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    ".github/workflows/native-spectrum.yml": {
+      "mode": "100644",
+      "blob": "4b9c07e58a9db2396878f8e9e49d00c9b3fb2611",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    ".github/workflows/rf-labeled-candidate.yml": {
+      "mode": "100644",
+      "blob": "c458a1d8c8d48e8e32b00e47625696d9f2850806",
+      "original_blob": "52f0539e4314102f97ed1bd70f30a0709ab54b01",
+      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+    },
+    ".github/workflows/rf-shared-input.yml": {
+      "mode": "100644",
+      "blob": "3a2af58949d848be8620337463d40c070b157236",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    ".github/workflows/t040-neural-guard.yml": {
+      "mode": "100644",
+      "blob": "d016630da51b8d966bc84fb4ae19fa458a16b9fa",
+      "original_blob": "0b4e318bf21b17c393241f4f627a3259d44725be",
+      "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance."
+    },
+    ".github/workflows/watch-spectrum-shared-input.yml": {
+      "mode": "100644",
+      "blob": "b8eb0e8594422d09616b500edde7a577ab45a663",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    "Apps/context_fingerprint_app.inc": {
+      "mode": "100644",
+      "blob": "976ba102ab88671b67823d09f3380fb952f11040",
+      "original_blob": "6a58b42e32899c5e4d46b22217264ba4dc00d66a",
+      "reason": "Confine RF identity helpers and calls to CFA_SOURCE=1, preserving exact approved RF tokens and exact non-RF Audio tokens; immutable default hash 2931434081 is unchanged."
+    },
+    "Apps/context_signal_library.inc": {
+      "mode": "100644",
+      "blob": "5ee182464c2e45b09ca3df6ac12083f51e589c38",
+      "original_blob": "2a75000918d187f6e59bb6003c0259d755bc44fa",
+      "reason": "Confine RF identity helpers and calls to CFA_SOURCE=1, preserving exact approved RF tokens and exact non-RF Audio tokens; immutable default hash 2931434081 is unchanged."
+    },
+    "docs/consolidation/20261022/frozen-native-spectrum.yml": {
+      "mode": "100644",
+      "blob": "a463e28c512fa9f7d326ae8c995c85bf2960be11",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    "docs/consolidation/20261022/frozen-prepare-native-spectrum-release.py": {
+      "mode": "100644",
+      "blob": "04771f667fb4dc7c40fe4630743c62007588232a",
+      "original_blob": null,
+      "reason": "Retain the original historical workflow, preparation script or profile contract byte-for-byte while the separate current cohort is qualified."
+    },
+    "docs/consolidation/20261022/frozen-rf-labeled-candidate-v1.json": {
+      "mode": "100644",
+      "blob": "a1c8f177d676740abb07de02767c29624bb6ff6c",
+      "original_blob": null,
+      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+    },
+    "docs/consolidation/20261022/frozen-watch-spectrum-shared-input.yml": {
+      "mode": "100644",
+      "blob": "8540f04e4ec41bd245726d6c972e32cc536d5823",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    "profiles/rf-labeled-candidate-v1.json": {
+      "mode": "100644",
+      "blob": "0c59c579c3cf05e228d9c8d72ae9c4211b6cc610",
+      "original_blob": "a1c8f177d676740abb07de02767c29624bb6ff6c",
+      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+    },
+    "scripts/consolidated_source_guard.py": {
+      "mode": "100644",
+      "blob": "ce8a30fbae820a4698a552020066811480cf8413",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "scripts/qualify_rf_labeled_candidate.py": {
+      "mode": "100644",
+      "blob": "7972ca2e613ec2562d9dee7916848fea88fea234",
+      "original_blob": "6cb6b3e8dd1ee17e958173bccff26d45e4095a8e",
+      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+    },
+    "scripts/qualify_t040_neural_guard.py": {
+      "mode": "100644",
+      "blob": "768d4d88ea4ac7018ca7078677d93ffd1b9164c0",
+      "original_blob": "4d2d699eb7ed7894c9ef37dd3029f7c7f85700dd",
+      "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance."
+    },
+    "tests/test_consolidated_source_guard.py": {
+      "mode": "100644",
+      "blob": "2af6b74f9519bb16421e73198bd6debcc64f3176",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_consolidated_workflow_routing.py": {
+      "mode": "100644",
+      "blob": "b51a6d62311373d7192babedd19d7002e614272a",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_native_spectrum_release.py": {
+      "mode": "100644",
+      "blob": "1307de22856a29f0c026841ca7d1f411bd5185d9",
+      "original_blob": "d7b1abc34d1b1d66ff9798dea5be2dcf11316b29",
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_rf_labeled_candidate_qualification.py": {
+      "mode": "100644",
+      "blob": "039b6fb829a360a5ed1dd86875d6815b0ba02f02",
+      "original_blob": "29de6b3e6244a2cbffa1ac622a1695826548f3e6",
+      "reason": "Use the existing Contexts-live f3731ab CI cohort and exact approved neural-only comparison overlay; preserve both actual historical token comparisons, strict code/data/relocation equality, frozen failure and original profile contract."
+    },
+    "tests/test_t040_neural_guard.py": {
+      "mode": "100644",
+      "blob": "671b885060f5582f16d7ac7722254582e94a081a",
+      "original_blob": "73d37323377681a19bdb2de8bb11de3ec1d173a5",
+      "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance."
+    }
+  }
 }

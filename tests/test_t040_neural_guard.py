@@ -22,10 +22,12 @@ class GuardEvidenceTests(unittest.TestCase):
         for p,h in q.GUARD_FILES.items(): self.assertEqual(q.digest(ROOT/p),h)
         self.assertEqual(q.digest(ROOT/q.FIXTURE),q.FIXTURE_SHA)
         for p in q.FROZEN_FILES:
-            self.assertEqual((ROOT/p).read_bytes(),q.git(ROOT,'show',q.CAPTURED+':'+p))
+            self.assertEqual(q.digest(ROOT/p),q.FROZEN_SOURCE_SHA256[p])
+    @mock.patch('consolidated_source_guard.available', new=lambda root: False)
     def test_missing_and_changed_guard_rejected(self):
         with mock.patch.object(q,'git',return_value=b''),mock.patch.object(q,'digest',return_value='0'*64):
             with self.assertRaisesRegex(ValueError,'Captured guard'):q.source_guard()
+    @mock.patch('consolidated_source_guard.available', new=lambda root: False)
     def test_changed_frozen_file_rejected(self):
         with mock.patch.object(q,'git',side_effect=[b'',b'M\tApps/audio_spectrum.c\n']):
             with self.assertRaisesRegex(ValueError,'add qualification'):q.source_guard()
@@ -98,9 +100,10 @@ class GuardEvidenceTests(unittest.TestCase):
         q.write(self.root/'candidate-evidence.json',{'source_commit':'a'*40,'captured_head':q.CAPTURED,
                 'guard_source':q.GUARD_SOURCE,'source_parent':q.PARENT,'qualification_only':True,'distributable':True})
         with self.assertRaisesRegex(ValueError,'Overstated'):q.validate(self.root,'a'*40)
-    def test_preserves_61_scenario_host_contract(self):
-        self.assertEqual(len(q.frozen_package.SCENARIOS),61)
+    def test_preserves_65_scenario_host_contract(self):
+        self.assertEqual(len(q.frozen_package.SCENARIOS),65)
         self.assertEqual(len(q.frozen_package.PROFILES),5)
+        self.assertEqual(len([x for x in q.frozen_package.SCENARIOS if x.startswith('native-full-history-')]),4)
     def test_wrong_host_source_rejected(self):
         q.write(self.root/'host/240x240/qualification.json',{'source_commit':'bad'})
         with self.assertRaisesRegex(ValueError,'Incomplete host'):q.check_hosts(self.root,'good')

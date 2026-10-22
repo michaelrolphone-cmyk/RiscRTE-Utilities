@@ -1,13 +1,8 @@
 name: RF labeled candidate host qualification
 on:
   pull_request:
-    paths:
-      - 'profiles/rf-labeled-candidate-v1.json'
-      - 'scripts/qualify_rf_labeled_candidate.py'
-      - 'test/native_apps/rf_candidate_*'
-      - 'tests/test_rf_labeled_candidate_qualification.py'
-      - 'docs/evidence/rf-labeled-candidate-20261022.tar.gz'
-      - '.github/workflows/rf-labeled-candidate.yml'
+  push:
+    branches: [main]
 permissions:
   contents: read
 jobs:
@@ -21,11 +16,11 @@ jobs:
           - cohort: historical-host
             system: f1db70fcc3ba9df2a3551a711a9d3b0b714a5f8a
           - cohort: ci-composition
-            system: fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0
+            system: f3731ab02127dea86a308472e3780068c5a0a1cf
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
           path: candidate
@@ -57,12 +52,12 @@ jobs:
         run: >-
           python candidate/scripts/qualify_rf_labeled_candidate.py
           --system-apps system --predecessor predecessor --frozen frozen
-          --cohort ${{ matrix.cohort }} --candidate-revision ${{ github.event.pull_request.head.sha }}
+          --cohort ${{ matrix.cohort }} --candidate-revision ${{ github.event.pull_request.head.sha || github.sha }}
           --output evidence/${{ matrix.cohort }}
       - name: Retain failures and paired evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rf-host-candidate-${{ matrix.cohort }}-${{ github.event.pull_request.head.sha }}
+          name: rf-host-candidate-${{ matrix.cohort }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: evidence/${{ matrix.cohort }}/
           if-no-files-found: error
