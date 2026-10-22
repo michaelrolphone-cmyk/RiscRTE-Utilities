@@ -26,8 +26,9 @@ ADDITIONS = {'.github/workflows/t039-ble-candidate.yml', 'scripts/qualify_t039_b
 FROZEN_FILES = ('scripts/build_native_ble_buttons_qualification.py',
                 'scripts/test_ble_buttons_native_contract.py',
                 'scripts/prepare_native_ble_buttons_release.py', 'scripts/publish_native_ble_buttons.py',
-                '.github/workflows/native-ble-buttons.yml', 'Apps/native/ble_buttons.json',
+                'docs/consolidation/20261022/frozen-native-ble-buttons.yml', 'Apps/native/ble_buttons.json',
                 'Apps/ble_buttons.json')
+FROZEN_SOURCE_SHA256 = {'scripts/build_native_ble_buttons_qualification.py': '2693d1126269720651b4937fcebbd7199b4365b0763f616f8c8b656b5bcac76a', 'scripts/test_ble_buttons_native_contract.py': 'a3299a9971bd42ed552ecb5a46f682f082b5799f61ed308ce938b630db0db4aa', 'scripts/prepare_native_ble_buttons_release.py': '7814342237ebaed06624647ba571c04cb8361a716b439ea15f21fbc8e4c61a06', 'scripts/publish_native_ble_buttons.py': 'b1c534fc616d335d4ba70b6d80c4b932a9f3d637d128dd8ec5319f43a08ae448', 'docs/consolidation/20261022/frozen-native-ble-buttons.yml': 'ee6ef8aa9b9f6203a40e32cb093bc7dbea2712b211a5b6e9525e53c3f5ff7373', 'Apps/native/ble_buttons.json': '3096889b6404ab718c539cee38072dc39fc5231f290d43797a6126269e282916', 'Apps/ble_buttons.json': '4f5eca7bef480047aa839e95ead45e1457ce39e21a9ba4dcf4350452f00a4e5b'}
 HOST_INPUTS = {'utilities:Apps/ble_buttons.c', 'utilities:Apps/ble_hid_app.inc',
                'utilities:Apps/ble_buttons_native_layout.h', 'utilities:Apps/ble_buttons_native_view.inc',
                'system:lib/PortableApps/src/adapter.c'}
@@ -81,9 +82,15 @@ def git(root, *args):
 
 def source_guard():
     require(not git(ROOT, 'status', '--porcelain').strip(), 'Tracked source must be clean')
-    changes = git(ROOT, 'diff', '--name-status', CAPTURED, 'HEAD').decode().splitlines()
-    require(all(row.startswith('A\t') and row[2:] in ADDITIONS for row in changes),
-            'Candidate lane may add qualification files only; captured source and all frozen gates must remain unchanged')
+    import consolidated_source_guard as composition
+    if composition.available(ROOT):
+        composition.validate(ROOT)
+    else:
+        changes = git(ROOT, 'diff', '--name-status', CAPTURED, 'HEAD').decode().splitlines()
+        require(all(row.startswith('A\t') and row[2:] in ADDITIONS for row in changes),
+                'Candidate lane may add qualification files only; captured source and all frozen gates must remain unchanged')
+    require(all(digest(ROOT/path) == value for path, value in FROZEN_SOURCE_SHA256.items()),
+            'Immutable historical source contract changed')
     require(digest(ROOT/'Apps/ble_hid_app.inc') == CONTROLLER, 'T039 captured controller changed')
     return git(ROOT, 'rev-parse', 'HEAD').decode().strip()
 
@@ -294,9 +301,15 @@ def validate(out, source, check_inventory=True):
     require((out/'NOT_FOR_INSTALLATION.txt').read_text() == NOTICE, 'Missing qualification-only notice')
     require(target_delta(out, source) == r['target_delta'], 'Target delta changed')
     require(digest(out/'source/utilities/Apps/ble_hid_app.inc') == CONTROLLER, 'Wrong source controller')
+    expected_frozen = set(FROZEN_FILES)
+    # Preserve verification of the already-qualified PR94 artifact schema.
+    # New composed receipts retain the historical workflow at an immutable path.
+    if source == '9a7a508d0a43572684c7feb64958eb31ee1fd583':
+        expected_frozen.remove('docs/consolidation/20261022/frozen-native-ble-buttons.yml')
+        expected_frozen.add('.github/workflows/native-ble-buttons.yml')
     for name, value in r['frozen_file_sha256'].items():
-        require(name in FROZEN_FILES and digest(safe(out/'source/utilities', name)) == value, 'Frozen source mismatch')
-    require(set(r['frozen_file_sha256']) == set(FROZEN_FILES), 'Missing frozen gates')
+        require(name in expected_frozen and digest(safe(out/'source/utilities', name)) == value, 'Frozen source mismatch')
+    require(set(r['frozen_file_sha256']) == expected_frozen, 'Missing frozen gates')
     counts = {name: check_host(out, name, san, async_, temporal, scenes, source)
               for name, san, async_, temporal, scenes, _ in control_matrix()}
     require(counts == r['host_case_counts'], 'Host count mismatch')
@@ -361,7 +374,7 @@ def qualify(args):
     delta = target_delta(out, source)
     copy_git(ROOT, source, out/'source/utilities', ['Apps', 'lib', 'scripts', 'test', 'tests', 'profiles',
               'LICENSE', '.github/workflows/native-ble-buttons.yml', '.github/workflows/t039-ble-candidate.yml',
-              'docs/t039/candidate-qualification'])
+              'docs/t039/candidate-qualification', 'docs/consolidation/20261022/frozen-native-ble-buttons.yml'])
     contracts(out)
     # Legacy/Watch controls compile fresh Git-object snapshots, not mutable
     # dependency worktrees or ignored/untracked shadow headers.

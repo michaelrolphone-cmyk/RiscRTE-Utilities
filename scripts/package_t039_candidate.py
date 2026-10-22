@@ -41,10 +41,14 @@ def source_guard(expected=None):
     source = git(ROOT, 'rev-parse', 'HEAD').decode().strip()
     require(expected is None or source == expected, 'Verifier source commit mismatch')
     require(not git(ROOT, 'status', '--porcelain').strip(), 'Candidate source must be clean')
-    changes = git(ROOT, 'diff', '--name-status', QUALIFIED_SOURCE, source).decode().splitlines()
-    require(changes and all(row.startswith('A\t') and row[2:] in ADDITIONS for row in changes),
-            'Only the seven additive candidate files may differ from PR94')
-    require({row[2:] for row in changes} == ADDITIONS, 'Incomplete candidate source capture')
+    import consolidated_source_guard as composition
+    if composition.available(ROOT):
+        composition.validate(ROOT)
+    else:
+        changes = git(ROOT, 'diff', '--name-status', QUALIFIED_SOURCE, source).decode().splitlines()
+        require(changes and all(row.startswith('A\t') and row[2:] in ADDITIONS for row in changes),
+                'Only the seven additive candidate files may differ from PR94')
+        require({row[2:] for row in changes} == ADDITIONS, 'Incomplete candidate source capture')
     require(read(ROOT/MANIFEST) == expected_manifest(), 'Candidate identity or sixteen requirements changed')
     require(digest(ROOT/'Apps/ble_hid_app.inc') == evidence.CONTROLLER, 'Captured controller changed')
     return source

@@ -1,9 +1,8 @@
 name: T039 BLE qualification only
 on:
   push:
-    branches: [work/t039-candidate-qualification-20261021]
+    branches: [main, work/t039-candidate-qualification-20261021]
   pull_request:
-    paths: ['scripts/qualify_t039_ble_candidate.py', 'tests/test_t039_ble_candidate.py', 'docs/t039/candidate-qualification/**', '.github/workflows/t039-ble-candidate.yml']
 permissions:
   contents: read
 jobs:

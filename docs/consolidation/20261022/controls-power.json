@@ -335,5 +335,85 @@
   ],
   "frozen_baselines_changed": false,
   "released": false,
-  "hardware_qualified": false
+  "hardware_qualified": false,
+  "integration_files": {
+    ".github/workflows/consolidation.yml": {
+      "mode": "100644",
+      "blob": "d8f0de011ad2fbc55ae2f1400688cf96db8c4423",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    ".github/workflows/native-ble-buttons.yml": {
+      "mode": "100644",
+      "blob": "3163bc73fb3d3dcd6514cc1438530a7b3497c547",
+      "original_blob": null,
+      "reason": "Separate literal historical release qualification at pinned main from current-head candidate qualification; archive the original workflow exactly and prevent publishing a historical artifact as current head."
+    },
+    ".github/workflows/native-ble-touchpad.yml": {
+      "mode": "100644",
+      "blob": "991965a489d46262b9e4ddcba4f30ddb4edf88f9",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    ".github/workflows/t039-ble-candidate.yml": {
+      "mode": "100644",
+      "blob": "7318592f85ad3e53109084762b7316a2b15ba49a",
+      "original_blob": "46ed17a9f8da58a27430f4af016b96df3ce691a2",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    ".github/workflows/t039-ble-package.yml": {
+      "mode": "100644",
+      "blob": "6c465db183e7558a2ec0f037858bb7427f3debbf",
+      "original_blob": "7c3531f41f99446be214be74c0bdb2370c0726b4",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "docs/consolidation/20261022/frozen-native-ble-buttons.yml": {
+      "mode": "100644",
+      "blob": "27dc9dd69e378eb9c8627ae7278b305489790260",
+      "original_blob": null,
+      "reason": "Separate literal historical release qualification at pinned main from current-head candidate qualification; archive the original workflow exactly and prevent publishing a historical artifact as current head."
+    },
+    "scripts/consolidated_source_guard.py": {
+      "mode": "100644",
+      "blob": "b84ad47782dde2b92a8a66a969978cfe4a53fde6",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "scripts/package_t039_candidate.py": {
+      "mode": "100644",
+      "blob": "0e2544d19b541b35e0548c2a53e7d79e791745f3",
+      "original_blob": "8c3baf5b67c16a7b006c2dee0da3ba4e82d1393a",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "scripts/qualify_t039_ble_candidate.py": {
+      "mode": "100644",
+      "blob": "44008b251ac6ab11ca1b98763ee068db59ba6b34",
+      "original_blob": "a5fc37411f556b40b3a6d1c1e5b741946ce99ef3",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "scripts/test_t039_touchpad_contract.py": {
+      "mode": "100644",
+      "blob": "7e97ddecd36e9017d84874f389d6a3e92920f8b4",
+      "original_blob": null,
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "tests/test_consolidated_source_guard.py": {
+      "mode": "100644",
+      "blob": "28ecb67edab91f39fb1ee916d3a574803f13e7ec",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_t039_ble_candidate.py": {
+      "mode": "100644",
+      "blob": "5f6067fecf032e62c6984b46e920411da4067a86",
+      "original_blob": "0f598d8125eca7b1f67488c167379a91d37a9110",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "tests/test_t039_candidate_package.py": {
+      "mode": "100644",
+      "blob": "e21bbf5d503df80829bcf627cb6404a4f8f02091",
+      "original_blob": "9a6fdf11c80b9768c686118ade29ff45b5fc421e",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    }
+  }
 }

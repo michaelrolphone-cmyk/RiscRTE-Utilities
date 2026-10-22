@@ -25,7 +25,7 @@ class CandidatePackageContracts(unittest.TestCase):
 
     def test_frozen_source_and_gates_unchanged(self):
         for name in candidate.evidence.FROZEN_FILES:
-            self.assertEqual((ROOT/name).read_bytes(), candidate.git(ROOT, 'show', candidate.QUALIFIED_SOURCE+':'+name))
+            self.assertEqual(candidate.digest(ROOT/name), candidate.evidence.FROZEN_SOURCE_SHA256[name])
         self.assertEqual(candidate.digest(ROOT/'Apps/ble_hid_app.inc'), candidate.evidence.CONTROLLER)
 
     def test_seven_additions_only(self):
@@ -53,6 +53,7 @@ class CandidatePackageContracts(unittest.TestCase):
         self.assertIn('--evidence-sha256 "${{ steps.evidence.outputs.receipt_sha256 }}"', workflow)
         self.assertIn('--receipt-sha256 "${{ steps.package.outputs.receipt_sha256 }}"', workflow)
 
+    @patch('consolidated_source_guard.available', new=lambda root: False)
     def guard(self, changes=None, status=b'', expected='source', head=b'source\n'):
         rows = ''.join('A\t'+p+'\n' for p in sorted(candidate.ADDITIONS)) if changes is None else changes
         def git(root, *args):

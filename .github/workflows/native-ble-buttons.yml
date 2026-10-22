@@ -1,4 +1,4 @@
-name: Native BLE Buttons qualification
+name: Historical native BLE Buttons release qualification
 on:
   push:
     branches: [main, work/ble-buttons-native-20261019]
@@ -14,6 +14,8 @@ on:
         type: boolean
 permissions:
   contents: read
+env:
+  HISTORICAL_SOURCE: 6b2047500905f8f45087cb49989103a926fc5c63
 jobs:
   qualify:
     runs-on: ubuntu-24.04
@@ -27,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ env.HISTORICAL_SOURCE }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -99,23 +101,23 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/prepare_native_ble_buttons_release.py --artifact dist/native-ble-buttons --system .dependencies/system --runtime .dependencies/runtime --bridges .dependencies/bridges
-          python scripts/publish_native_ble_buttons.py --artifact dist/native-ble-buttons --source-sha "${{ github.event.pull_request.head.sha || github.sha }}" --repository "${{ github.repository }}" --validate-only
+          python scripts/publish_native_ble_buttons.py --artifact dist/native-ble-buttons --source-sha "${{ env.HISTORICAL_SOURCE }}" --repository "${{ github.repository }}" --validate-only
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-ble-buttons-${{ github.event.pull_request.head.sha || github.sha }}
+          name: native-ble-buttons-${{ env.HISTORICAL_SOURCE }}
           path: dist/native-ble-buttons/
           include-hidden-files: true
           retention-days: 14
       - uses: actions/download-artifact@v4
         with:
-          name: native-ble-buttons-${{ github.event.pull_request.head.sha || github.sha }}
+          name: native-ble-buttons-${{ env.HISTORICAL_SOURCE }}
           path: ${{ runner.temp }}/native-ble-buttons-downloaded
       - name: Validate transported BLE Buttons source and evidence bundle
         run: |
-          python scripts/publish_native_ble_buttons.py --artifact "$RUNNER_TEMP/native-ble-buttons-downloaded" --source-sha "${{ github.event.pull_request.head.sha || github.sha }}" --repository "${{ github.repository }}" --validate-only
+          python scripts/publish_native_ble_buttons.py --artifact "$RUNNER_TEMP/native-ble-buttons-downloaded" --source-sha "${{ env.HISTORICAL_SOURCE }}" --repository "${{ github.repository }}" --validate-only
   publish-development:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish_development
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish_development && github.sha == '6b2047500905f8f45087cb49989103a926fc5c63'
     needs: qualify
     runs-on: ubuntu-24.04
     permissions:

@@ -16,7 +16,18 @@ class CandidateContracts(unittest.TestCase):
     def test_frozen_files_match_captured_objects(self):
         for name in candidate.FROZEN_FILES:
             with self.subTest(path=name):
-                self.assertEqual((ROOT/name).read_bytes(), candidate.git(ROOT, 'show', candidate.CAPTURED+':'+name))
+                self.assertEqual(candidate.digest(ROOT/name), candidate.FROZEN_SOURCE_SHA256[name])
+
+    def test_historical_and_current_qualification_are_separate(self):
+        historical = (ROOT/'.github/workflows/native-ble-buttons.yml').read_text()
+        current = (ROOT/'.github/workflows/t039-ble-candidate.yml').read_text()
+        self.assertIn('HISTORICAL_SOURCE: '+candidate.PARENT, historical)
+        self.assertIn('ref: ${{ env.HISTORICAL_SOURCE }}', historical)
+        self.assertIn('"${{ env.HISTORICAL_SOURCE }}"', historical)
+        self.assertIn('github.sha == '+repr(candidate.PARENT), historical)
+        self.assertIn('ref: ${{ github.event.pull_request.head.sha || github.sha }}', current)
+        self.assertNotIn('continue-on-error:', historical+current)
+        self.assertIn('candidate-frozen-target', (ROOT/'scripts/qualify_t039_ble_candidate.py').read_text())
 
     def test_shared_repair_remains_exact_captured_source(self):
         self.assertEqual(candidate.digest(ROOT/'Apps/ble_hid_app.inc'), candidate.CONTROLLER)
@@ -197,11 +208,13 @@ class CandidateContracts(unittest.TestCase):
             (root/'two').write_bytes(b'extra')
             self.assertEqual(set(candidate.inventory(root)), {'one', 'two'})
 
+    @patch('consolidated_source_guard.available', new=lambda root: False)
     def test_source_guard_rejects_existing_file_changes(self):
         with patch.object(candidate, 'git', side_effect=[b'', b'M\tApps/ble_hid_app.inc\n']):
             with self.assertRaisesRegex(ValueError, 'may add qualification files only'):
                 candidate.source_guard()
 
+    @patch('consolidated_source_guard.available', new=lambda root: False)
     def test_source_guard_rejects_unapproved_additions(self):
         with patch.object(candidate, 'git', side_effect=[b'', b'A\tApps/new_manifest.json\n']):
             with self.assertRaisesRegex(ValueError, 'may add qualification files only'):

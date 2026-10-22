@@ -1,9 +1,8 @@
 name: T039 BLE candidate package
 on:
   push:
-    branches: [work/t039-candidate-package-20261021]
+    branches: [main, work/t039-candidate-package-20261021]
   pull_request:
-    paths: ['Apps/candidates/t039/**', 'scripts/package_t039_candidate.py', 'scripts/t039_candidate_manifest.py', 'tests/t039_candidate_manifest_test.cpp', 'tests/test_t039_candidate_package.py', 'docs/t039/candidate-package/**', '.github/workflows/t039-ble-package.yml']
 permissions:
   contents: read
 jobs:

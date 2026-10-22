@@ -36,7 +36,7 @@ jobs:
           python scripts/test_ble_touchpad_native.py --system-apps .dependencies/touchpad-system --slow --sanitize
       - name: Existing HID regressions
         run: |
-          python scripts/test_ble_buttons_native_contract.py --system-apps .dependencies/touchpad-system --output build/touchpad-buttons-contract
+          python scripts/test_t039_touchpad_contract.py --system-apps .dependencies/touchpad-system --output build/touchpad-buttons-contract
           python scripts/test_hid_apps.py --system-apps .dependencies/touchpad-system
           python scripts/test_hid_renderer.py --system-apps .dependencies/touchpad-system
           python scripts/test_hid_renderer.py --system-apps .dependencies/touchpad-system --paper --native-touchpad
