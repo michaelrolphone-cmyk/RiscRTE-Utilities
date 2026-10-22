@@ -4,6 +4,8 @@
 #undef SPECTRUM_TEMPORAL_MAIN
 static cf_bank roundtrip;
 static unsigned room_slot;
+static cf_bank before_add, pending_add;
+static cf_feature prior_feature;
 static void begin_room(void){
  shared_open(CF_ROOM);shared_tap(110,210);assert(page==PAGE_SHARED_EDIT);
  shared_tap(40,80);assert(shared_keyboard&&page==PAGE_KEYBOARD);
@@ -40,6 +42,45 @@ static void save_room(void){
  cfa_changed=true;unknown_write=true;cfa_save();assert(!cfa_changed);unknown_write=false;
  pause_capture();cfa_loaded=false;memset(&cfa_bank,0,sizeof(cfa_bank));cfa_load();assert(cf_profile_find(&cfa_bank,CF_ROOM,"Office")>=0);CFA_RESUME();
 }
+/* Repeated observations update the selected name, not a second profile.
+ * Check the existing shared-profile adaptation separately from the legacy
+ * frame-weighted arithmetic mean. All samples below come from the PCM path. */
+static void begin_more_room(void){
+ before_add=cfa_bank;prior_feature=cfa_bank.profiles[room_slot].feature[CF_AUDIO];
+ shared_open(CF_ROOM);shared_tap(40,100);assert(page==PAGE_SHARED_EDIT);
+ assert(shared_selected==(int)room_slot&&!strcmp(shared_name,"Office"));
+ extra_audio=true;shared_tap(110,130);
+ assert(cfa_learning_kind==CF_ROOM&&!strcmp(cfa_learning.name,"Office"));
+ assert(!memcmp(&before_add,&cfa_bank,sizeof(before_add)));
+}
+static void save_more_room(void){
+ assert(cfa_learn_ready()&&cfa_learning_samples>=3);extra_audio=false;
+ cf_feature captured=cfa_learning.feature[CF_AUDIO];
+ assert(captured.power_mean!=prior_feature.power_mean);
+ uint64_t prior_revision=file_revisions[3];
+ file_error=RISC_APP_DATA_NO_SPACE;shared_tap(110,160);
+ assert(page==PAGE_SHARED_CAPTURE&&cfa_learning_saved&&cfa_changed&&cfa_learning_kind==CF_ROOM);
+ assert(file_revisions[3]==prior_revision&&cfa_bank.generation==before_add.generation+1);
+ const cf_feature*f=&cfa_bank.profiles[room_slot].feature[CF_AUDIO];
+ assert(f->windows==prior_feature.windows+1);
+ assert(f->power_mean==prior_feature.power_mean*.95f+captured.power_mean*.05f);
+ for(unsigned i=0;i<CF_BANDS;i++)assert(f->background[i]==prior_feature.background[i]*.95f+captured.background[i]*.05f);
+ for(unsigned i=0;i<CF_PROFILES;i++)if(i!=room_slot)assert(!memcmp(&before_add.profiles[i],&cfa_bank.profiles[i],sizeof(cf_profile)));
+ pending_add=cfa_bank;
+ shared_tap(110,160); /* Retry must not blend or count twice. */
+ assert(cfa_learning_saved&&cfa_changed&&!memcmp(&pending_add,&cfa_bank,sizeof(pending_add))&&file_revisions[3]==prior_revision);
+ file_error=0;unknown_write=true;shared_tap(110,160);unknown_write=false;
+ assert(page==PAGE_SHARED&&!cfa_learning_saved&&!cfa_changed&&!cfa_learning_kind);
+ assert(!memcmp(&pending_add,&cfa_bank,sizeof(pending_add))&&file_revisions[3]>prior_revision);
+ assert(cf_decode_source(&roundtrip,CF_AUDIO,event_disk[3],event_sizes[3]));
+ assert(cf_profile_find(&roundtrip,CF_ROOM,"Office")==(int)room_slot);
+ assert(roundtrip.profiles[room_slot].feature[CF_AUDIO].power_mean==f->power_mean);
+ pause_capture();cfa_loaded=false;memset(&cfa_bank,0,sizeof(cfa_bank));cfa_load();
+ assert(cfa_loaded&&!cfa_failed&&cf_profile_find(&cfa_bank,CF_ROOM,"Office")==(int)room_slot);
+ assert(cfa_bank.profiles[room_slot].feature[CF_AUDIO].windows==prior_feature.windows+1);
+ assert(cfa_bank.profiles[room_slot].feature[CF_AUDIO].power_mean==pending_add.profiles[room_slot].feature[CF_AUDIO].power_mean);
+ CFA_RESUME();set_page(PAGE_MAIN);
+}
 static void begin_event(void){shared_open(CF_EVENT);shared_tap(110,210);strcpy(shared_name,"Door");shared_tap(110,130);assert(cfa_learning_kind==CF_EVENT);}
 static void signal_on(void){extra_audio=true;}
 static void signal_off(void){extra_audio=false;}
@@ -53,8 +94,9 @@ static void save_event_shared(void){
 }
 int main(void){
  fresh();check(begin_room);advance(1900);check(save_room);
+ check(begin_more_room);advance(1900);check(save_more_room);
  check(begin_event);advance(100);
  for(unsigned i=0;i<3;i++){check(signal_on);advance(80);check(signal_off);advance(80);}
  check(save_event_shared);back();run();assert(!files_live&&!store_live&&!live);
- puts("Shared signal library: real PCM room/event training, named profiles, readback/reopen, background subtraction without raw mutation PASS");return 0;
+ puts("Shared signal library: real PCM room/event training, named profiles, repeated-label accumulation, full-storage/unknown-save retry without duplicate blending, readback/reopen, background subtraction without raw mutation PASS");return 0;
 }

@@ -1,0 +1,63 @@
+name: RF labeled candidate host qualification
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cohort: historical-host
+            system: f1db70fcc3ba9df2a3551a711a9d3b0b714a5f8a
+          - cohort: ci-composition
+            system: f3731ab02127dea86a308472e3780068c5a0a1cf
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: candidate
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Utilities
+          ref: 6b2047500905f8f45087cb49989103a926fc5c63
+          path: predecessor
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Utilities
+          ref: 82d17d0d902d427938af95aae0e976c8f78041ed
+          path: frozen
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: ${{ matrix.system }}
+          path: system
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Negative admission and equivalence tests
+        working-directory: candidate
+        run: python -m unittest discover -s tests -p test_rf_labeled_candidate_qualification.py -v
+      - name: Exact-source host qualifier (not frozen or target acceptance)
+        run: >-
+          python candidate/scripts/qualify_rf_labeled_candidate.py
+          --system-apps system --predecessor predecessor --frozen frozen
+          --cohort ${{ matrix.cohort }} --candidate-revision ${{ github.event.pull_request.head.sha || github.sha }}
+          --output evidence/${{ matrix.cohort }}
+      - name: Retain failures and paired evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rf-host-candidate-${{ matrix.cohort }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: evidence/${{ matrix.cohort }}/
+          if-no-files-found: error

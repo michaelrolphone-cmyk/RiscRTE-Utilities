@@ -1,0 +1,49 @@
+Production app/adapter capture: 30 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 30 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 31 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 31 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 30 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+launch=springboard.elf
+Production app/adapter capture: 23 frames, 180 polls, 3096 ms; all grants released; stride guards intact
+launch=springboard.elf
+Production app/adapter capture: 9 frames, 91 polls, 1989 ms; all grants released; stride guards intact
+launch=springboard.elf
+Production app/adapter capture: 10 frames, 121 polls, 2889 ms; all grants released; stride guards intact
+Production app/adapter capture: 33 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 34 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 82 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Spectrum fixture KV write key=context_filter bytes=32
+Spectrum fixture KV write key=spectrum_s0 bytes=1088
+Production app/adapter capture: 217 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Spectrum fixture KV write key=spectrum_s0 bytes=1088
+Production app/adapter capture: 217 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Production app/adapter capture: 54 frames, 560 polls, 13849 ms; all grants released; stride guards intact
+Spectrum fixture KV write key=context_filter bytes=32
+Production app/adapter capture: 243 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Spectrum fixture KV write key=context_filter bytes=32
+Production app/adapter capture: 243 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Production app/adapter capture: 30 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 30 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 31 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 31 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 30 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+launch=springboard.elf
+Production app/adapter capture: 23 frames, 180 polls, 3096 ms; all grants released; stride guards intact
+launch=springboard.elf
+Production app/adapter capture: 9 frames, 91 polls, 1989 ms; all grants released; stride guards intact
+launch=springboard.elf
+Production app/adapter capture: 10 frames, 121 polls, 2889 ms; all grants released; stride guards intact
+Production app/adapter capture: 33 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 34 frames, 240 polls, 4132 ms; all grants released; stride guards intact
+Production app/adapter capture: 82 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Spectrum fixture KV write key=context_filter bytes=32
+Spectrum fixture KV write key=spectrum_s0 bytes=1088
+Production app/adapter capture: 217 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Spectrum fixture KV write key=spectrum_s0 bytes=1088
+Production app/adapter capture: 217 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Production app/adapter capture: 54 frames, 560 polls, 13849 ms; all grants released; stride guards intact
+Spectrum fixture KV write key=context_filter bytes=32
+Production app/adapter capture: 243 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Spectrum fixture KV write key=context_filter bytes=32
+Production app/adapter capture: 243 frames, 560 polls, 9572 ms; all grants released; stride guards intact
+Real Spectrum renderer: sixteen scenes x normal/ASan+UBSan; saved room/event samples, paused collection, manual/ambiguous rooms; active SPEC/FALL/MONITOR tabs, standard keyboard, continuous controls scroll/fixed chrome, cursor drag, nested hardware Back, root touch return/refusal/retry, stride and grant cleanup passed

@@ -16,6 +16,7 @@ static char signature_status[40];
 static void signature_key(unsigned slot,char out[16]){snprintf(out,16,"rf_s%u",slot);}
 static void signature_save(void){
  if(!signature_pending){cfa_save();return;}
+ if(!cfa_require_identity())return;
  if(!acquire_storage()){notify("SAMPLES UNSAVED / RETRY");return;}
  uint8_t bytes[RF_SIGNATURE_RECORD_SIZE];
  for(unsigned i=0;i<RF_SIGNATURE_SLOTS;i++)if(signature_pending&(1u<<i)){
@@ -39,8 +40,9 @@ static void signature_restore(void){
  rf_signature_init(&signature_audio);rf_room_reset(&room_tracker);signature_seen=last_event_at=0;signature_pending=0;signature_errors=255;
  signature_mode=signature_scroll=signature_goal=event_confidence=0;signature_slot=signature_capture_slot=manual_room=event_slot=-1;signature_keyboard=signature_delete_confirm=false;signature_status[0]=0;if(storage)signature_load();
 }
-static int signature_filter(void){int selected=signature_mode==2?manual_room:signature_mode==1?room_tracker.selected:-1;return selected>=0&&selected<(int)RF_SIGNATURE_SLOTS&&signatures[selected].kind==RF_SIGNATURE_ROOM&&rf_identity_equal(&signatures[selected].identity,&prefs.identity)?selected:-1;}
+static int signature_filter(void){if(!cfa_live_identity_current())return -1;int selected=signature_mode==2?manual_room:signature_mode==1?room_tracker.selected:-1;return selected>=0&&selected<(int)RF_SIGNATURE_SLOTS&&signatures[selected].kind==RF_SIGNATURE_ROOM&&rf_identity_equal(&signatures[selected].identity,&prefs.identity)?selected:-1;}
 static void signature_commit_capture(void){
+ if(!cfa_require_identity())return;
  int slot=signature_capture_slot;if(slot<0||!signature_capture.frames)return;
  if(!cfa_confirm((unsigned)slot,signature_capture.name,signature_capture.kind)){signature_goal=0;signature_capture_slot=-1;notify("NO RELIABLE FEATURES / RETRY");return;}
  int previous_filter=signature_filter();
@@ -58,6 +60,7 @@ static void signature_prepare_filter(int selected){
  if(background)rf_signature_gains(signature_display_mean,background,signature_display_gains);
 }
 static void signature_observe(void){
+ if(!cfa_prepare_identity())return;
  if(signature_seen==signature_audio.transforms)return;
  signature_seen=signature_audio.transforms;
  temporal_observe();
@@ -90,6 +93,7 @@ static void signature_open(int slot,unsigned kind){
  toast_message=NULL;set_page(PAGE_SIGNATURE_EDIT);
 }
 static void signature_capture_begin(void){
+ if(!cfa_prepare_identity())return;
  if(temporal_exit_blocked()){notify("SAVE OR CANCEL EVENT FIRST");return;}
  if(signature_goal){notify("ROOM CAPTURE IN PROGRESS");set_page(PAGE_SIGNATURES);return;}
  if(editing.color!=RF_SIGNATURE_ROOM&&editing.color!=RF_SIGNATURE_EVENT){notify("CHOOSE ROOM OR EVENT");set_page(PAGE_SIGNATURES);return;}
@@ -113,6 +117,7 @@ static void signature_capture_begin(void){
 }
 static void signature_delete(void){
  if(signature_slot<0)return;
+ if(!(signature_pending&(1u<<(unsigned)signature_slot))&&!cfa_require_identity())return;
  if(!signature_delete_confirm){signature_delete_confirm=true;toast_message=NULL;dirty=true;return;}
  unsigned slot=(unsigned)signature_slot;int previous_filter=signature_filter();
  if(signature_pending&(1u<<slot)){

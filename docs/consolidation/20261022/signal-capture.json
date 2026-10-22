@@ -1,0 +1,565 @@
+{
+  "schema": 1,
+  "replacement": "signal-capture",
+  "base": "6b2047500905f8f45087cb49989103a926fc5c63",
+  "inputs": [
+    {
+      "number": 87,
+      "title": "test: Spectrum/Waterfall full-history regression coverage",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/87",
+      "head": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "branch": "work/spectrum-waterfall-regression-20261021",
+      "base": "6b2047500905f8f45087cb49989103a926fc5c63",
+      "baseRef": "main",
+      "changed_files": 17
+    },
+    {
+      "number": 89,
+      "title": "Preserve T040 shared-capture neural guard and evidence",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/89",
+      "head": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "branch": "tasker/t040-neural-reconcile-20261021",
+      "base": "6b2047500905f8f45087cb49989103a926fc5c63",
+      "baseRef": "main",
+      "changed_files": 8
+    },
+    {
+      "number": 92,
+      "title": "Preserve labeled acoustic capture tests and qualification evidence",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/92",
+      "head": "1a2e03a2e61b94972cae700f45c6c637e31b86a4",
+      "branch": "tasker/labeled-acoustic-qualification-20261021",
+      "base": "6b2047500905f8f45087cb49989103a926fc5c63",
+      "baseRef": "main",
+      "changed_files": 6
+    },
+    {
+      "number": 93,
+      "title": "Preserve labeled RF identity guard and qualification evidence",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/93",
+      "head": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "branch": "tasker/labeled-rf-qualification-20261021",
+      "base": "6b2047500905f8f45087cb49989103a926fc5c63",
+      "baseRef": "main",
+      "changed_files": 14
+    },
+    {
+      "number": 95,
+      "title": "Qualify T040 neural guard without changing frozen release gates",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/95",
+      "head": "50131578ea8dde86666ed95c8cd2e8e047b2934f",
+      "branch": "work/t040-candidate-qualification-20261021",
+      "base": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "baseRef": "tasker/t040-neural-reconcile-20261021",
+      "changed_files": 4
+    },
+    {
+      "number": 97,
+      "title": "Run preserved labeled acoustic assertions in CI",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/97",
+      "head": "32ddace0c7841e22a8968300f7aec69f30b5c842",
+      "branch": "tasker/labeled-acoustic-ci-coverage-20261021",
+      "base": "1a2e03a2e61b94972cae700f45c6c637e31b86a4",
+      "baseRef": "tasker/labeled-acoustic-qualification-20261021",
+      "changed_files": 1
+    },
+    {
+      "number": 99,
+      "title": "Qualify RF guard as a pinned host-only candidate",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/99",
+      "head": "d07848dd9bfb130743768bf237f92fb58252b702",
+      "branch": "tasker/rf-host-candidate-qualification-20261022",
+      "base": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "baseRef": "tasker/labeled-rf-qualification-20261021",
+      "changed_files": 6
+    }
+  ],
+  "source_files": {
+    "docs/evidence/durable-capture-20261021/spectrum/README.md": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "5147b8b0b60ed8de0739ebbba6d6d4f28d988d6b",
+      "mode": "100644"
+    },
+    "docs/evidence/durable-capture-20261021/spectrum/spectrum-source-and-evidence.tar.gz": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "240bea86c1c2d63671ca5e13198a99ae26595bbb",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/README.md": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "72d1ee087061e48d9197969c48e4eeb6e349afcc",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/ci-contract-repair-20261021/README.md": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "055a7d426a839c0a142d3fb55258263375231267",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/ci-contract-repair-20261021/artifact-replay.log": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "112de075b43ddecbb6f729999f414cd175d1093e",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/ci-contract-repair-20261021/packaging-tests.log": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "0dc28a1a509e52aedcefdc65ad08ec8913082629",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/ci-contract-repair-20261021/qualification.json": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "6648f4728d996efa0d0404ed20544bbde5e34bfb",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/host-results.json": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "c3eab52e6825b34bbfc078377cf97ae1e93302ee",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/rf-full-history.log": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "a3a3bfadff76a1b849ec8a1a90564b600daf007c",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/spectrum-native-baseline.log": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "8dd374f84e5421f3eb394fa54ffac2bb51485074",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/spectrum-native-stress.log": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "2e3c9fd3c312ab03a90fad84ee8bdbccfa3913b1",
+      "mode": "100644"
+    },
+    "docs/evidence/spectrum-waterfall-switch/spectrum-renderer-confirmation.log": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "5a8d7a48c2cd52b7f16f4509350096cb6cf5b8b6",
+      "mode": "100644"
+    },
+    "scripts/prepare_native_spectrum_release.py": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "c2ce360a8d3abc79661d4bc0326a39dd04e6c6b2",
+      "mode": "100644"
+    },
+    "scripts/test_rf_application.py": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "879b4420c07a4f33d4b68d09db6337bc696119da",
+      "mode": "100755"
+    },
+    "scripts/test_spectrum_native_ui.py": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "b5547e63a931ebb1a7d672477d3316f629ad97e2",
+      "mode": "100644"
+    },
+    "test/native_apps/spectrum_shared_renderer_test.c": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "7062738e353a31a9563dfbe4a703759adc762801",
+      "mode": "100644"
+    },
+    "tests/test_native_spectrum_release.py": {
+      "pr": 87,
+      "commit": "432e54bbf35fee6e66aa487826d719f231cb4db4",
+      "blob": "d7b1abc34d1b1d66ff9798dea5be2dcf11316b29",
+      "mode": "100644"
+    },
+    "Apps/audio_spectrum.c": {
+      "pr": 89,
+      "commit": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "blob": "5f399f8e7af491ae4ba379ac4a4404a4827f81c3",
+      "mode": "100644"
+    },
+    "Apps/spectrum_temporal_app.inc": {
+      "pr": 89,
+      "commit": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "blob": "6118fcb0819cf758a055ec03fc01d8b496d5a03b",
+      "mode": "100644"
+    },
+    "docs/apps/spectrum_neural.md": {
+      "pr": 89,
+      "commit": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "blob": "2de15d11d2cd1043721da2b00775b0c612b8b5ab",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t040/README.md": {
+      "pr": 89,
+      "commit": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "blob": "964f6f4091538da04c00bd6ecd4be1229134a03e",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t040/evidence.tar.gz": {
+      "pr": 89,
+      "commit": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "blob": "692bc6f7efa149abd5b87611deb6df36336d6e15",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t040/qualification-report.md": {
+      "pr": 89,
+      "commit": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "blob": "c44137b2dcce54006bc44f6c291e7ff71bbf21ae",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t040/source-checkpoint.json": {
+      "pr": 89,
+      "commit": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "blob": "de3adc2e84e44a9db26a469bd9b2d306e06116a4",
+      "mode": "100644"
+    },
+    "test/native_apps/spectrum_neural_app_test.c": {
+      "pr": 89,
+      "commit": "390b8ee8580db7d7b3e37b99c38cb10378d6d413",
+      "blob": "cf1f6e103d1ae877bb7b8c726763bbecd8bf96d1",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/acoustic/README.md": {
+      "pr": 92,
+      "commit": "1a2e03a2e61b94972cae700f45c6c637e31b86a4",
+      "blob": "9c40f453259dd0b90a169cebded9d212b7b44a8e",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/acoustic/checksums-verified.log": {
+      "pr": 92,
+      "commit": "1a2e03a2e61b94972cae700f45c6c637e31b86a4",
+      "blob": "dacf3f30805b84b7e20b93f8450c33ef3f934f1f",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/acoustic/evidence.tar.gz": {
+      "pr": 92,
+      "commit": "1a2e03a2e61b94972cae700f45c6c637e31b86a4",
+      "blob": "bea71c137aff83fb707e2633cab3a6973c897fc6",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/acoustic/qualification-report.md": {
+      "pr": 92,
+      "commit": "1a2e03a2e61b94972cae700f45c6c637e31b86a4",
+      "blob": "5d9ff35c3030284a593b51adb2df0e5d0e205597",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/acoustic/source-checkpoint.json": {
+      "pr": 92,
+      "commit": "1a2e03a2e61b94972cae700f45c6c637e31b86a4",
+      "blob": "ed660168b43064e61c24def1108d795c30306889",
+      "mode": "100644"
+    },
+    "test/native_apps/shared_signal_library_test.c": {
+      "pr": 92,
+      "commit": "1a2e03a2e61b94972cae700f45c6c637e31b86a4",
+      "blob": "5f994ff07629ae4bf481f4699fdde304bc0c41e8",
+      "mode": "100644"
+    },
+    "Apps/context_fingerprint_app.inc": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "6a58b42e32899c5e4d46b22217264ba4dc00d66a",
+      "mode": "100644"
+    },
+    "Apps/context_signal_library.inc": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "2a75000918d187f6e59bb6003c0259d755bc44fa",
+      "mode": "100644"
+    },
+    "Apps/rf_application.inc": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "bc043d3a065f984bb6823c90c1ff88c97b85d10d",
+      "mode": "100644"
+    },
+    "Apps/rf_controls.inc": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "5e56ec3027d4005e4783313dd79120e5b1021a2d",
+      "mode": "100644"
+    },
+    "Apps/rf_signature_app.inc": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "348dea9608cf3654be428c0985d9b38173269e91",
+      "mode": "100644"
+    },
+    "Apps/rf_temporal_app.inc": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "db1313d1f263a98ee0b5fffc0222d0520a3099c9",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/rf/README.md": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "a551c2bcd4d9822d566352470e470812b7d6f8c2",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/rf/evidence.tar.gz": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "89c4e93b2f6ae462c2f8fe5840f827040d7062dd",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/rf/qualification-report.md": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "4d9193954378bcbaa0a21645949e27cfeb4ff3d6",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/rf/source-checkpoint.json": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "ef0314de64ca707c6500d0e5ce28698109d46aa9",
+      "mode": "100644"
+    },
+    "docs/qualification/rf-labeled-capture-20261021.md": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "4d9193954378bcbaa0a21645949e27cfeb4ff3d6",
+      "mode": "100644"
+    },
+    "scripts/test_rf_labeled_capture.py": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "11e3da2bd5ac4e914adeccd2132f1d222bfeaa1b",
+      "mode": "100644"
+    },
+    "test/native_apps/rf_capture_identity_guard_test.inc": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "538c05bbc1029cf323a764e93e5c632dff9efcf6",
+      "mode": "100644"
+    },
+    "test/native_apps/rf_labeled_capture_test.c": {
+      "pr": 93,
+      "commit": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+      "blob": "f439f4de961389c3c8db95fb35701da7b333df03",
+      "mode": "100644"
+    },
+    ".github/workflows/t040-neural-guard.yml": {
+      "pr": 95,
+      "commit": "50131578ea8dde86666ed95c8cd2e8e047b2934f",
+      "blob": "0b4e318bf21b17c393241f4f627a3259d44725be",
+      "mode": "100644"
+    },
+    "docs/t040/candidate-qualification/README.md": {
+      "pr": 95,
+      "commit": "50131578ea8dde86666ed95c8cd2e8e047b2934f",
+      "blob": "802226c4da961b3f257278fd5f3192ff79818ad9",
+      "mode": "100644"
+    },
+    "scripts/qualify_t040_neural_guard.py": {
+      "pr": 95,
+      "commit": "50131578ea8dde86666ed95c8cd2e8e047b2934f",
+      "blob": "4d2d699eb7ed7894c9ef37dd3029f7c7f85700dd",
+      "mode": "100644"
+    },
+    "tests/test_t040_neural_guard.py": {
+      "pr": 95,
+      "commit": "50131578ea8dde86666ed95c8cd2e8e047b2934f",
+      "blob": "73d37323377681a19bdb2de8bb11de3ec1d173a5",
+      "mode": "100644"
+    },
+    ".github/workflows/build.yml": {
+      "pr": 97,
+      "commit": "32ddace0c7841e22a8968300f7aec69f30b5c842",
+      "blob": "b9f18b315255c7973b54baf0bbfd69ea100678a2",
+      "mode": "100644"
+    },
+    ".github/workflows/rf-labeled-candidate.yml": {
+      "pr": 99,
+      "commit": "d07848dd9bfb130743768bf237f92fb58252b702",
+      "blob": "52f0539e4314102f97ed1bd70f30a0709ab54b01",
+      "mode": "100644"
+    },
+    "profiles/rf-labeled-candidate-v1.json": {
+      "pr": 99,
+      "commit": "d07848dd9bfb130743768bf237f92fb58252b702",
+      "blob": "a1c8f177d676740abb07de02767c29624bb6ff6c",
+      "mode": "100644"
+    },
+    "scripts/qualify_rf_labeled_candidate.py": {
+      "pr": 99,
+      "commit": "d07848dd9bfb130743768bf237f92fb58252b702",
+      "blob": "6cb6b3e8dd1ee17e958173bccff26d45e4095a8e",
+      "mode": "100644"
+    },
+    "test/native_apps/rf_candidate_audio_differential_test.c": {
+      "pr": 99,
+      "commit": "d07848dd9bfb130743768bf237f92fb58252b702",
+      "blob": "1883f3b66b73f13a0a1f0a91ee49578cedf082da",
+      "mode": "100644"
+    },
+    "test/native_apps/rf_candidate_optout_test.c": {
+      "pr": 99,
+      "commit": "d07848dd9bfb130743768bf237f92fb58252b702",
+      "blob": "e108358e3f608b3a0361a41619dc6c8c3c6c27d4",
+      "mode": "100644"
+    },
+    "tests/test_rf_labeled_candidate_qualification.py": {
+      "pr": 99,
+      "commit": "d07848dd9bfb130743768bf237f92fb58252b702",
+      "blob": "29de6b3e6244a2cbffa1ac622a1695826548f3e6",
+      "mode": "100644"
+    }
+  },
+  "integration_resolutions": [],
+  "frozen_baselines_changed": false,
+  "released": false,
+  "hardware_qualified": false,
+  "integration_files": {
+    ".github/workflows/consolidation.yml": {
+      "mode": "100644",
+      "blob": "d8f0de011ad2fbc55ae2f1400688cf96db8c4423",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    ".github/workflows/native-spectrum.yml": {
+      "mode": "100644",
+      "blob": "4b9c07e58a9db2396878f8e9e49d00c9b3fb2611",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    ".github/workflows/rf-labeled-candidate.yml": {
+      "mode": "100644",
+      "blob": "c458a1d8c8d48e8e32b00e47625696d9f2850806",
+      "original_blob": "52f0539e4314102f97ed1bd70f30a0709ab54b01",
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
+    },
+    ".github/workflows/rf-shared-input.yml": {
+      "mode": "100644",
+      "blob": "dd6f1dca481699d47f48938519d3ebef6c08edc1",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    ".github/workflows/t040-neural-guard.yml": {
+      "mode": "100644",
+      "blob": "d016630da51b8d966bc84fb4ae19fa458a16b9fa",
+      "original_blob": "0b4e318bf21b17c393241f4f627a3259d44725be",
+      "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance."
+    },
+    ".github/workflows/watch-spectrum-shared-input.yml": {
+      "mode": "100644",
+      "blob": "b8eb0e8594422d09616b500edde7a577ab45a663",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    "Apps/context_fingerprint_app.inc": {
+      "mode": "100644",
+      "blob": "976ba102ab88671b67823d09f3380fb952f11040",
+      "original_blob": "6a58b42e32899c5e4d46b22217264ba4dc00d66a",
+      "reason": "Confine RF identity helpers and calls to CFA_SOURCE=1, preserving exact approved RF tokens and exact non-RF Audio tokens; immutable default hash 2931434081 is unchanged."
+    },
+    "Apps/context_signal_library.inc": {
+      "mode": "100644",
+      "blob": "5ee182464c2e45b09ca3df6ac12083f51e589c38",
+      "original_blob": "2a75000918d187f6e59bb6003c0259d755bc44fa",
+      "reason": "Confine RF identity helpers and calls to CFA_SOURCE=1, preserving exact approved RF tokens and exact non-RF Audio tokens; immutable default hash 2931434081 is unchanged."
+    },
+    "docs/consolidation/20261022/frozen-native-spectrum.yml": {
+      "mode": "100644",
+      "blob": "a463e28c512fa9f7d326ae8c995c85bf2960be11",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    "docs/consolidation/20261022/frozen-prepare-native-spectrum-release.py": {
+      "mode": "100644",
+      "blob": "04771f667fb4dc7c40fe4630743c62007588232a",
+      "original_blob": null,
+      "reason": "Retain the original historical workflow, preparation script or profile contract byte-for-byte while the separate current cohort is qualified."
+    },
+    "docs/consolidation/20261022/frozen-rf-labeled-candidate-v1.json": {
+      "mode": "100644",
+      "blob": "a1c8f177d676740abb07de02767c29624bb6ff6c",
+      "original_blob": null,
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
+    },
+    "docs/consolidation/20261022/frozen-watch-spectrum-shared-input.yml": {
+      "mode": "100644",
+      "blob": "8540f04e4ec41bd245726d6c972e32cc536d5823",
+      "original_blob": null,
+      "reason": "Replay the literal unchanged historical release/shared-input contracts on explicitly pinned historical sources; current exact-head candidates remain separately and fully qualified."
+    },
+    "profiles/rf-labeled-candidate-v1.json": {
+      "mode": "100644",
+      "blob": "17f1e762b5b8445ec4519ea1384ef4b480b57e1d",
+      "original_blob": "a1c8f177d676740abb07de02767c29624bb6ff6c",
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
+    },
+    "scripts/consolidated_source_guard.py": {
+      "mode": "100644",
+      "blob": "8116da09e2e3d0344d79a94bd1143b78627dedcd",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "scripts/qualify_rf_labeled_candidate.py": {
+      "mode": "100644",
+      "blob": "d5ece7845c73c0014d9bdb9beab35b74bb8bab47",
+      "original_blob": "6cb6b3e8dd1ee17e958173bccff26d45e4095a8e",
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
+    },
+    "scripts/qualify_t040_neural_guard.py": {
+      "mode": "100644",
+      "blob": "a69edc039e59ab47499f6abb80614366b2407c0d",
+      "original_blob": "4d2d699eb7ed7894c9ef37dd3029f7c7f85700dd",
+      "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance. Isolate unchanged frozen target invocations in short clean directories; preserve and validate up to three attempts only for the exact incomplete legacy linker allocator abort. Keep all semantic target gates and candidate frozen-release refusal mandatory."
+    },
+    "test/native_apps/rf_candidate_audio_differential_test.c": {
+      "mode": "100644",
+      "blob": "08aaa16cb3cc3ceb2e0627a5aa499b07c4ef1b87",
+      "original_blob": "1883f3b66b73f13a0a1f0a91ee49578cedf082da",
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
+    },
+    "tests/test_consolidated_signal_workflows.py": {
+      "mode": "100644",
+      "blob": "7dee8427196741a44d491964535d2b1da9c4ca98",
+      "original_blob": null,
+      "reason": "Regress the distinction between the approved historical RF shared-input implementation and its pre-implementation comparison baseline; retain strict non-publishing replay."
+    },
+    "tests/test_consolidated_source_guard.py": {
+      "mode": "100644",
+      "blob": "6405b7722707d9bf390fd3fbe3d3cc75bc093fcc",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_consolidated_workflow_routing.py": {
+      "mode": "100644",
+      "blob": "b51a6d62311373d7192babedd19d7002e614272a",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_native_spectrum_release.py": {
+      "mode": "100644",
+      "blob": "1307de22856a29f0c026841ca7d1f411bd5185d9",
+      "original_blob": "d7b1abc34d1b1d66ff9798dea5be2dcf11316b29",
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_rf_labeled_candidate_qualification.py": {
+      "mode": "100644",
+      "blob": "df697b6c86127ebf7400008896e66354392221b4",
+      "original_blob": "29de6b3e6244a2cbffa1ac622a1695826548f3e6",
+      "reason": "Qualify the exact current f3731ab SDK cohort; bind context-disabled host profiles to explicit neutral SDK hooks on both sides, retain actual Contexts profiles, exact approved neural overlay, strict section/behavior equality and literal frozen failure."
+    },
+    "tests/test_t040_neural_guard.py": {
+      "mode": "100644",
+      "blob": "671b885060f5582f16d7ac7722254582e94a081a",
+      "original_blob": "73d37323377681a19bdb2de8bb11de3ec1d173a5",
+      "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance."
+    },
+    "tests/test_t040_target_orchestration.py": {
+      "mode": "100644",
+      "blob": "a443c4044900516e6701b726356153d8fc03657f",
+      "original_blob": null,
+      "reason": "Real-subprocess regressions for bounded exact legacy linker-abort recovery, failed archive/command integrity, ordinary-failure refusal, fresh paths, transportable aliases and preservation of the candidate release refusal."
+    }
+  }
+}

@@ -1,0 +1,19 @@
+Spectrum production shared input normal native-full-history-switch-0 PASS
+Spectrum production shared input normal native-full-history-delayed-0 PASS
+Spectrum production shared input normal native-full-history-switch-227 PASS
+Spectrum production shared input normal native-full-history-delayed-227 PASS
+Spectrum production shared input ASan/UBSan native-full-history-switch-0 PASS
+Spectrum production shared input ASan/UBSan native-full-history-delayed-0 PASS
+Spectrum production shared input ASan/UBSan native-full-history-switch-227 PASS
+Spectrum production shared input ASan/UBSan native-full-history-delayed-227 PASS
+Evidence: ./build/mode-switch-stress/240x240/qualification.json
+Spectrum production shared input normal native-full-history-switch-0 PASS
+Spectrum production shared input normal native-full-history-delayed-0 PASS
+Spectrum production shared input normal native-full-history-switch-227 PASS
+Spectrum production shared input normal native-full-history-delayed-227 PASS
+Spectrum production shared input ASan/UBSan native-full-history-switch-0 PASS
+Spectrum production shared input ASan/UBSan native-full-history-delayed-0 PASS
+Spectrum production shared input ASan/UBSan native-full-history-switch-227 PASS
+Spectrum production shared input ASan/UBSan native-full-history-delayed-227 PASS
+Evidence: ./build/mode-switch-stress/410x502/qualification.json
+Native Spectrum actual-adapter qualification completed

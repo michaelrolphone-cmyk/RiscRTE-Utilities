@@ -34,6 +34,84 @@ static uint32_t cfa_saved_at,cfa_seen,cfa_event_at;
 static uint64_t cfa_time_us,cfa_utc,cfa_quiet_us,cfa_onset_us;
 static uint32_t cfa_utc_at,cfa_last_capture_ms;
 static bool cfa_have_capture;
+#if CFA_SOURCE == 1
+#if CFA_SOURCE == 1
+/* The historical CFP projection cannot represent these metadata fields. Keep
+ * its hash and stored records unchanged, but admit no new ambiguous identity.
+ * This does not establish the provenance of already saved CFP records. */
+static rf_capture_identity cfa_capture_identity;
+static bool cfa_capture_identity_bound,cfa_capture_identity_stale;
+static bool cfa_capture_identity_eligible(const rf_capture_identity*i){
+    rf_capture_identity defaults=rf_identity_default();
+    return rf_identity_valid(i)&&i->lo_mode==defaults.lo_mode&&
+        i->settings_id==defaults.settings_id&&i->settings_flags==defaults.settings_flags;
+}
+static bool cfa_identity_draft(void){
+    return (cfa_learning_kind&&cfa_learning_samples&&!cfa_learning_saved)||
+        (signature_goal&&signature_capture.frames)||(event_armed&&event_training.used)||
+        (event_training.ready&&!cfa_training_saved);
+}
+static void cfa_invalidate_identity(void){
+    /* Retain saved records and reviewable drafts. Live evidence, including
+     * legacy fallback answers, must not survive an incompatible interval. */
+    cfa_capture_identity_stale=true;
+    cf_enable(&cfa_fusion,CFA_SOURCE,false);cf_enable(&cfa_event_fusion,CFA_SOURCE,false);
+    cfa_room=(cf_match){.slot=-1};cfa_event=cfa_room;
+    room_tracker.selected=room_tracker.candidate=-1;event_slot=-1;
+    event_match.running=false;event_match.selected=-1;event_match.complete=false;
+}
+#endif
+static bool cfa_identity_allowed(void){
+#if CFA_SOURCE == 1
+    if(!cfa_capture_identity_eligible(&prefs.identity)){cfa_invalidate_identity();notify("RF METADATA UNSUPPORTED / RESTORE");return false;}
+    if(cfa_capture_identity_stale&&cfa_identity_draft()){
+        notify("RF CHANGED / CANCEL SAMPLE");return false;
+    }
+    if(cfa_capture_identity_bound&&!rf_identity_equal(&cfa_capture_identity,&prefs.identity)&&
+       (cfa_changed||(cfa_learning_kind&&cfa_learning_samples)||
+        (signature_goal&&signature_capture.frames)||signature_pending||
+        (event_armed&&event_training.used)||
+        event_training.ready||event_files.pending>=0)){
+        cfa_invalidate_identity();notify("RESTORE SAMPLE RF / CANCEL FIRST");return false;
+    }
+#endif
+    return true;
+}
+static bool cfa_identity_current(void){
+#if CFA_SOURCE == 1
+    bool current=cfa_capture_identity_eligible(&prefs.identity)&&
+        (!cfa_capture_identity_bound||rf_identity_equal(&cfa_capture_identity,&prefs.identity));
+    if(!current)cfa_invalidate_identity();
+    return current;
+#else
+    return true;
+#endif
+}
+static bool cfa_live_identity_current(void){
+    if(!cfa_identity_current())return false;
+#if CFA_SOURCE == 1
+    return !cfa_capture_identity_stale;
+#else
+    return true;
+#endif
+}
+static bool cfa_require_identity(void){
+    if(!cfa_identity_allowed())return false;
+    if(!cfa_identity_current()){notify("RESTORE SAMPLE RF / START AGAIN");return false;}
+    return true;
+}
+static bool cfa_prepare_identity(void){
+    if(!cfa_identity_allowed())return false;
+#if CFA_SOURCE == 1
+    if(cfa_capture_identity_stale&&(cfa_changed||signature_pending||event_files.pending>=0||
+       cfa_learning_saved||(event_training.ready&&cfa_training_saved))){
+        notify("RESTORE RF / RETRY SAVE FIRST");return false;
+    }
+    if(!cfa_capture_identity_bound||!cfa_identity_current()||cfa_capture_identity_stale)cfa_begin();
+#endif
+    return cfa_identity_current();
+}
+#endif
 static uint64_t cfa_seconds(void){return cfa_utc?cfa_utc+(uint32_t)(app->millis()-cfa_utc_at)/1000u:0;}
 static void cfa_capture_clock(uint32_t stamp){
     if(cfa_have_capture){
@@ -58,6 +136,9 @@ static uint32_t cfa_identity(void){
 #endif
 }
 static bool cfa_timing_only(void){
+#if CFA_SOURCE == 1
+ if(!cfa_require_identity())return false;
+#endif
 #ifdef PORTABLE_CONTEXTS_CLIENT
  const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(portable_contexts_service());
  contexts_fingerprint_status_v1 q={.struct_size=sizeof(q)};
@@ -69,6 +150,9 @@ static bool cfa_timing_only(void){
 /* Other-source labels are visible, but cannot classify or subtract until this
  * source has been trained. Never fabricate an RF fingerprint from audio. */
 static void cfa_shared_names(void){
+#if CFA_SOURCE == 1
+ if(!cfa_live_identity_current())return;
+#endif
  for(unsigned i=0;i<8;i++)if(signatures[i].kind==CF_ROOM){
   int at=cf_profile_slot(&cfa_bank,CF_ROOM,signatures[i].name);if(at>=0&&!cfa_bank.profiles[at].kind){cfa_bank.profiles[at].kind=CF_ROOM;memcpy(cfa_bank.profiles[at].name,signatures[i].name,17);}
  }
@@ -83,6 +167,9 @@ static void cfa_shared_names(void){
 #endif
 }
 static bool cfa_publish_saved(uint32_t size){
+#if CFA_SOURCE == 1
+ if(!cfa_require_identity())return false;
+#endif
 #ifdef PORTABLE_CONTEXTS_CLIENT
  const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(portable_contexts_service());
  if(f){contexts_fingerprint_record_v1 q={.struct_size=sizeof(q),.source=1u<<CFA_SOURCE,.bytes=cfa_bytes,.size=size,.capacity=sizeof(cfa_bytes)};
@@ -93,6 +180,12 @@ static bool cfa_publish_saved(uint32_t size){
  return true;
 }
 static void cfa_begin(void){
+#if CFA_SOURCE == 1
+    if(!cfa_identity_allowed())return;
+#endif
+#if CFA_SOURCE == 1
+    cfa_capture_identity=prefs.identity;cfa_capture_identity_bound=true;cfa_capture_identity_stale=false;
+#endif
     cfa_config=cf_defaults(cfa_source());cf_init(&cfa_pipeline,&cfa_config,cfa_identity());
     cf_init(&cfa_event_pipeline,&cfa_config,cfa_identity());cfa_event_pipeline.config.window_ms=100;
     cf_enable(&cfa_fusion,cfa_source(),false);cf_enable(&cfa_fusion,cfa_source(),true);
@@ -112,6 +205,9 @@ static void cfa_load(void){
     if(!rc){cfa_bank=cfa_read_bank;cfa_loaded=true;cfa_revision=revision;cfa_shared_names();}else{cfa_failed=true;notify("FINGERPRINTS UNREAD / RETRY");}
 }
 static bool cfa_filter_select(unsigned mode,const char*name){
+#if CFA_SOURCE == 1
+    if(!cfa_require_identity())return false;
+#endif
     if(!name)name=cfa_manual_name;
     if(mode>2||!memchr(name,0,17))return false;
     pause_capture();if(temporal_retained())return false;
@@ -135,12 +231,19 @@ static void cfa_filter_load(void){
     }else{signature_mode=0;notify("FILTER SETTING UNREAD / CHOOSE AGAIN");}
 }
 static void cfa_restore(void){
+#if CFA_SOURCE == 1
+    cfa_capture_identity_bound=cfa_capture_identity_stale=false;
+#endif
     memset(&cfa_bank,0,sizeof(cfa_bank));memset(&cfa_fusion,0,sizeof(cfa_fusion));memset(&cfa_event_fusion,0,sizeof(cfa_event_fusion));cfa_loaded=cfa_changed=cfa_failed=false;
     cfa_room=(cf_match){.slot=-1};cfa_event=cfa_room;cfa_saved_at=app->millis();cfa_utc_at=cfa_saved_at;
     if(!portable_fingerprint_clock(runtime,&cfa_utc)){event_files.retained=true;return;}
     cfa_learning_kind=cfa_learning_samples=0;cfa_learning_saved=false;cfa_manual_name[0]=0;cfa_filter_load();
 #ifdef PORTABLE_CONTEXTS_CLIENT
+#if CFA_SOURCE == 1
+    if(cfa_identity_current()&&!portable_contexts_models_save()){cfa_failed=true;notify("SHARED MODELS / RETRY SAVE");return;}
+#else
     if(!portable_contexts_models_save()){cfa_failed=true;notify("SHARED MODELS / RETRY SAVE");return;}
+#endif
 #endif
     cfa_begin();cfa_load();
 }
@@ -154,6 +257,9 @@ static int32_t cfa_verify_saved(uint32_t wanted_size,uint32_t wanted_crc,uint64_
 }
 static void cfa_save(void){
     if(!cfa_changed||!cfa_loaded||cfa_failed||!event_files.api||temporal_retained()||event_files.pending>=0||signature_pending)return;
+#if CFA_SOURCE == 1
+    if(!cfa_require_identity())return;
+#endif
     pause_capture();if(temporal_retained())return;
     uint32_t size=0,wanted=cf_encode_source(&cfa_bank,cfa_source(),cfa_bytes,sizeof(cfa_bytes));uint64_t revision=0;
     uint32_t crc=cf_crc(cfa_bytes,wanted);
@@ -169,14 +275,27 @@ static void cfa_save(void){
     CFA_RESUME();
 }
 static void cfa_reset_window(cf_pipeline*p){cf_window_reset(p,cfa_time_us);}
-static void cfa_arm(void){cfa_onset_us=cfa_quiet_us=0;cfa_training_ready=cfa_segment_active=cfa_training_saved=false;cfa_room=(cf_match){.slot=-1};cfa_event=cfa_room;cfa_reset_window(&cfa_event_pipeline);}
+static void cfa_arm(void){
+#if CFA_SOURCE == 1
+if(!cfa_prepare_identity())return;
+#endif
+cfa_onset_us=cfa_quiet_us=0;cfa_training_ready=cfa_segment_active=cfa_training_saved=false;cfa_room=(cf_match){.slot=-1};cfa_event=cfa_room;cfa_reset_window(&cfa_event_pipeline);}
 static bool cfa_confirm(unsigned slot,const char*name,unsigned kind){
+#if CFA_SOURCE == 1
+    if(!cfa_require_identity())return false;
+#endif
+#if CFA_SOURCE == 1
+    if(cfa_fusion.have[CFA_SOURCE]&&cfa_fusion.live[CFA_SOURCE].identity!=cfa_identity())return false;
+#endif
     if(!cfa_loaded||cfa_failed||slot>=CF_PROFILES||!cfa_fusion.have[cfa_source()])return false;
     int shared=cf_profile_slot(&cfa_bank,kind,name);if(shared<0)return false;slot=(unsigned)shared;
     bool ok=cf_train(&cfa_bank,&cfa_fusion,slot,name,kind,cfa_time_us,cfa_seconds(),&cfa_config,true);
     cfa_changed|=ok;return ok;
 }
 static void cfa_event_boundary(bool training,bool collecting,bool ready){
+#if CFA_SOURCE == 1
+    if(!cfa_require_identity())return;
+#endif
 #if CFA_SOURCE == 0
     /* The envelope segmenter owns live events. A user-reviewed legacy
      * example can close its training window before the quiet tail finishes. */
@@ -196,6 +315,12 @@ static void cfa_event_boundary(bool training,bool collecting,bool ready){
     cfa_event=cf_match_profiles(&cfa_bank,&cfa_event_fusion,CF_EVENT,cfa_time_us,cfa_seconds(),&cfa_config);
 }
 static bool cfa_save_event(unsigned slot,const char*name,bool positive){
+#if CFA_SOURCE == 1
+    if(!cfa_require_identity())return false;
+#endif
+#if CFA_SOURCE == 1
+    if(cfa_training_ready&&cfa_training_window.identity!=cfa_identity())return false;
+#endif
     if(cfa_training_saved)return true;
     if(!cfa_training_ready)return false;
     if(!cfa_loaded||cfa_failed)return false;
@@ -206,6 +331,9 @@ static bool cfa_save_event(unsigned slot,const char*name,bool positive){
     return ok;
 }
 static void cfa_observe(void){
+#if CFA_SOURCE == 1
+    if(!cfa_prepare_identity())return;
+#endif
     unsigned s=cfa_source();
     if(cfa_pipeline.identity!=cfa_identity())cfa_begin();
     if(signature_audio.transforms!=cfa_seen){
@@ -228,6 +356,9 @@ static void cfa_observe(void){
     }
 }
 static void cfa_forget(unsigned slot){
+#if CFA_SOURCE == 1
+    if(!cfa_require_identity())return;
+#endif
     if(slot>=CF_PROFILES||!cfa_loaded)return;
     unsigned kind=slot<8?signatures[slot].kind:slot<16?CF_EVENT:CF_NEGATIVE;
     const char*name=slot<8?signatures[slot].name:event_library.labels[slot%8].name;
@@ -236,17 +367,33 @@ static void cfa_forget(unsigned slot){
     cfa_room.slot=cfa_event.slot=-1;
 }
 static void cfa_rename_event(unsigned slot,const char*name){
+#if CFA_SOURCE == 1
+    if(!cfa_require_identity())return;
+#endif
     for(unsigned kind=CF_EVENT;kind<=CF_NEGATIVE;kind++){
         int at=cf_profile_find(&cfa_bank,kind,event_library.labels[slot].name);
         if(at>=0&&cf_profile_find(&cfa_bank,kind,name)<0){memcpy(cfa_bank.profiles[at].name,name,17);++cfa_bank.generation;cfa_changed=true;}
     }
 }
 static void cfa_discard(void){pause_capture();if(temporal_retained())return;cfa_loaded=cfa_failed=cfa_changed=false;memset(&cfa_bank,0,sizeof(cfa_bank));cfa_load();cfa_room.slot=cfa_event.slot=-1;if(!temporal_retained())CFA_RESUME();}
-static const char*cfa_name(unsigned kind,const char*fallback){int slot=kind==CF_ROOM?cfa_room.slot:cfa_event.slot;return slot>=0&&slot<(int)CF_PROFILES?cfa_bank.profiles[slot].name:fallback;}
+static const char*cfa_name(unsigned kind,const char*fallback){
+#if CFA_SOURCE == 1
+if(!cfa_live_identity_current())return "RF SETTINGS UNSUPPORTED";
+#endif
+int slot=kind==CF_ROOM?cfa_room.slot:cfa_event.slot;return slot>=0&&slot<(int)CF_PROFILES?cfa_bank.profiles[slot].name:fallback;}
 static bool cfa_has_events(void){for(unsigned i=0;i<CF_PROFILES;i++)if(cfa_bank.profiles[i].kind==CF_EVENT)return true;return false;}
 static bool cfa_unsaved(void){return cfa_changed;}
 static void cfa_retry(void){pause_capture();if(temporal_retained())return;if(cfa_failed){cfa_failed=false;cfa_load();}if(temporal_retained())return;cfa_save();if(!temporal_retained())CFA_RESUME();}
 static void cfa_apply(void){
+#if CFA_SOURCE == 1
+    if(!cfa_require_identity()||!cfa_live_identity_current()){
+#if CFA_SOURCE == 1
+        room_tracker.selected=room_tracker.candidate=-1;event_slot=-1;
+        event_match.running=false;event_match.selected=-1;event_match.complete=false;
+#endif
+        return;
+    }
+#endif
     if((uint32_t)(app->millis()-cfa_event_at)>4000u)cfa_event.slot=-1;
     /* A newly trained fingerprint replaces its old spectral-only answer. */
     bool rooms=false,events=false;
@@ -268,6 +415,9 @@ static void cfa_apply(void){
     if(cfa_changed&&!cfa_learning_kind&&!signature_goal&&!event_armed&&!event_training.ready&&(uint32_t)(app->millis()-cfa_saved_at)>=60000u)cfa_save();
 }
 static void cfa_segment(uint64_t stamp,bool gap){
+#if CFA_SOURCE == 1
+ if(!cfa_prepare_identity())return;
+#endif
  if(gap){cfa_onset_us=cfa_quiet_us=0;cfa_event.slot=-1;}
  if(cfa_event_pipeline.active){if(!cfa_onset_us){cfa_onset_us=stamp;cf_window_reset(&cfa_event_pipeline,stamp);}cfa_quiet_us=stamp;}
  if(cfa_onset_us&&(stamp-cfa_quiet_us>=500000u||stamp-cfa_onset_us>=10000000u)){
@@ -281,6 +431,9 @@ static void cfa_segment(uint64_t stamp,bool gap){
 }
 #if CFA_SOURCE == 1
 static void cfa_envelope(const risc_radio_iq_envelope_v1*v){
+#if CFA_SOURCE == 1
+ if(!cfa_prepare_identity())return;
+#endif
  cfa_time_us=v->timestamp_us;
  bool gap=(v->flags&RISC_RADIO_IQ_ENVELOPE_GAP)!=0;
  cf_envelope_sample(&cfa_pipeline,v->magnitude,v->timestamp_us,v->observed_us,gap);
@@ -288,6 +441,9 @@ static void cfa_envelope(const risc_radio_iq_envelope_v1*v){
  cfa_segment(v->timestamp_us,gap);
 }
 static void cfa_iq(const uint32_t*pairs,size_t count,uint32_t rate,uint32_t stamp){
+#if CFA_SOURCE == 1
+    if(!cfa_prepare_identity())return;
+#endif
     cfa_capture_clock(stamp);
     cf_iq_snapshot(&cfa_pipeline,pairs,count,rate,cfa_time_us);
     cf_iq_snapshot(&cfa_event_pipeline,pairs,count,rate,cfa_time_us);cfa_observe();
@@ -309,6 +465,9 @@ static void cfa_pcm(const int16_t*pcm,size_t count,uint32_t rate,bool continuous
 /* Shared subtraction operates only on matching source/capture identities.
  * It is display-only: all detection and training consume raw canonical power. */
 static const uint32_t*cfa_background(void){
+#if CFA_SOURCE == 1
+    if(!cfa_live_identity_current())return NULL;
+#endif
     if(!signature_mode)return NULL;
     int at=-1;const char*name=NULL;
     if(signature_mode==1){
@@ -336,6 +495,12 @@ static const uint32_t*cfa_background(void){
     return NULL;
 }
 static void cfa_learn_observe(const cf_feature*f,bool event){
+#if CFA_SOURCE == 1
+    if(!cfa_prepare_identity())return;
+#endif
+#if CFA_SOURCE == 1
+    if(f->identity!=cfa_identity()){notify("RESTORE SAMPLE RF / CANCEL FIRST");return;}
+#endif
     if(!cfa_learning_kind||cfa_learning_saved||((cfa_learning_kind==CF_EVENT)!=event)||
        !(f->flags&(CF_TEMPORAL|CF_SPECTRAL))||(f->flags&CF_OVERFLOW))return;
     if(cfa_learning_samples){if(!cf_blend(&cfa_learning.feature[CFA_SOURCE],f,1.f/(float)(cfa_learning_samples+1u)))return;}
@@ -345,6 +510,14 @@ static void cfa_learn_observe(const cf_feature*f,bool event){
 }
 static bool cfa_learn_ready(void){return cfa_learning_samples>=3&&(cfa_learning_kind==CF_EVENT||(uint32_t)(app->millis()-cfa_learning_at)>=30000u);}
 static bool cfa_learn_save(void){
+#if CFA_SOURCE == 1
+    if(!cfa_require_identity())return false;
+#endif
+#if CFA_SOURCE == 1
+    if(cfa_learning_samples&&cfa_learning.feature[CFA_SOURCE].identity!=cfa_identity()){
+        notify("RESTORE SAMPLE RF / CANCEL FIRST");return false;
+    }
+#endif
     if(!cfa_learning_kind||(!cfa_learning_saved&&!cfa_learn_ready()))return false;
     if(!cfa_learning_saved){
         int at=cf_profile_slot(&cfa_bank,cfa_learning_kind,cfa_learning.name);if(at<0){notify("LIBRARY FULL");return false;}

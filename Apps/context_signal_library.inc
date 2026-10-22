@@ -120,6 +120,9 @@ static void shared_tap(int x,int y){
    if(cfa_filter_select(2,shared_name)){set_page(PAGE_MAIN);notify("ROOM BACKGROUND SUBTRACTED");}return;
   }
   if(hit(x,y,12,116,216,38)){
+#if CFA_SOURCE == 1
+   if(!cfa_prepare_identity())return;
+#endif
    if(!shared_name_valid(shared_name)){notify("ENTER A NAME FIRST");return;}
    if(cfa_failed||!cfa_loaded){cfa_retry();if(cfa_failed||!cfa_loaded){notify("SHARED MODELS UNREAD / RETRY");return;}}
    if(cf_profile_slot(&cfa_bank,shared_kind,shared_name)<0){notify("8 LABELS FULL");return;}

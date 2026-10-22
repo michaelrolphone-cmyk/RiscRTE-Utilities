@@ -1,4 +1,4 @@
-name: RF shared input safety
+name: Historical RF shared input safety
 on:
   push:
     branches: [work/rf-shared-input-20261012, work/rf-input-policy-20261012]
@@ -23,6 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: 52157660ec573cf4639ffe3eefcad5b7b3115c4e
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@v4
         with:

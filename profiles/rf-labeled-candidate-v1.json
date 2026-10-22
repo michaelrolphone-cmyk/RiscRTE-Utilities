@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "base": "3565ac151765705457b34b7d0ac4bbcc5125c753",
+  "guard_source": "055f86ea32df0f10ca96c5aa48cbb64199eadcba",
+  "predecessor": "6b2047500905f8f45087cb49989103a926fc5c63",
+  "frozen": "82d17d0d902d427938af95aae0e976c8f78041ed",
+  "systems": {
+    "historical-host": "f1db70fcc3ba9df2a3551a711a9d3b0b714a5f8a",
+    "ci-composition": "f3731ab02127dea86a308472e3780068c5a0a1cf"
+  },
+  "additions": [
+    ".github/workflows/rf-labeled-candidate.yml",
+    "profiles/rf-labeled-candidate-v1.json",
+    "scripts/qualify_rf_labeled_candidate.py",
+    "test/native_apps/rf_candidate_audio_differential_test.c",
+    "test/native_apps/rf_candidate_optout_test.c",
+    "tests/test_rf_labeled_candidate_qualification.py"
+  ],
+  "optional_evidence_archive": "docs/evidence/rf-labeled-candidate-20261022.tar.gz",
+  "production_delta": [
+    "Apps/context_fingerprint_app.inc",
+    "Apps/context_signal_library.inc",
+    "Apps/rf_application.inc",
+    "Apps/rf_controls.inc",
+    "Apps/rf_signature_app.inc",
+    "Apps/rf_temporal_app.inc"
+  ],
+  "default_identity_hash": 2931434081,
+  "distributable": false,
+  "hardware_verified": false,
+  "target_elf_qualified": false,
+  "historical_nondefault_cfp_provenance": "unresolved",
+  "profiles": {
+    "plain": [],
+    "nova-alarm": [
+      "PORTABLE_NOVA_UI",
+      "PORTABLE_ALARM_CLIENT"
+    ],
+    "resident-contexts": [
+      "PORTABLE_RADIO_CONTINUOUS_CAPTURE",
+      "PORTABLE_RESIDENT_POLICY",
+      "PORTABLE_CONTEXTS_CLIENT",
+      "PORTABLE_BLE_BROADCAST",
+      "PORTABLE_HOME_APP=\"default.elf\"",
+      "PORTABLE_RETURN_APP=\"springboard.elf\""
+    ]
+  },
+  "payload_origin": "bounded reconstruction; not the absent original six-file payload",
+  "no_context_host_hooks": [
+    "PORTABLE_CONTEXTS_LIVE()=true",
+    "PORTABLE_CONTEXTS_CHECK_LIVE()=((void)0)",
+    "portable_contexts_callback(value)=(value)"
+  ]
+}

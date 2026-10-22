@@ -1,0 +1,25 @@
+{
+  "key": "t040",
+  "repo": "michaelrolphone-cmyk/RiscRTE-Utilities",
+  "branch": "tasker/t040-neural-reconcile-20261021",
+  "base": "main",
+  "local": "601fa56324e1a1c0c4b4f6d51b13b6a8c6ae54e2",
+  "parent": "6b2047500905f8f45087cb49989103a926fc5c63",
+  "tree": "3ab5ba3380fc9a6d72f40388b672c46d08c878a5",
+  "remote_source": "30867c87a7d3afb13252fd446784d484270b4ecf",
+  "changed_paths": [
+    "Apps/audio_spectrum.c",
+    "Apps/spectrum_temporal_app.inc",
+    "docs/apps/spectrum_neural.md",
+    "test/native_apps/spectrum_neural_app_test.c"
+  ],
+  "source_tree_identical": true,
+  "original_commit_restoration": "The incremental original-source.bundle needs its original parent. For stacked checkpoints, restore the parent checkpoint bundle first. The GitHub source commit has the exact original tree but different commit metadata.",
+  "publication_scope": "Existing source and historical software evidence only; no new tests, target build, merge, tag, firmware release, deployment, or hardware acceptance is claimed.",
+  "historical_reports": "Reports and logs are preserved from before publication; local-only/unpublished statements describe that earlier observation. This source lock supersedes only their publication state.",
+  "archive_included_files": null,
+  "archive_omitted_files": null,
+  "archive_included_files_count": 22,
+  "archive_sha256": "0fa8f54033881a91d6681a11e4c0ca1425517b52e440074215c5aabf5ce6a253",
+  "archive_bytes": 30905
+}

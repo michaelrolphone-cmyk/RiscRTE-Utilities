@@ -1,4 +1,4 @@
-name: Native Audio Spectrum qualification
+name: Historical native Audio Spectrum release qualification
 on:
   push:
     branches: [main, work/audio-spectrum-native-20261018]
@@ -14,6 +14,8 @@ on:
         type: boolean
 permissions:
   contents: read
+env:
+  HISTORICAL_SOURCE: 432e54bbf35fee6e66aa487826d719f231cb4db4
 jobs:
   qualify:
     runs-on: ubuntu-24.04
@@ -27,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ env.HISTORICAL_SOURCE }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -105,23 +107,23 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/prepare_native_spectrum_release.py --artifact dist/native-spectrum --system .dependencies/system --runtime .dependencies/runtime --watch .dependencies/watch --bridges .dependencies/bridges --wave .dependencies/wave
-          python scripts/publish_native_spectrum.py --artifact dist/native-spectrum --source-sha "${{ github.event.pull_request.head.sha || github.sha }}" --repository "${{ github.repository }}" --validate-only
+          python scripts/publish_native_spectrum.py --artifact dist/native-spectrum --source-sha "${{ env.HISTORICAL_SOURCE }}" --repository "${{ github.repository }}" --validate-only
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-spectrum-${{ github.event.pull_request.head.sha || github.sha }}
+          name: native-spectrum-${{ env.HISTORICAL_SOURCE }}
           path: dist/native-spectrum/
           include-hidden-files: true
           retention-days: 14
       - uses: actions/download-artifact@v4
         with:
-          name: native-spectrum-${{ github.event.pull_request.head.sha || github.sha }}
+          name: native-spectrum-${{ env.HISTORICAL_SOURCE }}
           path: ${{ runner.temp }}/native-spectrum-downloaded
       - name: Validate transported Spectrum source and evidence bundle
         run: |
-          python scripts/publish_native_spectrum.py --artifact "$RUNNER_TEMP/native-spectrum-downloaded" --source-sha "${{ github.event.pull_request.head.sha || github.sha }}" --repository "${{ github.repository }}" --validate-only
+          python scripts/publish_native_spectrum.py --artifact "$RUNNER_TEMP/native-spectrum-downloaded" --source-sha "${{ env.HISTORICAL_SOURCE }}" --repository "${{ github.repository }}" --validate-only
   publish-development:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_development))
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish_development && github.sha == '432e54bbf35fee6e66aa487826d719f231cb4db4'
     needs: qualify
     runs-on: ubuntu-24.04
     permissions:

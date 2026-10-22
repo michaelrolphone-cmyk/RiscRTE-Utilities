@@ -127,7 +127,7 @@ class SpectrumReleaseTests(unittest.TestCase):
         record = publish.validate(self.root,self.source)
         self.assertEqual(record['version'],'0.5.11-dev1')
         self.assertEqual(len(record['required_capabilities']),21)
-        self.assertEqual(len(prepare.SCENARIOS)*len(prepare.PROFILES)*2,610)
+        self.assertEqual(len(prepare.SCENARIOS)*len(prepare.PROFILES)*2,650)
         self.assertNotEqual(record['target_original_source_commit'],record['source_commit'])
 
     def test_native_manifest_unchanged_and_distinct(self):
@@ -161,6 +161,31 @@ class SpectrumReleaseTests(unittest.TestCase):
     def test_changed_host_source_rejected(self):
         put(self.root/'source/system/Services/scene_host/host.c',b'changed')
         with self.assertRaisesRegex(ValueError,'source evidence'):publish.validate(self.root,self.source)
+
+    def test_full_history_host_matrix_required(self):
+        cases = {'native-full-history-switch-0', 'native-full-history-switch-227',
+                 'native-full-history-delayed-0', 'native-full-history-delayed-227'}
+        self.assertEqual({case for case in prepare.SCENARIOS
+                          if case.startswith('native-full-history-')}, cases)
+        path = 'host/240x240/qualification.json'
+        original = (self.root/path).read_bytes()
+        for case in sorted(cases):
+            for sanitized in (False, True):
+                for mutation in ('missing', 'duplicate', 'failed'):
+                    with self.subTest(case=case, sanitized=sanitized, mutation=mutation):
+                        data = json.loads(original)
+                        index = next(i for i, result in enumerate(data['results'])
+                                     if (result['mode'], result['sanitized']) == (case, sanitized))
+                        if mutation == 'missing':
+                            data['results'].pop(index)
+                        elif mutation == 'duplicate':
+                            data['results'][index] = data['results'][(index + 1) % len(data['results'])]
+                        else:
+                            data['results'][index]['returncode'] = 1
+                        prepare.write(self.root/path, data)
+                        with self.assertRaisesRegex(ValueError, 'host matrix'):
+                            publish.validate(self.root, self.source)
+        (self.root/path).write_bytes(original)
 
     def test_missing_compiled_source_rejected(self):
         (self.root/'source/utilities/Apps/audio_spectrum.c').unlink()
@@ -267,7 +292,7 @@ class SpectrumReleaseTests(unittest.TestCase):
                 with self.assertRaises((ValueError,FileNotFoundError)):publish.verify_release_assets(out,record)
 
     def test_workflow_explicit_publication_gate(self):
-        workflow=(ROOT/'.github/workflows/native-spectrum.yml').read_text();qualify,publisher=workflow.split('  publish-development:',1)
+        workflow=(ROOT/'docs/consolidation/20261022/frozen-native-spectrum.yml').read_text();qualify,publisher=workflow.split('  publish-development:',1)
         self.assertNotIn('contents: write',qualify)
         for value in ("github.event_name == 'workflow_dispatch'","github.event_name == 'push'","github.ref == 'refs/heads/main'",'inputs.publish_development',
                       'needs: qualify','GH_TOKEN: ${{ github.token }}','--publish'):self.assertIn(value,publisher)
