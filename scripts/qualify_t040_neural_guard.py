@@ -9,6 +9,8 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
 
 import build_native_spectrum_qualification as frozen
 import prepare_native_spectrum_release as frozen_package
@@ -112,6 +114,102 @@ def run(command, out, label, expected=0):
     if expected is not None:
         require(result.returncode == expected, label+' failed; see '+str(log))
     return result.returncode
+
+
+TARGET_ATTEMPTS = 3
+LINKER_ABORT = {'collect2: fatal error: ld terminated with signal 6 [Aborted], core dumped',
+                'compilation terminated.', 'double free or corruption (out)'}
+TARGET_LABELS = {'parent-frozen-target': 0, 'candidate-frozen-target': 1}
+
+
+def linker_abort(text):
+    lines = text.strip().splitlines()
+    return len(lines) == 3 and set(lines) == LINKER_ABORT
+
+
+def normalized_target_command(command):
+    command = list(command)
+    require(command.count('--output-dir') == 1, 'Target command must name one fresh output')
+    command[command.index('--output-dir') + 1] = '<isolated-target>'
+    return command
+
+
+def run_target(command, out, label, folder):
+    """Retry only the observed old ld allocator abort, never a target/test failure."""
+    expected = TARGET_LABELS[label]
+    evidence = out/'target-attempts'/label
+    records = []
+    require(not folder.exists() and not evidence.exists(), 'Stale target evidence')
+    normalized_target_command(command)
+    for attempt in range(1, TARGET_ATTEMPTS + 1):
+        # The frozen builder, compiler, flags and inputs are unchanged. Its
+        # existing output argument selects a clean, short temporary directory.
+        with tempfile.TemporaryDirectory(prefix='t040-') as temporary:
+            target = Path(temporary)/'target'
+            invocation = list(command)
+            invocation[invocation.index('--output-dir') + 1] = target
+            name = f'{label}-attempt-{attempt}'
+            code = run(invocation, evidence, name, expected=None)
+            complete = (target/'qualification.json').is_file()
+            record = {'attempt': attempt, 'exit_code': code, 'outcome': 'completed'}
+            if complete and code == expected:
+                # Preserve safe alias bytes before relocating the portable
+                # target evidence; absolute internal aliases otherwise dangle.
+                for path in sorted(target.rglob('*')):
+                    if path.is_symlink():
+                        require(path.resolve().is_relative_to(target), 'External target alias')
+                        data = path.read_bytes(); path.unlink(); path.write_bytes(data)
+                shutil.move(str(target), folder)
+                (out/'runs').mkdir(exist_ok=True)
+                for suffix in ('.json', '.log'):
+                    shutil.copyfile(evidence/'runs'/(name+suffix), out/'runs'/(label+suffix))
+                records.append(record)
+                write(evidence/'attempts.json', records)
+                return
+            matches = [f'{mode}/retained-recipe-build.log' for mode in ('baseline','legacy','native')
+                       if (target/mode/'retained-recipe-build.log').is_file() and
+                       linker_abort((target/mode/'retained-recipe-build.log').read_text())]
+            retryable = code == 1 and not complete and len(matches) == 1
+            record['outcome'] = 'legacy-linker-abort' if retryable else 'unaccepted-failure'
+            record['abort_log'] = matches[0] if retryable else None
+            archive = evidence/f'attempt-{attempt}.tar.gz'
+            # Preserve the complete failed tree, including link identities,
+            # without following links or changing any failed compiler output.
+            with tarfile.open(archive, 'w:gz', dereference=False) as tar:
+                if target.exists(): tar.add(target, arcname='target')
+            record['archive_sha256'] = digest(archive)
+            records.append(record); write(evidence/'attempts.json', records)
+            require(retryable and attempt < TARGET_ATTEMPTS,
+                    label+' failed without an accepted complete target receipt; see '+str(evidence))
+
+
+def check_target_attempts(out):
+    for label, expected in TARGET_LABELS.items():
+        evidence = out/'target-attempts'/label
+        records = read(evidence/'attempts.json')
+        require(1 <= len(records) <= TARGET_ATTEMPTS, 'Unbounded target attempts')
+        final = read(out/'runs'/(label+'.json'))
+        for index, record in enumerate(records, 1):
+            name = f'{label}-attempt-{index}'
+            run_record = read(evidence/'runs'/(name+'.json'))
+            require(record['attempt'] == index and record['exit_code'] == run_record['exit_code'] and
+                    digest(evidence/'runs'/(name+'.log')) == run_record['log_sha256'] and
+                    normalized_target_command(run_record['command']) == normalized_target_command(final['command']),
+                    'Target attempt identity changed')
+            if index == len(records):
+                require(record == {'attempt': index, 'exit_code': expected, 'outcome': 'completed'} and
+                        run_record == final and digest(out/'runs'/(label+'.log')) == final['log_sha256'],
+                        'Missing successful target protocol completion')
+            else:
+                require(record['outcome'] == 'legacy-linker-abort' and record['exit_code'] == 1 and
+                        record['abort_log'] in {f'{mode}/retained-recipe-build.log' for mode in ('baseline','legacy','native')},
+                        'Ordinary target failure must not be retried')
+                archive = evidence/f'attempt-{index}.tar.gz'
+                require(digest(archive) == record['archive_sha256'], 'Failed target archive changed')
+                with tarfile.open(archive, 'r:gz') as tar:
+                    member = tar.getmember('target/'+record['abort_log'])
+                    require(member.isfile() and member.size < 4096 and
+                            linker_abort(tar.extractfile(member).read().decode()), 'Wrong archived linker abort')
 
 
 def copy_git(repo, ref, destination, selections):
@@ -319,7 +417,7 @@ def validate(out,source):
         require(digest(out/'source/utilities'/n) == h == digest(ROOT/n), 'Frozen gate changed')
     require(all(digest(out/'source/utilities'/p) == h for p,h in GUARD_FILES.items()) and
             digest(out/'source/utilities'/FIXTURE) == FIXTURE_SHA, 'Wrong guard source or regression fixture')
-    check_neural(out); check_runs(out,r['run_exit_codes'])
+    check_neural(out); check_runs(out,r['run_exit_codes']); check_target_attempts(out)
     require(check_hosts(out,source) == r['host_executions'] == 650, 'Wrong host execution count')
     require(inventory(out) == r['artifact_sha256'], 'Absent, modified or extra artifact file')
     return r
@@ -339,7 +437,7 @@ def qualify(args):
         cmd = [sys.executable,checkout/'scripts/build_native_spectrum_qualification.py','--native-ui',
                '--xtensa-cc',args.xtensa_cc,'--output-dir',folder]
         for name,repo in repos.items(): cmd += ['--'+name,repo]
-        run(cmd,out,label,expected=0 if checkout == parent else 1)
+        run_target(cmd,out,label,folder)
         capture_toolchain(folder,args.xtensa_cc)
     delta = target_delta(out,source)
     copy_git(ROOT,source,out/'source/utilities',['Apps','lib','scripts','tests','test','profiles','LICENSE',

@@ -509,9 +509,9 @@
     },
     "scripts/qualify_t040_neural_guard.py": {
       "mode": "100644",
-      "blob": "768d4d88ea4ac7018ca7078677d93ffd1b9164c0",
+      "blob": "a69edc039e59ab47499f6abb80614366b2407c0d",
       "original_blob": "4d2d699eb7ed7894c9ef37dd3029f7c7f85700dd",
-      "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance."
+      "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance. Isolate unchanged frozen target invocations in short clean directories; preserve and validate up to three attempts only for the exact incomplete legacy linker allocator abort. Keep all semantic target gates and candidate frozen-release refusal mandatory."
     },
     "test/native_apps/rf_candidate_audio_differential_test.c": {
       "mode": "100644",
@@ -554,6 +554,12 @@
       "blob": "671b885060f5582f16d7ac7722254582e94a081a",
       "original_blob": "73d37323377681a19bdb2de8bb11de3ec1d173a5",
       "reason": "Qualify the exact composed source and all 65 approved Spectrum scenarios (650 profile/mode executions), retaining literal historical release refusal and exact neural guard provenance."
+    },
+    "tests/test_t040_target_orchestration.py": {
+      "mode": "100644",
+      "blob": "a443c4044900516e6701b726356153d8fc03657f",
+      "original_blob": null,
+      "reason": "Real-subprocess regressions for bounded exact legacy linker-abort recovery, failed archive/command integrity, ordinary-failure refusal, fresh paths, transportable aliases and preservation of the candidate release refusal."
     }
   }
 }
