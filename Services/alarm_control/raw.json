@@ -1,0 +1,28 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "driver_abi": 2,
+  "file_name": "driver.elf",
+  "id": "alarm-control-raw",
+  "provides": [
+    {
+      "api": 1,
+      "capability": "alarm.control"
+    }
+  ],
+  "requires": [
+    {
+      "api": 1,
+      "capability": "storage.key-value.bound"
+    },
+    {
+      "api": 1,
+      "capability": "alarm.service"
+    },
+    {
+      "api": 2,
+      "capability": "rtc.clock"
+    }
+  ],
+  "type": "driver",
+  "version": "0.1.0"
+}

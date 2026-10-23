@@ -25,7 +25,8 @@ static void temporal_raw(unsigned mode){
  else if(mode==15){temporal_edge(true);temporal_edge(false);temporal_edge(true);temporal_edge(false);temporal_raw_step();pump();assert(hid_keyboard_reports==reports+4&&!held_key);}
  else{
   temporal_edge(true);temporal_raw_step();assert(held_key&&held_button==0&&hid_keyboard_reports==reports+1);
-  if(mode==11){draw();temporal_submitted();temporal_edge(false);temporal_raw_step();assert(!held_key&&held_button<0&&hid_keyboard_reports==reports+2);assert(bb_diag_drain());}
+  if(mode==16){temporal_edge(false);temporal_edge(true);temporal_edge(false);temporal_raw_step();assert(!held_key&&hid_keyboard_reports==reports+2);pump();assert(hid_keyboard_reports==reports+4&&!held_key&&!button_pending_count);}
+  else if(mode==11){draw();temporal_submitted();temporal_edge(false);temporal_raw_step();assert(!held_key&&held_button<0&&hid_keyboard_reports==reports+2);assert(bb_diag_drain());}
   else if(mode==12){touch_edge(RISC_TOUCH_EVENT_DOWN,2,temporal_x+1,temporal_y);prior_touch.contacts[1]=(risc_touch_contact_v1){.id=2,.x=temporal_x+1,.y=temporal_y};prior_touch.contact_count=2;prior_touch.sequence=touch_sequence;temporal_raw_step();assert(!held_key&&held_button<0);touch_edge(RISC_TOUCH_EVENT_UP,2,temporal_x+1,temporal_y);prior_touch.contact_count=1;prior_touch.sequence=touch_sequence;temporal_edge(false);temporal_raw_step();assert(!held_key);}
   else if(mode==13){view=HID_VIEW_SETTINGS;draw();temporal_submitted();pump();assert(!held_key&&held_button<0);temporal_edge(false);temporal_raw_step();assert(bb_diag_drain());}
 

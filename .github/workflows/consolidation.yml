@@ -1,0 +1,23 @@
+name: Exact Utilities composition admission
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  exact-source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Reject missing, altered, or unadmitted composition source
+        run: |
+          python -m unittest discover -s tests -p test_consolidated_source_guard.py -v
+          python scripts/consolidated_source_guard.py

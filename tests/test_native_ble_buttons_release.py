@@ -353,7 +353,7 @@ class BleButtonsReleaseTests(unittest.TestCase):
                 with self.assertRaises((ValueError,FileNotFoundError)):publish.verify_release_assets(out,record)
 
     def test_workflow_explicit_publication_gate(self):
-        workflow=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text();qualify,publisher=workflow.split('  publish-development:',1)
+        workflow=(ROOT/'docs/consolidation/20261022/frozen-native-ble-buttons.yml').read_text();qualify,publisher=workflow.split('  publish-development:',1)
         self.assertNotIn('contents: write',qualify)
         for value in ("github.event_name == 'workflow_dispatch'","github.ref == 'refs/heads/main'",'inputs.publish_development',
                       'needs: qualify','GH_TOKEN: ${{ github.token }}','--publish'):self.assertIn(value,publisher)
@@ -365,7 +365,7 @@ class BleButtonsReleaseTests(unittest.TestCase):
         for pin in recipe.PINS.values():self.assertIn(pin,workflow)
 
     def test_workflow_preserves_push_and_pull_request_qualification(self):
-        workflow=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text()
+        workflow=(ROOT/'docs/consolidation/20261022/frozen-native-ble-buttons.yml').read_text()
         triggers=workflow.split('\npermissions:',1)[0]
         paths="['Apps/ble_*', 'Apps/native/ble_buttons.json', 'scripts/*ble_buttons*', 'scripts/*hid*', 'test/native_apps/*ble_buttons*', 'test/native_apps/hid*', 'tests/*ble_buttons*', 'tests/hid*', 'docs/ble-buttons-native/**', '.github/workflows/native-ble-buttons.yml']"
         self.assertIn('  push:\n    branches: [main, work/ble-buttons-native-20261019]\n    paths: '+paths,triggers)
@@ -374,7 +374,7 @@ class BleButtonsReleaseTests(unittest.TestCase):
         self.assertIn('        default: false\n        type: boolean',triggers)
 
     def test_workflow_explicit_dispatch_event_matrix(self):
-        publisher=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text().split('  publish-development:',1)[1]
+        publisher=(ROOT/'docs/consolidation/20261022/frozen-native-ble-buttons.yml').read_text().split('  publish-development:',1)[1]
         condition=next(line.strip()[4:] for line in publisher.splitlines() if line.startswith('    if: '))
         expected="github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish_development"
         self.assertEqual(condition,expected)
@@ -397,7 +397,7 @@ class BleButtonsReleaseTests(unittest.TestCase):
                             self.assertEqual(allowed,expected_allowed)
 
     def test_workflow_publisher_binds_qualified_source_and_artifact(self):
-        workflow=(ROOT/'.github/workflows/native-ble-buttons.yml').read_text()
+        workflow=(ROOT/'docs/consolidation/20261022/frozen-native-ble-buttons.yml').read_text()
         qualify,publisher=workflow.split('  publish-development:',1)
         for value in ('ref: ${{ github.sha }}','name: native-ble-buttons-${{ github.sha }}',
                       '--source-sha "${{ github.sha }}"','--repository "${{ github.repository }}"',

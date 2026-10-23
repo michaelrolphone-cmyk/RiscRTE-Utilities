@@ -39,7 +39,7 @@ static uint8_t held_contact;
 static bool button_gate;
 #if !HID_TOUCHPAD
 #define HID_BUTTON_PENDING (RISC_TOUCH_QUEUE_LENGTH/2u)
-typedef struct {int target;uint8_t id;bool down,valid;uint64_t began,last;} hid_button_tap;
+typedef struct {int target;uint8_t id;bool down,valid,reported;uint64_t began,last;} hid_button_tap;
 static hid_button_tap button_trace;
 static uint8_t button_pending[HID_BUTTON_PENDING];
 static unsigned button_pending_head,button_pending_count;
@@ -254,18 +254,22 @@ static int button_at(int x,int y){
  * can be neutral after several complete contacts; preserve each ordered pair.
  * Dispatch one pair per pump so the HID owner can service ACL credits between
  * shortcuts. Session/custody changes clear both the trace and pending actions. */
-static void button_tap_event(hid_button_tap*t,const risc_touch_event_v1*e,uint8_t*completed,unsigned*count){
+static void button_tap_event(hid_button_tap*t,const risc_touch_event_v1*e,uint8_t*completed,unsigned*count,bool*reported_release){
  if(!t->valid)return;
  int target=button_at(e->x,e->y);
  if(!t->down){
   if(e->kind!=RISC_TOUCH_EVENT_DOWN||target<0||e->timestamp_ms<t->last){t->valid=false;return;}
-  t->down=true;t->target=target;t->id=e->id;t->began=t->last=e->timestamp_ms;return;
+  t->down=true;t->reported=false;t->target=target;t->id=e->id;t->began=t->last=e->timestamp_ms;return;
  }
- if(e->id!=t->id||target!=t->target||e->timestamp_ms<t->last||e->timestamp_ms-t->began>100u){t->valid=false;return;}
+ if(e->id!=t->id||target!=t->target||e->timestamp_ms<t->last||(!t->reported&&e->timestamp_ms-t->began>100u)){t->valid=false;return;}
  t->last=e->timestamp_ms;
  if(e->kind==RISC_TOUCH_EVENT_UP){
-  if(*count>=HID_BUTTON_PENDING){t->valid=false;return;}
-  completed[(*count)++]=(uint8_t)t->target;t->down=false;
+  if(t->reported)*reported_release=true;
+  else {
+   if(*count>=HID_BUTTON_PENDING){t->valid=false;return;}
+   completed[(*count)++]=(uint8_t)t->target;
+  }
+  t->down=false;t->reported=false;
  }else if(e->kind!=RISC_TOUCH_EVENT_MOVE)t->valid=false;
 }
 #endif
@@ -375,7 +379,7 @@ static void pump(void){
   status=next;if(next.state==RISC_HID_READY)had_ready=true;
  }
 #if !HID_TOUCHPAD
- hid_button_tap queued_tap=button_trace;uint8_t completed[HID_BUTTON_PENDING];unsigned completed_count=0;
+ hid_button_tap queued_tap=button_trace;uint8_t completed[HID_BUTTON_PENDING];unsigned completed_count=0;bool reported_release=false;
 #endif
 #ifdef HID_NATIVE_UI
  uint64_t native_generation=0,native_watermark=0;bool native_ready=true,native_rejected=false;
@@ -407,7 +411,7 @@ static void pump(void){
   }else
 #endif
   if(!paper){e.x=utility_color_x(app,e.x);e.y=utility_color_y(app,e.y);}
-  button_tap_event(&queued_tap,&e,completed,&completed_count);
+  button_tap_event(&queued_tap,&e,completed,&completed_count,&reported_release);
 #endif
 #if defined(HID_NATIVE_UI) && HID_TOUCHPAD
   if(hid_native_enabled()){
@@ -490,6 +494,13 @@ static void pump(void){
  if(status.state==RISC_HID_READY&&(status.flags&need)==need&&view==HID_VIEW_MAIN){
   bool ok;
 #if !HID_TOUCHPAD
+  /* A sampled hold may end before one or more complete queued contacts. Its
+   * UP is a release, not a new shortcut. Neutralize it first, then preserve
+   * the later validated pairs instead of discarding the whole event batch. */
+  if(reported_release&&held_button>=0){
+   if(!send_assignment(assignments+held_button,false)){stop_session("Report rejected - reconnect");return;}
+   held_button=-1;dirty=true;
+  }
   if(!gap&&!button_gate&&held_button<0&&queued_tap.valid&&
      (uint32_t)(app->millis()-refreshed)<=100u){
    if(completed_count>HID_BUTTON_PENDING-button_pending_count){
@@ -501,7 +512,10 @@ static void pump(void){
   }
   if(!queued_tap.valid)button_trace.valid=false;
   if(!sample.contact_count&&!button_trace.valid)button_trace=(hid_button_tap){.target=-1,.valid=true};
-  if(button_pending_count){
+  /* Service the HID owner again after a sampled neutral, just as between
+   * queued pairs; do not add a third notification to this pump. */
+  if(reported_release)ok=true;
+  else if(button_pending_count){
    unsigned target=button_pending[button_pending_head];
    if(!assignment_ready(assignments+target)){
     if(!release_input()){stop_session("Release failed - reconnect");return;}
@@ -514,7 +528,8 @@ static void pump(void){
 #endif
    ok=HID_TOUCHPAD?touch_pad(&sample,now):touch_buttons(&sample,now);
 #if !HID_TOUCHPAD
-  if(held_button>=0||button_gate)button_trace=(hid_button_tap){.target=-1,.valid=true};
+  if(held_button>=0)button_trace=(hid_button_tap){.target=held_button,.id=held_contact,.down=true,.valid=true,.reported=true,.began=sample.timestamp_ms,.last=sample.timestamp_ms};
+  else if(button_gate)button_trace=(hid_button_tap){.target=-1,.valid=true};
 #endif
   if(!ok){stop_session("Report rejected - reconnect");return;}
  }else{hid_gesture_reset(&gesture,true);button_gate=true;

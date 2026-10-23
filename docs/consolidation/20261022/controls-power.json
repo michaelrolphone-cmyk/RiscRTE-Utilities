@@ -1,0 +1,615 @@
+{
+  "schema": 1,
+  "replacement": "controls-power",
+  "base": "6b2047500905f8f45087cb49989103a926fc5c63",
+  "inputs": [
+    {
+      "number": 88,
+      "title": "Preserve T039 BLE shortcut repair and qualification evidence",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/88",
+      "head": "39e9247528b39519397e3857d75074dddc4cac82",
+      "branch": "tasker/t039-ble-delivery",
+      "base": "6b2047500905f8f45087cb49989103a926fc5c63",
+      "baseRef": "main",
+      "changed_files": 11
+    },
+    {
+      "number": 90,
+      "title": "Preserve frozen Watch power-status qualification and evidence",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/90",
+      "head": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "branch": "tasker/watch-power-released-qualification-20261021",
+      "base": "ca7fe82f43adc4ad8a8fa477a5336c8f5c693770",
+      "baseRef": "tasker/watch-power-frozen-base-20261021",
+      "changed_files": 6
+    },
+    {
+      "number": 91,
+      "title": "Preserve frozen Watch charging-screen tests and evidence",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/91",
+      "head": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "branch": "tasker/watch-charging-qualification-20261021",
+      "base": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "baseRef": "tasker/watch-power-released-qualification-20261021",
+      "changed_files": 6
+    },
+    {
+      "number": 94,
+      "title": "Qualify T039 separately without replacing frozen BLE release gates",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/94",
+      "head": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "branch": "work/t039-candidate-qualification-20261021",
+      "base": "39e9247528b39519397e3857d75074dddc4cac82",
+      "baseRef": "tasker/t039-ble-delivery",
+      "changed_files": 4
+    },
+    {
+      "number": 96,
+      "title": "Repair frozen Watch charging qualification cohort",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/96",
+      "head": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "branch": "tasker/watch-charging-ci-repair-20261021",
+      "base": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "baseRef": "tasker/watch-charging-qualification-20261021",
+      "changed_files": 6
+    },
+    {
+      "number": 98,
+      "title": "Integrate separate T039 BLE candidate package 0.1.31",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/98",
+      "head": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "branch": "work/t039-candidate-package-20261021",
+      "base": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "baseRef": "work/t039-candidate-qualification-20261021",
+      "changed_files": 7
+    },
+    {
+      "number": 55,
+      "title": "Historical declarative Alarms prototype (selected additive sources; not full PR acceptance)",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/55",
+      "head": "48d72c2c9d00e2f894af91feb269f5baa08beb39",
+      "branch": "feat/declarative-alarms",
+      "base": "e80172353fcb9e6519ca9d9b2a4d43c69c1bc91d",
+      "baseRef": "feat/points-catalog-storage",
+      "changed_files": 21
+    }
+  ],
+  "source_files": {
+    "Apps/ble_hid_app.inc": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "7e209046b623aa75489485373cd030ab128b10d5",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t039/README.md": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "083180c0c83a2d8cf7af21dabc989ccebe6b5bcc",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t039/evidence.tar.gz": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "13073bbd3a59b06bdbded8cfcebe9a64d59a0c37",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t039/qualification-report.md": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "20f9c820bc4a4930a84f7b3fc6dfcce00af79bd2",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/t039/source-checkpoint.json": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "bd661604c10cfd7dd7a1cb167c33bf41f586a8bd",
+      "mode": "100644"
+    },
+    "docs/t039/MIXED_CONTACT_REPEATS.md": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "31e238ae2801593273bf1647d734aa580aeb1e5e",
+      "mode": "100644"
+    },
+    "scripts/test_ble_buttons_native.py": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "dccdfd2a2cb5298dc37f632601c60c88ece65533",
+      "mode": "100644"
+    },
+    "scripts/test_hid_buttons_watch_queue.py": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "2843db3164cdcb13eae3b3d66110fad75cde0a5a",
+      "mode": "100644"
+    },
+    "scripts/test_hid_buttons_wire.py": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "2ad465d23ee5765a40401b7430b7af33df77b210",
+      "mode": "100644"
+    },
+    "test/native_apps/ble_buttons_native_temporal.inc": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "03854b551e5b28469931f2493a2b4299f27b6bbf",
+      "mode": "100644"
+    },
+    "tests/hid_buttons_watch_queue_test.c": {
+      "pr": 88,
+      "commit": "39e9247528b39519397e3857d75074dddc4cac82",
+      "blob": "7dc4338988fd38424fadd268ca58df59f65d2cb6",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/README.md": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "dfd879d0e2f07ad69d626fa18b4c2cb53a21c904",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/checksums-verified.log": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "3f875d76544ff5467d937f6b62a095de49aea11c",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/evidence.tar.gz": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "faad937d3cc87f0ddea3ffb73c48c4fa7b4db298",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/qualification-report.md": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "53b640cc60a1803dce0135e7ead154a768473d30",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/power/source-checkpoint.json": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "7de160618da7814a48a18178c3dbe8d23f873c89",
+      "mode": "100644"
+    },
+    "test/native_apps/battery_power_test.c": {
+      "pr": 90,
+      "commit": "a29da324bb34a95586dd064b11becdc4640cc426",
+      "blob": "bffb2396b0584ee186f79d9665924c82083a8972",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/charging/README.md": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "d72f6b774127fe4d92207a9099c3284c7178f6f8",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/charging/evidence.tar.gz": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "46ca11fd15158db43da311e6de3f0fe7ca1277b2",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/charging/qualification-report.md": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "d177dd955e22b1dbd540e077df6eaff66b3a66a3",
+      "mode": "100644"
+    },
+    "docs/evidence/publication-20261021/charging/source-checkpoint.json": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "665ec2e3c7c0b77cb05601ccfce455e7bb10dad1",
+      "mode": "100644"
+    },
+    "scripts/test_battery_charging.py": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "3b6fadc9e4749b8f5545c5e8f1a722f5eb998561",
+      "mode": "100644"
+    },
+    "test/native_apps/battery_charging_test.c": {
+      "pr": 91,
+      "commit": "12a9ede9fd93ca4793d18dd69f37df5f5aa33640",
+      "blob": "3ca2e6463ef5b8638900fb1247068c568303fc6a",
+      "mode": "100644"
+    },
+    ".github/workflows/t039-ble-candidate.yml": {
+      "pr": 94,
+      "commit": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "blob": "46ed17a9f8da58a27430f4af016b96df3ce691a2",
+      "mode": "100644"
+    },
+    "docs/t039/candidate-qualification/README.md": {
+      "pr": 94,
+      "commit": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "blob": "bf0586af2776b786aaf6edb8ec6b094501a0bded",
+      "mode": "100644"
+    },
+    "scripts/qualify_t039_ble_candidate.py": {
+      "pr": 94,
+      "commit": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "blob": "a5fc37411f556b40b3a6d1c1e5b741946ce99ef3",
+      "mode": "100644"
+    },
+    "tests/test_t039_ble_candidate.py": {
+      "pr": 94,
+      "commit": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
+      "blob": "0f598d8125eca7b1f67488c167379a91d37a9110",
+      "mode": "100644"
+    },
+    ".github/workflows/battery-power.yml": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "f68aa44bbbdc29daf65b389d989832eb712342d6",
+      "mode": "100644"
+    },
+    "docs/evidence/charging-ci-repair-20261021/README.md": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "1a1e983cb5be72ee4ad1f3364f099139e161a146",
+      "mode": "100644"
+    },
+    "docs/evidence/charging-ci-repair-20261021/host-qualification.log": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "dd5fdb92931863e99159a131278ffa902f18275a",
+      "mode": "100644"
+    },
+    "docs/evidence/charging-ci-repair-20261021/unit-tests.log": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "88b69a0ec6172cb14fe65eb0927397736203a035",
+      "mode": "100644"
+    },
+    "scripts/build_battery_power.py": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "9766ec763df90d0308d641562b2e42408e11876a",
+      "mode": "100644"
+    },
+    "tests/test_battery_power_ci.py": {
+      "pr": 96,
+      "commit": "f2e7b90129d9108c0084a9be6a2217b2996c7588",
+      "blob": "84339464ea640900d23845141ed920ab61afb833",
+      "mode": "100644"
+    },
+    ".github/workflows/t039-ble-package.yml": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "7c3531f41f99446be214be74c0bdb2370c0726b4",
+      "mode": "100644"
+    },
+    "Apps/candidates/t039/ble_buttons.json": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "3dea15e5ea2d6d87d4b18bfa7cb2a88636f584e0",
+      "mode": "100644"
+    },
+    "docs/t039/candidate-package/README.md": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "bc05edc66d571a78d5eb78932ab3021e7aaab589",
+      "mode": "100644"
+    },
+    "scripts/package_t039_candidate.py": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "8c3baf5b67c16a7b006c2dee0da3ba4e82d1393a",
+      "mode": "100644"
+    },
+    "scripts/t039_candidate_manifest.py": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "0ba25075ac691b8fd74bfae587b3bcf7a945a1c6",
+      "mode": "100644"
+    },
+    "tests/t039_candidate_manifest_test.cpp": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "3f4d4c70951b195178f8664b3525bcdcf0a45d48",
+      "mode": "100644"
+    },
+    "tests/test_t039_candidate_package.py": {
+      "pr": 98,
+      "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
+      "blob": "9a6fdf11c80b9768c686118ade29ff45b5fc421e",
+      "mode": "100644"
+    },
+    "Apps/alarms_scene.c": {
+      "mode": "100644",
+      "blob": "6cb72a38c507921c5afb466f0077810eabe72672",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "Apps/alarms_scene.json": {
+      "mode": "100644",
+      "blob": "3602fe61c7e1d27bc3483447822f549d38771d68",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "Services/alarm_control/control.c": {
+      "mode": "100644",
+      "blob": "1174b99120a981ce934dd43e94af306cea99d0a8",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "Services/alarm_control/raw.json": {
+      "mode": "100644",
+      "blob": "5549d03a2fd2c9d62f978e99b75cbb17dd1bbbaa",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "Services/alarm_control/utc.json": {
+      "mode": "100644",
+      "blob": "b73e451e1a3cebe24272269a280ebbc67044751e",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "docs/DECLARATIVE_ALARMS.md": {
+      "mode": "100644",
+      "blob": "49590fa9228789972b79dd4d3d58df51103f17ac",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "lib/Alarm/include/AlarmControlV1.h": {
+      "mode": "100644",
+      "blob": "b4cc2aa7fc597aa3347a1e376ce39331e3c57fdc",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/build_alarms_scene.py": {
+      "mode": "100644",
+      "blob": "fb00e517f2333a31110bdb816bf5d1f946d31abe",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/compose_alarms_scene.py": {
+      "mode": "100644",
+      "blob": "4ebf895e7b0e1205b3bdb8c9b0f74add674c56bb",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/scene_support.py": {
+      "mode": "100644",
+      "blob": "15e6fc5364fa622cdbd90b0be84963a27ea61cdd",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/test_alarms_scene.py": {
+      "mode": "100644",
+      "blob": "74be67ee64a1e214bae3916ce22265c308492790",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/test_alarms_scene_composition.py": {
+      "mode": "100644",
+      "blob": "c9d014235a7967ae94594b077b45a2e7f7839b37",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/test_alarms_scene_runtime.py": {
+      "mode": "100644",
+      "blob": "1865f6ea7506c4af786a333424a190dcb476e87f",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/app_test.c": {
+      "mode": "100644",
+      "blob": "29d031922b9a56ac1e4dd66649d71f4a1d5ed755",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/control_test.c": {
+      "mode": "100644",
+      "blob": "fde5e8d4cc06fc90040a99053a905c51231393b1",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_app_hooks.c": {
+      "mode": "100644",
+      "blob": "f96fc689ed3e79b9c21cca303d18e1315477847e",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_hardware.c": {
+      "mode": "100644",
+      "blob": "cb5ccae9e14b919a1e187adb8f74299ff7f7f738",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_launcher.c": {
+      "mode": "100644",
+      "blob": "cccbfe1d5d0498be64c49a2b4251604ac0a1d354",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_provider.c": {
+      "mode": "100644",
+      "blob": "c92d7f25d2d8f4dcd714efcc2cfc79ead1fe88ba",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_test.cpp": {
+      "mode": "100644",
+      "blob": "4c7940bedc28f710adfc21573b4a3256f4d4be43",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    }
+  },
+  "integration_resolutions": [
+    {
+      "path": "docs/evidence/publication-20261021/power/README.md",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    },
+    {
+      "path": "docs/evidence/publication-20261021/power/checksums-verified.log",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    },
+    {
+      "path": "docs/evidence/publication-20261021/power/evidence.tar.gz",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    },
+    {
+      "path": "docs/evidence/publication-20261021/power/qualification-report.md",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    },
+    {
+      "path": "docs/evidence/publication-20261021/power/source-checkpoint.json",
+      "deleting_pr": 91,
+      "resolution": "retain already-public ancestor evidence"
+    }
+  ],
+  "frozen_baselines_changed": false,
+  "released": false,
+  "hardware_qualified": false,
+  "integration_files": {
+    ".github/workflows/consolidation.yml": {
+      "mode": "100644",
+      "blob": "d8f0de011ad2fbc55ae2f1400688cf96db8c4423",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    ".github/workflows/native-ble-buttons.yml": {
+      "mode": "100644",
+      "blob": "3163bc73fb3d3dcd6514cc1438530a7b3497c547",
+      "original_blob": null,
+      "reason": "Separate literal historical release qualification at pinned main from current-head candidate qualification; archive the original workflow exactly and prevent publishing a historical artifact as current head."
+    },
+    ".github/workflows/native-ble-touchpad.yml": {
+      "mode": "100644",
+      "blob": "991965a489d46262b9e4ddcba4f30ddb4edf88f9",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    ".github/workflows/t039-ble-candidate.yml": {
+      "mode": "100644",
+      "blob": "7318592f85ad3e53109084762b7316a2b15ba49a",
+      "original_blob": "46ed17a9f8da58a27430f4af016b96df3ce691a2",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    ".github/workflows/t039-ble-package.yml": {
+      "mode": "100644",
+      "blob": "6c465db183e7558a2ec0f037858bb7427f3debbf",
+      "original_blob": "7c3531f41f99446be214be74c0bdb2370c0726b4",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "docs/consolidation/20261022/frozen-native-ble-buttons.yml": {
+      "mode": "100644",
+      "blob": "27dc9dd69e378eb9c8627ae7278b305489790260",
+      "original_blob": null,
+      "reason": "Separate literal historical release qualification at pinned main from current-head candidate qualification; archive the original workflow exactly and prevent publishing a historical artifact as current head."
+    },
+    "scripts/consolidated_source_guard.py": {
+      "mode": "100644",
+      "blob": "8116da09e2e3d0344d79a94bd1143b78627dedcd",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "scripts/package_t039_candidate.py": {
+      "mode": "100644",
+      "blob": "0e2544d19b541b35e0548c2a53e7d79e791745f3",
+      "original_blob": "8c3baf5b67c16a7b006c2dee0da3ba4e82d1393a",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "scripts/qualify_t039_ble_candidate.py": {
+      "mode": "100644",
+      "blob": "44008b251ac6ab11ca1b98763ee068db59ba6b34",
+      "original_blob": "a5fc37411f556b40b3a6d1c1e5b741946ce99ef3",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "scripts/test_t039_touchpad_contract.py": {
+      "mode": "100644",
+      "blob": "7e97ddecd36e9017d84874f389d6a3e92920f8b4",
+      "original_blob": null,
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "tests/test_consolidated_source_guard.py": {
+      "mode": "100644",
+      "blob": "6405b7722707d9bf390fd3fbe3d3cc75bc093fcc",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_consolidated_workflow_routing.py": {
+      "mode": "100644",
+      "blob": "b51a6d62311373d7192babedd19d7002e614272a",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_native_ble_buttons_release.py": {
+      "mode": "100644",
+      "blob": "35ee397c5c771dfa7f2fb5443eb38d65167dfa42",
+      "original_blob": null,
+      "reason": "Admit exact approved source composition, with rejection of unlisted paths, modified blobs/modes and missing provenance; behavioral and frozen byte gates remain separate."
+    },
+    "tests/test_t039_ble_candidate.py": {
+      "mode": "100644",
+      "blob": "5f6067fecf032e62c6984b46e920411da4067a86",
+      "original_blob": "0f598d8125eca7b1f67488c167379a91d37a9110",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "tests/test_t039_candidate_package.py": {
+      "mode": "100644",
+      "blob": "e21bbf5d503df80829bcf627cb6404a4f8f02091",
+      "original_blob": "9a6fdf11c80b9768c686118ade29ff45b5fc421e",
+      "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "docs/DECLARATIVE_ALARMS.md": {
+      "mode": "100644",
+      "blob": "ceb241154c2fc622b609c7ee22d874be2399d6f7",
+      "original_blob": "49590fa9228789972b79dd4d3d58df51103f17ac",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "scripts/build_alarms_scene.py": {
+      "mode": "100644",
+      "blob": "c3b76cc1d3999c266d2700a21b22a5de5586a239",
+      "original_blob": "fb00e517f2333a31110bdb816bf5d1f946d31abe",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "scripts/test_alarms_scene_runtime.py": {
+      "mode": "100644",
+      "blob": "0f6c7680b83a14196b5231aac300c9671423f891",
+      "original_blob": "1865f6ea7506c4af786a333424a190dcb476e87f",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "test/scene/runtime_launcher.c": {
+      "mode": "100644",
+      "blob": "48ceca77fdeebdfff48d453ad6450857f74563df",
+      "original_blob": "cccbfe1d5d0498be64c49a2b4251604ac0a1d354",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "test/scene/runtime_test.cpp": {
+      "mode": "100644",
+      "blob": "57f749e6432aa431a3406eb2abadae7917fdc019",
+      "original_blob": "4c7940bedc28f710adfc21573b4a3256f4d4be43",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "Apps/alarms_headless.c": {
+      "mode": "100644",
+      "blob": "99015a34b3a95b84d58ddbed91638541e4a8cdf3",
+      "original_blob": null,
+      "reason": "Requested GUI-free alarm reconciliation owner and exact-source qualification, task e1116181."
+    },
+    "Apps/alarms_headless.json": {
+      "mode": "100644",
+      "blob": "14504d2fafb6bf950e6f9dfd7002da05fedf7016",
+      "original_blob": null,
+      "reason": "Requested GUI-free alarm reconciliation owner and exact-source qualification, task e1116181."
+    },
+    "test/scene/headless_owner_test.c": {
+      "mode": "100644",
+      "blob": "1b3e6041fb9b0295b4a9196618c95b95992f6c74",
+      "original_blob": null,
+      "reason": "Requested GUI-free alarm reconciliation owner and exact-source qualification, task e1116181."
+    },
+    ".github/workflows/headless-alarms.yml": {
+      "mode": "100644",
+      "blob": "7d340cb18377e0f39de210add3b5a502dcdcc336",
+      "original_blob": null,
+      "reason": "Requested GUI-free alarm reconciliation owner and exact-source qualification, task e1116181."
+    }
+  }
+}

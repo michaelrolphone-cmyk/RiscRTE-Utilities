@@ -1,0 +1,63 @@
+name: Headless alarm ownership
+on:
+  pull_request:
+    paths: ['Apps/alarms_*', 'Services/alarm_control/**', 'lib/Alarm/include/**', 'scripts/*alarms_scene*', 'scripts/scene_support.py', 'test/scene/**', '.github/workflows/headless-alarms.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  headless:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 85171ec1b596cab256d3286a3018eb5ce12b2ded
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 9331e2f4d12fbc542dc6f4ebc66e8284ef306f1f
+          path: System
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Owner faults, domain behavior, and cold production Runtime lifecycle
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          for mode in normal sanitized; do
+            flags=""
+            arg=""
+            if [ "$mode" = sanitized ]; then
+              flags="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+              arg="--sanitize"
+            fi
+            cc -std=c11 -Wall -Wextra -Werror $flags -IRuntime/sdk/app -IUtilities/lib/Alarm/include Utilities/Apps/alarms_headless.c Utilities/test/scene/headless_owner_test.c -o owner-test
+            ./owner-test | tee evidence/owner-$mode.log
+            python Utilities/scripts/test_alarms_scene.py --runtime Runtime --system-apps System $arg 2>&1 | tee evidence/domain-$mode.log
+            python Utilities/scripts/test_alarms_scene_runtime.py --headless-only --runtime Runtime --system-apps System $arg --output runtime-$mode 2>&1 | tee evidence/cold-$mode.log
+          done
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Build and validate target component ELFs
+        run: |
+          set -o pipefail
+          python Utilities/scripts/build_alarms_scene.py --runtime Runtime --system-apps System --output packages 2>&1 | tee evidence/target.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: headless-alarms-${{ github.sha }}
+          path: |
+            evidence/
+            packages/
+          if-no-files-found: error

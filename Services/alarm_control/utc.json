@@ -1,0 +1,28 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "driver_abi": 2,
+  "file_name": "driver.elf",
+  "id": "alarm-control-utc",
+  "provides": [
+    {
+      "api": 1,
+      "capability": "alarm.control"
+    }
+  ],
+  "requires": [
+    {
+      "api": 1,
+      "capability": "storage.key-value.bound"
+    },
+    {
+      "api": 2,
+      "capability": "alarm.service"
+    },
+    {
+      "api": 1,
+      "capability": "platform.realtime"
+    }
+  ],
+  "type": "driver",
+  "version": "0.1.0"
+}

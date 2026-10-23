@@ -39,9 +39,67 @@ void hid_buttons_watch_burst_seam(const risc_bluetooth_hid_v1 *provider,uint64_t
  hid=&fake_hid;token=7;finish();
 }
 void hid_buttons_watch_report_seam(const risc_bluetooth_hid_v1*p,uint64_t t){hid_buttons_watch_burst_seam(p,t,1);}
+void hid_buttons_watch_mixed_seam(const risc_bluetooth_hid_v1 *provider,uint64_t connection,unsigned taps){
+ assert(taps>1&&taps<16);
+ physical_start();hid=provider;token=connection;status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(status)};
+ tick=21;pump();assert(status.state==RISC_HID_READY&&assignment_ready(assignments)&&!button_gate);
+ point(25,1,1,30,100);pump();assert(held_button==0);
+ point(26,0,1,30,100);
+ for(unsigned i=1;i<taps;i++){point(25+i*2,1,1,30,100);point(26+i*2,0,1,30,100);}
+ tick=25+taps*2;for(unsigned i=0;i<=taps;i++){pump();tick+=20;}
+ assert(!closing&&token==connection&&held_button==-1&&!button_pending_count);
+ hid=&fake_hid;token=7;finish();
+}
 #else
+static void mixed_contacts(const char*name){
+ unsigned taps=!strcmp(name,"mixed-burst")?3:1,at=25;
+ bool mouse=!strcmp(name,"mixed-mouse"),wheel=!strcmp(name,"mixed-wheel");
+ if(mouse)assignments[0]=(hid_assignment){.kind=HID_ACTION_MOUSE,.buttons=2};
+ if(wheel)assignments[0]=(hid_assignment){.kind=HID_ACTION_WHEEL,.wheel=-3};
+ point(at,1,1,30,100);pump();assert(report_count==1&&held_button==0);
+ if(!strcmp(name,"mixed-long-hold")){for(unsigned i=0;i<10;i++){at+=20;point(at,1,1,30,100);pump();}assert(report_count==1);}
+ point(at+5,0,1,30,100);
+ bool rejected=false,interrupted=false,failed=false;
+ for(unsigned i=0;i<taps;i++){
+  unsigned x=!strcmp(name,"mixed-other-tile")?150:30;
+  point(at+10+i*10,1,1,x,100);
+  if(!strcmp(name,"mixed-move-outside")){point(at+12,1,1,120,100);rejected=true;}
+  if(!strcmp(name,"mixed-multicontact")){point(at+12,2,1,x,100);rejected=true;}
+  if(!strcmp(name,"mixed-changed-id")){point(at+12,1,2,x,100);rejected=true;}
+  if(!strcmp(name,"mixed-deadline")){at+=101;refreshed=at;rejected=true;}
+  point(at+15+i*10,0,1,x,100);
+ }
+ if(!strcmp(name,"mixed-following-held"))point(at+26,1,1,30,100);
+ risc_touch_api_v1 failing=*physical;
+ if(!strcmp(name,"mixed-poll-fail")){failing.poll=rejected_poll;raw=&failing;interrupted=true;}
+ if(!strcmp(name,"mixed-generation")){fake_status.connection_generation++;interrupted=true;}
+ if(!strcmp(name,"mixed-disconnect")){fake_status.state=RISC_HID_ADVERTISING;interrupted=true;}
+ if(!strcmp(name,"mixed-no-auth")){fake_status.flags&=~RISC_HID_AUTHENTICATED;interrupted=true;}
+ if(!strcmp(name,"mixed-subscription")){fake_status.flags&=~RISC_HID_KEYBOARD_READY;interrupted=true;}
+ if(!strcmp(name,"mixed-release-fail")){fake_hid.keyboard=reject_neutral;failed=true;}
+ tick=at+40;pump();
+ if(!interrupted)assert(report_count==2); /* Only the old neutral in this pump. */
+ if(!strcmp(name,"mixed-press-fail")){report_bad=true;failed=true;}
+ for(unsigned i=0;i<taps+2;i++){tick+=20;pump();}
+ if(failed){assert(!token&&!grants);assert(report_count==(!strcmp(name,"mixed-release-fail")?2u:3u));}
+ else if(interrupted)assert(report_count==1&&!last_mod&&!last_key&&!last_mouse&&!button_pending_count);
+ else {
+  if(!strcmp(name,"mixed-following-held")){assert(held_button==0);point(tick+5,0,1,30,100);pump();taps++;}
+  assert(report_count==2u+(rejected?0u:2u*taps));
+  for(unsigned i=0;i<report_count;i++){
+   report_record*r=reports+i;
+   if(i%2)assert(!r->mod&&!r->key&&!r->buttons&&!r->dx&&!r->dy&&!r->wheel);
+   else if(mouse)assert(r->buttons==2);
+   else if(wheel)assert(r->wheel==-3);
+   else if(i&&!strcmp(name,"mixed-other-tile"))assert(r->mod==0&&r->key==78);
+   else assert(r->mod==5&&r->key==76);
+  }
+ }
+ finish();printf("Sampled hold plus queued contact %s: PASS\n",name);
+}
 int main(int argc,char**argv){
  assert(argc==2);const char*name=argv[1];physical_start();bool accepted=true,mouse=false;
+ if(!strncmp(name,"mixed-",6)){mixed_contacts(name);return 0;}
  if(!strncmp(name,"pending-",8)){
   for(unsigned i=0;i<3;i++){point(25+i*2,1,1,30,100);point(26+i*2,0,1,30,100);}tick=40;pump();assert(key_reports==2&&button_pending_count==2);
   if(!strcmp(name,"pending-generation"))fake_status.connection_generation++;

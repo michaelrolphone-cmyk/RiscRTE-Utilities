@@ -1,0 +1,28 @@
+{
+  "key": "t039",
+  "repo": "michaelrolphone-cmyk/RiscRTE-Utilities",
+  "branch": "tasker/t039-ble-delivery",
+  "base": "main",
+  "local": "9c6bae70910cf1f14f17ee78e21ab77268e87b9a",
+  "parent": "6b2047500905f8f45087cb49989103a926fc5c63",
+  "tree": "b76c8205b9ca9c1a4d8c5bf41955ef1f73fd9f31",
+  "remote_source": "a599708528689e7934fe5acf15d754e7fffd77ec",
+  "changed_paths": [
+    "Apps/ble_hid_app.inc",
+    "docs/t039/MIXED_CONTACT_REPEATS.md",
+    "scripts/test_ble_buttons_native.py",
+    "scripts/test_hid_buttons_watch_queue.py",
+    "scripts/test_hid_buttons_wire.py",
+    "test/native_apps/ble_buttons_native_temporal.inc",
+    "tests/hid_buttons_watch_queue_test.c"
+  ],
+  "source_tree_identical": true,
+  "original_commit_restoration": "The incremental original-source.bundle needs its original parent. For stacked checkpoints, restore the parent checkpoint bundle first. The GitHub source commit has the exact original tree but different commit metadata.",
+  "publication_scope": "Existing source and historical software evidence only; no new tests, target build, merge, tag, firmware release, deployment, or hardware acceptance is claimed.",
+  "historical_reports": "Reports and logs are preserved from before publication; local-only/unpublished statements describe that earlier observation. This source lock supersedes only their publication state.",
+  "archive_included_files": null,
+  "archive_omitted_files": null,
+  "archive_included_files_count": 1232,
+  "archive_sha256": "2252756aef928fe13b351cc85e93743139a388df28b69f182dcef7021550f32d",
+  "archive_bytes": 405930
+}
