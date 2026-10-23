@@ -62,6 +62,16 @@
       "base": "9a7a508d0a43572684c7feb64958eb31ee1fd583",
       "baseRef": "work/t039-candidate-qualification-20261021",
       "changed_files": 7
+    },
+    {
+      "number": 55,
+      "title": "Historical declarative Alarms prototype (selected additive sources; not full PR acceptance)",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Utilities/pull/55",
+      "head": "48d72c2c9d00e2f894af91feb269f5baa08beb39",
+      "branch": "feat/declarative-alarms",
+      "base": "e80172353fcb9e6519ca9d9b2a4d43c69c1bc91d",
+      "baseRef": "feat/points-catalog-storage",
+      "changed_files": 21
     }
   ],
   "source_files": {
@@ -304,6 +314,126 @@
       "commit": "7ef8a9341380b04ab6446dd34ff2743c0a80a80f",
       "blob": "9a6fdf11c80b9768c686118ade29ff45b5fc421e",
       "mode": "100644"
+    },
+    "Apps/alarms_scene.c": {
+      "mode": "100644",
+      "blob": "6cb72a38c507921c5afb466f0077810eabe72672",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "Apps/alarms_scene.json": {
+      "mode": "100644",
+      "blob": "3602fe61c7e1d27bc3483447822f549d38771d68",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "Services/alarm_control/control.c": {
+      "mode": "100644",
+      "blob": "1174b99120a981ce934dd43e94af306cea99d0a8",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "Services/alarm_control/raw.json": {
+      "mode": "100644",
+      "blob": "5549d03a2fd2c9d62f978e99b75cbb17dd1bbbaa",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "Services/alarm_control/utc.json": {
+      "mode": "100644",
+      "blob": "b73e451e1a3cebe24272269a280ebbc67044751e",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "docs/DECLARATIVE_ALARMS.md": {
+      "mode": "100644",
+      "blob": "49590fa9228789972b79dd4d3d58df51103f17ac",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "lib/Alarm/include/AlarmControlV1.h": {
+      "mode": "100644",
+      "blob": "b4cc2aa7fc597aa3347a1e376ce39331e3c57fdc",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/build_alarms_scene.py": {
+      "mode": "100644",
+      "blob": "fb00e517f2333a31110bdb816bf5d1f946d31abe",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/compose_alarms_scene.py": {
+      "mode": "100644",
+      "blob": "4ebf895e7b0e1205b3bdb8c9b0f74add674c56bb",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/scene_support.py": {
+      "mode": "100644",
+      "blob": "15e6fc5364fa622cdbd90b0be84963a27ea61cdd",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/test_alarms_scene.py": {
+      "mode": "100644",
+      "blob": "74be67ee64a1e214bae3916ce22265c308492790",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/test_alarms_scene_composition.py": {
+      "mode": "100644",
+      "blob": "c9d014235a7967ae94594b077b45a2e7f7839b37",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "scripts/test_alarms_scene_runtime.py": {
+      "mode": "100644",
+      "blob": "1865f6ea7506c4af786a333424a190dcb476e87f",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/app_test.c": {
+      "mode": "100644",
+      "blob": "29d031922b9a56ac1e4dd66649d71f4a1d5ed755",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/control_test.c": {
+      "mode": "100644",
+      "blob": "fde5e8d4cc06fc90040a99053a905c51231393b1",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_app_hooks.c": {
+      "mode": "100644",
+      "blob": "f96fc689ed3e79b9c21cca303d18e1315477847e",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_hardware.c": {
+      "mode": "100644",
+      "blob": "cb5ccae9e14b919a1e187adb8f74299ff7f7f738",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_launcher.c": {
+      "mode": "100644",
+      "blob": "cccbfe1d5d0498be64c49a2b4251604ac0a1d354",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_provider.c": {
+      "mode": "100644",
+      "blob": "c92d7f25d2d8f4dcd714efcc2cfc79ead1fe88ba",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
+    },
+    "test/scene/runtime_test.cpp": {
+      "mode": "100644",
+      "blob": "4c7940bedc28f710adfc21573b4a3256f4d4be43",
+      "pr": 55,
+      "commit": "48d72c2c9d00e2f894af91feb269f5baa08beb39"
     }
   },
   "integration_resolutions": [
@@ -426,6 +556,60 @@
       "blob": "e21bbf5d503df80829bcf627cb6404a4f8f02091",
       "original_blob": "9a6fdf11c80b9768c686118ade29ff45b5fc421e",
       "reason": "Run and verify the unchanged T039 controller, current source admission and candidate 0.1.31 package within the approved composition; preserve literal historical refusal and original PR94 artifact verification."
+    },
+    "docs/DECLARATIVE_ALARMS.md": {
+      "mode": "100644",
+      "blob": "ceb241154c2fc622b609c7ee22d874be2399d6f7",
+      "original_blob": "49590fa9228789972b79dd4d3d58df51103f17ac",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "scripts/build_alarms_scene.py": {
+      "mode": "100644",
+      "blob": "c3b76cc1d3999c266d2700a21b22a5de5586a239",
+      "original_blob": "fb00e517f2333a31110bdb816bf5d1f946d31abe",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "scripts/test_alarms_scene_runtime.py": {
+      "mode": "100644",
+      "blob": "0f6c7680b83a14196b5231aac300c9671423f891",
+      "original_blob": "1865f6ea7506c4af786a333424a190dcb476e87f",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "test/scene/runtime_launcher.c": {
+      "mode": "100644",
+      "blob": "48ceca77fdeebdfff48d453ad6450857f74563df",
+      "original_blob": "cccbfe1d5d0498be64c49a2b4251604ac0a1d354",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "test/scene/runtime_test.cpp": {
+      "mode": "100644",
+      "blob": "57f749e6432aa431a3406eb2abadae7917fdc019",
+      "original_blob": "4c7940bedc28f710adfc21573b4a3256f4d4be43",
+      "reason": "Current-source headless owner qualification; historical GUI lineage remains explicitly unqualified."
+    },
+    "Apps/alarms_headless.c": {
+      "mode": "100644",
+      "blob": "99015a34b3a95b84d58ddbed91638541e4a8cdf3",
+      "original_blob": null,
+      "reason": "Requested GUI-free alarm reconciliation owner and exact-source qualification, task e1116181."
+    },
+    "Apps/alarms_headless.json": {
+      "mode": "100644",
+      "blob": "14504d2fafb6bf950e6f9dfd7002da05fedf7016",
+      "original_blob": null,
+      "reason": "Requested GUI-free alarm reconciliation owner and exact-source qualification, task e1116181."
+    },
+    "test/scene/headless_owner_test.c": {
+      "mode": "100644",
+      "blob": "1b3e6041fb9b0295b4a9196618c95b95992f6c74",
+      "original_blob": null,
+      "reason": "Requested GUI-free alarm reconciliation owner and exact-source qualification, task e1116181."
+    },
+    ".github/workflows/headless-alarms.yml": {
+      "mode": "100644",
+      "blob": "7d340cb18377e0f39de210add3b5a502dcdcc336",
+      "original_blob": null,
+      "reason": "Requested GUI-free alarm reconciliation owner and exact-source qualification, task e1116181."
     }
   }
 }
