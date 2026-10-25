@@ -5,7 +5,7 @@
 #include "RiscKeyValueV1.h"
 #include "PortableRealtimeClient.h"
 #include "PortableNativeCustody.h"
-#if !defined(PORTABLE_NATIVE_TIME_TOOLBAR) || !defined(PORTABLE_NATIVE_CUSTODY_FENCE) || !defined(PORTABLE_APP_LAUNCH_GUARD) || !defined(ALARM_SERVICE_TAGGED_V2)
+#if !defined(PORTABLE_NATIVE_CUSTODY_FENCE) || !defined(PORTABLE_APP_LAUNCH_GUARD) || (!defined(PORTABLE_STOPWATCH_NATIVE_STANDALONE) && (!defined(PORTABLE_NATIVE_TIME_TOOLBAR) || !defined(ALARM_SERVICE_TAGGED_V2)))
 #error Native Stopwatch requires native toolbar, custody fence, launch guard and alarm API2
 #endif
 #include "stopwatch_native_utc_core.h"
