@@ -127,7 +127,9 @@ static void save_action(bool cancel) {
     if(native_retained)return;
     editing=false;service->refresh(service->context);notice=writer.saved.enabled?"SAVED - CHECKING SERVICE":"CANCEL SAVED - CHECKING";
 }
-#ifdef DAILY_NOVA_APP
+#if defined(PORTABLE_ALARM_NATIVE_PRESENTATION)
+#include "alarm_native_presentation.inc"
+#elif defined(DAILY_NOVA_APP)
 #include "alarm_nova.inc"
 #else
 static void draw(void) {
@@ -185,6 +187,9 @@ static void draw(void) {
 #endif
 void app_main(void) {
  utility_frame_reset();
+#ifdef PORTABLE_ALARM_NATIVE_PRESENTATION
+    alarm_page=alarm_field=0;alarm_leave_requested=false;
+#endif
 #ifdef DAILY_NOVA_APP
     alarm_page=alarm_field=0;
 #if DAILY_ALARM_KIND == 1
@@ -194,6 +199,11 @@ void app_main(void) {
     native_retained=false;native_client=(portable_realtime_client){0};native_zone_valid=false;
     app=t5_app_get_api(1);notice="";editing=false;writer=(alarm_writer){0};service_valid=false;service_state=(alarm_status_v1){0};values[0]=0;values[1]=5;values[2]=0;
     if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->draw_text||!app->draw_label||!app->fill_rect||!app->present)return;
+#ifdef PORTABLE_ALARM_NATIVE_PRESENTATION
+    if(!un_dimensions(app))return;
+    if(app->struct_size<offsetof(t5_app_api_v1,set_back_exits_app)+sizeof(app->set_back_exits_app)||!app->set_back_exits_app)return;
+    app->set_back_exits_app(false);
+#endif
     if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
 #if defined(PORTABLE_PAPER_UTILITIES)
     up_open(app);
@@ -204,6 +214,9 @@ void app_main(void) {
 #endif
         break;
     }
+#ifdef PORTABLE_ALARM_NATIVE_PRESENTATION
+    if(i.tapped&&alarm_native_hit(alarm_native_layout_make(app->screen_width(),app->screen_height(),DAILY_ALARM_KIND,0).back,i.touch_x,i.touch_y))i.buttons|=T5_APP_BUTTON_BACK;
+#endif
     if(i.exit_requested&&!(i.buttons&T5_APP_BUTTON_BACK))break;
 #if defined(PORTABLE_PAPER_UTILITIES)
         if(utility_paper){up_input(&i);if(i.tapped&&up_hit(i.touch_x,i.touch_y,32,688,200,88))i.buttons|=T5_APP_BUTTON_BACK;}
@@ -263,7 +276,7 @@ void app_main(void) {
 #endif
         if(native_retained)return;
         refresh_status();if(native_retained)return;
-#ifndef DAILY_NOVA_APP
+#if !defined(DAILY_NOVA_APP) && !defined(PORTABLE_ALARM_NATIVE_PRESENTATION)
         bool alert=service_valid&&service_state.occurrence.generation;
 #endif
 #if defined(PORTABLE_PAPER_UTILITIES)
@@ -272,7 +285,10 @@ void app_main(void) {
 #endif
         if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)) {
             if(writer.uncertain){notice="SAVE UNCONFIRMED - RETRY";draw();continue;}
-#ifdef DAILY_NOVA_APP
+#if defined(DAILY_NOVA_APP) || defined(PORTABLE_ALARM_NATIVE_PRESENTATION)
+#ifdef PORTABLE_ALARM_NATIVE_PRESENTATION
+            if(input.exit_requested && !(input.buttons&T5_APP_BUTTON_BACK))break;
+#endif
             if(alarm_back())break;
             draw();continue;
 #else
@@ -283,7 +299,7 @@ void app_main(void) {
         }
         bool dirty=false;
         if(input.tapped) {
-#ifdef DAILY_NOVA_APP
+#if defined(DAILY_NOVA_APP) || defined(PORTABLE_ALARM_NATIVE_PRESENTATION)
             dirty=alarm_tap(input.touch_x,input.touch_y);
 #else
             int x=input.touch_x,y=input.touch_y,w=app->screen_width(),h=app->screen_height();
@@ -303,6 +319,9 @@ void app_main(void) {
         #endif
         }
         if(native_retained)return;
+#ifdef PORTABLE_ALARM_NATIVE_PRESENTATION
+        if(alarm_leave_requested)break;
+#endif
         if(dirty||utility_frame_pending||(uint32_t)(app->millis()-last_draw)>=
 #if defined(PORTABLE_PAPER_UTILITIES)
             (utility_paper?1000u:250u)

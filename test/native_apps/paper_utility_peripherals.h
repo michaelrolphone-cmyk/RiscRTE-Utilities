@@ -58,7 +58,26 @@ static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_pre
 static const risc_display_output_api_v1 display_api={.api_version=1,.struct_size=sizeof(display_api),.get_info=fake_info,.acquire=fake_frame,.release=fake_frame_release,.submit=fake_submit,.present_status=fake_present};
 static uint64_t fake_sub(void*c){(void)c;subs++;return 1;}
 static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n==1&&subs);subs--;return true;}
-#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#ifdef TEST_ORDERED_TOUCH
+/* Event-complete hardware fixture: every contact/button edge precedes the
+ * matching snapshot, including multi-contact cancellation and raw Home. */
+static risc_touch_event_v1 ordered_events[256];
+static unsigned ordered_read,ordered_count,ordered_contacts,ordered_x,ordered_y;
+static bool ordered_home;
+static uint64_t atomic_touch_sequence;
+static void ordered_emit(uint8_t kind,uint8_t id,unsigned x,unsigned y){assert(ordered_count<256);ordered_events[ordered_count++]=(risc_touch_event_v1){.sequence=++atomic_touch_sequence,.timestamp_ms=ticks,.kind=kind,.id=id,.x=x,.y=y};}
+static bool fake_touch_poll(void*c,size_t n){
+ (void)c;assert(n==1);polls++;
+ unsigned contacts=0,x=ordered_x,y=ordered_y;
+ for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){contacts=cancel_contact?2:1;x=actions[i].x;y=actions[i].y;}
+ for(unsigned i=contacts;i<ordered_contacts;i++)ordered_emit(RISC_TOUCH_EVENT_UP,i+1,x,y);
+ for(unsigned i=ordered_contacts;i<contacts;i++)ordered_emit(RISC_TOUCH_EVENT_DOWN,i+1,x,y);
+ bool home=raw_home_at&&polls==raw_home_at;
+ if(home!=ordered_home)ordered_emit(home?RISC_TOUCH_EVENT_BUTTON_DOWN:RISC_TOUCH_EVENT_BUTTON_UP,0,0,0);
+ ordered_contacts=contacts;ordered_x=x;ordered_y=y;ordered_home=home;return true;
+}
+static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;(void)n;if(ordered_read==ordered_count)return 0;*e=ordered_events[ordered_read++];return 1;}
+#elif defined(PORTABLE_UTILITIES_ATOMIC_PREFERENCES)
 /* Current shared touch reducer requires ordered edges and matching snapshots;
  * this opt-in fixture never fabricates an old snapshot-only tap. */
 static risc_touch_event_v1 atomic_touch_event;
@@ -78,7 +97,7 @@ static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);polls++;return
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;(void)n;(void)e;return 0;}
 #endif
 static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;*s=(risc_touch_snapshot_v1){.width=paper_profile?480:240,.height=paper_profile?800:240};if(raw_home_at&&polls==raw_home_at)s->buttons=RISC_TOUCH_BUTTON_PRIMARY;for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=actions[i].x,.y=actions[i].y};if(cancel_contact){s->contact_count=2;s->contacts[1]=s->contacts[0];s->contacts[1].id=2;}}
-#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#if defined(PORTABLE_UTILITIES_ATOMIC_PREFERENCES) || defined(TEST_ORDERED_TOUCH)
  s->sequence=atomic_touch_sequence;s->timestamp_ms=ticks;
 #endif
 #ifdef PORTABLE_PAPER_TRANSITIONS

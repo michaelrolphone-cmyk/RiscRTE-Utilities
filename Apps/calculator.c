@@ -1,4 +1,4 @@
-#ifdef PORTABLE_NOVA_UI
+#if defined(PORTABLE_NOVA_UI) && !defined(PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT)
 #include "RiscRuntimeV1.h"
 #include "calculator_nova.inc"
 #else
@@ -8,8 +8,15 @@
 #include "daily_draw.h"
 #include <stddef.h>
 
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+#include "utility_native_geometry.h"
+#endif
 #define CALCULATOR_KEYS 19
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+#define CALCULATOR_GRID_TOP (calculator_height/3)
+#else
 #define CALCULATOR_GRID_TOP 88
+#endif
 
 typedef struct { int x, y, width, height; } calculator_rect;
 static const char calculator_keys[CALCULATOR_KEYS] = {
@@ -46,6 +53,7 @@ static int calculator_hit(int x, int y) {
     return -1;
 }
 
+#ifndef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
 static void calculator_border(calculator_rect rect, bool black) {
     calculator_api->fill_rect(rect.x, rect.y, rect.width, 1, black);
     calculator_api->fill_rect(rect.x, rect.y + rect.height - 1, rect.width, 1, black);
@@ -53,8 +61,23 @@ static void calculator_border(calculator_rect rect, bool black) {
     calculator_api->fill_rect(rect.x + rect.width - 1, rect.y, 1, rect.height, black);
 }
 
+#endif
 static void calculator_render(void) {
  if(!utility_frame_begin(calculator_api))return;
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+    un_header(calculator_api,"Calculator");
+    const char *display=calculator_state.error==CALC_DIV_ZERO?"DIV BY ZERO":calculator_state.error==CALC_OVERFLOW?"OVERFLOW":calculator_state.text;
+    un_text((utility_native_rect){8,38,calculator_width-16,CALCULATOR_GRID_TOP-62},display,!calculator_state.error,NOVA_TEXT);
+    un_text((utility_native_rect){8,CALCULATOR_GRID_TOP-22,calculator_width-48,20},calculator_state.error?"C OR DIGIT TO RESET":"6 DP",false,NOVA_TEXT);
+    if(!calculator_state.error&&calculator_state.pending){
+        char pending[]={calculator_state.pending,0};
+        un_text((utility_native_rect){calculator_width-36,CALCULATOR_GRID_TOP-22,28,20},pending,false,NOVA_CYAN);
+    }
+    for(int i=0;i<CALCULATOR_KEYS;i++){
+        calculator_rect r=calculator_key_rect(i);
+        un_button((utility_native_rect){r.x,r.y,r.width,r.height},calculator_labels[i],i==calculator_pressed||i==calculator_selected);
+    }
+#else
     calculator_api->clear();
     daily_draw_text(calculator_api, 8, 15, "BACK", 1);
     daily_draw_text(calculator_api, 65, 11, "CALCULATOR", 2);
@@ -87,6 +110,8 @@ static void calculator_render(void) {
                              rect.y + (rect.height - 7 * key_scale) / 2,
                              calculator_labels[i], key_scale, !pressed);
     }
+
+#endif
     calculator_api->present(false);
 }
 
@@ -108,6 +133,9 @@ void app_main(void) {
      * A 240px watch retains five 25px-high buttons with four-pixel gutters. */
     if (calculator_width < 200 || calculator_height < 240 ||
         calculator_width > 4096 || calculator_height > 4096) return;
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+    if(!un_dimensions(calculator_api))return;
+#endif
     calc_reset(&calculator_state);
     calculator_selected = 0;
     calculator_pressed = -1;
@@ -117,8 +145,12 @@ void app_main(void) {
         t5_app_input_t input = {0};
         if (!calculator_api->poll(&input, 30) || input.exit_requested ||
             (input.buttons & T5_APP_BUTTON_BACK)) break;
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+        if(input.tapped&&un_hit(un_back(),input.touch_x,input.touch_y))break;
+#else
         if (input.tapped && input.touch_x >= 0 && input.touch_x < 56 &&
             input.touch_y >= 0 && input.touch_y < 40) break;
+#endif
         bool redraw = false;
         if (calculator_has_contact()) {
             t5_app_contact_t contact = {0};

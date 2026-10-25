@@ -5,11 +5,14 @@
 #include "RiscKeyValueV1.h"
 #include "PortableRealtimeClient.h"
 #include "PortableNativeCustody.h"
-#if !defined(PORTABLE_NATIVE_TIME_TOOLBAR) || !defined(PORTABLE_NATIVE_CUSTODY_FENCE) || !defined(PORTABLE_APP_LAUNCH_GUARD) || !defined(ALARM_SERVICE_TAGGED_V2)
+#if !defined(PORTABLE_NATIVE_CUSTODY_FENCE) || !defined(PORTABLE_APP_LAUNCH_GUARD) || (!defined(PORTABLE_STOPWATCH_NATIVE_STANDALONE) && (!defined(PORTABLE_NATIVE_TIME_TOOLBAR) || !defined(ALARM_SERVICE_TAGGED_V2)))
 #error Native Stopwatch requires native toolbar, custody fence, launch guard and alarm API2
 #endif
 #include "stopwatch_native_utc_core.h"
 #include "daily_draw.h"
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+#include "utility_native_geometry.h"
+#endif
 #ifdef PORTABLE_NOVA_UI
 #include "PortableNovaUi.h"
 #endif
@@ -128,13 +131,18 @@ static void reset(void) {
 #ifdef PORTABLE_PAPER_UTILITIES
 #include "stopwatch_paper.inc"
 #endif
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+#include "stopwatch_native_geometry.inc"
+#endif
 static void draw(void) {
  if(!utility_frame_begin(app))return;
  if(halted())return;
 #ifdef PORTABLE_PAPER_UTILITIES
  if(utility_paper){stopwatch_paper_draw();return;}
 #endif
-#ifdef PORTABLE_NOVA_UI
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+ stopwatch_native_draw();
+#elif defined(PORTABLE_NOVA_UI)
  portable_nova_begin();portable_nova_header("STOPWATCH");
  char value[12],large[9];sw_format(clock_state.elapsed_ms,value);
 #ifdef PORTABLE_UNPADDED_HOURS
@@ -188,6 +196,9 @@ void app_main(void) {
  utility_frame_reset();
  app=t5_app_get_api(1);status="";loaded=reset_armed=pending_pause=save_uncertain=false;clock_state=(sw_clock){0};
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->draw_text||!app->draw_label||!app->fill_rect||!app->present)return;
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+ if(!un_dimensions(app))return;
+#endif
  if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
 #ifdef PORTABLE_PAPER_UTILITIES
  up_open(app);
@@ -204,7 +215,11 @@ void app_main(void) {
    if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,416,88))input.buttons|=T5_APP_BUTTON_BACK;}
    if(input.buttons&T5_APP_BUTTON_BACK){if(portable_app_before_launch("springboard.elf")&&up_return())break;}
 #else
-   if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK))break;
+   if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+      ||(input.tapped&&un_hit(un_back(),input.touch_x,input.touch_y))
+#endif
+      )break;
 #endif
   }
   close_state();return;
@@ -222,7 +237,11 @@ void app_main(void) {
   if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,416,88))input.buttons|=T5_APP_BUTTON_BACK;}
   if(input.buttons&T5_APP_BUTTON_BACK){if(portable_app_before_launch("springboard.elf")&&up_return())break;status="Return unavailable - retry";draw();continue;}
 #else
-  if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK))break;
+  if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+      ||(input.tapped&&un_hit(un_back(),input.touch_x,input.touch_y))
+#endif
+      )break;
 #endif
   uint32_t now=app->millis();bool was_running=clock_state.running;sw_tick(&clock_state,now);bool dirty=false;
   if(was_running&&!clock_state.running){status="99 HOUR LIMIT - RESET";dirty=true;}
@@ -236,7 +255,13 @@ void app_main(void) {
   }
   if(input.buttons&T5_APP_BUTTON_CONFIRM){toggle();dirty=true;}
   if(input.tapped) {
-#ifdef PORTABLE_NOVA_UI
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+   int x=input.touch_x,y=input.touch_y,w=app->screen_width(),h=app->screen_height();
+   if(un_hit(un_back(),x,y))break;
+   if(un_hit(un_footer(w,h,0,3),x,y)){toggle();dirty=true;}
+   else if(un_hit(un_footer(w,h,1,3),x,y)){reset();dirty=true;}
+   else if(un_hit(un_footer(w,h,2,3),x,y)){
+#elif defined(PORTABLE_NOVA_UI)
    int x=input.touch_x,y=input.touch_y;
 #ifdef PORTABLE_PAPER_UTILITIES
    if(!utility_paper)

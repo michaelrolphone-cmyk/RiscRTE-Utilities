@@ -10,6 +10,13 @@
 #ifdef ALARM_SERVICE_TAGGED_V2
 #include "AlarmServiceV2.h"
 #endif
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+#include "AlarmClockEditV2.h"
+#include "RiscBoundKeyValueV2.h"
+#if !defined(ALARM_NATIVE_SCHEDULES_ONLY)
+#error "Clock editor requires explicit native schedules-only profile"
+#endif
+#endif
 #ifdef ALARM_DND_CONTROL
 #include "AlarmDnd.h"
 #endif
@@ -20,7 +27,9 @@
 #include "PointsSchedule.h"
 #endif
 #ifdef ALARM_NATIVE_UTC
+#ifdef POINTS_IN_TIME_SERVICE
 #include "PointsUtcSchedule.h"
+#endif
 #include "RiscPlatformRealtimeV1.h"
 #endif
 #ifdef POINTS_CATALOG_SERVICE
@@ -41,14 +50,22 @@
 #error "The visual-only profile has no audio volume authority"
 #endif
 
-#if defined(ALARM_NATIVE_UTC) && (!defined(ALARM_VISUAL_ONLY) || !defined(POINTS_IN_TIME_SERVICE) || !defined(ALARM_DND_CONTROL))
-#error "Native UTC requires the explicit visual Points profile"
+/* Product selection is compile-time composition, never a write or virtual
+ * reinterpretation of an unselected feature's saved configuration. */
+#if defined(ALARM_NATIVE_SCHEDULES_ONLY) && (!defined(ALARM_NATIVE_UTC) || defined(POINTS_IN_TIME_SERVICE) || defined(POINTS_CATALOG_SERVICE) || !defined(ALARM_SERVICE_TAGGED_V2))
+#error "Schedules-only requires tagged native UTC and excludes Points profiles"
+#endif
+#if defined(ALARM_NATIVE_UTC) && (!defined(ALARM_VISUAL_ONLY) || (!defined(POINTS_IN_TIME_SERVICE) && !defined(ALARM_NATIVE_SCHEDULES_ONLY)) || !defined(ALARM_DND_CONTROL))
+#error "Native UTC requires explicit visual Points or schedules-only selection"
 #endif
 
 typedef enum { LOAD_ALARM,LOAD_TIMER,LOAD_MODE,LOAD_ALARM_OCC,LOAD_TIMER_OCC,
                READ_RTC,EVALUATE,IDLE,WRITE_OCC,VERIFY_OCC,ACTIVATE_RTC,START_AUDIO,
                START_HAPTIC,PLAYING,CLEAN_HAPTIC,CLEAN_SILENCE,CLEAN_AUDIO,
                BLOCKED
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+               ,LOAD_CLOCK_EDIT
+#endif
 #ifdef ALARM_VOLUME_CONTROL
                ,LOAD_VOLUME,SET_AUDIO_GAIN
 #endif
@@ -58,7 +75,7 @@ typedef enum { LOAD_ALARM,LOAD_TIMER,LOAD_MODE,LOAD_ALARM_OCC,LOAD_TIMER_OCC,
 #ifdef POINTS_IN_TIME_SERVICE
                ,LOAD_POINTS_CFG,LOAD_POINTS_OCC
 #endif
-#ifdef ALARM_NATIVE_UTC
+#if defined(ALARM_NATIVE_UTC) && defined(POINTS_IN_TIME_SERVICE)
                ,LOAD_ZONE,CHECK_ZONE
 #endif
 #ifdef POINTS_CATALOG_SERVICE
@@ -69,8 +86,10 @@ static const risc_bound_key_value_v1 *kv;
 static const risc_platform_clock_api_v1 *clock_api;
 #ifdef ALARM_NATIVE_UTC
 static const risc_platform_realtime_api_v1 *realtime;
+#ifdef POINTS_IN_TIME_SERVICE
 static portable_timezone_rule timezone_rule;
 static unsigned timezone_index;
+#endif
 
 #else
 static const twatch_rtc_api_v1 *rtc;
@@ -115,6 +134,9 @@ static bool sleep_ticket_valid;
 static alarm_sleep_v1 sleep_ticket;
 static bool active, dismiss, haptic_uncertain, audio_uncertain, cleanup_failed;
 static bool persistence_pending, foreground_failed;
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+static bool edit_permit_valid,edit_recovery;
+#endif
 #ifdef ALARM_STORAGE_BUSY_RETRY
 #if !defined(ALARM_SERVICE_TAGGED_V2) || !defined(POINTS_CATALOG_SERVICE)
 #error "Busy deferral profile requires the tagged catalog alarm service"
@@ -126,6 +148,14 @@ static int32_t storage_get(void *context,const char *key,void *data,uint32_t siz
     if(custody_retained)return RISC_BOUND_KEY_VALUE_CONTEXT;
     int32_t result=kv->get(context,key,data,size,used);
     if(result==RISC_BOUND_KEY_VALUE_CONTEXT)custody_retained=true;
+#ifdef ALARM_NATIVE_SCHEDULES_ONLY
+    /* An unrecognized provider result cannot prove callback custody ended.
+     * Typed IO is separately specified and may be reconciled by readback. */
+    if(result!=RISC_BOUND_KEY_VALUE_OK && result!=RISC_BOUND_KEY_VALUE_NOT_FOUND &&
+       result!=RISC_BOUND_KEY_VALUE_BUFFER_SMALL && result!=RISC_BOUND_KEY_VALUE_INVALID &&
+       result!=RISC_BOUND_KEY_VALUE_CONTEXT && result!=RISC_BOUND_KEY_VALUE_IO &&
+       result!=RISC_BOUND_KEY_VALUE_BUSY)custody_retained=true;
+#endif
 #ifdef ALARM_STORAGE_BUSY_RETRY
     if(result==RISC_BOUND_KEY_VALUE_BUSY)storage_busy=true;
 #endif
@@ -135,6 +165,12 @@ static int32_t storage_put(void *context,const char *key,const void *data,uint32
     if(custody_retained)return RISC_BOUND_KEY_VALUE_CONTEXT;
     int32_t result=kv->put(context,key,data,size);
     if(result==RISC_BOUND_KEY_VALUE_CONTEXT)custody_retained=true;
+#ifdef ALARM_NATIVE_SCHEDULES_ONLY
+    /* NOT_FOUND/BUFFER_SMALL are get-only results, not valid put outcomes. */
+    if(result!=RISC_BOUND_KEY_VALUE_OK && result!=RISC_BOUND_KEY_VALUE_INVALID &&
+       result!=RISC_BOUND_KEY_VALUE_CONTEXT && result!=RISC_BOUND_KEY_VALUE_IO &&
+       result!=RISC_BOUND_KEY_VALUE_BUSY)custody_retained=true;
+#endif
 #ifdef ALARM_STORAGE_BUSY_RETRY
     if(result==RISC_BOUND_KEY_VALUE_BUSY)storage_busy=true;
 #endif
@@ -231,6 +267,9 @@ static void update_view(void) {
     } else {
         memset(&view.occurrence,0,sizeof(view.occurrence));view.recovery_until=view.remaining_ms=0;
         memset(view.label,0,sizeof(view.label));
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+        if(edit_recovery)memcpy(view.label,"CLOCK EDIT PENDING",18);
+#endif
     }
 #ifdef ALARM_VISUAL_ONLY
     /* Persisted preferences stay portable; copied status describes this device. */
@@ -288,11 +327,15 @@ static int32_t read_utc(uint32_t *out) {
     risc_realtime_snapshot_v1 value={.struct_size=sizeof(value)};
     int32_t r=realtime->read(realtime->context,&value);
     if(r==RISC_REALTIME_CONTEXT){custody_retained=true;return ALARM_RETAINED;}
+#ifdef ALARM_NATIVE_SCHEDULES_ONLY
+    if(r!=RISC_REALTIME_OK && r!=RISC_REALTIME_INVALID && r!=RISC_REALTIME_IO){custody_retained=true;return ALARM_RETAINED;}
+#endif
     if(r!=RISC_REALTIME_OK||value.struct_size!=sizeof(value)||value.validity!=RISC_REALTIME_VALID||
        value.reserved||value.nanoseconds>=1000000000u||value.monotonic_after_us<value.monotonic_before_us||
        value.epoch_seconds<INT64_C(946684800)||value.epoch_seconds>INT32_MAX)return ALARM_RTC;
     *out=(uint32_t)(value.epoch_seconds-INT64_C(946684800));return ALARM_OK;
 }
+#ifdef POINTS_IN_TIME_SERVICE
 /* Read exactly the shared TZ1 canonical 44-byte preference. Missing is virtual
  * UTC; malformed or unavailable data blocks instead of silently changing zone. */
 static int32_t read_zone(unsigned *index,portable_timezone_rule *rule) {
@@ -308,7 +351,7 @@ static int32_t read_zone(unsigned *index,portable_timezone_rule *rule) {
     if(portable_timezone_resolve(entry->id,length+1,rule)!=PORTABLE_TIMEZONE_OK)return ALARM_RTC;
     *index=(unsigned)found;return ALARM_OK;
 }
-#ifndef POINTS_CATALOG_SERVICE
+#if defined(POINTS_IN_TIME_SERVICE) && !defined(POINTS_CATALOG_SERVICE)
 static bool recorded_point(const points_config *c,const points_ledger *ledger,points_event *event) {
     const portable_timezone_entry *entry=portable_timezone_get(ledger->timezone_index);portable_timezone_rule rule;
     return entry&&portable_timezone_resolve(entry->id,strlen(entry->id)+1,&rule)==PORTABLE_TIMEZONE_OK&&
@@ -318,6 +361,7 @@ static bool recorded_point(const points_config *c,const points_ledger *ledger,po
 #define points_event_for_day(c,slot,day,edge,out,flags) points_utc_event_for_day(&timezone_rule,c,slot,day,edge,out,flags)
 #define points_latest_for_edge(c,l,now,slot,edge,out) points_utc_latest_for_edge(&timezone_rule,c,l,now,slot,edge,out)
 #define points_due(c,l,now,out) points_utc_due(&timezone_rule,c,l,now,out)
+#endif
 #endif
 #endif
 static const void *dependency(const risc_provider_dependency_v1 *d,size_t n,const char *name,uint32_t v,size_t size) {
@@ -346,6 +390,9 @@ static void begin_reconcile(void) {
     persistence_pending=false;foreground_failed=false;
     phase=LOAD_ALARM;refreshed=false;error=0;memset(staging,0,sizeof(staging));memset(staged_occ,0,sizeof(staged_occ));
 }
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+#include "clock_edit_records.inc"
+#endif
 static void begin_cleanup(void) {
     phase=CLEAN_HAPTIC;cleanup_failed=false;
     /* Call both outputs independently even if open/effect reported failure.
@@ -474,7 +521,13 @@ static int32_t evaluate(void) {
 #endif
     }
 #endif
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    if(!edit_history_valid(staging,staged_occ))return fail(ALARM_STORAGE);
+#endif
     memcpy(config,staging,sizeof(config));memcpy(occurrences,staged_occ,sizeof(occurrences));
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    if(edit_recovery)return fail(ALARM_RTC);
+#endif
     if(view.snapshot==UINT32_MAX)return fail(ALARM_EXHAUSTED);
     ++view.snapshot;
     int candidate=-1;
@@ -482,7 +535,11 @@ static int32_t evaluate(void) {
         if(occurrences[i].state && (occurrences[i].revision>config[i].revision ||
            (occurrences[i].revision==config[i].revision&&occurrences[i].deadline!=config[i].deadline)))return fail(ALARM_STORAGE);
         if(!config[i].enabled)continue;
-        if(seconds<config[i].created)return fail(ALARM_RTC);
+        if(seconds<config[i].created
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+           && !edit_time_authorized(i,seconds,&config[i],&occurrences[i])
+#endif
+          )return fail(ALARM_RTC);
         if(config[i].deadline>seconds)continue;
         if(alarm_same_occurrence(&occurrences[i],&config[i])&&occurrences[i].state!=ALARM_OCC_PENDING)continue;
         if(candidate<0||config[i].deadline<config[candidate].deadline)candidate=(int)i;
@@ -596,6 +653,10 @@ static int32_t do_step(void) {
 #endif
     case LOAD_ALARM_OCC:if(!read_occurrence(0))return fail(ALARM_STORAGE);phase=LOAD_TIMER_OCC;break;
     case LOAD_TIMER_OCC:if(!read_occurrence(1))return fail(ALARM_STORAGE);
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+        phase=LOAD_CLOCK_EDIT;break;
+    case LOAD_CLOCK_EDIT: {int32_t r=edit_load();if(r!=ALARM_OK)return fail(r);}
+#endif
 #ifdef POINTS_IN_TIME_SERVICE
         phase=LOAD_POINTS_CFG;break;
     case LOAD_POINTS_CFG:if(!read_points_config())return fail(ALARM_STORAGE);phase=LOAD_POINTS_OCC;break;
@@ -662,7 +723,14 @@ static int32_t do_step(void) {
 #endif
         uint8_t b[ALARM_RECORD_SIZE];alarm_occurrence_encode(&desired,b);
         /* Even IO may have persisted. Always verify before deciding next action. */
+#ifdef ALARM_NATIVE_SCHEDULES_ONLY
+        int32_t written=storage_put(kv->context,occ_keys[selected],b,sizeof(b));
+        if(custody_retained)return fail(ALARM_RETAINED);
+        /* INVALID/BUSY are typed clean refusals: no write/readback occurred. */
+        if(written!=RISC_BOUND_KEY_VALUE_OK && written!=RISC_BOUND_KEY_VALUE_IO)return fail(ALARM_STORAGE);
+#else
         (void)storage_put(kv->context,occ_keys[selected],b,sizeof(b));
+#endif
 #ifdef ALARM_STORAGE_BUSY_RETRY
         if(storage_busy && !custody_retained)return ALARM_PENDING;
 #endif
@@ -745,7 +813,7 @@ static int32_t do_step(void) {
             uint32_t elapsed_ms=(uint32_t)(now_ms()-alert_started);
             if(window_ms<alert_limit_ms-elapsed_ms)alert_limit_ms=elapsed_ms+window_ms;
             phase=
-#ifdef ALARM_NATIVE_UTC
+#if defined(ALARM_NATIVE_UTC) && defined(POINTS_IN_TIME_SERVICE)
                 CHECK_ZONE;
 #elif defined(POINTS_CATALOG_SERVICE)
                 CATALOG_PREFLIGHT;
@@ -924,6 +992,9 @@ static int32_t do_step(void) {
     return ALARM_OK;
 }
 static int32_t step(void *c) {
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    if(edit_permit_valid)return custody_retained?ALARM_RETAINED:ALARM_BUSY;
+#endif
     (void)c;if(!started)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
     in_call=true;sleep_ticket_valid=false;int32_t result=do_step();
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
@@ -937,6 +1008,9 @@ static int32_t status(void *c,alarm_status_v1 *out) {
     in_call=true;update_view();*out=view;in_call=false;return ALARM_OK;
 }
 static int32_t refresh(void *c) {
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    if(edit_permit_valid)return custody_retained?ALARM_RETAINED:ALARM_BUSY;
+#endif
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
     if(custody_retained)return ALARM_RETAINED;
 #endif
@@ -978,6 +1052,9 @@ static int32_t clock_changed(void *c,uint32_t verified) {
 }
 #endif
 static int32_t acknowledge(void *c,const alarm_token_v1 *value) {
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    if(edit_permit_valid)return custody_retained?ALARM_RETAINED:ALARM_BUSY;
+#endif
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
     if(custody_retained)return ALARM_RETAINED;
 #endif
@@ -1062,6 +1139,9 @@ static int32_t prepare_sleep_internal(alarm_sleep_v1 *out) {
     sleep_ticket=*out;sleep_ticket_valid=true;sleep_waiting=false;return ALARM_OK;
 }
 static int32_t prepare_sleep(void *c,alarm_sleep_v1 *out) {
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    if(edit_permit_valid)return custody_retained?ALARM_RETAINED:ALARM_BUSY;
+#endif
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
     if(custody_retained)return ALARM_RETAINED;
 #endif
@@ -1070,6 +1150,9 @@ static int32_t prepare_sleep(void *c,alarm_sleep_v1 *out) {
     in_call=true;sleep_ticket_valid=false;int32_t result=prepare_sleep_internal(out);in_call=false;return result;
 }
 static int32_t resume_sleep(void *c,const alarm_sleep_v1 *decision) {
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    if(edit_permit_valid)return custody_retained?ALARM_RETAINED:ALARM_BUSY;
+#endif
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
     if(custody_retained)return ALARM_RETAINED;
 #endif
@@ -1136,12 +1219,18 @@ static int32_t stop_only_internal(void) {
     }
 }
 static int32_t stop_only(void *c) {
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    if(edit_permit_valid)return custody_retained?ALARM_RETAINED:ALARM_BUSY;
+#endif
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
     if(custody_retained)return ALARM_RETAINED;
 #endif
     (void)c;if(!started)return ALARM_INVALID;if(in_call)return ALARM_BUSY;
     in_call=true;sleep_ticket_valid=false;int32_t result=stop_only_internal();update_view();in_call=false;return result;
 }
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+#include "clock_edit_protocol.inc"
+#endif
 static bool quiesce(void) {
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
     if(custody_retained)return false;
@@ -1179,7 +1268,13 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
        +1
 #endif
        )return false;
-    kv=dependency(deps,count,"storage.key-value.bound",1,sizeof(*kv));
+    kv=dependency(deps,count,"storage.key-value.bound",
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+        RISC_BOUND_KEY_VALUE_API_V2,
+#else
+        1,
+#endif
+        sizeof(*kv));
     clock_api=dependency(deps,count,"platform.clock",1,sizeof(*clock_api));
 #ifdef POINTS_CATALOG_SERVICE
     app_data=dependency(deps,count,RISC_BOUND_APP_DATA_CAPABILITY,1,sizeof(*app_data));
@@ -1233,7 +1328,11 @@ static bool start(const risc_provider_dependency_v1 *deps,size_t count) {
 #ifdef ALARM_DND_CONTROL
     staged_dnd=muting_active=false;
 #endif
-    seconds=0;staged_mode=ALARM_MODE_VIBRATE;started=true;begin_reconcile();return true;
+    seconds=0;staged_mode=ALARM_MODE_VIBRATE;
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    edit_reset();
+#endif
+    started=true;begin_reconcile();return true;
 }
 static void stop(void) {(void)quiesce();}
 #ifdef POINTS_CATALOG_SERVICE
@@ -1265,6 +1364,14 @@ static const points_service_v2 api={
 static const points_service_v1 api={{{1,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},resume_sleep},
     {POINTS_SERVICE_PROJECTION_TAG,POINTS_SERVICE_PROJECTION_VERSION,projection}};
 #define SERVICE_API ALARM_SERVICE_API_V1
+#elif defined(ALARM_SERVICE_CLOCK_EDIT_V2)
+static const alarm_clock_edit_descriptor_v2 api={
+ {{ALARM_SERVICE_API_V2,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},
+ ALARM_SERVICE_DESCRIPTOR_TAG,ALARM_SERVICE_DESCRIPTOR_VERSION,ALARM_MODE_VISUAL,
+ ALARM_DESCRIPTOR_RESUME_SLEEP|ALARM_DESCRIPTOR_CLOCK_EDIT,resume_sleep},
+ ALARM_CLOCK_EDIT_TAG,ALARM_CLOCK_EDIT_VERSION,edit_begin,edit_finish,edit_cancel,edit_status
+};
+#define SERVICE_API ALARM_SERVICE_API_V2
 #elif defined(ALARM_SERVICE_TAGGED_V2)
 static const alarm_service_descriptor_v2 api={
     {ALARM_SERVICE_API_V2,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},
