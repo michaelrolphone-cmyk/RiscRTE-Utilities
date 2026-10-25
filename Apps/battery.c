@@ -1,4 +1,4 @@
-#if defined(PORTABLE_NOVA_UI) && defined(PORTABLE_POWER_STATUS)
+#if defined(PORTABLE_NOVA_UI) && defined(PORTABLE_POWER_STATUS) && !defined(PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT)
 #include "battery_power.inc"
 #else
 #include "T5AppApi.h"
@@ -11,12 +11,18 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+#include "utility_frame.h"
+#include "utility_native_geometry.h"
+#endif
 #define MAX_ROWS 28u
 #define VALUE_SIZE 72u
 
 static const t5_app_api_v1 *app;
 static const t5_battery_api_v1 *battery;
+#ifndef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
 static const t5_ui_api_v1 *ui;
+#endif
 static t5_ui_list_row_t rows[MAX_ROWS];
 static char values[MAX_ROWS][VALUE_SIZE];
 static char footer[128];
@@ -165,6 +171,24 @@ static void build_rows(const t5_battery_state_t *state) {
     }
 }
 
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+static int battery_visible(void){return (app->screen_height()-120)/48;}
+static int battery_first(void){return selected_index/battery_visible()*battery_visible();}
+static utility_native_rect battery_row_rect(int index){return (utility_native_rect){8,40+index*48,app->screen_width()-16,46};}
+static void battery_native_draw(void){
+ int w=app->screen_width(),h=app->screen_height(),first=battery_first();
+ un_header(app,"Battery");
+ for(int i=0;i<battery_visible()&&first+i<(int)row_count;i++){
+  utility_native_rect r=battery_row_rect(i);
+  if(first+i==selected_index)portable_nova_native_round(r.x,r.y,r.width,r.height,4,NOVA_DIM);
+  un_text((utility_native_rect){r.x+2,r.y+1,r.width-4,21},rows[first+i].title,false,NOVA_CYAN);
+  un_text((utility_native_rect){r.x+2,r.y+22,r.width-4,22},rows[first+i].value,false,NOVA_TEXT);
+ }
+ un_text((utility_native_rect){8,h-80,w-16,20},footer,false,NOVA_CAP);
+ un_button(un_footer(w,h,0,3),"Up",false);un_button(un_footer(w,h,1,3),"Update",false);un_button(un_footer(w,h,2,3),"Down",false);
+ app->present(false);
+}
+#endif
 static void render_state(const t5_battery_state_t *state) {
     build_rows(state);
     if (row_count == 0) selected_index = 0;
@@ -187,6 +211,10 @@ static void render_state(const t5_battery_state_t *state) {
                  (int)state->average_current_ma);
     }
 
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+    if(!utility_frame_begin(app))return;
+    battery_native_draw();
+#else
     const t5_ui_chrome_t chrome = {
         .title = "Battery Status",
         .subtitle = state->detailed_telemetry ? "Gauge and charger telemetry" : "Battery telemetry",
@@ -197,14 +225,21 @@ static void render_state(const t5_battery_state_t *state) {
         .next_label = "Down",
     };
     ui->render_list(&chrome, rows, row_count, selected_index);
+#endif
 }
 
 void app_main(void) {
     app = t5_app_get_api(T5_APP_ABI_VERSION);
     battery = t5_battery_get_api(T5_BATTERY_API_VERSION);
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+    utility_frame_reset();
+    if(!app || app->abi_version!=T5_APP_ABI_VERSION || app->struct_size<offsetof(t5_app_api_v1,poll)+sizeof(app->poll) ||
+       !battery || !battery->read || !app->poll || !app->present || !un_dimensions(app))return;
+#else
     ui = t5_ui_get_api(T5_UI_API_VERSION);
     if (!app || !battery || !ui || !app->poll || !battery->read || !ui->render_list || !ui->hit_test ||
         !ui->next_index || !ui->previous_index) return;
+#endif
 
     t5_battery_state_t state;
     memset(&state, 0, sizeof(state));
@@ -213,25 +248,50 @@ void app_main(void) {
     render_state(&state);
 
     for (;;) {
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+        if(utility_frame_pending)render_state(&state);
+#endif
         t5_app_input_t input;
         if (!app->poll(&input, 50) || input.exit_requested || (input.buttons & T5_APP_BUTTON_BACK)) break;
 
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+        if(input.tapped){
+            int x=input.touch_x,y=input.touch_y,w=app->screen_width(),h=app->screen_height();
+            if(un_hit(un_back(),x,y))break;
+            if(un_hit(un_footer(w,h,0,3),x,y))input.buttons|=T5_APP_BUTTON_UP;
+            if(un_hit(un_footer(w,h,1,3),x,y))input.buttons|=T5_APP_BUTTON_CONFIRM;
+            if(un_hit(un_footer(w,h,2,3),x,y))input.buttons|=T5_APP_BUTTON_DOWN;
+        }
+#endif
         if (input.buttons & T5_APP_BUTTON_CONFIRM) {
             if (battery->read(&state)) render_state(&state);
             continue;
         }
         if ((input.buttons & T5_APP_BUTTON_UP) || (input.buttons & T5_APP_BUTTON_LEFT)) {
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+            selected_index=row_count?(selected_index+(int)row_count-1)%(int)row_count:0;
+#else
             selected_index = ui->previous_index(selected_index, row_count);
+#endif
             render_state(&state);
             continue;
         }
         if ((input.buttons & T5_APP_BUTTON_DOWN) || (input.buttons & T5_APP_BUTTON_RIGHT)) {
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+            selected_index=row_count?(selected_index+1)%(int)row_count:0;
+#else
             selected_index = ui->next_index(selected_index, row_count);
+#endif
             render_state(&state);
             continue;
         }
         if (input.tapped) {
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+            int32_t hit=-1;
+            for(int i=0;i<battery_visible();i++)if(un_hit(battery_row_rect(i),input.touch_x,input.touch_y))hit=battery_first()+i;
+#else
             const int32_t hit = ui->hit_test(input.touch_x, input.touch_y);
+#endif
             if (hit >= 0 && (uint32_t)hit < row_count) {
                 selected_index = hit;
                 render_state(&state);

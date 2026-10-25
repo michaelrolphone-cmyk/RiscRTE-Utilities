@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "profile": "badge-native-utc-visual-alarms",
+  "versions": {
+    "alarms": "0.3.1",
+    "countdown": "0.2.1"
+  },
+  "system_sha": "6e4cda9072905c15b9a5ebc9b22913fec444a89d",
+  "runtime_sha": "273bdbccf65647a803ab0586a418f8283732baec",
+  "alarm_sdk_sha": "e80172353fcb9e6519ca9d9b2a4d43c69c1bc91d",
+  "alarm_service_api": 2,
+  "clock_policy": "readonly native Unix UTC converted to UTC seconds since 2000; shared IANA timezone; no external RTC or seeding",
+  "presentation": "existing generic safe-content renderer, full frames, rotation zero; NOVA/native-resolution profile not selected",
+  "schedule_selection": "Alarms and Countdown only; must bind explicitly selected Points-unselected native visual service",
+  "sleeping_alarm_integration": false,
+  "hardware_verified": false,
+  "common_grants": [
+    {
+      "capability": "display.output",
+      "api": 1,
+      "instance_id": 5
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1,
+      "instance_id": 6
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "board.battery",
+      "api": 1,
+      "instance_id": 4
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2,
+      "instance_id": 0
+    }
+  ],
+  "app_grants": {
+    "alarms": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 3,
+        "keys": [
+          "alarm_utc_cfg"
+        ]
+      }
+    ],
+    "countdown": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 3,
+        "keys": [
+          "timer_utc_cfg"
+        ]
+      }
+    ]
+  },
+  "alarm_service_version": "0.5.0"
+}
