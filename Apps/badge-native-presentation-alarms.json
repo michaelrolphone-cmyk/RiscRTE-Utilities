@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "profile": "badge-native-utc-native-presentation-alarms",
+  "versions": {
+    "alarms": "0.3.2",
+    "countdown": "0.2.2"
+  },
+  "system_sha": "f53d6456f270a15248df23243030fc0e4b21cf93",
+  "runtime_sha": "273bdbccf65647a803ab0586a418f8283732baec",
+  "alarm_sdk_sha": "e80172353fcb9e6519ca9d9b2a4d43c69c1bc91d",
+  "alarm_service_api": 2,
+  "clock_policy": "readonly native Unix UTC converted to UTC seconds since 2000; shared IANA timezone; no external RTC or seeding",
+  "presentation": "Explicit content-local native pixels; shared safe-content origin and inverse touch transform; native fonts, no legacy Nova editor routing",
+  "schedule_selection": "Alarms and Countdown only; must bind explicitly selected Points-unselected native visual service",
+  "sleeping_alarm_integration": false,
+  "hardware_verified": false,
+  "common_grants": [
+    {
+      "capability": "display.output",
+      "api": 1,
+      "instance_id": 5
+    },
+    {
+      "capability": "input.touch.raw",
+      "api": 1,
+      "instance_id": 6
+    },
+    {
+      "capability": "input.navigation",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "board.battery",
+      "api": 1,
+      "instance_id": 4
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1,
+      "instance_id": 0
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1,
+      "instance_id": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2,
+      "instance_id": 0
+    }
+  ],
+  "app_grants": {
+    "alarms": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 3,
+        "keys": [
+          "alarm_utc_cfg"
+        ]
+      }
+    ],
+    "countdown": [
+      {
+        "capability": "storage.key-value",
+        "api": 1,
+        "instance_id": 3,
+        "keys": [
+          "timer_utc_cfg"
+        ]
+      }
+    ]
+  },
+  "alarm_service_version": "0.5.0",
+  "clock_edit_sdk_sha": "bbafc2c3aebe8c3b9805639f873341e31296c8fb",
+  "native_alarm_geometry": true
+}

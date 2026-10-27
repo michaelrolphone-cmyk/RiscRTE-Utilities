@@ -72,7 +72,13 @@ static bool test_release(risc_runtime_capability_v1*g){assert(!retained_flag);if
 #define TEST_RESIDENT_BINDING
 #define EXPECTED_HOME_LAUNCHES 1
 #endif
-static const risc_runtime_api_v1 native_runtime={TEST_RESIDENT_BINDING .api_version=1,.struct_size=sizeof(native_runtime),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=test_acquire,.release=test_release,.retain_invocation=test_retain};
+#ifdef TEST_FOREGROUND_ALARM
+static int32_t foreground_checkpoint(void){assert(!retained_flag);return 0;}
+#define TEST_FOREGROUND_BINDING .service_checkpoint=foreground_checkpoint,
+#else
+#define TEST_FOREGROUND_BINDING
+#endif
+static const risc_runtime_api_v1 native_runtime={TEST_FOREGROUND_BINDING TEST_RESIDENT_BINDING .api_version=1,.struct_size=sizeof(native_runtime),.health=fake_health,.yield_ms=fake_yield,.diagnostic=fake_diag,.request_launch=fake_launch,.acquire=test_acquire,.release=test_release,.retain_invocation=test_retain};
 const risc_runtime_api_v1 *risc_runtime_get_api(uint32_t v){return v==1?&native_runtime:NULL;}
 #include NOVA_APP_SOURCE
 static void touch(unsigned at,int px,int py,int wx,int wy){

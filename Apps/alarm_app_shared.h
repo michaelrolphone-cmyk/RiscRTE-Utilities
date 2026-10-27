@@ -3,9 +3,6 @@
 #else
 #ifndef UTILITIES_ALARM_APP_SHARED_H
 #define UTILITIES_ALARM_APP_SHARED_H
-#if defined(PORTABLE_ALARMS_NATIVE_UI) && !defined(DAILY_NOVA_APP)
-#error Native Alarms requires the explicit Nova app profile
-#endif
 #include "T5AppApi.h"
 #include "utility_frame.h"
 #include "RiscRuntimeV1.h"
@@ -206,12 +203,7 @@ void app_main(void) {
 #endif
     app=t5_app_get_api(1);notice="";editing=false;writer=(alarm_writer){0};service_valid=false;service_state=(alarm_status_v1){0};values[0]=0;values[1]=5;values[2]=0;
     if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->draw_text||!app->draw_label||!app->fill_rect||!app->present)return;
-#ifdef PORTABLE_ALARMS_NATIVE_UI
-    if(app->screen_width()<120||app->screen_width()>1024||app->screen_height()<128||app->screen_height()>1024)return;
-    portable_alarms_native_begin();
-#else
     if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
-#endif
 #if defined(PORTABLE_PAPER_UTILITIES)
     up_open(app);
 #endif
@@ -221,9 +213,6 @@ void app_main(void) {
 #endif
         break;
     }
-#ifdef PORTABLE_ALARMS_NATIVE_UI
-    if(i.tapped&&alarms_native_inside(alarm_native_layout().back,i.touch_x,i.touch_y))i.buttons|=T5_APP_BUTTON_BACK;
-#endif
     if(i.exit_requested&&!(i.buttons&T5_APP_BUTTON_BACK))break;
 #if defined(PORTABLE_PAPER_UTILITIES)
         if(utility_paper){up_input(&i);if(i.tapped&&up_hit(i.touch_x,i.touch_y,32,688,200,88))i.buttons|=T5_APP_BUTTON_BACK;}
@@ -285,9 +274,6 @@ void app_main(void) {
 #if defined(PORTABLE_PAPER_UTILITIES)
         if(input.exit_requested&&!(input.buttons&T5_APP_BUTTON_BACK))break; /* Global Home was queued by adapter. */
         if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,alarm_page?416:200,88))input.buttons|=T5_APP_BUTTON_BACK;}
-#endif
-#ifdef PORTABLE_ALARMS_NATIVE_UI
-        if(input.tapped&&alarms_native_inside(alarm_native_layout().back,input.touch_x,input.touch_y))input.buttons|=T5_APP_BUTTON_BACK;
 #endif
         if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)) {
 #ifdef DAILY_NOVA_APP

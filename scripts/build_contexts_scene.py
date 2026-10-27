@@ -17,6 +17,9 @@ def stage(runtime,system,output):
  # Shared text entry's optional ABI belongs to the selected System host.
  text_api=system/'sdk/app/RiscTextEntryV1.h'
  if text_api.exists():shutil.copyfile(text_api,include/'RiscTextEntryV1.h')
+ # Additive canonical helper; do not repin the staged Runtime ABI.
+ from runtime_clock_sdk import stage_runtime_clock
+ stage_runtime_clock(include)
  return include
 
 def run(runtime,system,output,catalog=None,target="watch",face_header=None,shared_input=False):

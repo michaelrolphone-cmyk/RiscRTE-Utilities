@@ -7,6 +7,7 @@
 #include "SceneKeyboardV1.h"
 #endif
 #include "RiscRuntimeV1.h"
+#include "RiscRuntimeClockV1.h"
 #include "RiscRuntimeHostControlV1.h"
 #if defined(PORTABLE_NOVA_UI) || defined(PORTABLE_CONTEXTS_PAPER)
 #error "Contexts uses ui.scene. Build with scripts/build_contexts_scene.py; do not link the portable display adapter."
@@ -80,7 +81,7 @@ const contexts_service_v1*portable_contexts_service(void){return cs_backend_open
 bool portable_contexts_training(bool on){
  if(!cs_backend_open()||!portable_contexts_pause(&cs_client))return false;
  cs_client.foreground_learning=on;cs_training_stopped=!on;
- if(on){risc_runtime_health_v1 h={.struct_size=sizeof(h)};if(!ctx_runtime->health(&h))return false;cs_learning_at=h.uptime_ms;cs_learning_draw_at=h.uptime_ms;}
+ if(on){uint32_t now=0;if(!risc_runtime_monotonic_ms_v1(ctx_runtime,&now))return false;cs_learning_at=now;cs_learning_draw_at=now;}
  return true;
 }
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
@@ -198,15 +199,15 @@ static bool cs_service_tick(void){
   unsigned progress=cu_learning.progress,state=cu_learning.state,samples=cu_learning.samples;
   cu_learning.operation=CONTEXTS_LEARN_POLL;
   bool polled=cu_call(CONTEXTS_FP_LEARN,&cu_learning);
-  risc_runtime_health_v1 h={.struct_size=sizeof(h)};bool clocked=ctx_runtime->health(&h);
+  uint32_t now=0;bool clocked=risc_runtime_monotonic_ms_v1(ctx_runtime,&now);
   /* Also bound older service versions, which can remain at 100% forever. */
   if(!polled||!clocked||(!cu_learning.state)||
-     (cu_learning.state!=CONTEXTS_LEARN_READY&&(uint32_t)(h.uptime_ms-cs_learning_at)>=(cu_kind==CR_EVENT?120000u:45000u)))
+     (cu_learning.state!=CONTEXTS_LEARN_READY&&(uint32_t)(now-cs_learning_at)>=(cu_kind==CR_EVENT?120000u:45000u)))
    cu_learning.state=CONTEXTS_LEARN_FAILED;
   bool changed=progress!=cu_learning.progress||state!=cu_learning.state||samples!=cu_learning.samples;
-  if(clocked&&cu_learning.progress>=100&&cu_learning.state!=CONTEXTS_LEARN_READY&&cu_learning.state!=CONTEXTS_LEARN_FAILED&&(uint32_t)(h.uptime_ms-cs_learning_draw_at)>=1000u){ctx_dirty=true;cs_learning_draw_at=h.uptime_ms;}
+  if(clocked&&cu_learning.progress>=100&&cu_learning.state!=CONTEXTS_LEARN_READY&&cu_learning.state!=CONTEXTS_LEARN_FAILED&&(uint32_t)(now-cs_learning_draw_at)>=1000u){ctx_dirty=true;cs_learning_draw_at=now;}
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
-  if(changed&&(state!=cu_learning.state||samples!=cu_learning.samples||(uint32_t)(h.uptime_ms-cs_learning_draw_at)>=1000u)){ctx_dirty=true;cs_learning_draw_at=h.uptime_ms;}
+  if(changed&&(state!=cu_learning.state||samples!=cu_learning.samples||(uint32_t)(now-cs_learning_draw_at)>=1000u)){ctx_dirty=true;cs_learning_draw_at=now;}
 #else
   if(changed)ctx_dirty=true;
 #endif

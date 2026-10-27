@@ -1,9 +1,0 @@
-STATE at=0 polls=0 view=0 saves=0 opens=0 pending=0 first_visible=0
-FRAME number=1 view=0 pairing=0 ticks=0 polls=0 text_calls=13 icon_calls=1
-VISIBLE frame=1 at=117 polls=6
-STATE at=1982 polls=100 view=1 saves=0 opens=0 pending=0 first_visible=117
-FRAME number=2 view=1 pairing=0 ticks=1982 polls=100 text_calls=23 icon_calls=2
-VISIBLE frame=2 at=2098 polls=105
-PREVISIBLE action_at=1982 action_poll=100 visible_at=117 observed=0
-HID production app/adapter: 2 frames, 190 polls; 0 mouse/0 key reports; all grants released, neutral reports and stride guards verified
-HID fixture end: grants=0 frames=0 subs=0 polls=190 time=3782 pending=0

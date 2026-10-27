@@ -41,7 +41,7 @@ CHECKPOINT = ('checkpoint-idle','checkpoint-presenting','checkpoint-input-busy',
 
 
 
-def build(runtime, system, tmp, profile, shared, sanitized, baseline=None, native=False):
+def build(runtime, system, tmp, profile, shared, sanitized, baseline=None):
     runtime,system = runtime.resolve(),system.resolve()
     include = stage(runtime, system, tmp / 'sdk')
     flags = ['-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I'+str(include),'-I'+str(system/'test/scene'),'-I'+str(system/'Services/text_input')]
@@ -50,7 +50,7 @@ def build(runtime, system, tmp, profile, shared, sanitized, baseline=None, nativ
     if profile == 'paper':
         flags += ['-DCONTEXTS_ALARM_API=2','-DCONTEXTS_SETTING_MASK=0x274u','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_CONTEXTS_SOURCE_MASK=CONTEXTS_RADIO']
     if profile == 'watch':
-        flags += ['-DSCENE_HOST_TELEMETRY=0','-DSCENE_HOST_WATCH_240='+('0' if native else '1')]
+        flags += ['-DSCENE_HOST_TELEMETRY=0','-DSCENE_HOST_WATCH_240=1']
     else:
         generated = tmp / 'font-generation'
         font_dir = generated / 'Services/scene_host/fonts'
