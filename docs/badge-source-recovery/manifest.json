@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "repository": "michaelrolphone-cmyk/RiscRTE-Utilities",
+  "source_commit": "7dd868591e1bdffb1d36fd6ff79be0b829aad952",
+  "source_tree": "62b740e1b6913cf20dc72e623b69bcfc48b253a7",
+  "object_count": 1960,
+  "pack_sha256": "075cd20ca4045525a3582f8347f48077fafde5c950674d738516d09e85369da4",
+  "parts": [
+    {
+      "path": "objects-000.packpart",
+      "bytes": 524288,
+      "sha256": "c92f03eabaf4428a74a673b9685c544d2d46d2681b39c8aada58d816a62000c8"
+    },
+    {
+      "path": "objects-001.packpart",
+      "bytes": 524288,
+      "sha256": "4fe47794485877dd42ef6c46c2ae5fbadd8a872ca46199f71f4ec6bd60b1067d"
+    },
+    {
+      "path": "objects-002.packpart",
+      "bytes": 524288,
+      "sha256": "355297111ff6bddaeafda00b65601e36911d593008656715bce5a76a7fbedfe2"
+    },
+    {
+      "path": "objects-003.packpart",
+      "bytes": 524288,
+      "sha256": "02aa4b1a3d5d6dbb6069144d01a257e7911f1dc64e835babd63ce3047fa7fb4f"
+    },
+    {
+      "path": "objects-004.packpart",
+      "bytes": 524288,
+      "sha256": "7aef2c05d41bda10cba3105b831031c505afc53ddae6b321dc42a88bb89a2917"
+    },
+    {
+      "path": "objects-005.packpart",
+      "bytes": 524288,
+      "sha256": "e9983120cccc612eb4336936b2197b116eeb2682da33b901be5f6f89fec96e8d"
+    },
+    {
+      "path": "objects-006.packpart",
+      "bytes": 431221,
+      "sha256": "d0f2c994e0ca26aff9ed195c6eeec29718acd147a97a8ceb00e46e320cab7416"
+    }
+  ],
+  "shallow_boundaries": [
+    "bbafc2c3aebe8c3b9805639f873341e31296c8fb",
+    "e80172353fcb9e6519ca9d9b2a4d43c69c1bc91d",
+    "4fdcad2495c33fe63f5f6faca9b11ced3c739a5b",
+    "1eb8948ab4d7fcc20ae467638d8b4867e966316b",
+    "ce33416f6981270958da63780f18961b2f2ec9e0"
+  ],
+  "scope": "Exact original Git objects recovered from source checkpoints, including canonical SDK and selected dependency anchors. Shallow boundaries are explicit; unavailable ancestors are not invented. Publication commit identity differs from original source identity."
+}
