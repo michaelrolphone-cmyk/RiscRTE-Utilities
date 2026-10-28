@@ -13,8 +13,8 @@
 #ifdef ALARM_SERVICE_CLOCK_EDIT_V2
 #include "AlarmClockEditV2.h"
 #include "RiscBoundKeyValueV2.h"
-#if !defined(ALARM_NATIVE_SCHEDULES_ONLY)
-#error "Clock editor requires explicit native schedules-only profile"
+#if !defined(ALARM_NATIVE_SCHEDULES_ONLY) && !defined(ALARM_NATIVE_MIXED_POINTS)
+#error "Clock editor requires an explicit native schedules-only or mixed Points profile"
 #endif
 #endif
 #ifdef ALARM_DND_CONTROL
@@ -31,6 +31,12 @@
 #include "PointsUtcSchedule.h"
 #endif
 #include "RiscPlatformRealtimeV1.h"
+#endif
+#ifdef POINTS_SERVICE_CONTEXT
+#if !defined(POINTS_IN_TIME_SERVICE) || !defined(ALARM_NATIVE_UTC) || !defined(ALARM_SERVICE_TAGGED_V2) || defined(POINTS_CATALOG_SERVICE)
+#error "Points context requires the explicitly selected simple native UTC tagged service"
+#endif
+#include "PointsServiceContext.h"
 #endif
 #ifdef POINTS_CATALOG_SERVICE
 #include "PointsServiceProjection.h"
@@ -50,6 +56,11 @@
 #error "The visual-only profile has no audio volume authority"
 #endif
 
+#ifdef ALARM_NATIVE_MIXED_POINTS
+#if !defined(ALARM_SERVICE_CLOCK_EDIT_V2) || !defined(POINTS_SERVICE_CONTEXT) || !defined(POINTS_IN_TIME_SERVICE) || !defined(ALARM_NATIVE_UTC) || !defined(ALARM_SERVICE_TAGGED_V2) || defined(POINTS_CATALOG_SERVICE) || defined(ALARM_NATIVE_SCHEDULES_ONLY)
+#error "Mixed Points requires editor, context, simple native UTC tagged selection"
+#endif
+#endif
 /* Product selection is compile-time composition, never a write or virtual
  * reinterpretation of an unselected feature's saved configuration. */
 #if defined(ALARM_NATIVE_SCHEDULES_ONLY) && (!defined(ALARM_NATIVE_UTC) || defined(POINTS_IN_TIME_SERVICE) || defined(POINTS_CATALOG_SERVICE) || !defined(ALARM_SERVICE_TAGGED_V2))
@@ -136,6 +147,10 @@ static bool active, dismiss, haptic_uncertain, audio_uncertain, cleanup_failed;
 static bool persistence_pending, foreground_failed;
 #ifdef ALARM_SERVICE_CLOCK_EDIT_V2
 static bool edit_permit_valid,edit_recovery;
+#ifdef ALARM_NATIVE_MIXED_POINTS
+static int32_t mixed_storage_result;
+static bool points_configured_saved,points_staging_saved;
+#endif
 #endif
 #ifdef ALARM_STORAGE_BUSY_RETRY
 #if !defined(ALARM_SERVICE_TAGGED_V2) || !defined(POINTS_CATALOG_SERVICE)
@@ -147,8 +162,11 @@ static bool storage_busy;
 static int32_t storage_get(void *context,const char *key,void *data,uint32_t size,uint32_t *used) {
     if(custody_retained)return RISC_BOUND_KEY_VALUE_CONTEXT;
     int32_t result=kv->get(context,key,data,size,used);
+#ifdef ALARM_NATIVE_MIXED_POINTS
+    mixed_storage_result=result;
+#endif
     if(result==RISC_BOUND_KEY_VALUE_CONTEXT)custody_retained=true;
-#ifdef ALARM_NATIVE_SCHEDULES_ONLY
+#if defined(ALARM_NATIVE_SCHEDULES_ONLY) || defined(ALARM_NATIVE_MIXED_POINTS)
     /* An unrecognized provider result cannot prove callback custody ended.
      * Typed IO is separately specified and may be reconciled by readback. */
     if(result!=RISC_BOUND_KEY_VALUE_OK && result!=RISC_BOUND_KEY_VALUE_NOT_FOUND &&
@@ -165,7 +183,7 @@ static int32_t storage_put(void *context,const char *key,const void *data,uint32
     if(custody_retained)return RISC_BOUND_KEY_VALUE_CONTEXT;
     int32_t result=kv->put(context,key,data,size);
     if(result==RISC_BOUND_KEY_VALUE_CONTEXT)custody_retained=true;
-#ifdef ALARM_NATIVE_SCHEDULES_ONLY
+#if defined(ALARM_NATIVE_SCHEDULES_ONLY) || defined(ALARM_NATIVE_MIXED_POINTS)
     /* NOT_FOUND/BUFFER_SMALL are get-only results, not valid put outcomes. */
     if(result!=RISC_BOUND_KEY_VALUE_OK && result!=RISC_BOUND_KEY_VALUE_INVALID &&
        result!=RISC_BOUND_KEY_VALUE_CONTEXT && result!=RISC_BOUND_KEY_VALUE_IO &&
@@ -180,6 +198,9 @@ static int32_t storage_put(void *context,const char *key,const void *data,uint32
 #if defined(ALARM_STARTUP_BUSY_RETRY) || defined(ALARM_RECONCILE_BUSY_RETRY)
 static int32_t storage_get(void *context,const char *key,void *data,uint32_t size,uint32_t *used) {
     int32_t result=kv->get(context,key,data,size,used);
+#ifdef ALARM_NATIVE_MIXED_POINTS
+    mixed_storage_result=result;
+#endif
     if(result==RISC_BOUND_KEY_VALUE_BUSY)startup_storage_busy=true;
     return result;
 }
@@ -327,7 +348,7 @@ static int32_t read_utc(uint32_t *out) {
     risc_realtime_snapshot_v1 value={.struct_size=sizeof(value)};
     int32_t r=realtime->read(realtime->context,&value);
     if(r==RISC_REALTIME_CONTEXT){custody_retained=true;return ALARM_RETAINED;}
-#ifdef ALARM_NATIVE_SCHEDULES_ONLY
+#if defined(ALARM_NATIVE_SCHEDULES_ONLY) || defined(ALARM_NATIVE_MIXED_POINTS)
     if(r!=RISC_REALTIME_OK && r!=RISC_REALTIME_INVALID && r!=RISC_REALTIME_IO){custody_retained=true;return ALARM_RETAINED;}
 #endif
     if(r!=RISC_REALTIME_OK||value.struct_size!=sizeof(value)||value.validity!=RISC_REALTIME_VALID||
@@ -352,15 +373,43 @@ static int32_t read_zone(unsigned *index,portable_timezone_rule *rule) {
     *index=(unsigned)found;return ALARM_OK;
 }
 #if defined(POINTS_IN_TIME_SERVICE) && !defined(POINTS_CATALOG_SERVICE)
+#ifdef ALARM_NATIVE_MIXED_POINTS
+static uint32_t edit_points_floor(const points_config *c);
+static bool edit_points_recorded_config(const points_config *c,const points_ledger *l,points_config *out);
+static points_config effective_points_config(const points_config *c) {
+    points_config effective=*c;effective.created=edit_points_floor(c);return effective;
+}
+static bool effective_points_event(const portable_timezone_rule *rule,const points_config *c,unsigned slot,uint32_t day,unsigned edge,points_event *out,uint32_t *flags) {
+    points_config effective=effective_points_config(c);return points_utc_event_for_day(rule,&effective,slot,day,edge,out,flags);
+}
+static bool effective_points_latest(const portable_timezone_rule *rule,const points_config *c,const points_ledger *l,uint32_t now,unsigned slot,unsigned edge,points_event *out) {
+    points_config effective=effective_points_config(c);return points_utc_latest_for_edge(rule,&effective,l,now,slot,edge,out);
+}
+static bool effective_points_due(const portable_timezone_rule *rule,const points_config *c,const points_ledger *l,uint32_t now,points_event *out) {
+    points_config effective=effective_points_config(c);return points_utc_due(rule,&effective,l,now,out);
+}
+#else
+#define effective_points_event points_utc_event_for_day
+#define effective_points_latest points_utc_latest_for_edge
+#define effective_points_due points_utc_due
+#endif
 static bool recorded_point(const points_config *c,const points_ledger *ledger,points_event *event) {
     const portable_timezone_entry *entry=portable_timezone_get(ledger->timezone_index);portable_timezone_rule rule;
+#ifdef ALARM_NATIVE_MIXED_POINTS
+    if(!entry||portable_timezone_resolve(entry->id,strlen(entry->id)+1,&rule)!=PORTABLE_TIMEZONE_OK)return false;
+    if(effective_points_event(&rule,c,ledger->slot,ledger->day[ledger->slot],ledger->edge,event,NULL))return true;
+    points_config historical;
+    return edit_points_recorded_config(c,ledger,&historical)&&
+        points_utc_event_for_day(&rule,&historical,ledger->slot,ledger->day[ledger->slot],ledger->edge,event,NULL)&&event->deadline==ledger->deadline;
+#else
     return entry&&portable_timezone_resolve(entry->id,strlen(entry->id)+1,&rule)==PORTABLE_TIMEZONE_OK&&
-        points_utc_event_for_day(&rule,c,ledger->slot,ledger->day[ledger->slot],ledger->edge,event,NULL);
+        effective_points_event(&rule,c,ledger->slot,ledger->day[ledger->slot],ledger->edge,event,NULL);
+#endif
 }
 #define points_local_day(now,day) points_utc_local_day(&timezone_rule,now,day)
-#define points_event_for_day(c,slot,day,edge,out,flags) points_utc_event_for_day(&timezone_rule,c,slot,day,edge,out,flags)
-#define points_latest_for_edge(c,l,now,slot,edge,out) points_utc_latest_for_edge(&timezone_rule,c,l,now,slot,edge,out)
-#define points_due(c,l,now,out) points_utc_due(&timezone_rule,c,l,now,out)
+#define points_event_for_day(c,slot,day,edge,out,flags) effective_points_event(&timezone_rule,c,slot,day,edge,out,flags)
+#define points_latest_for_edge(c,l,now,slot,edge,out) effective_points_latest(&timezone_rule,c,l,now,slot,edge,out)
+#define points_due(c,l,now,out) effective_points_due(&timezone_rule,c,l,now,out)
 #endif
 #endif
 #endif
@@ -391,7 +440,11 @@ static void begin_reconcile(void) {
     phase=LOAD_ALARM;refreshed=false;error=0;memset(staging,0,sizeof(staging));memset(staged_occ,0,sizeof(staged_occ));
 }
 #ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+#ifdef ALARM_NATIVE_MIXED_POINTS
+#include "clock_edit_mixed_records.inc"
+#else
 #include "clock_edit_records.inc"
+#endif
 #endif
 static void begin_cleanup(void) {
     phase=CLEAN_HAPTIC;cleanup_failed=false;
@@ -419,6 +472,9 @@ static void prepare_occurrence(unsigned i,bool replay) {
 static bool read_points_config(void) {
     uint8_t b[POINTS_RECORD_SIZE];uint32_t n=0;
     int32_t r=storage_get(kv->context,POINTS_CONFIG_KEY,b,sizeof(b),&n);
+#ifdef ALARM_NATIVE_MIXED_POINTS
+    points_staging_saved=r==RISC_BOUND_KEY_VALUE_OK;
+#endif
     if(r==RISC_BOUND_KEY_VALUE_NOT_FOUND){points_staging=points_default_config();return true;}
     return r==RISC_BOUND_KEY_VALUE_OK&&points_config_decode(&points_staging,b,n);
 }
@@ -444,6 +500,10 @@ static bool reconcile_points(void) {
     if(points_staged_occ.generation&&points_staged_occ.generation==points_occ.generation) {
         points_ledger_encode(&points_staged_occ,a);points_ledger_encode(&points_occ,b);if(memcmp(a,b,sizeof(a)))return false;
     }
+#ifdef ALARM_NATIVE_MIXED_POINTS
+    if(!edit_points_history_valid(&points_staging,&points_staged_occ,points_staging_saved))return false;
+    points_configured_saved=points_staging_saved;
+#endif
     points_configured=points_staging;points_occ=points_staged_occ;
     #ifndef ALARM_NATIVE_UTC
     if(points_occ.revision==points_configured.revision) {
@@ -517,7 +577,13 @@ static int32_t evaluate(void) {
         if(!points_catalog_project(CATALOG_RULE &points_configured,seconds,&catalog_projection))return fail(ALARM_RTC);
         catalog_projection.snapshot=view.snapshot+1;
 #else
-        if(seconds<points_configured.created||!points_local_day(seconds,&local_day))return fail(ALARM_RTC);
+        if(seconds<
+#ifdef ALARM_NATIVE_MIXED_POINTS
+           edit_points_floor(&points_configured)
+#else
+           points_configured.created
+#endif
+           ||!points_local_day(seconds,&local_day))return fail(ALARM_RTC);
 #endif
     }
 #endif
@@ -717,13 +783,22 @@ static int32_t do_step(void) {
             phase=VERIFY_OCC;break;
 #else
             uint8_t b[POINTS_RECORD_SIZE];points_desired.state=desired.state;points_ledger_encode(&points_desired,b);
-            (void)storage_put(kv->context,POINTS_OCCURRENCE_KEY,b,sizeof(b));phase=VERIFY_OCC;break;
+#ifdef ALARM_NATIVE_MIXED_POINTS
+            int32_t written=storage_put(kv->context,POINTS_OCCURRENCE_KEY,b,sizeof(b));
+            if(custody_retained)return fail(ALARM_RETAINED);
+            /* Match the absolute-family KV2 contract: clean refusal does not
+             * read back or imply uncertain persistence; refresh may retry. */
+            if(written!=RISC_BOUND_KEY_VALUE_OK&&written!=RISC_BOUND_KEY_VALUE_IO)return fail(ALARM_STORAGE);
+#else
+            (void)storage_put(kv->context,POINTS_OCCURRENCE_KEY,b,sizeof(b));
+#endif
+            phase=VERIFY_OCC;break;
 #endif
         }
 #endif
         uint8_t b[ALARM_RECORD_SIZE];alarm_occurrence_encode(&desired,b);
         /* Even IO may have persisted. Always verify before deciding next action. */
-#ifdef ALARM_NATIVE_SCHEDULES_ONLY
+#if defined(ALARM_NATIVE_SCHEDULES_ONLY) || defined(ALARM_NATIVE_MIXED_POINTS)
         int32_t written=storage_put(kv->context,occ_keys[selected],b,sizeof(b));
         if(custody_retained)return fail(ALARM_RETAINED);
         /* INVALID/BUSY are typed clean refusals: no write/readback occurred. */
@@ -800,7 +875,11 @@ static int32_t do_step(void) {
 #ifdef POINTS_CATALOG_SERVICE
            (selected==2?points_catalog_find_event(&points_configured,points_desired.event_id)->created:config[selected].created)||
 #else
+#ifdef ALARM_NATIVE_MIXED_POINTS
+           (selected==2?edit_points_floor(&points_configured):edit_floor(selected,&config[selected]))||
+#else
            (selected==2?points_configured.created:config[selected].created)||
+#endif
 #endif
 #else
            config[selected].created||
@@ -1229,7 +1308,11 @@ static int32_t stop_only(void *c) {
     in_call=true;sleep_ticket_valid=false;int32_t result=stop_only_internal();update_view();in_call=false;return result;
 }
 #ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+#ifdef ALARM_NATIVE_MIXED_POINTS
+#include "clock_edit_mixed_protocol.inc"
+#else
 #include "clock_edit_protocol.inc"
+#endif
 #endif
 static bool quiesce(void) {
 #if defined(ALARM_NATIVE_UTC) || defined(POINTS_CATALOG_SERVICE)
@@ -1348,7 +1431,47 @@ static int32_t projection(void *c,points_catalog_projection *out) {
 #if defined(ALARM_VISUAL_ONLY) && !defined(ALARM_SERVICE_TAGGED_V2)
 #error "Visual profiles require alarm.service@2; v1 suffixes are ambiguous"
 #endif
-#if defined(POINTS_CATALOG_SERVICE) && defined(ALARM_SERVICE_TAGGED_V2)
+#ifdef POINTS_SERVICE_CONTEXT
+/* No callbacks or storage reads: only a completely reconciled coherent view.
+ * A new writer/zone or edit invalidates IDLE before a new context is exposed. */
+static int32_t points_context(void *c,points_service_context *out) {
+    (void)c;
+    if(!started||!out||out->struct_size<sizeof(*out))return ALARM_INVALID;
+    if(custody_retained)return ALARM_RETAINED;
+    if(in_call)return ALARM_BUSY;
+    if(error)return error;
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+    if(edit_recovery)return ALARM_RTC;
+    if(edit_permit_valid)return ALARM_PENDING;
+#endif
+    if(phase!=IDLE||!view.snapshot||!points_configured.revision)return ALARM_PENDING;
+    const portable_timezone_entry *zone=portable_timezone_get(timezone_index);
+    if(!zone||strlen(zone->id)>=POINTS_CONTEXT_ZONE_BYTES)return ALARM_RTC;
+    points_service_context value={.struct_size=sizeof(value),.timezone_index=timezone_index,
+        .sampled_utc=seconds,.effective_created=points_configured.created,.snapshot=view.snapshot};
+#ifdef ALARM_NATIVE_MIXED_POINTS
+    value.effective_created=edit_points_floor(&points_configured);
+#endif
+    points_config_encode(&points_configured,value.config);
+    memcpy(value.timezone_id,zone->id,strlen(zone->id)+1);
+    *out=value;return ALARM_OK;
+}
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+static const points_clock_edit_context_service_v2 api={
+ {{{ALARM_SERVICE_API_V2,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},
+ ALARM_SERVICE_DESCRIPTOR_TAG,ALARM_SERVICE_DESCRIPTOR_VERSION,ALARM_MODE_VISUAL,
+ ALARM_DESCRIPTOR_RESUME_SLEEP|ALARM_DESCRIPTOR_CLOCK_EDIT,resume_sleep},
+ ALARM_CLOCK_EDIT_TAG,ALARM_CLOCK_EDIT_VERSION,edit_begin,edit_finish,edit_cancel,edit_status},
+ {POINTS_SERVICE_CONTEXT_TAG,POINTS_SERVICE_CONTEXT_VERSION,points_context}};
+#else
+static const points_context_service_v2 api={
+ {{ALARM_SERVICE_API_V2,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},
+ ALARM_SERVICE_DESCRIPTOR_TAG,ALARM_SERVICE_DESCRIPTOR_VERSION,ALARM_MODE_VISUAL,
+ ALARM_DESCRIPTOR_RESUME_SLEEP,resume_sleep},
+ {POINTS_SERVICE_CONTEXT_TAG,POINTS_SERVICE_CONTEXT_VERSION,points_context}};
+#endif
+#define SERVICE_API ALARM_SERVICE_API_V2
+#elif defined(POINTS_CATALOG_SERVICE) && defined(ALARM_SERVICE_TAGGED_V2)
 static const points_service_v2 api={
     {{ALARM_SERVICE_API_V2,sizeof(api),NULL,status,step,refresh,acknowledge,prepare_sleep,stop_only},
     ALARM_SERVICE_DESCRIPTOR_TAG,ALARM_SERVICE_DESCRIPTOR_VERSION,
