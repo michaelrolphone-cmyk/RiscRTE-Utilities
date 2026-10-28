@@ -27,13 +27,21 @@ for san in (False,True):
  frames=out/f'adapter-start-{int(san)}-frames';frames.mkdir(exist_ok=True)
  result=subprocess.run([target,frames],check=True,text=True,capture_output=True,env={**os.environ,'ASAN_OPTIONS':'detect_leaks=0'})
  print(result.stdout,end='');results.append({'app_kind':'actual-adapter-cold-calculator','sanitized':san,'command':command,'stdout':result.stdout})
+# Physical raster and asymmetric safe-content samples exercise inverse input;
+# the original 240px case and its fixture behavior remain unchanged.
+shapes=((240,240,0,0,0,0),(466,466,69,69,69,69),(410,502,17,29,23,11),
+        (640,320,21,7,33,13),(503,601,31,47,18,20))
 for san in (False,True):
- target=out/f'adapter-touch-{int(san)}';extra=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie'] if san else []
- command=['cc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-missing-field-initializers',*flags,*extra,'-DPORTABLE_FORCE_FULL_FRAMES','-I'+str(inc),'-I'+str(root/'lib/Alarm/include'),'-I'+str(s/'lib/NativeApps/include'),str(root/'test/native_apps/native_geometry_adapter_touch_test.c'),str(s/'lib/PortableApps/src/adapter.c'),str(catalog),'-o',str(target)]
- subprocess.run(command,check=True)
- frames=out/f'adapter-touch-{int(san)}-frames';frames.mkdir(exist_ok=True)
- result=subprocess.run([target,frames],check=True,text=True,capture_output=True,env={**os.environ,'ASAN_OPTIONS':'detect_leaks=0'})
- print(result.stdout,end='');results.append({'app_kind':'actual-adapter-native-touch','sanitized':san,'command':command,'stdout':result.stdout})
+ for shape in shapes:
+  suffix='' if shape==shapes[0] else '-'+ 'x'.join(map(str,shape))
+  target=out/f'adapter-touch-{int(san)}{suffix}';extra=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie'] if san else []
+  geometry=['-DNOVA_FIXTURE_'+name+'='+str(value) for name,value in zip(('WIDTH','HEIGHT','LEFT','TOP','RIGHT','BOTTOM'),shape)]
+  command=['cc',*geometry,'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-Wno-missing-field-initializers',*flags,*extra,'-DPORTABLE_FORCE_FULL_FRAMES','-I'+str(inc),'-I'+str(root/'lib/Alarm/include'),'-I'+str(s/'lib/NativeApps/include'),str(root/'test/native_apps/native_geometry_adapter_touch_test.c'),str(s/'lib/PortableApps/src/adapter.c'),str(catalog),'-o',str(target)]
+  subprocess.run(command,check=True)
+  frames=out/f'adapter-touch-{int(san)}{suffix}-frames';frames.mkdir(exist_ok=True)
+  result=subprocess.run([target,frames],check=True,text=True,capture_output=True,env={**os.environ,'ASAN_OPTIONS':'detect_leaks=0'})
+  print(result.stdout,end='');results.append({'app_kind':'actual-adapter-native-touch','geometry':shape,'sanitized':san,'command':command,'stdout':result.stdout})
+
 inputs=[*list((root/'Apps').rglob('*')),*list((root/'test/native_apps').rglob('*')),pathlib.Path(__file__),root/'scripts/build_portable_apps.py']
 source_hashes={str(x.relative_to(root)):hashlib.sha256(x.read_bytes()).hexdigest() for x in inputs if x.is_file() and '__pycache__' not in x.parts}
 (out/'results.json').write_text(json.dumps({'utilities_revision':subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip(),'source_sha256':source_hashes,'system_revision':a.system_revision,'runtime_revision':subprocess.check_output(['git','-C',str(r),'rev-parse','HEAD'],text=True).strip(),'tests':results},indent=2)+'\n')

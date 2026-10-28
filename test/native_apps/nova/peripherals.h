@@ -16,22 +16,33 @@
 void app_main(void);int app_module_init(void);void app_module_fini(void);
 static unsigned ticks,polls,grants,frames,subs,presents;
 static unsigned stop_poll=120;
-static uint16_t pixels[240*244];
+#ifndef NOVA_FIXTURE_WIDTH
+#define NOVA_FIXTURE_WIDTH 240
+#define NOVA_FIXTURE_HEIGHT 240
+#endif
+#ifndef NOVA_FIXTURE_LEFT
+#define NOVA_FIXTURE_LEFT 0
+#define NOVA_FIXTURE_TOP 0
+#define NOVA_FIXTURE_RIGHT 0
+#define NOVA_FIXTURE_BOTTOM 0
+#endif
+#define NOVA_FIXTURE_STRIDE (NOVA_FIXTURE_WIDTH+4)
+static uint16_t pixels[NOVA_FIXTURE_HEIGHT*NOVA_FIXTURE_STRIDE];
 static const char *directory;
 static struct {unsigned at;int x,y;} actions[256];static unsigned action_count;
 static struct {char key[16];unsigned char bytes[64];uint32_t size;} cells[32];
 static void save_frame(void) {
  char path[1024];snprintf(path,sizeof(path),"%s/frame-%03u.ppm",directory,presents);
- FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n240 240\n255\n");
- for(unsigned y=0;y<240;y++){for(unsigned x=0;x<240;x++){uint16_t v=pixels[y*244+x];unsigned char rgb[]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};assert(fwrite(rgb,1,3,f)==3);}for(unsigned x=240;x<244;x++)assert(pixels[y*244+x]==0xa5a5);}
+ FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n%u %u\n255\n",(unsigned)NOVA_FIXTURE_WIDTH,(unsigned)NOVA_FIXTURE_HEIGHT);
+ for(unsigned y=0;y<NOVA_FIXTURE_HEIGHT;y++){for(unsigned x=0;x<NOVA_FIXTURE_WIDTH;x++){uint16_t v=pixels[y*NOVA_FIXTURE_STRIDE+x];unsigned char rgb[]={(v>>11)*255/31,((v>>5)&63)*255/63,(v&31)*255/31};assert(fwrite(rgb,1,3,f)==3);}for(unsigned x=NOVA_FIXTURE_WIDTH;x<NOVA_FIXTURE_STRIDE;x++)assert(pixels[y*NOVA_FIXTURE_STRIDE+x]==0xa5a5);}
  assert(!fclose(f));
 }
 static bool fake_health(risc_runtime_health_v1*h){h->uptime_ms=ticks;return polls<stop_poll;}
 static void fake_yield(uint32_t n){ticks+=n;}
 static bool fake_diag(const char*s){fprintf(stderr,"%s\n",s);return true;}
 static bool fake_launch(const char*s){printf("launch=%s\n",s);stop_poll=polls;return true;}
-static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=240,.height=240,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565)};return true;}
-static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=240,.height=240,.stride_bytes=488,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
+static bool fake_info(void*c,risc_display_info_v1*s){(void)c;*s=(risc_display_info_v1){.width=NOVA_FIXTURE_WIDTH,.height=NOVA_FIXTURE_HEIGHT,.safe_insets={.left=NOVA_FIXTURE_LEFT,.top=NOVA_FIXTURE_TOP,.right=NOVA_FIXTURE_RIGHT,.bottom=NOVA_FIXTURE_BOTTOM},.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565)};return true;}
+static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;assert(!frames);frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=NOVA_FIXTURE_WIDTH,.height=NOVA_FIXTURE_HEIGHT,.stride_bytes=2*NOVA_FIXTURE_STRIDE,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
 static void fake_frame_release(void*c,risc_display_frame_v1 f){(void)c;assert(frames&&f==1);frames=0;}
 static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){(void)c;(void)r;(void)n;(void)o;assert(frames&&f==1);frames=0;*t=++presents;save_frame();return true;}
 static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){(void)c;assert(t);s->state=RISC_DISPLAY_PRESENT_COMPLETE;return true;}
@@ -40,7 +51,7 @@ static uint64_t fake_sub(void*c){(void)c;subs++;return 1;}
 static bool fake_unsub(void*c,uint64_t n){(void)c;assert(n==1&&subs);subs--;return true;}
 static bool fake_touch_poll(void*c,size_t n){(void)c;assert(n==1);polls++;return true;}
 static int32_t fake_next(void*c,uint64_t n,risc_touch_event_v1*e){(void)c;(void)n;(void)e;return 0;}
-static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;*s=(risc_touch_snapshot_v1){.width=240,.height=240};for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=actions[i].x,.y=actions[i].y};}return true;}
+static bool fake_snapshot(void*c,risc_touch_snapshot_v1*s){(void)c;*s=(risc_touch_snapshot_v1){.width=NOVA_FIXTURE_WIDTH,.height=NOVA_FIXTURE_HEIGHT};for(unsigned i=0;i<action_count;i++)if(actions[i].at==polls){s->contact_count=1;s->contacts[0]=(risc_touch_contact_v1){.id=1,.x=actions[i].x,.y=actions[i].y};}return true;}
 static const risc_touch_api_v1 touch_api={1,sizeof(touch_api),NULL,fake_sub,fake_unsub,fake_touch_poll,fake_next,fake_snapshot};
 static bool fake_battery(void*c,risc_battery_sample_v1*s){(void)c;*s=(risc_battery_sample_v1){.percent=73,.millivolts=3970,.flags=RISC_BATTERY_CHARGING};return true;}
 static const risc_battery_gauge_api_v1 battery_api={1,sizeof(battery_api),NULL,fake_battery};

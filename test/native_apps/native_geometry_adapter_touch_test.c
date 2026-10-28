@@ -6,16 +6,22 @@
 #undef risc_runtime_get_api
 #include "../../Apps/calculator.c"
 static risc_touch_event_v1 pending_event;
-static risc_touch_snapshot_v1 touch_state={.width=240,.height=240};
+static risc_touch_snapshot_v1 touch_state={.width=NOVA_FIXTURE_WIDTH,.height=NOVA_FIXTURE_HEIGHT};
 static bool event_pending;
 static unsigned checked;
 static void emit(unsigned kind,unsigned x,unsigned y){
+ x+=NOVA_FIXTURE_LEFT;y+=NOVA_FIXTURE_TOP;
  touch_state.timestamp_ms=ticks;
  pending_event=(risc_touch_event_v1){++touch_state.sequence,ticks,(uint8_t)kind,1,(uint16_t)x,(uint16_t)y};event_pending=true;
  touch_state.contact_count=kind==RISC_TOUCH_EVENT_UP?0:1;
  touch_state.contacts[0]=(risc_touch_contact_v1){.id=1,.x=x,.y=y};
 }
 static bool ordered_poll(void*c,size_t n){
+ const int cw=NOVA_FIXTURE_WIDTH-NOVA_FIXTURE_LEFT-NOVA_FIXTURE_RIGHT;
+ const int ch=NOVA_FIXTURE_HEIGHT-NOVA_FIXTURE_TOP-NOVA_FIXTURE_BOTTOM;
+ /* Independent native layout contract: 4 columns, 5 rows below one third. */
+ const int key2x=4+3*(cw-8)/8, key2y=ch/3+7*(ch-ch/3-4)/10;
+ const int key3x=4+5*(cw-8)/8;
  (void)c;(void)n;polls++;
  /* Header point outside native Back but inside inherited Back at width240. */
  if(polls==100)emit(1,20,42);
@@ -30,17 +36,17 @@ static bool ordered_poll(void*c,size_t n){
  if(polls==320)emit(3,100,100);
  if(polls==360){assert(calculator_selected==0&&!strcmp(calculator_state.text,"0"));checked++;}
  /* Key2 center, held contact exposed to controller, release activates once. */
- if(polls==400)emit(1,91,189);
+ if(polls==400)emit(1,key2x,key2y);
  if(polls==420){assert(calculator_pressed==13);checked++;}
- if(polls==440)emit(3,91,189);
+ if(polls==440)emit(3,key2x,key2y);
  if(polls==480){assert(calculator_pressed==-1&&!strcmp(calculator_state.text,"2"));checked++;}
  /* Move off key cancels activation and pressed highlight. */
- if(polls==500)emit(1,91,189);
- if(polls==510)emit(2,151,189);
- if(polls==520)emit(3,151,189);
+ if(polls==500)emit(1,key2x,key2y);
+ if(polls==510)emit(2,key3x,key2y);
+ if(polls==520)emit(3,key3x,key2y);
  if(polls==560){assert(calculator_pressed==-1&&!strcmp(calculator_state.text,"2"));checked++;}
  /* Queue gap cancels, never invents an activation from the snapshot. */
- if(polls==600)emit(1,91,189);
+ if(polls==600)emit(1,key2x,key2y);
  if(polls==620){event_pending=false;touch_state.contact_count=0;touch_state.sequence++;}
  if(polls==660){assert(calculator_pressed==-1&&!strcmp(calculator_state.text,"2"));checked++;}
  /* Real native Back far edge x59 is outside inherited width240 Back. */
