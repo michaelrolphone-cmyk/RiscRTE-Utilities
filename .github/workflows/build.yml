@@ -63,11 +63,12 @@ jobs:
           ref: 1f8f8f52183b9a8ee7e796aebb6d2869772cd07b
           path: .dependencies/native-geometry-system
           persist-credentials: false
+      # Published snapshot: both consumed headers are byte-identical to Runtime046f4c22.
       - name: Exact native geometry Runtime headers
         uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: 046f4c22b263739f3bf3f96f888617d72eb3d498
+          ref: 318d77283ba707b6f2820d2833e5d7ea3ff3f7e8
           path: .dependencies/native-geometry-runtime
           persist-credentials: false
       - name: Qualify native rendering and touch across safe-area geometries
