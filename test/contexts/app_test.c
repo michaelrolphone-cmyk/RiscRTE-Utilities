@@ -272,8 +272,6 @@ int main(int argc,char**argv){
  native_exit_mode=!strcmp(argv[3],"exit-home")?1:!strcmp(argv[3],"exit-busy")?2:!strcmp(argv[3],"exit-keyboard")?3:!strcmp(argv[3],"exit-learning")?4:!strcmp(argv[3],"exit-saving")?5:0;
 
  if(!strcmp(device,"paper")){w=800;h=480;format=1;prof=(risc_scene_profile_v1){1,sizeof(prof),1,3,88,20,0,65535,0,270,0,0};}
- const char *native_size=getenv("CONTEXTS_NATIVE_SIZE");
- if(native_size){assert(!strcmp(device,"watch"));assert(sscanf(native_size,"%ux%u",&w,&h)==2);assert(w>=160&&h>=160&&w*h<=800*480);}
  startup();assert(api->close(NULL,session)==0);expected_intent=RISC_DISPLAY_PRESENT_LOW_LATENCY;
  cr_init(&bank);bank.generation=1;bank.items[0]=(cr_item){.kind=CR_PLACE,.name="HOME"};bank.items[1]=(cr_item){.kind=CR_EVENT,.name="DOORBELL"};bank.items[2]=(cr_item){.kind=CR_BATTERY,.name="LOW BATTERY",.arg0=20};strcpy(bank.rules[0].name,"HOME");bank.rules[0].item=0;assert(cr_encode(&bank,stored,sizeof(stored)));
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT

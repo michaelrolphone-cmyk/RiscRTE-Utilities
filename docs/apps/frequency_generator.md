@@ -69,10 +69,3 @@ before screens through the same real adapter for comparison.
 Target ELFs also require the common Audio Tools build, import/export and actual
 loader checks. Host tests and target builds do not qualify physical loudness,
 distortion, clock accuracy, DMA underruns, alarm timing or hardware cleanup.
-
-## Explicit native source option
-
-A separate [native Frequency controller](../frequency-native.md) supports
-capability-sized RGB presentation and scoped owner10 input without changing the
-existing default build or product recipes. See that page for the five-size host
-matrix, native target structural checks and physical-qualification limits.

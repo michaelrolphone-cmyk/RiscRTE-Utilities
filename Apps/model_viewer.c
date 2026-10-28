@@ -109,6 +109,7 @@ static bool g_draw_pending;
 static bool g_render_interactive;
 
 static int mv_iabs(int v) { return v < 0 ? -v : v; }
+static float mv_fabs(float v) { return v < 0.0f ? -v : v; }
 static float mv_maxf(float a, float b) { return a > b ? a : b; }
 static float mv_minf(float a, float b) { return a < b ? a : b; }
 static float mv_clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -638,23 +639,6 @@ static void mv_text(uint8_t *buffer, int x, int y, const char *text, int scale) 
     mv_text_ink(buffer,x,y,text,scale,true);
 }
 
-/* Keep complete glyph cells inside their available native region. Small
- * messages use the same bitmap raster as the larger paper presentation. */
-static void mv_text_fit(uint8_t *buffer,int x,int y,int available,
-                        const char *text,int scale) {
-    if (!text || available<=0 || scale<1) return;
-    const size_t length=strlen(text);
-    while (scale>1 && length>(size_t)(available/(6*scale))) --scale;
-    size_t count=(size_t)(available/(6*scale));
-    if (count>=length) { mv_text(buffer,x,y,text,scale); return; }
-    char clipped[201];
-    if (count>=sizeof(clipped)) count=sizeof(clipped)-1;
-    memcpy(clipped,text,count);
-    for (size_t i=count>3?count-3:0;i<count;++i) clipped[i]='.';
-    clipped[count]=0;
-    mv_text(buffer,x,y,clipped,scale);
-}
-
 static bool mv_shade_button_hit(int x, int y) {
     return x>=MV_SHADE_LEFT && x<MV_SHADE_RIGHT && y>=MV_SHADE_TOP && y<MV_SHADE_BOTTOM;
 }
@@ -760,18 +744,8 @@ static mv_shade_vertex_t mv_camera_point(mv_vec3_t v, const mv_rotation_t *r) {
     return (mv_shade_vertex_t){x1,r->cp*y-r->sp*z1,r->sp*y+r->cp*z1};
 }
 
-/* Fit the initial/reset camera to both dimensions of its drawable viewport.
- * The default rotation projects a unit bounding box to less than 1.44 units
- * vertically, so 0.65 leaves a margin. Later zoom/rotation may still clip.
- * Tall paper layouts retain the original width-derived scale. */
-static float mv_view_scale(void) {
-    const float horizontal=(float)(MV_LOGICAL_W-32)*0.8f;
-    const float vertical=(float)(MV_VIEW_BOTTOM-MV_VIEW_TOP-8)*0.65f;
-    return mv_minf(horizontal,vertical)*g_view.zoom;
-}
-
 static mv_shade_vertex_t mv_screen_point(mv_shade_vertex_t v) {
-    const float scale=mv_view_scale();
+    const float scale=(float)(MV_LOGICAL_W-32)*0.8f*g_view.zoom;
     return (mv_shade_vertex_t){MV_LOGICAL_W*0.5f+g_view.pan_x+v.x*scale,
                               (MV_VIEW_TOP+MV_VIEW_BOTTOM)*0.5f+g_view.pan_y-v.y*scale,v.z};
 }
@@ -924,8 +898,7 @@ static bool mv_render(bool interactive) {
     g_render_interactive=interactive;
 
     char info[96];
-    mv_text_fit(buffer,30,10,MV_SHADE_LEFT-34,
-                MV_SHADE_LEFT-34<54?"3D VIEW":"3D VIEWER",canvas_compact()?1:2);
+    mv_text(buffer,30,10,"3D VIEWER",canvas_compact()?1:2);
     for(int i=0;i<8;i++){mv_pixel(buffer,12+i,20-i,true);mv_pixel(buffer,12+i,20+i,true);}
     char filename[(MV_LOGICAL_W-28)/6+1];
     snprintf(filename,sizeof(filename),"%.*s",(int)sizeof(filename)-1,mv_basename(g_path));
@@ -936,12 +909,8 @@ static bool mv_render(bool interactive) {
     /* Pan/zoom is an affine change in this orthographic viewer. Rasterize the
      * whole model once per orientation/material, then resample in bounded time
      * per frame. Never scale an already-dithered or screen-cropped image. */
-    const float view_scale=mv_view_scale();
-    /* The fixed-point preview has a bounded scale contract. Small native
-     * viewports and extreme zoom use the exact mesh instead of stalling. */
     bool preview=interactive && (mv_motion_action(g_controller.held)&(MV_PAD_LB|MV_PAD_RB)) &&
-                 g_use_psram && !g_preview.unavailable &&
-                 view_scale>=64.0f && view_scale<=4096.0f;
+                 g_use_psram && !g_preview.unavailable;
     g_render_service_ms=g_app->millis();
     if (preview && !g_preview.ink) {
         g_preview.ink=(uint8_t *)mv_alloc(MV_PREVIEW_BYTES);
@@ -959,14 +928,14 @@ static bool mv_render(bool interactive) {
         }
         if (!mv_preview_draw(&g_preview,buffer,mv_pixel,4,MV_VIEW_TOP,
                               MV_LOGICAL_W-8,MV_VIEW_BOTTOM-MV_VIEW_TOP+1,
-                              MV_LOGICAL_W*0.5f+g_view.pan_x,(MV_VIEW_TOP+MV_VIEW_BOTTOM)*0.5f+g_view.pan_y,view_scale,
+                              MV_LOGICAL_W*0.5f+g_view.pan_x,(MV_VIEW_TOP+MV_VIEW_BOTTOM)*0.5f+g_view.pan_y,(MV_LOGICAL_W-32)*0.8f*g_view.zoom,
                               mv_render_service)) return false;
     } else if (!mv_render_mesh(buffer,interactive,false)) return false;
     const uint32_t step = g_shaded ? 1u : mv_render_step(interactive);
     snprintf(info,sizeof(info),"%lu TRI  %s",
              (unsigned long)g_model.triangle_count,
              interactive ? "FAST" : (step == 1u ? "FULL" : "REFINED"));
-    mv_text_fit(buffer,8,MV_VIEW_BOTTOM+8,MV_LOGICAL_W-16,g_status[0]?g_status:info,1);
+    mv_text(buffer,8,MV_VIEW_BOTTOM+8,g_status[0]?g_status:info,1);
     const char *modes[]={"ROTATE","PAN","ZOOM"};
     for(unsigned i=0;i<3;i++){
         int left=(int)i*MV_LOGICAL_W/3,right=(int)(i+1)*MV_LOGICAL_W/3;
@@ -984,10 +953,10 @@ static void mv_message(const char *title, const char *detail) {
     uint8_t *buffer = g_video->backbuffer(&bytes);
     if (!buffer) return;
     memset(buffer,0x00,bytes);
-    mv_text_fit(buffer,12,MV_LOGICAL_H/3,MV_LOGICAL_W-24,title,canvas_compact()?1:2);
+    mv_text(buffer,12,MV_LOGICAL_H/3,title,canvas_compact()?1:2);
     char line[36];snprintf(line,sizeof(line),"%.35s",detail);
-    mv_text_fit(buffer,12,MV_LOGICAL_H/3+24,MV_LOGICAL_W-24,line,1);
-    mv_text_fit(buffer,12,MV_LOGICAL_H-22,MV_LOGICAL_W-24,"BACK / HOME EXIT",1);
+    mv_text(buffer,12,MV_LOGICAL_H/3+24,line,1);
+    mv_text(buffer,12,MV_LOGICAL_H-22,"BACK / HOME EXIT",1);
     while (!g_video->submit(0,g_surface.height)) {
         t5_app_input_t ignored={0};
         if (!g_app->poll(&ignored,5)) break;
@@ -1007,9 +976,7 @@ static bool mv_touch_snapshot(mv_contacts_t *c,bool *home) {
 }
 static unsigned mv_touch_mode,mv_source;
 static int mv_toolbar_capture=-1;
-static uint8_t mv_toolbar_touch_id;
 static int mv_toolbar_hit(int x,int y){
-    if(x<0 || y<0 || x>=MV_LOGICAL_W || y>=MV_LOGICAL_H)return -1;
     if(y>=MV_LOGICAL_H-(canvas_compact()?34:58))return x*3/MV_LOGICAL_W;
     if(y<MV_SHADE_BOTTOM&&x<32)return 3;
     if(y>=MV_SHADE_BOTTOM&&y<MV_VIEW_TOP)return 4;
@@ -1029,27 +996,11 @@ static int mv_approx_distance(int dx,int dy) {
 
 static bool mv_handle_touch(const mv_contacts_t *prev,const mv_contacts_t *now,uint32_t ms) {
     bool changed=false;
-    if(!prev->count&&now->count){
-        mv_toolbar_capture=mv_toolbar_hit(now->x[0],now->y[0]);
-        if(mv_toolbar_capture>=0){
-            mv_toolbar_touch_id=now->id[0];
-            g_touch_down_ms=ms;
-            g_touch_down_x=now->x[0];g_touch_down_y=now->y[0];
-            g_touch_was_down=false;g_last_tap_ms=0;
-        }
-    }
+    if(!prev->count&&now->count)mv_toolbar_capture=mv_toolbar_hit(now->x[0],now->y[0]);
     if(mv_toolbar_capture>=0){
         int action=mv_toolbar_capture;
-        if(now->count){
-            if(now->count!=1 || now->id[0]!=mv_toolbar_touch_id ||
-               mv_toolbar_hit(now->x[0],now->y[0])!=action ||
-               mv_iabs(now->x[0]-g_touch_down_x)>MV_TAP_MOVE_PX ||
-               mv_iabs(now->y[0]-g_touch_down_y)>MV_TAP_MOVE_PX)
-                mv_toolbar_capture=5;
-            return false;
-        }
+        if(now->count){if(now->count!=1||mv_toolbar_hit(now->x[0],now->y[0])!=action)mv_toolbar_capture=5;return false;}
         mv_toolbar_capture=-1;
-        if((uint32_t)(ms-g_touch_down_ms)>MV_TAP_MAX_MS)return false;
         if(action<3)mv_touch_mode=(unsigned)action;
         else if(action==3){g_render_input.exit_requested=true;g_render_input_pending=true;}
         else if(action==4){

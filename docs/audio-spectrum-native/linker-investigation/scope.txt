@@ -1,1 +1,0 @@
-Read-only diagnosis. Original CI commands unchanged except executable/input/output path rebasing. One explicitly recorded attempt per baseline and native; no automatic retry. All 1555 staged target input/SDK bytes match both failed CI ZIPs.

@@ -67,9 +67,6 @@ static char opened_text[32][256],opened_label[32][40],terminal_text[32][256];
 static uint32_t opened_capacity[32],terminal_state[32];
 static void setup_editor(int which,int initial);
 static void setup_scene(int which);
-#ifdef PORTABLE_SPECTRUM_NATIVE_UI
-static void verify_native(int check,int value);
-#endif
 static unsigned analysis_count(void);
 static void verify_capture(int after);
 static bool is_mode(const char*s){return !strcmp(mode,s);}
@@ -83,41 +80,29 @@ static void fake_yield(uint32_t n){IO();ticks+=n;assert(ticks<120000&&"script fa
 static bool fake_diag(const char*s){IO();fprintf(stderr,"%s\n",s);return true;}
 static bool fake_launch(const char*s){IO();assert(!mic_owned&&!text_granted&&!lease_count&&!pending_token);assert(!strcmp(s,"springboard.elf"));launches++;return true;}
 static bool fake_retain(void){assert(!native_retained);native_retained=true;retained_grants=grant_count;retained_subs=subs;retained_frames=lease_count;retained_calls=io_calls;retained_allocations=allocation_count;return true;}
-static bool fake_info(void*c,risc_display_info_v1*s){IO();(void)c;*s=(risc_display_info_v1){.api_version=1,.struct_size=sizeof(*s),.width=SPECTRUM_TEST_WIDTH,.height=SPECTRUM_TEST_HEIGHT,.preferred_format=RISC_DISPLAY_FORMAT_RGB565,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565),.flags=(delay_ms||getenv("SPECTRUM_APP_DELAY_MS"))?RISC_DISPLAY_INFO_ASYNC_PRESENT:0};return true;}
+static bool fake_info(void*c,risc_display_info_v1*s){IO();(void)c;*s=(risc_display_info_v1){.api_version=1,.struct_size=sizeof(*s),.width=SPECTRUM_TEST_WIDTH,.height=SPECTRUM_TEST_HEIGHT,.preferred_format=RISC_DISPLAY_FORMAT_RGB565,.nominal_refresh_millihz=60000,.typical_present_latency_us=16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(RISC_DISPLAY_FORMAT_RGB565),.flags=delay_ms?RISC_DISPLAY_INFO_ASYNC_PRESENT:0};return true;}
 static bool fake_frame(void*c,uint32_t f,risc_display_surface_v1*s){IO();(void)c;assert(!lease_count&&!pending_token&&(!text_granted||in_host_call));if(text_granted&&getenv("SPECTRUM_NO_PRESENT")){unavailable_frames++;return false;}lease_count=1;*s=(risc_display_surface_v1){.frame=1,.pixels=pixels,.width=SPECTRUM_TEST_WIDTH,.height=SPECTRUM_TEST_HEIGHT,.stride_bytes=2*SPECTRUM_TEST_STRIDE,.size_bytes=sizeof(pixels),.pixel_format=f};return true;}
 static void fake_frame_release(void*c,risc_display_frame_v1 f){IO();(void)c;assert(lease_count&&f==1);lease_count=0;}
-static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){IO();(void)c;(void)r;(void)n;(void)o;assert(lease_count&&f==1&&!pending_token);lease_count=0;*t=++presents;pending_token=*t;const char *app_delay=getenv("SPECTRUM_APP_DELAY_MS");pending_until=ticks+(text_granted?delay_ms:app_delay?(unsigned)atoi(app_delay):0);if(text_granted){host_frames++;save_frame("keyboard");}else{app_frames++;save_frame("app");}return true;}
+static bool fake_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){IO();(void)c;(void)r;(void)n;(void)o;assert(lease_count&&f==1&&!pending_token);lease_count=0;*t=++presents;pending_token=*t;pending_until=ticks+(text_granted?delay_ms:0);if(text_granted){host_frames++;save_frame("keyboard");}else{app_frames++;save_frame("app");}return true;}
 static bool fake_present(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){IO();(void)c;assert(t);s->state=ticks<pending_until?RISC_DISPLAY_PRESENT_ACTIVE:RISC_DISPLAY_PRESENT_COMPLETE;if(s->state==RISC_DISPLAY_PRESENT_COMPLETE)pending_token=0;return true;}
 static bool fake_wait(void*c,risc_display_present_token_v1 t,uint32_t ms,risc_display_present_status_v1*s){if(ticks<pending_until){unsigned wait=pending_until-ticks;if(wait>ms)wait=ms;fake_yield(wait);}return fake_present(c,t,s);}
 static const risc_display_output_api_v1 display_api={.api_version=1,.struct_size=sizeof(display_api),.get_info=fake_info,.acquire=fake_frame,.release=fake_frame_release,.submit=fake_submit,.present_status=fake_present,.wait_present=fake_wait};
 static uint64_t fake_sub(void*c){IO();(void)c;assert(!subs);subs=1;touch_head=touch_count=0;return 1;}
 static bool fake_unsub(void*c,uint64_t n){IO();(void)c;assert(n==1&&subs);if(text_granted&&host_frames&&is_mode("retained"))return false;subs=0;touch_head=touch_count=0;return true;}
-static bool action_ready(const char *gate){if(!strcmp(gate,"visible"))return !text_granted&&app_frames&&!pending_token;if(!strcmp(gate,"text"))return text_granted&&(host_frames>host_session_frames||getenv("SPECTRUM_NO_PRESENT"));if(!strcmp(gate,"pending"))return text_granted&&pending_token;assert(!strcmp(gate,"app"));return !text_granted&&app_frames;}
+static bool action_ready(const char *gate){if(!strcmp(gate,"text"))return text_granted&&(host_frames>host_session_frames||getenv("SPECTRUM_NO_PRESENT"));if(!strcmp(gate,"pending"))return text_granted&&pending_token;assert(!strcmp(gate,"app"));return !text_granted&&app_frames;}
 static bool fake_touch_poll(void*c,size_t n){IO();(void)c;assert(n==1||n==2);polls++;
  if(action_cursor>=action_count||ticks<next_action_at||!action_ready(actions[action_cursor].gate))return true;
  const char *kind=actions[action_cursor].kind;
  if(!strcmp(kind,"setup")){setup_editor(actions[action_cursor].x,actions[action_cursor].y);}
  else if(!strcmp(kind,"scene")){setup_scene(actions[action_cursor].x);}
- #ifdef PORTABLE_SPECTRUM_NATIVE_UI
- else if(!strcmp(kind,"verify")){verify_native(actions[action_cursor].x,actions[action_cursor].y);}
- #endif
  else if(!strcmp(kind,"idle")){}
  else if(!strcmp(kind,"nav")){assert(!touch_down&&!navigation_pressed);navigation_pressed=(uint32_t)actions[action_cursor].x;}
  else if(!strcmp(kind,"back")||!strcmp(kind,"home")){assert(!touch_down&&!navigation_pressed);navigation_pressed=!strcmp(kind,"back")?RISC_NAV_BACK:RISC_NAV_HOME;}
  else if(!strcmp(kind,"capture")){verify_capture(actions[action_cursor].x);char name[64];snprintf(name,sizeof(name),"capture-%02u",capture_serial++);save_frame(name);}
- else{unsigned event_kind;if(!strcmp(kind,"down")){assert(!touch_down);touch_down=true;event_kind=RISC_TOUCH_EVENT_DOWN;}else if(!strcmp(kind,"move")){assert(touch_down);event_kind=RISC_TOUCH_EVENT_MOVE;}else{assert(!strcmp(kind,"up")&&touch_down);touch_down=false;event_kind=RISC_TOUCH_EVENT_UP;}
+ else{unsigned event_kind;if(!strcmp(kind,"down")){assert(!touch_down);touch_down=true;event_kind=RISC_TOUCH_EVENT_DOWN;}else{assert(!strcmp(kind,"up")&&touch_down);touch_down=false;event_kind=RISC_TOUCH_EVENT_UP;}
  touch_x=actions[action_cursor].x;touch_y=actions[action_cursor].y;
 #if SPECTRUM_TEST_WIDTH != 240
- if(!strcmp(actions[action_cursor].gate,"text")){if(touch_y==20){touch_x=touch_x>120?SPECTRUM_TEST_WIDTH-20:20;}else{touch_x=touch_x*SPECTRUM_TEST_WIDTH/240;
-#ifdef PORTABLE_SPECTRUM_NATIVE_UI
- /* The production shared presenter selects its portrait keyboard at 3:2.
-  * Test key centers must follow that topology, not scale compact centers. */
- if(SPECTRUM_TEST_HEIGHT>=SPECTRUM_TEST_WIDTH*3/2)touch_y=(412+((touch_y-97)/30)*92)*SPECTRUM_TEST_HEIGHT/800;else
-#endif
- touch_y=touch_y*SPECTRUM_TEST_HEIGHT/240;}}
-#ifndef PORTABLE_SPECTRUM_NATIVE_UI
- else{touch_x+=(SPECTRUM_TEST_WIDTH-240)/2;touch_y+=(SPECTRUM_TEST_HEIGHT-240)/2;}
-#endif
+ if(!strcmp(actions[action_cursor].gate,"text")){if(touch_y==20){touch_x=touch_x>120?SPECTRUM_TEST_WIDTH-20:20;}else{touch_x=touch_x*SPECTRUM_TEST_WIDTH/240;touch_y=touch_y*SPECTRUM_TEST_HEIGHT/240;}}else{touch_x+=(SPECTRUM_TEST_WIDTH-240)/2;touch_y+=(SPECTRUM_TEST_HEIGHT-240)/2;}
 #endif
  assert(touch_x>=0&&touch_x<SPECTRUM_TEST_WIDTH&&touch_y>=0&&touch_y<SPECTRUM_TEST_HEIGHT&&subs==1&&touch_count<64);
  touch_events[(touch_head+touch_count++)%64]=(risc_touch_event_v1){.sequence=++touch_sequence,.timestamp_ms=ticks,.kind=event_kind,.id=1,.x=(uint16_t)touch_x,.y=(uint16_t)touch_y};touch_edges++;}
@@ -260,21 +245,6 @@ static void setup_scene(int which){
  else if(which==17){lab_edit=true;view=2;set_page(PAGE_MAIN);}
  else assert(!"unknown scene");
 }
-#ifdef PORTABLE_SPECTRUM_NATIVE_UI
-static void verify_native(int check,int value){
- if(check==0)assert(page==(unsigned)value);
- else if(check==1)assert(view==(unsigned)value&&started);
- else if(check==2)assert(cursor_visible&&cursor_hz==dsp_config.low_hz);
- else if(check==3)assert(cursor_visible&&cursor_hz==dsp_config.high_hz);
- else if(check==4)assert(editing.color==(unsigned)value);
- else if(check==5){assert(history_count>0&&history_count<=228);assert(sizeof(history)==228u*166u);assert(sizeof(spec_levels)/sizeof(*spec_levels)==228);assert(sizeof(fall_levels)/sizeof(*fall_levels)==166);}
- else if(check==6){unsigned before=io_calls;native_layout_page(false);assert(io_calls==before);for(unsigned i=0;i<native_target_count;i++){spectrum_native_rect r=native_targets[i].r;assert(r.x>=0&&r.y>=0&&r.w>=0&&r.h>=0);assert((int64_t)r.x+r.w<=SPECTRUM_TEST_WIDTH&&(int64_t)r.y+r.h<=SPECTRUM_TEST_HEIGHT);}}
- else if(check==7){toast_message="CURRENT TOAST";toast_until=ticks+100000;cursor_visible=false;dirty=true;}
- else if(check==8){assert(!toast_message&&!cursor_visible);}
- else if(check==9){assert(controls_scroll>0);}
- else assert(!"unknown native assertion");
-}
-#endif
 static void verify_capture(int check){
  static unsigned stopped_reads;
  if(check==6){assert(!running&&!mic_owned&&mic_opens==mic_closes&&mic_reads>0);stopped_reads=mic_reads;}
@@ -319,12 +289,6 @@ int main(int argc,char**argv){
   printf("POLICY battery=%u sleep=%u background=%u contexts=%u resumes=%u capture=%u\n",policy_battery,policy_sleep,policy_background,policy_contexts,policy_resumes,mic_host_reads);
  }
  assert(app_frames>0);if(text_opens&&!is_mode("unavailable-open")&&!getenv("SPECTRUM_NO_PRESENT")&&!getenv("SPECTRUM_POLICY_UNAVAILABLE")&&!getenv("SPECTRUM_POLICY_MISSING_SUFFIX"))assert(host_frames>0);
- if(getenv("SPECTRUM_REPEAT_ENTRY")){
-  unsigned before=app_frames;action_count=action_cursor=0;stop_at=ticks+500;
-  assert(app_module_init()==0);app_main();app_module_fini();
-  assert(app_frames>before&&!grant_count&&!lease_count&&!subs&&!mic_owned&&!text_granted&&!pending_token&&!runtime_lost&&!native_retained);
-  puts("PASS clean repeated app entry and exit");
- }
  assert(text_driver->quiesce());text_driver->stop();assert(scene_driver->quiesce());scene_driver->stop();assert(profile_driver->quiesce());profile_driver->stop();assert(!allocation_count);
  printf("PASS real Spectrum app/adapter/shared hosts: mode=%s frames=%u app=%u host=%u input=%u/%u edges=%u ms=%u audio=%u host-audio=%u transforms=%u kv=%u data=%u close-again=%u; leases and stride guards clean\n",mode,presents,app_frames,host_frames,action_cursor,action_count,touch_edges,ticks,mic_reads,mic_host_reads,analysis_count(),kv_writes,data_writes,text_close_again);return 0;
 }
