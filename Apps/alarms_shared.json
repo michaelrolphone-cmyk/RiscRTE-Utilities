@@ -1,0 +1,23 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "file_name": "alarms_shared.elf",
+  "id": "alarms-shared",
+  "requires": [
+    {
+      "api": 1,
+      "capability": "ui.scene"
+    },
+    {
+      "api": 1,
+      "capability": "alarm.control"
+    },
+    {
+      "api": 1,
+      "capability": "storage.app-data"
+    }
+  ],
+  "type": "application",
+  "version": "0.3.0",
+  "display_name": "Shared Alarms"
+}
