@@ -1,0 +1,65 @@
+name: Current headless alarm lifecycle
+on:
+  pull_request:
+    paths: ['Apps/alarms_headless*', 'Services/alarm_control/**', 'Services/alarm_service/**', 'lib/Alarm/include/**', 'scripts/*headless_current*', 'scripts/scene_support.py', 'test/scene/**', '.github/workflows/headless-current.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  current-headless:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 318d77283ba707b6f2820d2833e5d7ea3ff3f7e8
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: a24bf10e64c95e12b8862f1c1bcc7600543f264e
+          path: System
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Current control and cold-headless lifecycle
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          for mode in normal sanitized; do
+            flags=""
+            arg=""
+            if [ "$mode" = sanitized ]; then
+              flags="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+              arg="--sanitize"
+            fi
+            cc -std=c11 -Wall -Wextra -Werror $flags -IRuntime/sdk/app -IUtilities/lib/Alarm/include Utilities/Apps/alarms_headless.c Utilities/test/scene/headless_owner_test.c -o owner-test
+            ASAN_OPTIONS=detect_leaks=0 ./owner-test | tee evidence/owner-$mode.log
+            python Utilities/scripts/test_headless_current_control.py --runtime Runtime --system-apps System $arg --output controls-$mode 2>&1 | tee evidence/controls-$mode.log
+            python Utilities/scripts/test_headless_current_runtime.py --headless-only --runtime Runtime --system-apps System $arg --output runtime-$mode 2>&1 | tee evidence/runtime-$mode.log
+          done
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Build target owner and control services
+        run: |
+          set -o pipefail
+          python Utilities/scripts/build_headless_current.py --runtime Runtime --system-apps System --output packages 2>&1 | tee evidence/target.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: current-headless-${{ github.sha }}
+          path: |
+            evidence/
+            controls-*/
+            runtime-*/
+            packages/
+          retention-days: 30

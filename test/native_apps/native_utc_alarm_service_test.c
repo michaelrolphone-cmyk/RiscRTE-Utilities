@@ -8,16 +8,27 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "../../Services/alarm_service/service.c"
-static uint8_t blobs[9][64];static uint32_t sizes[9];
+#ifdef ALARM_NATIVE_MIXED_POINTS
+#define FIXTURE_KEYS 10
+#define FIXTURE_BLOB_BYTES 2048
+#else
+#define FIXTURE_KEYS 9
+#define FIXTURE_BLOB_BYTES 64
+#endif
+static uint8_t blobs[FIXTURE_KEYS][FIXTURE_BLOB_BYTES];static uint32_t sizes[FIXTURE_KEYS];
 static uint64_t ms;static int64_t epoch;static unsigned get_count,put_count,reads,clocks;
 static int read_result,get_result,put_result;static bool valid=true,forbid,put_commits=true;
 static unsigned malformed;
 static const alarm_service_v1 *client;static const risc_driver_v2 *provider;
 static const char *const keys[]={ALARM_CONFIG_KEY,ALARM_TIMER_KEY,ALARM_MODE_KEY,ALARM_OCCURRENCE_KEY,
-    ALARM_TIMER_OCCURRENCE_KEY,POINTS_CONFIG_KEY,POINTS_OCCURRENCE_KEY,ALARM_DND_KEY,"time_zone"};
-static int index_key(const char *key){for(int i=0;i<9;i++)if(!strcmp(keys[i],key))return i;assert(!"legacy/unbound key access");return 0;}
+    ALARM_TIMER_OCCURRENCE_KEY,POINTS_CONFIG_KEY,POINTS_OCCURRENCE_KEY,ALARM_DND_KEY,"time_zone"
+#ifdef ALARM_NATIVE_MIXED_POINTS
+ ,ALARM_CLOCK_EDIT_KEY
+#endif
+};
+static int index_key(const char *key){for(int i=0;i<FIXTURE_KEYS;i++)if(!strcmp(keys[i],key))return i;assert(!"legacy/unbound key access");return 0;}
 static int32_t get_blob(void*c,const char*k,void*b,uint32_t cap,uint32_t*n){assert(c==blobs&&!forbid);get_count++;if(get_result)return get_result;int i=index_key(k);*n=0;if(!sizes[i])return -1;if(cap<sizes[i])return -2;memcpy(b,blobs[i],sizes[i]);*n=sizes[i];return 0;}
-static int32_t put_blob(void*c,const char*k,const void*b,uint32_t n){assert(c==blobs&&!forbid);int i=index_key(k);assert(i==3||i==4||i==6);put_count++;if(put_result==RISC_BOUND_KEY_VALUE_CONTEXT)return put_result;if(put_commits){memcpy(blobs[i],b,n);sizes[i]=n;}return put_result;}
+static int32_t put_blob(void*c,const char*k,const void*b,uint32_t n){assert(c==blobs&&!forbid);int i=index_key(k);assert(i==3||i==4||i==6||i==9);put_count++;if(put_result==RISC_BOUND_KEY_VALUE_CONTEXT)return put_result;if(put_commits){memcpy(blobs[i],b,n);sizes[i]=n;}return put_result;}
 static uint64_t mono(void*c){assert(c==&ms&&!forbid);clocks++;return ms;}
 static int32_t native_read(void*c,risc_realtime_snapshot_v1*out){assert(c==&epoch&&!forbid&&out->struct_size==sizeof(*out));reads++;if(read_result)return read_result;
  *out=(risc_realtime_snapshot_v1){sizeof(*out),valid?RISC_REALTIME_VALID:RISC_REALTIME_UNSET,valid?epoch+(int64_t)(ms/1000):0,0,0,ms*1000,ms*1000};
@@ -26,10 +37,22 @@ static int32_t native_read(void*c,risc_realtime_snapshot_v1*out){assert(c==&epoc
  if(malformed==3)out->validity=2;
  if(malformed==4)out->struct_size=0;
  if(malformed==5){out->monotonic_before_us=1;out->monotonic_after_us=0;}return 0;}
-static const risc_bound_key_value_v1 bound={1,sizeof(bound),blobs,get_blob,put_blob};
+static const risc_bound_key_value_v1 bound={
+#ifdef ALARM_NATIVE_MIXED_POINTS
+2,
+#else
+1,
+#endif
+sizeof(bound),blobs,get_blob,put_blob};
 static const risc_platform_clock_api_v1 clock_table={1,sizeof(clock_table),&ms,mono,NULL};
 static const risc_platform_realtime_api_v1 real_table={1,sizeof(real_table),&epoch,native_read};
-static const risc_provider_dependency_v1 deps[]={{"storage.key-value.bound",1,&bound},{"platform.clock",1,&clock_table},{"platform.realtime",1,&real_table}};
+static const risc_provider_dependency_v1 deps[]={{"storage.key-value.bound",
+#ifdef ALARM_NATIVE_MIXED_POINTS
+2,
+#else
+1,
+#endif
+&bound},{"platform.clock",1,&clock_table},{"platform.realtime",1,&real_table}};
 static uint32_t date(unsigned y,unsigned m,unsigned d,unsigned h,unsigned min,unsigned sec){uint32_t value;assert(alarm_calendar_seconds(y,m,d,h,min,sec,&value));return value;}
 static void boot(bool clear){if(provider)assert(provider->quiesce());if(clear){memset(blobs,0,sizeof(blobs));memset(sizes,0,sizeof(sizes));ms=0;}read_result=get_result=put_result=0;valid=put_commits=true;forbid=false;malformed=0;
  provider=t5_driver_get(2);client=provider->capability;assert(provider->start(deps,3));get_count=put_count=reads=clocks=0;}

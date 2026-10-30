@@ -56,6 +56,28 @@ jobs:
         run: python scripts/test_points_audio_cues.py --system-apps .dependencies/cue-system-apps --runtime .dependencies/runtime
       - name: Exercise shared Calculator and Stopwatch
         run: python scripts/test_daily_apps.py --system-apps .dependencies/system-apps
+      - name: Exact shared native geometry source
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 1f8f8f52183b9a8ee7e796aebb6d2869772cd07b
+          path: .dependencies/native-geometry-system
+          persist-credentials: false
+      # Published snapshot: both consumed headers are byte-identical to Runtime046f4c22.
+      - name: Exact native geometry Runtime headers
+        uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 318d77283ba707b6f2820d2833e5d7ea3ff3f7e8
+          path: .dependencies/native-geometry-runtime
+          persist-credentials: false
+      - name: Qualify native rendering and touch across safe-area geometries
+        run: >-
+          python scripts/test_native_safe_content.py
+          --system .dependencies/native-geometry-system
+          --system-revision 1f8f8f52183b9a8ee7e796aebb6d2869772cd07b
+          --runtime .dependencies/native-geometry-runtime
+          --output dist/native-safe-content-tests
       - name: Exact shared audio lifecycle adapter
         uses: actions/checkout@v4
         with:
@@ -107,6 +129,7 @@ jobs:
           path: |
             dist/apps/
             dist/portable-apps/
+            dist/native-safe-content-tests/
             dist/alarm-apps/
             dist/points-service/
             dist/visual-points-service/
