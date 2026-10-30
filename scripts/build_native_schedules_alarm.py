@@ -21,6 +21,10 @@ def revision(value):
 def exact(root,pin):
  revision(pin)
  if run(['git','-C',root,'rev-parse','HEAD']).strip()!=pin or run(['git','-C',root,'status','--porcelain']).strip():raise ValueError('Clean exact source required: '+str(root)+' @ '+pin)
+def runtime_selection(system,runtime,pin=None):
+ if pin is not None:exact(runtime,pin)
+ selected=pin or RUNTIME
+ return selected,runtime_sdk_compat.verify(system,runtime,selected)
 def includes(runtime,system):return [ROOT/'lib/Alarm/include',runtime/'sdk/driver',runtime/'sdk/app',system/'lib/PortableApps/include']
 def selection(clock_edit_authority,include_points=False):
  if include_points and not clock_edit_authority:raise ValueError('include-points requires clock-edit-authority')
@@ -38,10 +42,12 @@ def profile_files(clock_edit_authority,include_points=False):
 def main():
  p=argparse.ArgumentParser(description=__doc__)
  for name in ['runtime','system-apps','output']:p.add_argument('--'+name,required=True,type=Path)
+ p.add_argument('--runtime-revision',type=revision,default=None)
  p.add_argument('--system-revision',type=revision,default=SYSTEM)
  p.add_argument('--include-points',action='store_true');p.add_argument('--clock-edit-authority',action='store_true');p.add_argument('--cc',required=True);a=p.parse_args();runtime,system,out=[x.resolve() for x in [a.runtime,a.system_apps,a.output]]
  if a.include_points and not a.clock_edit_authority:p.error('include-points requires clock-edit-authority')
- exact(system,a.system_revision);runtime_identity=runtime_sdk_compat.verify(system,runtime,RUNTIME)
+ exact(system,a.system_revision)
+ selected_runtime,runtime_identity=runtime_selection(system,runtime,a.runtime_revision)
  for key in ['CPATH','C_INCLUDE_PATH','CPLUS_INCLUDE_PATH','LIBRARY_PATH','GCC_EXEC_PREFIX','COMPILER_PATH','LD_PRELOAD']:
   if os.environ.get(key):raise ValueError('Ambient compiler input forbidden: '+key)
  cc=Path(a.cc).absolute();compiler=run([cc,'--version']).splitlines()[0]
@@ -77,6 +83,6 @@ def main():
  sources={str(Path(x).resolve()):sha(x) for x in deps};sources.update({str(x.resolve()):sha(x) for x in [manifest,policy,Path(__file__),ROOT/'scripts/normalize_xtensa_relocations.py',ROOT/'scripts/runtime_sdk_compat.py']})
  licenses=out/'licenses';licenses.mkdir()
  for root,name in [(ROOT,'Utilities-MIT.txt'),(runtime,'Runtime-MIT.txt'),(system,'System-MIT.txt')]:(licenses/name).write_bytes((root/'LICENSE').read_bytes())
- receipt={'schema':1,'profile':'native-utc-mixed-points-clock-edit' if a.include_points else 'native-utc-schedules-clock-edit' if a.clock_edit_authority else 'native-utc-schedules-only','clock_edit_authority':a.clock_edit_authority,'version':json.loads(manifest.read_text())['version'],'source_revision':run(['git','-C',ROOT,'rev-parse','HEAD']).strip(),'working_tree_dirty':bool(run(['git','-C',ROOT,'status','--porcelain']).strip()),'runtime_revision':RUNTIME,'runtime_sdk_identity':runtime_identity,'runtime_checkout_revision':runtime_identity['checkout_commit'],'system_revision':a.system_revision,'compiler':compiler,'compiler_sha256':sha(cc.resolve()),'target_optimization':'-Os','optimization_note':'Elapsed durations narrowed to32 bits only after checked5-second orUINT32_MAX bounds; original-Os single-pass recipe, no64-bit division helper import' if a.clock_edit_authority else None,'defines':defines,'command':list(map(str,command)),'dependencies_sha256':sources,'elf_sha256':sha(elf),'elf_bytes':elf.stat().st_size,'imports':sorted(imports),'exports':sorted(exports),'bound_keys':json.loads(policy.read_text()),'legacy_baseline':BASE,'same_compiler_legacy_elf_parity':parity,'native_points_source_migration':native_delta,'target_loader':result,'loader_command':list(map(str,loader_command)),'loader_sources_sha256':{str(f):sha(f) for f in [runtime/'lib/elf_loader/src/esp_elf.c',runtime/'lib/elf_loader/src/arch/esp_elf_xtensa.c',runtime/'lib/elf_loader/src/esp_elf_validate.c']},'licenses_sha256':{x.name:sha(x) for x in licenses.iterdir()},'points_selected':a.include_points,'points_context_selected':a.include_points,'hardware_verified':False,'sleeping_alarm_integration':False}
+ receipt={'schema':1,'profile':'native-utc-mixed-points-clock-edit' if a.include_points else 'native-utc-schedules-clock-edit' if a.clock_edit_authority else 'native-utc-schedules-only','clock_edit_authority':a.clock_edit_authority,'version':json.loads(manifest.read_text())['version'],'source_revision':run(['git','-C',ROOT,'rev-parse','HEAD']).strip(),'working_tree_dirty':bool(run(['git','-C',ROOT,'status','--porcelain']).strip()),'runtime_revision':selected_runtime,'historical_runtime_revision':RUNTIME,'runtime_sdk_identity':runtime_identity,'runtime_checkout_revision':runtime_identity['checkout_commit'],'system_revision':a.system_revision,'compiler':compiler,'compiler_sha256':sha(cc.resolve()),'target_optimization':'-Os','optimization_note':'Elapsed durations narrowed to32 bits only after checked5-second orUINT32_MAX bounds; original-Os single-pass recipe, no64-bit division helper import' if a.clock_edit_authority else None,'defines':defines,'command':list(map(str,command)),'dependencies_sha256':sources,'elf_sha256':sha(elf),'elf_bytes':elf.stat().st_size,'imports':sorted(imports),'exports':sorted(exports),'bound_keys':json.loads(policy.read_text()),'legacy_baseline':BASE,'same_compiler_legacy_elf_parity':parity,'native_points_source_migration':native_delta,'target_loader':result,'loader_command':list(map(str,loader_command)),'loader_sources_sha256':{str(f):sha(f) for f in [runtime/'lib/elf_loader/src/esp_elf.c',runtime/'lib/elf_loader/src/arch/esp_elf_xtensa.c',runtime/'lib/elf_loader/src/esp_elf_validate.c']},'licenses_sha256':{x.name:sha(x) for x in licenses.iterdir()},'points_selected':a.include_points,'points_context_selected':a.include_points,'hardware_verified':False,'sleeping_alarm_integration':False}
  (out/'build-evidence.json').write_text(json.dumps(receipt,indent=2)+'\n');print(('Mixed Points clock-editor target, ten-key boundKV2 and Watch byte parity and explicit native-points migration recorded' if a.include_points else 'Clock-editor target, seven-key boundKV2 and Watch byte parity and explicit native-points migration recorded' if a.clock_edit_authority else 'Schedules-only target and Watch byte parity and explicit native-points migration recorded')+'; full product/hardware qualification separate')
 if __name__=='__main__':main()

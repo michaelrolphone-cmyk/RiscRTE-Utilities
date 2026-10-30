@@ -88,12 +88,19 @@ separately. Seven scanner regressions exercise these boundaries. Earlier broad
 file snapshots are not complete compiled dependency closure and are superseded
 for that claim, not silently equated to these receipts.
 
-Target scheduler qualification deliberately retains its original target SDK
-composition: Runtime `273bdbccf65647a803ab0586a418f8283732baec`, System
-`6e4cda9072905c15b9a5ebc9b22913fec444a89d`, pinned GCC15.2 installer. It is not
-labeled the current host SDK. The existing target loader/admission, import/export
-checks, historical witness, licenses and Watch parity remain. A target build is
-not a device run or physical alarm acceptance.
+The initial hosted target stage failed before compilation: the original local
+Runtime `273bdbccf65647a803ab0586a418f8283732baec` and System
+`6e4cda9072905c15b9a5ebc9b22913fec444a89d` commits are unavailable from GitHub.
+Those historical defaults remain available to existing local consumers. Hosted
+qualification now explicitly selects the published host Runtime/System commits
+listed above. The additive `--runtime-revision` requires a clean exact checkout;
+`--system-revision` retains its existing exact check. The receipt distinguishes
+the selected Runtime from the historical default rather than claiming ancestry
+or whole-product equivalence. GCC15.2, target loader/admission, import/export
+checks, fixed historical service source witness, licenses and Watch parity
+remain. Before/after historical source comparisons are rebuilt with the selected
+inputs; they are not claims of reproducing a historical distributed binary.
+A target build is not a device run or physical alarm acceptance.
 
 ## Replay
 
