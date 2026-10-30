@@ -66,6 +66,18 @@ jobs:
           set -o pipefail
           bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/catalog-toolchain" 2>&1 | tee evidence/catalog-compiler.log
           python Utilities/scripts/build_badge_shared_catalog.py --cc "$RUNNER_TEMP/catalog-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc" --output catalog-build 2>&1 | tee evidence/catalog-build.log
+      - name: Verify ordinary modules are PSRAM instruction safe
+        run: |
+          python - <<'PYCODE'
+          import json,os,sys
+          from pathlib import Path
+          sys.path.insert(0,'Utilities/test/release')
+          from verify_psram_elf import verify
+          cc=os.environ['RUNNER_TEMP']+'/catalog-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc'
+          files=sorted(Path('packages').rglob('*.elf'))+[Path('catalog-build/generated/springboard.elf')]
+          results={str(p):verify(p,cc) for p in files}
+          Path('evidence/psram-instruction-safety.json').write_text(json.dumps(results,indent=2))
+          PYCODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:
