@@ -15,6 +15,20 @@ def extract(capsule,output):
    data=z.read(n)
    if hashlib.sha256(data).hexdigest()!=h:raise ValueError('Input hash mismatch: '+n)
    p=output/n;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
+ supplement_path=capsule.with_name('badge-springboard-source-supplement.json')
+ supplement=json.loads(supplement_path.read_text())
+ if supplement['schema']!=1 or supplement['source_commit']!=recipe['source_record']['repository_commit']:
+  raise ValueError('Source supplement supplement source differs')
+ for name,item in supplement['files'].items():
+  path=Path(name)
+  if path.is_absolute() or '..' in path.parts or not name.startswith('System/') or path.suffix not in ('.h','.inc'):
+   raise ValueError('Unexpected source supplement path')
+  data=item['content'].encode()
+  if hashlib.sha256(data).hexdigest()!=item['sha256']:raise ValueError('Source supplement hash mismatch: '+name)
+  destination=output/path
+  if destination.exists() and destination.read_bytes()!=data:raise ValueError('Conflicting capsule header: '+name)
+  destination.parent.mkdir(parents=True,exist_ok=True);destination.write_bytes(data)
+ recipe['source_supplement']={'sha256':sha(supplement_path),'source_commit':supplement['source_commit'],'source_tree':supplement['source_tree'],'source_archive_sha256':supplement['source_archive_sha256'],'files_sha256':{n:x['sha256'] for n,x in supplement['files'].items()}}
  return recipe
 def run(cc,output):
  capsule=ROOT/'test/release/badge-springboard-baseline.zip'
@@ -35,7 +49,7 @@ def run(cc,output):
  (output/'generated/springboard-catalog.c').write_text(text)
  subprocess.run(command,cwd=output,check=True)
  (output/'catalog.json').write_text(json.dumps({'apps':apps},indent=2)+'\n')
- result={'schema':1,'capsule_sha256':sha(capsule),'baseline_sha256':baseline,'new_sha256':sha(elf),'compiler':version,'compiler_sha256':sha(Path(cc)),'command':command,'catalog':apps,'unchanged_flags':recipe['source_record']['build_defines'],'hardware_verified':False}
+ result={'schema':1,'capsule_sha256':sha(capsule),'source_supplement':recipe['source_supplement'],'baseline_sha256':baseline,'new_sha256':sha(elf),'compiler':version,'compiler_sha256':sha(Path(cc)),'command':command,'catalog':apps,'unchanged_flags':recipe['source_record']['build_defines'],'hardware_verified':False}
  (output/'catalog-build.json').write_text(json.dumps(result,indent=2)+'\n')
  print('Exact baseline reproduced; additive ten-entry catalog built.')
 if __name__=='__main__':
