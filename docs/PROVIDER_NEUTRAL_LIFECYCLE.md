@@ -100,6 +100,13 @@ or whole-product equivalence. GCC15.2, target loader/admission, import/export
 checks, fixed historical service source witness, licenses and Watch parity
 remain. Before/after historical source comparisons are rebuilt with the selected
 inputs; they are not claims of reproducing a historical distributed binary.
+The historical Utilities commit `1eb8948ab4d7fcc20ae467638d8b4867e966316b`
+is also local-only. Its exact 58,629-byte service is retained at
+`test/provider_lifecycle/historical_alarm_service.c`, SHA-256
+`a9c84351b828dbe3d2b2fe84e7e7a511cb59cf8ccb543d87087ca5f1e4580c0e`.
+The recipe requires those exact bytes before compiling either historical witness;
+missing or modified data fails closed. This publishes the missing input rather
+than selecting a newer baseline. The original attribution and BASE remain fixed.
 A target build is not a device run or physical alarm acceptance.
 
 ## Replay

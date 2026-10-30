@@ -8,6 +8,7 @@ ROOT=Path(__file__).resolve().parents[1]
 RUNTIME='273bdbccf65647a803ab0586a418f8283732baec'
 SYSTEM='6e4cda9072905c15b9a5ebc9b22913fec444a89d'
 BASE='1eb8948ab4d7fcc20ae467638d8b4867e966316b'
+BASE_SOURCE_SHA256='a9c84351b828dbe3d2b2fe84e7e7a511cb59cf8ccb543d87087ca5f1e4580c0e'
 # Exact reviewed shared IO-retry delta, not a waiver for future native changes.
 NATIVE_IO_RETRY_SOURCE_SHA256='d1d466d38ccee9bdb694c957d9fbc6f70b8403e1ff1435d790db43d7017f6246'
 DEFINES=['ALARM_NATIVE_UTC','ALARM_NATIVE_SCHEDULES_ONLY','ALARM_SERVICE_TAGGED_V2','ALARM_VISUAL_ONLY','ALARM_DND_CONTROL']
@@ -15,6 +16,10 @@ def run(command,**kw):return subprocess.check_output(list(map(str,command)),text
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def qualify_native_migration_source(path):
  if sha(path)!=NATIVE_IO_RETRY_SOURCE_SHA256:raise ValueError('Unqualified native-points source migration')
+def historical_source(path):
+ data=Path(path).read_bytes()
+ if hashlib.sha256(data).hexdigest()!=BASE_SOURCE_SHA256:raise ValueError('Historical service witness mismatch')
+ return data
 def revision(value):
  if not re.fullmatch(r"[0-9a-f]{40}",value):raise argparse.ArgumentTypeError("Full lowercase 40-character source SHA required")
  return value
@@ -64,7 +69,7 @@ def main():
  if not imports<={'memcpy','memset','memcmp','strcmp','strlen'} or exports!={'t5_driver_get'}:raise ValueError((imports,exports))
  # Preserve the exact historical source/output witness. Watch remains byte-identical.
  # Native READ_RTC IO recovery is an intentional shared bug fix, not byte parity.
- baseline=out/'baseline';baseline.mkdir();old=baseline/'service.c';old.write_text(run(['git','-C',ROOT,'show',BASE+':Services/alarm_service/service.c']))
+ baseline=out/'baseline';baseline.mkdir();old=baseline/'service.c';old.write_bytes(historical_source(ROOT/'test/provider_lifecycle/historical_alarm_service.c'))
  parity={};native_delta={}
  for label,flags in [('watch',['POINTS_IN_TIME_SERVICE','ALARM_DND_CONTROL','ALARM_VOLUME_CONTROL','PORTABLE_RTC_UTC8_DENVER']),('native-points',['POINTS_IN_TIME_SERVICE','ALARM_DND_CONTROL','ALARM_VISUAL_ONLY','ALARM_SERVICE_TAGGED_V2','ALARM_NATIVE_UTC'])]:
   sources=[system/'lib/PortableApps/src/PortableTimeZone.c',system/'lib/PortableApps/src/PortableTimeZoneCatalog.c'] if label=='native-points' else []

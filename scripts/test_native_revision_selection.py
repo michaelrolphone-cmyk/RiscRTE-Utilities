@@ -1,9 +1,18 @@
 import argparse
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 import build_native_schedules_alarm as build
 
 class RevisionSelection(unittest.TestCase):
+ def test_historical_source_bytes(self):
+  source=build.ROOT/'test/provider_lifecycle/historical_alarm_service.c'
+  self.assertEqual(len(build.historical_source(source)), 58629)
+  with tempfile.TemporaryDirectory() as tmp:
+   with self.assertRaises(FileNotFoundError):build.historical_source(Path(tmp)/'missing.c')
+   changed=Path(tmp)/'changed.c';changed.write_bytes(source.read_bytes()+b'\n')
+   with self.assertRaisesRegex(ValueError, 'Historical service witness mismatch'):build.historical_source(changed)
  def test_historical_default_preserved(self):
   with patch.object(build, 'exact') as exact, patch.object(build.runtime_sdk_compat, 'verify', return_value={'ok': True}) as verify:
    selected, receipt = build.runtime_selection('system', 'runtime')
