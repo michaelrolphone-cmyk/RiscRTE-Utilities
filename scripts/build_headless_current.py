@@ -12,7 +12,7 @@ import tempfile
 from scene_support import ROOT,sdk,time_sources
 
 
-def run(runtime: Path, system: Path, output: Path) -> None:
+def run(runtime: Path, system: Path, output: Path, include_scene: bool = False) -> None:
     if output.exists():
         raise FileExistsError(f'Use a new output directory: {output}')
     output.mkdir(parents=True)
@@ -26,6 +26,7 @@ def run(runtime: Path, system: Path, output: Path) -> None:
     with tempfile.TemporaryDirectory(prefix='alarms-scene-sdk-') as temporary:
         include=sdk(runtime,system,Path(temporary))
         rows=[]
+        scene_inputs=[]
         headless=json.loads((ROOT/'Apps/alarms_headless.json').read_text())
         rows.append(builder.build(compiler,include,output/'headless',headless,[ROOT/'Apps/alarms_headless.c']))
         for name,native in (('alarm-control-raw',False),('alarm-control-utc',True)):
@@ -39,6 +40,13 @@ def run(runtime: Path, system: Path, output: Path) -> None:
         # Building a second time in another directory verifies reproducibility.
         repeated_headless=builder.build(compiler,include,Path(temporary)/'headless-rebuild',headless,[ROOT/'Apps/alarms_headless.c'])
         if rows[0]['sha256']!=repeated_headless['sha256']:raise ValueError('Headless owner ELF is not reproducible')
+        if include_scene:
+            scene_path=ROOT/'Apps/alarms_shared.json'
+            scene=json.loads(scene_path.read_text())
+            built=builder.build(compiler,include,output/'shared-alarms',scene,[ROOT/'Apps/alarms_scene.c'])
+            repeated=builder.build(compiler,include,Path(temporary)/'shared-alarms-rebuild',scene,[ROOT/'Apps/alarms_scene.c'])
+            if built['sha256']!=repeated['sha256']:raise ValueError('Shared Alarms ELF is not reproducible')
+            rows.append(built);scene_inputs=[ROOT/'Apps/alarms_scene.c',scene_path]
         validator=Path(temporary)/'validate-elf'
         subprocess.run([os.environ.get('CC','cc'),'-std=c11','-Wall','-Wextra','-Werror',
                         '-I'+str(ROOT/'test/native_apps/stubs'),'-I'+str(ROOT/'lib/elf_loader/include'),
@@ -51,7 +59,7 @@ def run(runtime: Path, system: Path, output: Path) -> None:
                 for path in (base/prefix).rglob('*'):
                     if path.is_file() and path.suffix in ('.c','.h','.inc','.json'):
                         selected[label+'/'+str(path.relative_to(base))]=hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in [ROOT/'Apps/alarms_headless.c',ROOT/'Apps/alarms_headless.json',*map(Path,time_sources(system))]:
+        for path in [ROOT/'Apps/alarms_headless.c',ROOT/'Apps/alarms_headless.json',*scene_inputs,*map(Path,time_sources(system))]:
             base,label=(ROOT,'Utilities') if path.is_relative_to(ROOT) else (system,'System')
             selected[label+'/'+str(path.relative_to(base))]=hashlib.sha256(path.read_bytes()).hexdigest()
         for path in (system/'lib/PortableApps/include').glob('PortableTime*.h'):
@@ -64,4 +72,5 @@ def run(runtime: Path, system: Path, output: Path) -> None:
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--runtime',type=Path,required=True);p.add_argument('--system-apps',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
-    a=p.parse_args();run(a.runtime.resolve(),a.system_apps.resolve(),a.output.resolve())
+    p.add_argument('--include-scene',action='store_true',help='Add the reusable scene consumer without replacing native Alarms')
+    a=p.parse_args();run(a.runtime.resolve(),a.system_apps.resolve(),a.output.resolve(),a.include_scene)

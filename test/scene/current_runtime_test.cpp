@@ -8,6 +8,7 @@
 #include "RiscBoundKeyValueV2.h"
 #include <cassert>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
 #include <filesystem>
@@ -156,9 +157,9 @@ static void configure(bool utc){
                                            utc ? "timer_utc_occ" : "timer_occ",
                                            utc ? "points_utc_occ" : "points_occ"};
     for(const char* k:config_keys)binding(service,k,3,"read");
-    for(const char* k:occurrence_keys)binding(service,k,4,"read-write");
-    binding(service,"alert_mode",1,"read");binding(service,"alert_dnd",1,"read");binding(service,utc?"points_utc_cfg":"points_cfg",5,"read");binding(service,utc?"time_zone":"alarm_volume",1,"read");
-    binding(service,"clock_edit_auth",6,"read-write");
+    for(const char* k:occurrence_keys)if(!getenv("ALARM_SCENE_SCHEDULES_ONLY")||strncmp(k,"points",6))binding(service,k,4,"read-write");
+    binding(service,"alert_mode",1,"read");binding(service,"alert_dnd",1,"read");if(!getenv("ALARM_SCENE_SCHEDULES_ONLY")){binding(service,utc?"points_utc_cfg":"points_cfg",5,"read");binding(service,utc?"time_zone":"alarm_volume",1,"read");}
+    binding(service,"clock_edit_auth",getenv("ALARM_SCENE_SCHEDULES_ONLY")?4:6,"read-write");
     auto control=driver("alarm-control","alarm.control",1,{{"storage.key-value.bound",1},{"alarm.service",utc?2u:1u},{clock,cv}});
     binding(control,utc?"alarm_utc_cfg":"alarm_cfg",3,"read-write");binding(control,utc?"time_zone":"alarm_volume",1,utc?"read":"read-write");
     auto policies=boot["app_capabilities"].to<JsonArray>();
@@ -175,7 +176,7 @@ static void configure(bool utc){
     std::vector<uint8_t> zone(44);zone[0]='T';zone[1]='Z';zone[2]=1;memcpy(zone.data()+4,"America/Denver",14);uint8_t sum=0xa5;for(unsigned i=0;i<44;i++)if(i!=3)sum^=zone[i];zone[3]=sum;kv[{1,"time_zone"}]=zone;
 }
 int main(int argc,char**argv){
-    assert(argc==4);root=argv[1];bool utc=!strcmp(argv[2],"paper");width=utc?800:240;mode=argv[3];configure(utc);
+    assert(argc==4);root=argv[1];bool utc=!strcmp(argv[2],"paper");width=utc?800:240;if(const char* selected=getenv("ALARM_SCENE_COLOR_WIDTH")){char* end=nullptr;unsigned long value=strtoul(selected,&end,10);assert(end!=selected&&!*end&&value>=160&&value<=600);width=static_cast<unsigned>(value);}mode=argv[3];configure(utc);
     std::filesystem::create_directory(root+"/appdata");RiscStorage::AppDataFiles data({nullptr,[](void*){return static_cast<uint32_t>(millis);},[](void*){return true;},malloc,free});files=&data;assert(data.configure((root+"/appdata").c_str()));
     RiscBoot::AppDataBackend storage{&data,
         [](void*c,uint32_t n,const char*p,uint32_t*s,uint64_t*r){return static_cast<RiscStorage::AppDataFiles*>(c)->stat(n,p,s,r);},
@@ -187,7 +188,7 @@ int main(int argc,char**argv){
     port.controlEnd=[](){bool was=exit_pending;exit_pending=false;return was;};
     port.bindPlatforms=[](Runtime&r){return r.registerPlatform("platform.clock",1,Runtime::Scope::Global,0,scene_test_hardware(6))&&r.registerRealtime(static_cast<const risc_realtime_control_api_v1*>(scene_test_hardware(7)));};
     {RiscTest::FileSources sourceFiles({root.c_str()});Runtime r(port);assert(sourceFiles.bind(r));if(!r.prepare(root.c_str())){fprintf(stderr,"prepare: %s\n",r.error());return 2;}assert(!scene_test_hardware_io());if(!r.run()){fprintf(stderr,"run: %s\n",r.error());return 3;}assert(!r.retained());}
-    if(mode!="headless"){assert(invocations==2&&finis==2&&unloads==2&&launcher_visits==3);checkpoint(481,true);scene_test_hardware_closed();}
+    if(mode!="headless"){assert(frame_count>0);assert(invocations==2&&finis==2&&unloads==2&&launcher_visits==3);checkpoint(481,true);scene_test_hardware_closed();}
     else {
         assert(headless_done&&headless_phase==4&&!invocations&&!frame_count&&!scene_test_hardware_io());
         assert(!dlopen((root+"/headless.elf").c_str(),RTLD_NOW|RTLD_NOLOAD));
