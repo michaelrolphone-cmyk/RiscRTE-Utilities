@@ -8,9 +8,13 @@ ROOT=Path(__file__).resolve().parents[1]
 RUNTIME='273bdbccf65647a803ab0586a418f8283732baec'
 SYSTEM='6e4cda9072905c15b9a5ebc9b22913fec444a89d'
 BASE='1eb8948ab4d7fcc20ae467638d8b4867e966316b'
+# Exact reviewed shared IO-retry delta, not a waiver for future native changes.
+NATIVE_IO_RETRY_SOURCE_SHA256='d1d466d38ccee9bdb694c957d9fbc6f70b8403e1ff1435d790db43d7017f6246'
 DEFINES=['ALARM_NATIVE_UTC','ALARM_NATIVE_SCHEDULES_ONLY','ALARM_SERVICE_TAGGED_V2','ALARM_VISUAL_ONLY','ALARM_DND_CONTROL']
 def run(command,**kw):return subprocess.check_output(list(map(str,command)),text=True,**kw)
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def qualify_native_migration_source(path):
+ if sha(path)!=NATIVE_IO_RETRY_SOURCE_SHA256:raise ValueError('Unqualified native-points source migration')
 def revision(value):
  if not re.fullmatch(r"[0-9a-f]{40}",value):raise argparse.ArgumentTypeError("Full lowercase 40-character source SHA required")
  return value
@@ -52,16 +56,20 @@ def main():
  elf=out/'driver.elf';command=[*common,*['-D'+x for x in defines],*inc,*units,'-lgcc','-o',elf];run(command);normalize(elf)
  symbols=run([str(cc).removesuffix('gcc')+'nm','-D',elf]);imports={x.split()[-1] for x in symbols.splitlines() if ' U ' in ' '+x};exports={x.split()[-1] for x in symbols.splitlines() if len(x.split())>=3 and x.split()[-2] in ('T','D','R','B')}
  if not imports<={'memcpy','memset','memcmp','strcmp','strlen'} or exports!={'t5_driver_get'}:raise ValueError((imports,exports))
- # Exact pre-change source with the same compiler/SDK: neither legacy profile
- # is replaced or reinterpreted by the new opt-in selection.
+ # Preserve the exact historical source/output witness. Watch remains byte-identical.
+ # Native READ_RTC IO recovery is an intentional shared bug fix, not byte parity.
  baseline=out/'baseline';baseline.mkdir();old=baseline/'service.c';old.write_text(run(['git','-C',ROOT,'show',BASE+':Services/alarm_service/service.c']))
- parity={}
+ parity={};native_delta={}
  for label,flags in [('watch',['POINTS_IN_TIME_SERVICE','ALARM_DND_CONTROL','ALARM_VOLUME_CONTROL','PORTABLE_RTC_UTC8_DENVER']),('native-points',['POINTS_IN_TIME_SERVICE','ALARM_DND_CONTROL','ALARM_VISUAL_ONLY','ALARM_SERVICE_TAGGED_V2','ALARM_NATIVE_UTC'])]:
   sources=[system/'lib/PortableApps/src/PortableTimeZone.c',system/'lib/PortableApps/src/PortableTimeZoneCatalog.c'] if label=='native-points' else []
-  files=[]
+  files=[];comparison_commands=[]
   for name,source in [('before',old),('after',ROOT/'Services/alarm_service/service.c')]:
-   target=baseline/(label+'-'+name+'.elf');run([*common,*['-D'+x for x in flags],*inc,source,*sources,'-lgcc','-o',target]);files.append(target)
-  assert files[0].read_bytes()==files[1].read_bytes(),label+' legacy source parity changed';parity[label]=sha(files[0])
+   target=baseline/(label+'-'+name+'.elf');comparison_command=[*common,*['-D'+x for x in flags],*inc,source,*sources,'-lgcc','-o',target];run(comparison_command);comparison_commands.append(list(map(str,comparison_command)));files.append(target)
+  if label=='watch':
+   assert files[0].read_bytes()==files[1].read_bytes(),label+' legacy source parity changed';parity[label]=sha(files[0])
+  else:
+   qualify_native_migration_source(ROOT/'Services/alarm_service/service.c')
+   native_delta={'commands':comparison_commands,'baseline_commit':BASE,'baseline_source_sha256':sha(old),'corrected_source_sha256':sha(ROOT/'Services/alarm_service/service.c'),'defines':flags,'before_sha256':sha(files[0]),'after_sha256':sha(files[1]),'before_bytes':files[0].stat().st_size,'after_bytes':files[1].stat().st_size,'byte_identical':files[0].read_bytes()==files[1].read_bytes(),'reason':'Shared native READ_RTC transient IO retry; no anchor reset, invalid-time acceptance or uncertain-custody retry. Behavioral qualification is separate; historical bytes retained.'}
  loader=out/'target-loader';loader_command=[os.environ.get('CC','cc'),'-std=gnu11','-O1','-g','-I'+str(ROOT/'test/alarm-loader-stubs'),'-I'+str(runtime/'lib/elf_loader/include'),ROOT/'test/alarm_target_loader.c',runtime/'lib/elf_loader/src/esp_elf.c',runtime/'lib/elf_loader/src/arch/esp_elf_xtensa.c',runtime/'lib/elf_loader/src/esp_elf_validate.c','-o',loader]
  run(loader_command);result=run([loader,elf]);print(result,end='')
  manifest,policy=profile_files(a.clock_edit_authority,a.include_points);(out/'manifest.json').write_bytes(manifest.read_bytes());(out/'storage-policy.json').write_bytes(policy.read_bytes())
@@ -69,6 +77,6 @@ def main():
  sources={str(Path(x).resolve()):sha(x) for x in deps};sources.update({str(x.resolve()):sha(x) for x in [manifest,policy,Path(__file__),ROOT/'scripts/normalize_xtensa_relocations.py',ROOT/'scripts/runtime_sdk_compat.py']})
  licenses=out/'licenses';licenses.mkdir()
  for root,name in [(ROOT,'Utilities-MIT.txt'),(runtime,'Runtime-MIT.txt'),(system,'System-MIT.txt')]:(licenses/name).write_bytes((root/'LICENSE').read_bytes())
- receipt={'schema':1,'profile':'native-utc-mixed-points-clock-edit' if a.include_points else 'native-utc-schedules-clock-edit' if a.clock_edit_authority else 'native-utc-schedules-only','clock_edit_authority':a.clock_edit_authority,'version':json.loads(manifest.read_text())['version'],'source_revision':run(['git','-C',ROOT,'rev-parse','HEAD']).strip(),'working_tree_dirty':bool(run(['git','-C',ROOT,'status','--porcelain']).strip()),'runtime_revision':RUNTIME,'runtime_sdk_identity':runtime_identity,'runtime_checkout_revision':runtime_identity['checkout_commit'],'system_revision':a.system_revision,'compiler':compiler,'compiler_sha256':sha(cc.resolve()),'target_optimization':'-Os','optimization_note':'Elapsed durations narrowed to32 bits only after checked5-second orUINT32_MAX bounds; original-Os single-pass recipe, no64-bit division helper import' if a.clock_edit_authority else None,'defines':defines,'command':list(map(str,command)),'dependencies_sha256':sources,'elf_sha256':sha(elf),'elf_bytes':elf.stat().st_size,'imports':sorted(imports),'exports':sorted(exports),'bound_keys':json.loads(policy.read_text()),'legacy_baseline':BASE,'same_compiler_legacy_elf_parity':parity,'target_loader':result,'loader_command':list(map(str,loader_command)),'loader_sources_sha256':{str(f):sha(f) for f in [runtime/'lib/elf_loader/src/esp_elf.c',runtime/'lib/elf_loader/src/arch/esp_elf_xtensa.c',runtime/'lib/elf_loader/src/esp_elf_validate.c']},'licenses_sha256':{x.name:sha(x) for x in licenses.iterdir()},'points_selected':a.include_points,'points_context_selected':a.include_points,'hardware_verified':False,'sleeping_alarm_integration':False}
- (out/'build-evidence.json').write_text(json.dumps(receipt,indent=2)+'\n');print(('Mixed Points clock-editor target, ten-key boundKV2 and legacy-profile byte parity PASS' if a.include_points else 'Clock-editor target, seven-key boundKV2 and legacy-profile byte parity PASS' if a.clock_edit_authority else 'Schedules-only target and legacy-profile byte parity PASS')+'; full product/hardware qualification separate')
+ receipt={'schema':1,'profile':'native-utc-mixed-points-clock-edit' if a.include_points else 'native-utc-schedules-clock-edit' if a.clock_edit_authority else 'native-utc-schedules-only','clock_edit_authority':a.clock_edit_authority,'version':json.loads(manifest.read_text())['version'],'source_revision':run(['git','-C',ROOT,'rev-parse','HEAD']).strip(),'working_tree_dirty':bool(run(['git','-C',ROOT,'status','--porcelain']).strip()),'runtime_revision':RUNTIME,'runtime_sdk_identity':runtime_identity,'runtime_checkout_revision':runtime_identity['checkout_commit'],'system_revision':a.system_revision,'compiler':compiler,'compiler_sha256':sha(cc.resolve()),'target_optimization':'-Os','optimization_note':'Elapsed durations narrowed to32 bits only after checked5-second orUINT32_MAX bounds; original-Os single-pass recipe, no64-bit division helper import' if a.clock_edit_authority else None,'defines':defines,'command':list(map(str,command)),'dependencies_sha256':sources,'elf_sha256':sha(elf),'elf_bytes':elf.stat().st_size,'imports':sorted(imports),'exports':sorted(exports),'bound_keys':json.loads(policy.read_text()),'legacy_baseline':BASE,'same_compiler_legacy_elf_parity':parity,'native_points_source_migration':native_delta,'target_loader':result,'loader_command':list(map(str,loader_command)),'loader_sources_sha256':{str(f):sha(f) for f in [runtime/'lib/elf_loader/src/esp_elf.c',runtime/'lib/elf_loader/src/arch/esp_elf_xtensa.c',runtime/'lib/elf_loader/src/esp_elf_validate.c']},'licenses_sha256':{x.name:sha(x) for x in licenses.iterdir()},'points_selected':a.include_points,'points_context_selected':a.include_points,'hardware_verified':False,'sleeping_alarm_integration':False}
+ (out/'build-evidence.json').write_text(json.dumps(receipt,indent=2)+'\n');print(('Mixed Points clock-editor target, ten-key boundKV2 and Watch byte parity and explicit native-points migration recorded' if a.include_points else 'Clock-editor target, seven-key boundKV2 and Watch byte parity and explicit native-points migration recorded' if a.clock_edit_authority else 'Schedules-only target and Watch byte parity and explicit native-points migration recorded')+'; full product/hardware qualification separate')
 if __name__=='__main__':main()

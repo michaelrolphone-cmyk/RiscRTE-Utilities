@@ -344,9 +344,12 @@ static int32_t fail(int32_t e) {
 /* CONTEXT during an authorized phase conservatively fences this invocation.
  * It is an access denial, not proof of electrical uncertainty. No retry, I/O,
  * or successful quiescence is allowed after the fence. */
+static bool utc_read_io;
 static int32_t read_utc(uint32_t *out) {
     risc_realtime_snapshot_v1 value={.struct_size=sizeof(value)};
+    utc_read_io=false;
     int32_t r=realtime->read(realtime->context,&value);
+    utc_read_io=r==RISC_REALTIME_IO;
     if(r==RISC_REALTIME_CONTEXT){custody_retained=true;return ALARM_RETAINED;}
 #if defined(ALARM_NATIVE_SCHEDULES_ONLY) || defined(ALARM_NATIVE_MIXED_POINTS)
     if(r!=RISC_REALTIME_OK && r!=RISC_REALTIME_INVALID && r!=RISC_REALTIME_IO){custody_retained=true;return ALARM_RETAINED;}
@@ -754,7 +757,18 @@ static int32_t do_step(void) {
     case READ_RTC: {
         uint32_t current;
 #ifdef ALARM_NATIVE_UTC
-        int32_t result=read_utc(&current);if(result!=ALARM_OK)return fail(result);
+        int32_t result=read_utc(&current);
+        /* A failed read supplies no clock value. Retry only this read-only
+         * phase, preserving the established anchor and all durable state.
+         * Invalid/backward time still requires explicit refresh; never retry
+         * through an active occurrence, uncertain output or pending write. */
+        if(utc_read_io && !active && !persistence_pending &&
+           !haptic_uncertain && !audio_uncertain
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+           && !edit_recovery && !edit_permit_valid
+#endif
+           )return ALARM_PENDING;
+        if(result!=ALARM_OK)return fail(result);
 #else
         twatch_rtc_time_v1 t;
         if(!rtc->read(rtc->context,&t)||t.weekday>6||!alarm_calendar_seconds(t.year,t.month,t.day,t.hour,t.minute,t.second,&current))return fail(ALARM_RTC);

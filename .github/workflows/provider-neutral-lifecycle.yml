@@ -1,0 +1,75 @@
+name: Provider-neutral application lifecycle
+on:
+  pull_request:
+    paths: ['Services/alarm_service/**', 'Services/alarm_control/**', 'Apps/alarms_headless*', 'lib/Alarm/**', 'scripts/**', 'test/provider_lifecycle/**', 'test/scene/**', 'test/native_apps/**', '.github/workflows/provider-neutral-lifecycle.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualification:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 13eca114cb58469cf6004fafc3da84fbd9d29beb
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 9d2908bf50d3708763d36cbd810b137e2b5a4c57
+          path: System
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Actual host consumers and guarded recovery
+        run: |
+          set -o pipefail
+          mkdir evidence
+          python Utilities/scripts/test_lifecycle_dependencies.py 2>&1 | tee evidence/scanner.log
+          python Utilities/scripts/test_native_source_migration.py 2>&1 | tee evidence/native-migration-guard.log
+          for mode in normal sanitized; do
+            san=""
+            if [ "$mode" = sanitized ]; then san="--sanitize"; fi
+            python Utilities/scripts/test_headless_current_control.py --runtime Runtime --system-apps System --output controls-$mode $san 2>&1 | tee evidence/controls-$mode.log
+            python Utilities/scripts/test_native_clock_retry.py --runtime Runtime --system-apps System --output retry-$mode $san 2>&1 | tee evidence/retry-$mode.log
+            python Utilities/scripts/test_headless_current_runtime.py --runtime Runtime --system-apps System --headless-only --output headless-$mode $san 2>&1 | tee evidence/headless-$mode.log
+            python Utilities/scripts/test_provider_lifecycle_canvas.py --runtime Runtime --system System --canvas System --output canvas-$mode $san 2>&1 | tee evidence/canvas-$mode.log
+          done
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 273bdbccf65647a803ab0586a418f8283732baec
+          path: TargetRuntime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 6e4cda9072905c15b9a5ebc9b22913fec444a89d
+          path: TargetSystem
+          persist-credentials: false
+      - name: Target scheduler and preserved historical witness
+        run: |
+          set -o pipefail
+          bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/catalog-toolchain" 2>&1 | tee evidence/compiler.log
+          python Utilities/scripts/build_native_schedules_alarm.py --runtime TargetRuntime --system-apps TargetSystem --include-points --clock-edit-authority --cc "$RUNNER_TEMP/catalog-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc" --output target-scheduler 2>&1 | tee evidence/target-scheduler.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: provider-neutral-lifecycle-${{ github.sha }}
+          path: |
+            evidence/
+            controls-*/results.json
+            retry-*/**/*.json
+            headless-*/**/*.json
+            canvas-*/
+            target-scheduler/
+          retention-days: 30
