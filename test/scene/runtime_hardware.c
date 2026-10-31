@@ -13,22 +13,24 @@
 #include <stdlib.h>
 extern unsigned scene_test_invocation(void);
 extern unsigned scene_test_width(void);
+extern unsigned scene_test_height(void);
+extern unsigned scene_test_format(void);
 extern void scene_test_frame(const void*,size_t);
 extern uint64_t scene_test_millis(void);
 extern int scene_test_mode(void);
 static uint8_t pixels[800*480*2+32];
 static bool held,presenting,subscribed;static unsigned acquisitions,completions,nav_index,nav_wait,invocation_completions;static uint64_t sequence;static unsigned polls,frame_polls,previous_invocation,io_count,submits,releases;
-static bool info(void*c,risc_display_info_v1*out){(void)c;++io_count;unsigned w=scene_test_width();*out=(risc_display_info_v1){.api_version=1,.struct_size=sizeof(*out),.width=w,.height=w==800?480:w,.supported_formats=RISC_DISPLAY_FORMAT_BIT(w==800?1:5),.preferred_format=w==800?1:5};const char* raw=getenv("ALARM_SCENE_SAFE_INSET");if(raw){char* end=NULL;unsigned long inset=strtoul(raw,&end,10);assert(end!=raw&&!*end&&inset<w/2);out->safe_insets=(risc_display_insets_v1){inset,inset,inset,inset};out->flags|=RISC_DISPLAY_INFO_ROUND;}return true;}
-static bool acquire(void*c,uint32_t f,risc_display_surface_v1*out){(void)c;++io_count;assert(!held&&!presenting);held=true;++acquisitions;memset(pixels,0xa5,sizeof(pixels));unsigned w=scene_test_width(),h=w==800?480:w;assert(f==(w==800?1u:5u));unsigned stride=w==800?w/8:w*2;*out=(risc_display_surface_v1){++sequence,pixels+16,w,h,stride,stride*h,f};return true;}
-static void guards(void){unsigned bytes=scene_test_width()==800?48000:scene_test_width()*scene_test_width()*2;for(unsigned i=0;i<16;i++){assert(pixels[i]==0xa5);assert(pixels[16+bytes+i]==0xa5);}}
+static bool info(void*c,risc_display_info_v1*out){(void)c;++io_count;unsigned w=scene_test_width();*out=(risc_display_info_v1){.api_version=1,.struct_size=sizeof(*out),.width=w,.height=scene_test_height(),.supported_formats=RISC_DISPLAY_FORMAT_BIT(scene_test_format()),.preferred_format=scene_test_format()};const char* raw=getenv("ALARM_SCENE_SAFE_INSET");if(raw){char* end=NULL;unsigned long inset=strtoul(raw,&end,10);assert(end!=raw&&!*end&&inset<w/2);out->safe_insets=(risc_display_insets_v1){inset,inset,inset,inset};out->flags|=RISC_DISPLAY_INFO_ROUND;}return true;}
+static bool acquire(void*c,uint32_t f,risc_display_surface_v1*out){(void)c;++io_count;assert(!held&&!presenting);held=true;++acquisitions;memset(pixels,0xa5,sizeof(pixels));unsigned w=scene_test_width(),h=scene_test_height();assert(f==scene_test_format());unsigned stride=scene_test_format()==1?(w+7)/8:w*2;*out=(risc_display_surface_v1){++sequence,pixels+16,w,h,stride,stride*h,f};return true;}
+static void guards(void){unsigned bytes=(scene_test_format()==1?(scene_test_width()+7)/8:scene_test_width()*2)*scene_test_height();for(unsigned i=0;i<16;i++){assert(pixels[i]==0xa5);assert(pixels[16+bytes+i]==0xa5);}}
 static void release(void*c,uint64_t frame){(void)c;++io_count;assert(held&&!presenting&&frame==sequence);held=false;++releases;guards();}
-static bool submit(void*c,uint64_t frame,const risc_display_rect_v1*d,size_t n,const risc_display_present_options_v1*o,uint64_t*t){(void)c;(void)d;++io_count;assert(held&&frame==sequence&&n==0&&o->queue_policy==RISC_DISPLAY_QUEUE_FIFO);guards();*t=sequence;frame_polls=0;held=false;presenting=true;++submits;scene_test_frame(pixels+16,scene_test_width()==800?48000:scene_test_width()*scene_test_width()*2);return true;}
+static bool submit(void*c,uint64_t frame,const risc_display_rect_v1*d,size_t n,const risc_display_present_options_v1*o,uint64_t*t){(void)c;(void)d;++io_count;assert(held&&frame==sequence&&n==0&&o->queue_policy==RISC_DISPLAY_QUEUE_FIFO);guards();*t=sequence;frame_polls=0;held=false;presenting=true;++submits;scene_test_frame(pixels+16,(scene_test_format()==1?(scene_test_width()+7)/8:scene_test_width()*2)*scene_test_height());return true;}
 static bool display_status(void*c,uint64_t t,risc_display_present_status_v1*out){(void)c;++io_count;assert(!held&&presenting&&t==sequence);out->state=++frame_polls<3?RISC_DISPLAY_PRESENT_ACTIVE:RISC_DISPLAY_PRESENT_COMPLETE;if(out->state==RISC_DISPLAY_PRESENT_COMPLETE){presenting=false;++completions;}return true;}
 static uint64_t subscribe(void*c){(void)c;++io_count;assert(!subscribed);subscribed=true;return 1;}
 static bool unsubscribe(void*c,uint64_t id){(void)c;++io_count;assert(subscribed&&id==1);subscribed=false;return true;}
 static bool touch_poll(void*c,size_t n){(void)c;++io_count;assert(n<=2);return true;}
 static int32_t touch_next(void*c,uint64_t id,risc_touch_event_v1*out){(void)c;(void)out;++io_count;assert(id==1&&subscribed);return 0;}
-static bool snapshot(void*c,risc_touch_snapshot_v1*out){(void)c;++io_count;*out=(risc_touch_snapshot_v1){.width=scene_test_width()==800?480:scene_test_width(),.height=scene_test_width()==800?800:scene_test_width()};return true;}
+static bool snapshot(void*c,risc_touch_snapshot_v1*out){(void)c;++io_count;*out=(risc_touch_snapshot_v1){.width=scene_test_format()==1?scene_test_height():scene_test_width(),.height=scene_test_format()==1?scene_test_width():scene_test_height()};return true;}
 static bool navigation(void*c,risc_input_navigation_frame_v1*out){
     (void)c;++io_count;unsigned invocation=scene_test_invocation();if(invocation!=previous_invocation){previous_invocation=invocation;polls=0;nav_index=nav_wait=0;invocation_completions=completions;}
     *out=(risc_input_navigation_frame_v1){0};assert(++polls<1000);
