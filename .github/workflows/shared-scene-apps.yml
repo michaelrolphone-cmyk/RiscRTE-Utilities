@@ -32,6 +32,12 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: b7803e6d32ce08fb4060730acc5443416b30148c
+          path: WaveRuntime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
           ref: ${{ inputs.system_revision || '734f3171a743bbcefc90fb8d843981b77965bc12' }}
           path: System
@@ -46,7 +52,7 @@ jobs:
           set -euo pipefail
           mkdir evidence
           test "$(git -C System rev-parse HEAD)" = "$SYSTEM_REVISION"
-          for source in Utilities Runtime System; do
+          for source in Utilities Runtime WaveRuntime System; do
             printf '%s %s\n' "$source" "$(git -C "$source" rev-parse HEAD)"
           done | tee evidence/source-heads.txt
           python Utilities/scripts/test_shared_scene_apps.py 2>&1 | tee evidence/shared-builder.log
@@ -60,6 +66,7 @@ jobs:
             python Utilities/scripts/test_calculator_scene.py --include runtime-$mode/sdk/include --output controller-$mode $san 2>&1 | tee evidence/controller-$mode.log
             python Utilities/scripts/test_current_scene_release.py --runtime Runtime --system-apps System --output alarms-runtime-$mode $san 2>&1 | tee evidence/alarms-runtime-$mode.log
             python Utilities/scripts/test_alarms_resident.py --include alarms-runtime-$mode/sdk/include --output alarms-resident-$mode $san 2>&1 | tee evidence/alarms-resident-$mode.log
+            python Utilities/scripts/test_alarms_atomic_runtime.py --runtime WaveRuntime --system-apps System --output alarms-atomic-runtime-$mode $san 2>&1 | tee evidence/alarms-atomic-runtime-$mode.log
           done
       - name: Target ELF and identical device selections
         run: |
@@ -74,6 +81,10 @@ jobs:
           path: |
             evidence/
             target-apps/
+            alarms-atomic-runtime-*/results.json
+            alarms-atomic-runtime-*/dependencies.json
+            alarms-atomic-runtime-*/*/runtime.log
+            alarms-atomic-runtime-*/*/boot.json
             alarms-runtime-*/results.json
             alarms-runtime-*/*/boot.json
             alarms-runtime-*/*/frame-first.raw

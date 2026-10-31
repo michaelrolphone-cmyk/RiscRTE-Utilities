@@ -365,7 +365,7 @@
     },
     {
       "id": "alarms",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "file_name": "alarms.elf",
       "runtime_profile": "shared-scene-v1",
       "manifest_path": "Apps/alarms_scene.json",

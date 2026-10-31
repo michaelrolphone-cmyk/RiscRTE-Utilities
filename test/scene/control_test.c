@@ -1,4 +1,4 @@
-#include "AlarmControlV1.h"
+#include "AlarmControlPreferencesV1.h"
 #include "AlarmRecords.h"
 #include "AlarmServiceV2.h"
 #include "RiscProviderV2.h"
@@ -126,8 +126,16 @@ int main(int argc,char**argv){
 #ifdef ALARM_NATIVE_UTC
         assert(!(s.flags&ALARM_CONTROL_HAS_VOLUME));assert(api->prepare(NULL,3,75,50,&c)==ALARM_CONTROL_INVALID&&!writes);
 #else
-        assert(s.flags&ALARM_CONTROL_HAS_VOLUME);c=command(3,75,50);assert(api->apply(NULL,&c)==0&&volume[0]==75);assert(api->apply(NULL,&c)==0&&writes==1);
-        assert(api->prepare(NULL,3,80,50,&c)==ALARM_CONTROL_STALE);
+        assert(s.flags&ALARM_CONTROL_HAS_VOLUME);c=command(3,75,50);
+        const alarm_control_preferences_v1 *ext=alarm_control_preferences(api);assert(ext);
+        alarm_control_preference_plan_v1 plan={.struct_size=sizeof(plan)};int previous=calls;
+        assert(ext->preference_plan(NULL,&c,&plan)==0&&calls==previous&&plan.namespace_id==1&&!strcmp(plan.key,"alarm_volume")&&plan.before_size==0&&plan.after_size==1&&plan.after[0]==75&&!writes);
+        c.bytes[20]^=1;assert(ext->preference_plan(NULL,&c,&plan)==ALARM_CONTROL_INVALID&&!writes);c.bytes[20]^=1;
+        alarm_control_api_v1 legacy=*api;legacy.struct_size=sizeof(legacy);assert(!alarm_control_preferences(&legacy));
+        assert(api->apply(NULL,&c)==0&&volume[0]==75);assert(api->apply(NULL,&c)==0&&writes==1);
+        assert(ext->reconcile_preferences(NULL,&c)==0&&writes==1);
+        volume[0]=50;assert(ext->reconcile_preferences(NULL,&c)==ALARM_CONTROL_STALE&&writes==1&&volume[0]==50);
+        volume[0]=75;assert(api->prepare(NULL,3,80,50,&c)==ALARM_CONTROL_STALE);
 #endif
     }else if(!strcmp(mode,"dismiss")){
         token=(alarm_token_v1){1,5,now_sec,12};alarm_control_occurrence_v1 copy={1,5,now_sec,11};assert(api->dismiss(NULL,&copy)==ALARM_CONTROL_STALE&&!acks);

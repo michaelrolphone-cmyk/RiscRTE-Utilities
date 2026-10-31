@@ -6,7 +6,9 @@
 #include "RiscSceneResidentV1.h"
 #include "RiscSceneStateV1.h"
 #include "RiscAppDataV1.h"
-#include "AlarmControlV1.h"
+#include "AlarmControlPreferencesV1.h"
+#define PORTABLE_PREFERENCE_STORE 1
+#include "PortablePreferenceAtomic.h"
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -38,7 +40,8 @@ static bool configure_scene(void);
 static bool handoff(uint32_t reason);
 static const alarm_control_api_v1 *control;
 static const risc_app_data_v1 *storage;
-static risc_runtime_capability_v1 grants[3];
+static risc_runtime_capability_v1 grants[4];
+static const risc_preference_store_v1 *preferences;
 static unsigned acquired;
 static uint64_t session,last_event;
 static bool terminal,recovery,storage_known,storage_present,force_read,command_not_attempted,explicit_refresh;
@@ -217,11 +220,54 @@ static bool refresh_status(void){
     return true;
 }
 static bool go_home(void){int32_t rc=scene->navigate(scene->context,session,RISC_SCENE_ROOT,0);if(scene_terminal(rc))return false;return rc==0;}
+static bool preference_guard(void *ignored){(void)ignored;return context_alive();}
+static int32_t preference_result(int rc){
+    if(rc==RISC_ATOMIC_RETAINED){retain();return ALARM_CONTROL_RETAINED;}
+    if(rc==RISC_ATOMIC_STALE||rc==RISC_ATOMIC_CONFLICT)return ALARM_CONTROL_STALE;
+    if(rc==RISC_ATOMIC_BUSY||rc==RISC_ATOMIC_PENDING||rc==PORTABLE_PREFERENCE_READY)return ALARM_CONTROL_PENDING;
+    if(rc==RISC_ATOMIC_UNCERTAIN||rc==RISC_ATOMIC_IO)return ALARM_CONTROL_UNCERTAIN;
+    return rc==RISC_ATOMIC_OK?ALARM_CONTROL_OK:ALARM_CONTROL_STORAGE;
+}
+static int32_t apply_command(void){
+    const alarm_control_preferences_v1 *extension=alarm_control_preferences(control);
+    if(preferences&&extension){
+        alarm_control_preference_plan_v1 plan={.struct_size=sizeof(plan)};
+        int32_t rc=extension->preference_plan(control->context,&state.command,&plan);
+        if(!context_alive())return ALARM_CONTROL_RETAINED;
+        if(rc!=ALARM_CONTROL_NOT_APPLICABLE){
+            if(rc)return rc;
+            if(plan.struct_size!=sizeof(plan)||plan.namespace_id!=PORTABLE_PREFERENCE_NAMESPACE||
+               !memchr(plan.key,0,sizeof(plan.key))||plan.before_size>sizeof(plan.before)||
+               !plan.after_size||plan.after_size>sizeof(plan.after))return ALARM_CONTROL_INVALID;
+            portable_preference_atomic transaction={0};
+            rc=portable_preference_atomic_begin(&transaction,preferences,plan.key,PORTABLE_PREFERENCE_USER,preference_guard,NULL);
+            if(rc!=PORTABLE_PREFERENCE_READY)return preference_result(rc);
+            if(transaction.present&&transaction.expected_size==plan.after_size&&!memcmp(transaction.expected,plan.after,plan.after_size))
+                return extension->reconcile_preferences(control->context,&state.command);
+            if(transaction.expected_size!=plan.before_size||transaction.present!=(plan.before_size!=0)||
+               memcmp(transaction.expected,plan.before,plan.before_size))return ALARM_CONTROL_STALE;
+            rc=portable_preference_atomic_prepare(&transaction,plan.after,plan.after_size);
+            if(rc!=PORTABLE_PREFERENCE_READY)return preference_result(rc);
+            rc=portable_preference_atomic_submit(&transaction);
+            /* Accepted work is collected before releasing any grant, handing
+             * off controls, or leaving the invocation. No automatic re-submit.
+             * A lost owner or ambiguous token keeps custody retained. */
+            while(rc==RISC_ATOMIC_PENDING){
+                rc=portable_preference_atomic_collect(&transaction);
+                if(rc==RISC_ATOMIC_PENDING){runtime->yield_ms(20);if(!context_alive())return ALARM_CONTROL_RETAINED;}
+            }
+            if(transaction.token){retain();return ALARM_CONTROL_RETAINED;}
+            if(rc!=RISC_ATOMIC_OK)return preference_result(rc);
+            return extension->reconcile_preferences(control->context,&state.command);
+        }
+    }
+    return control->apply(control->context,&state.command);
+}
 static bool apply_pending(void){
     if(!state.pending||recovery)return false;
     if(!checkpoint(false)){if(!terminal)(void)go_home();return false;}
     command_not_attempted=false;
-    int32_t rc=control->apply(control->context,&state.command);if(service_terminal(rc))return false;
+    int32_t rc=apply_command();if(service_terminal(rc))return false;
     state.pending_result=rc;message(result_message(rc));
     if(rc==ALARM_CONTROL_OK){
         state.pending=state.time_dirty=state.volume_dirty=0;memset(&state.command,0,sizeof(state.command));state.command.struct_size=sizeof(state.command);
@@ -308,6 +354,10 @@ static bool open_dependencies(void){
         ++acquired;
     }
     scene=grants[0].api;control=grants[1].api;storage=grants[2].api;
+    grants[3]=(risc_runtime_capability_v1){.struct_size=sizeof(grants[3])};
+    bool optional=runtime->acquire(RISC_PREFERENCE_STORE_CAPABILITY,1,0,&grants[3]);
+    if(!context_alive())return false;
+    if(optional){++acquired;preferences=grants[3].api;if(!portable_preference_atomic_api_valid(preferences))return false;}
     return scene&&scene->api_version==1&&scene->struct_size>=sizeof(*scene)&&scene->open&&scene->update&&scene->next&&scene->navigate&&scene->snapshot&&scene->close&&
         control&&control->api_version==1&&control->struct_size>=sizeof(*control)&&control->read&&control->step&&control->prepare&&control->apply&&control->dismiss&&
         storage&&storage->api_version==1&&storage->struct_size>=sizeof(*storage)&&storage->stat&&storage->read&&storage->replace;
@@ -356,7 +406,7 @@ __attribute__((visibility("default"))) void app_main(void){
     if(!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_RETAIN_INVOCATION_V1_SIZE||!runtime->retain_invocation||!runtime->acquire||!runtime->release||!runtime->yield_ms)return;
     explicit_refresh=true;lifecycle=NULL;resident=(risc_scene_resident_v1){0};
     acquired=0;terminal=false;command_not_attempted=false;session=0;last_event=0;recovery=false;storage_known=false;storage_present=false;stored_size=0;notice[0]=0;
-    scene=NULL;control=NULL;storage=NULL;document=(risc_scene_document_v1){0};root_navigation();status=(alarm_control_snapshot_v1){0};fresh_model();
+    preferences=NULL;scene=NULL;control=NULL;storage=NULL;document=(risc_scene_document_v1){0};root_navigation();status=(alarm_control_snapshot_v1){0};fresh_model();
     if(!open_dependencies()){
         /* A headless deployment may omit this optional presentation grant and
          * all presentation providers. No display/input fallback is attempted. */
