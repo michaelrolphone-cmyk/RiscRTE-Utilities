@@ -165,7 +165,7 @@ static void declare(void){
     candidate.routes[3]=(risc_scene_route_v1){CONFIRM_CANCEL,BACK_TO_OVERVIEW,"CANCEL"};
     candidate.routes[4]=(risc_scene_route_v1){CONFIRM_RESET,BACK_TO_OVERVIEW,"RESET"};
     bool locked=recovery||state.pending;
-    risc_scene_node_v1 *n=node(1,OVERVIEW,RISC_SCENE_TEXT_NODE,"ONE-SHOT ALARM");snprintf(n->text,sizeof(n->text),"%02u:%02u %s",state.minutes/60,state.minutes%60,status.zone);
+    risc_scene_node_v1 *n=node(1,OVERVIEW,RISC_SCENE_TEXT_NODE,"ONE-SHOT ALARM");snprintf(n->text,sizeof(n->text),"%02u:%02u %s",(unsigned)(state.minutes/60),(unsigned)(state.minutes%60),status.zone);
     n=node(2,OVERVIEW,RISC_SCENE_TEXT_NODE,"STATUS");snprintf(n->text,sizeof(n->text),"%s",notice[0]?notice:status.status);
     n=node(3,OVERVIEW,RISC_SCENE_LINK,"EDIT TIME");n->target=EDIT_TIME;if(locked)n->flags=RISC_SCENE_DISABLED;
     n=node(4,OVERVIEW,RISC_SCENE_LINK,"ALARM VOLUME");n->target=EDIT_VOLUME;if(!(status.flags&ALARM_CONTROL_HAS_VOLUME)){n->kind=RISC_SCENE_TEXT_NODE;n->target=0;snprintf(n->text,sizeof(n->text),"VOLUME CONTROL UNAVAILABLE");}else if(locked)n->flags=RISC_SCENE_DISABLED;
