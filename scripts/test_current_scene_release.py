@@ -52,20 +52,25 @@ def run(runtime: Path, system: Path, output: Path, sanitize: bool, headless_only
     env.setdefault('ASAN_OPTIONS','detect_leaks=0')
     results=[]
     app_hash=hashlib.sha256((common/'alarms.elf').read_bytes()).hexdigest()
-    profiles = (('paper',None,None),) if env.get('ALARM_SCENE_COLOR_WIDTH') else (('paper',None,None),('watch',240,240),('amoled',410,502))
+    profiles = (('paper',None,None),) if env.get('ALARM_SCENE_COLOR_WIDTH') else (('paper',None,None),('watch',240,240),('amoled',410,502),('watch-raw',240,240))
     for profile,native_width,native_height in profiles:
+        if scheduler_source and profile=='watch-raw':continue
         profile_env=dict(env)
         if native_width:
             profile_env['ALARM_SCENE_COLOR_WIDTH']=str(native_width)
             profile_env['ALARM_SCENE_COLOR_HEIGHT']=str(native_height)
         staging=output/profile
         shutil.copytree(common,staging)
-        native=True # Same UTC service contract; geometry is provider capability data.
+        native=profile!='watch-raw' # Clock/service composition is independent of app geometry.
         profile_flags=['-DSCENE_PROFILE_PAPER=1','-DSCENE_DISPLAY_ROTATION=90'] if native and not profile_env.get('ALARM_SCENE_COLOR_WIDTH') else []
         build(staging/'scene-presentation-profile.elf',[system/'Services/scene_profile/profile.c'],profile_flags)
+        if not native:
+            for index,name,capability,api in ((3,'rtc','rtc.clock',2),(4,'haptic','haptic.effect',1),(5,'audio','audio.output',1)):
+                build(staging/(name+'.elf'),[ROOT/'test/scene/runtime_provider.c'],[f'-DPROVIDER_INDEX={index}',f'-DPROVIDER_ID="{name}"',f'-DPROVIDER_CAP="{capability}"',f'-DPROVIDER_API={api}'])
         control_flags=['-DALARM_NATIVE_UTC','-DALARM_SERVICE_CLOCK_EDIT_V2'] if native else ['-DPORTABLE_RTC_UTC8_DENVER']
         build(staging/'alarm-control.elf',[ROOT/'Services/alarm_control/control.c',*time_sources(system)],control_flags)
-        scheduler_flags=['-DPOINTS_IN_TIME_SERVICE','-DALARM_DND_CONTROL','-DALARM_SERVICE_CLOCK_EDIT_V2','-DPOINTS_SERVICE_CONTEXT','-DALARM_NATIVE_MIXED_POINTS']
+        scheduler_flags=['-DPOINTS_IN_TIME_SERVICE','-DALARM_DND_CONTROL']
+        if native:scheduler_flags += ['-DALARM_SERVICE_CLOCK_EDIT_V2','-DPOINTS_SERVICE_CONTEXT','-DALARM_NATIVE_MIXED_POINTS']
         scheduler_flags += (['-DALARM_NATIVE_UTC','-DALARM_VISUAL_ONLY','-DALARM_SERVICE_TAGGED_V2']
                             if native else ['-DALARM_VOLUME_CONTROL'])
         if scheduler_source:
@@ -77,8 +82,8 @@ def run(runtime: Path, system: Path, output: Path, sanitize: bool, headless_only
             shutil.copytree(staging,fixture)
             try:
                 assert hashlib.sha256((fixture/'alarms.elf').read_bytes()).hexdigest()==app_hash
-                subprocess.run([str(executable),str(fixture),'paper',mode],env=profile_env,check=True)
-                results.append({'profile':profile,'activation':mode,'width':int(profile_env.get('ALARM_SCENE_COLOR_WIDTH','800')),'height':int(profile_env.get('ALARM_SCENE_COLOR_HEIGHT',profile_env.get('ALARM_SCENE_COLOR_WIDTH','480'))),'app_sha256':app_hash,'passed':True})
+                subprocess.run([str(executable),str(fixture),'paper' if native else 'raw',mode],env=profile_env,check=True)
+                results.append({'profile':profile,'activation':mode,'clock_binding':'utc' if native else 'raw-calendar','width':int(profile_env.get('ALARM_SCENE_COLOR_WIDTH','800')),'height':int(profile_env.get('ALARM_SCENE_COLOR_HEIGHT',profile_env.get('ALARM_SCENE_COLOR_WIDTH','480'))),'app_sha256':app_hash,'passed':True})
             except subprocess.CalledProcessError:
                 # Generated fixtures contain no user data. Preserve the exact
                 # admission inputs in CI evidence rather than hiding bootstrap failures.
