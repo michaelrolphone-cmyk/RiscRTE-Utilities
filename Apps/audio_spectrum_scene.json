@@ -1,0 +1,57 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "file_name": "audio_spectrum.elf",
+  "id": "audio_spectrum",
+  "requires": [],
+  "type": "application",
+  "version": "0.6.0",
+  "display_name": "Audio Spectrum",
+  "icon": "solid:f130",
+  "optional": [
+    {
+      "api": 1,
+      "capability": "ui.scene"
+    },
+    {
+      "api": 1,
+      "capability": "ui.canvas"
+    },
+    {
+      "api": 1,
+      "capability": "ui.text-input"
+    },
+    {
+      "api": 1,
+      "capability": "audio.input"
+    },
+    {
+      "api": 2,
+      "capability": "storage.key-value"
+    },
+    {
+      "api": 1,
+      "capability": "storage.key-value"
+    },
+    {
+      "api": 1,
+      "capability": "storage.app-data"
+    },
+    {
+      "api": 1,
+      "capability": "storage.shared-data"
+    },
+    {
+      "api": 1,
+      "capability": "contexts.service"
+    },
+    {
+      "api": 1,
+      "capability": "telemetry.broadcast"
+    },
+    {
+      "api": 1,
+      "capability": "runtime.realtime"
+    }
+  ]
+}

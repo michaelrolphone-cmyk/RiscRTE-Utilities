@@ -1,0 +1,83 @@
+name: Shared Audio Spectrum qualification
+on:
+  pull_request:
+    paths:
+      - 'Apps/audio_spectrum*'
+      - 'Apps/spectrum*'
+      - 'Apps/battery_broadcast.h'
+      - 'Apps/battery_preference_adapter.h'
+      - 'lib/Bluetooth/include/TelemetryBroadcastPolicyV1.h'
+      - 'scripts/*spectrum*'
+      - 'scripts/build_shared_scene_apps.py'
+      - 'scripts/scene_support.py'
+      - 'scripts/install_badge_catalog_toolchain.sh'
+      - 'test/spectrum*/**'
+      - 'utilities-manifest.json'
+      - '.github/workflows/audio-spectrum-scene.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualification:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 472e0d94e52520cc1ccc70ade71c3a83a43f0d34
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: bd51ac6b4b7a0cd74bd76b2df7a9a1c889b3eb43
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Exact source custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qualification/source qualification/logs
+          test "$(git -C System rev-parse HEAD)" = 472e0d94e52520cc1ccc70ade71c3a83a43f0d34
+          test "$(git -C Runtime rev-parse HEAD)" = bd51ac6b4b7a0cd74bd76b2df7a9a1c889b3eb43
+          for source in Utilities System Runtime; do
+            printf '%s %s\n' "$source" "$(git -C "$source" rev-parse HEAD)"
+            git -C "$source" archive --format=tar HEAD | gzip -n > "qualification/source/$source.tar.gz"
+          done | tee qualification/source/heads.txt
+          sha256sum qualification/source/*.tar.gz > qualification/source/archives.sha256
+      - name: Semantic controllers and actual Runtime qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s Utilities/test/spectrum_projection -p 'test_*.py' -v 2>&1 | tee qualification/logs/projection.log
+          for mode in normal sanitized; do
+            san=(); if [ "$mode" = sanitized ]; then san=(--sanitize); fi
+            for suite in scene lifecycle io; do
+              python "Utilities/scripts/test_spectrum_$suite.py" --runtime Runtime --system System --output "qualification/$suite-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/$suite-$mode.log"
+            done
+            python Utilities/scripts/test_spectrum_background.py --runtime Runtime --system System --utilities Utilities --output "qualification/background-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/background-$mode.log"
+            python Utilities/scripts/test_spectrum_runtime.py --runtime Runtime --system System --output "qualification/runtime-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/runtime-$mode.log"
+          done
+      - name: Official compiler and canonical target module
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/spectrum-toolchain" 2>&1 | tee qualification/logs/compiler.log
+          export NATIVE_APP_CC="$RUNNER_TEMP/spectrum-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc"
+          python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --app audio_spectrum --output qualification/target-apps 2>&1 | tee qualification/logs/target-apps.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audio-spectrum-${{ github.sha }}
+          path: qualification/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30

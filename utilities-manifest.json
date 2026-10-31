@@ -404,6 +404,25 @@
         "app_main",
         "risc_resident_app_descriptor_v1"
       ]
+    },
+    {
+      "id": "audio_spectrum",
+      "version": "0.6.0",
+      "file_name": "audio_spectrum.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/audio_spectrum_scene.json",
+      "sources": [
+        "Apps/audio_spectrum_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ],
+      "compiler_support": true,
+      "system_sources": [
+        "lib/NativeApps/src/SingleFloatDivisionCompat.c",
+        "lib/NativeApps/src/UnsignedDivisionCompat.c"
+      ]
     }
   ]
 }

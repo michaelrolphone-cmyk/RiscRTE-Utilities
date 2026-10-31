@@ -80,10 +80,13 @@ def distribute(package, manifest, output):
         result[target] = {'path': str((dest/original.name).relative_to(output)), 'sha256': actual}
     return result
 
-def run(runtime, system, output):
+def run(runtime, system, output, selected_app=None):
     if output.exists():
         raise FileExistsError('Use a new output directory')
     rows = inventory()
+    if selected_app is not None:
+        rows = [row for row in rows if row["id"] == selected_app]
+        if not rows: raise ValueError("Unknown shared app: " + selected_app)
     output.mkdir(parents=True)
     sys.path.insert(0, str(system/'scripts'))
     try:
@@ -114,11 +117,17 @@ def run(runtime, system, output):
             for row in rows:
                 manifest = json.loads((ROOT/row['manifest_path']).read_text())
                 sources = [ROOT/path for path in row['sources']]
+                sources += [local_path(system, path) for path in row.get('system_sources', [])]
                 package = output/'packages'/row['id']
+                support = {}
+                if row.get('compiler_support', False):
+                    archive = Path(subprocess.check_output([compiler, '-print-libgcc-file-name'], text=True).strip()).resolve()
+                    if not archive.is_file(): raise ValueError('Missing selected compiler support archive')
+                    support = {'libraries': [archive], 'normalize_relocations': True}
                 built = builder.build(compiler, include, package, manifest, sources,
-                                      defines=[], exports=set(row['exports']))
+                                      defines=[], exports=set(row['exports']), **support)
                 repeated = builder.build(compiler, include, temp/('repeat-'+row['id']), manifest, sources,
-                                         defines=[], exports=set(row['exports']))
+                                         defines=[], exports=set(row['exports']), **support)
                 if built['sha256'] != repeated['sha256']:
                     raise ValueError('Shared ELF is not reproducible: ' + row['id'])
                 built['reproducibility'] = {'sha256': repeated['sha256'], 'size_bytes': repeated['size_bytes'], 'matches': True}
@@ -153,5 +162,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('runtime', 'system-apps', 'output'):
         parser.add_argument('--'+name, required=True, type=Path)
+    parser.add_argument('--app', help='Build one explicitly selected canonical app')
     args = parser.parse_args()
-    run(args.runtime.resolve(), args.system_apps.resolve(), args.output.resolve())
+    run(args.runtime.resolve(), args.system_apps.resolve(), args.output.resolve(), args.app)
