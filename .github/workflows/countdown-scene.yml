@@ -1,0 +1,66 @@
+name: Shared Countdown qualification
+on:
+  pull_request:
+    paths: ['Apps/countdown_scene.*', 'Services/countdown_control/**', 'lib/Alarm/include/CountdownControlV1.h', 'scripts/*countdown*', 'scripts/project_schedule_scene.py', 'test/shared_countdown/**', 'test/scene/countdown*', 'utilities-manifest.json', '.github/workflows/countdown-scene.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualification:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 13eca114cb58469cf6004fafc3da84fbd9d29beb
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 734f3171a743bbcefc90fb8d843981b77965bc12
+          path: System
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Source custody and actual Runtime qualification
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          for source in Utilities Runtime System; do printf '%s %s\n' "$source" "$(git -C "$source" rev-parse HEAD)"; done | tee evidence/source-heads.txt
+          python Utilities/scripts/test_schedule_scene_projection.py 2>&1 | tee evidence/projection.log
+          for mode in normal sanitized; do
+            san=""; if [ "$mode" = sanitized ]; then san="--sanitize"; fi
+            python Utilities/scripts/test_countdown_control.py --runtime Runtime --system-apps System --output control-$mode $san 2>&1 | tee evidence/control-$mode.log
+            python Utilities/scripts/test_countdown_runtime.py --runtime Runtime --system-apps System --output countdown-runtime-$mode $san 2>&1 | tee evidence/runtime-$mode.log
+            python Utilities/scripts/test_countdown_scene.py --include countdown-runtime-$mode/sdk/include --output scene-$mode $san 2>&1 | tee evidence/scene-$mode.log
+          done
+      - name: Canonical target modules and reproducibility
+        run: |
+          set -euo pipefail
+          bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/shared-toolchain" 2>&1 | tee evidence/compiler.log
+          export NATIVE_APP_CC="$RUNNER_TEMP/shared-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc"
+          python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --output target-apps 2>&1 | tee evidence/target-apps.log
+          python Utilities/scripts/build_countdown_control.py --runtime Runtime --system-apps System --output target-controls 2>&1 | tee evidence/target-controls.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-countdown-${{ github.sha }}
+          path: |
+            evidence/
+            target-apps/
+            target-controls/
+            control-*/results.json
+            scene-*/receipt.json
+            scene-*/run.log
+            countdown-runtime-*/results.json
+            countdown-runtime-*/dependencies.json
+            countdown-runtime-*/*/runtime.log
+            countdown-runtime-*/*/boot.json
+          retention-days: 30
