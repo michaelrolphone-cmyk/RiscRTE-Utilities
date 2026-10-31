@@ -14,10 +14,13 @@ def sdk(runtime: Path, system: Path, output: Path) -> Path:
     spec.loader.exec_module(module)
     include = module.stage_sdk(runtime, system, output)
     sources = list((ROOT/'lib/Alarm/include').glob('*.h'))
+    sources += list((ROOT/'lib/Bluetooth/include').glob('*.h'))
     sources += [system/'lib/PortableApps/include'/name for name in
                 ('PortableRtcClock.h', 'PortableTime.h', 'PortableTimeZone.h',
                  'PortableTimeZonePreference.h','PortablePreferenceAtomic.h',
-                 'RiscPreferenceStoreV1.h','RiscKeyValueAtomicV1.h')]
+                 'RiscPreferenceStoreV1.h','RiscKeyValueAtomicV1.h','PortablePowerStatus.h',
+                 'TelemetryBroadcastV1.h','PortableRadioPolicy.h','PortableQuickPreferences.h',
+                 'RiscBluetoothTelemetryV1.h','RiscPlatformClockV1.h')]
     for source in sources:
         target = include/source.name
         if target.exists() and target.read_bytes() != source.read_bytes():
