@@ -376,6 +376,20 @@
         "app_main",
         "risc_resident_app_descriptor_v1"
       ]
+    },
+    {
+      "id": "countdown",
+      "version": "0.2.0",
+      "file_name": "countdown.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/countdown_scene.json",
+      "sources": [
+        "Apps/countdown_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
     }
   ]
 }
