@@ -1,4 +1,4 @@
-#include "AlarmControlV1.h"
+#include "AlarmControlPreferencesV1.h"
 #include "AlarmRecords.h"
 #include "AlarmServiceV2.h"
 #ifdef ALARM_SERVICE_CLOCK_EDIT_V2
@@ -299,7 +299,28 @@ static int32_t dismiss(void *ctx,const alarm_control_occurrence_v1 *token){
     rc=scheduler->acknowledge(scheduler->context,&t);if(rc==ALARM_RETAINED)return fence();
     return rc==ALARM_OK?ALARM_CONTROL_OK:rc==ALARM_PENDING?ALARM_CONTROL_PENDING:ALARM_CONTROL_BLOCKED;
 }
-static const alarm_control_api_v1 api={1,sizeof(api),NULL,step,read_snapshot,prepare,apply,dismiss};
+static int32_t preference_plan(void *ctx,const alarm_control_command_v1 *cmd,alarm_control_preference_plan_v1 *out){
+    (void)ctx;int32_t rc=valid_call();if(rc)return rc;
+    if(!out||out->struct_size!=sizeof(*out)||!valid_command(cmd))return ALARM_CONTROL_INVALID;
+    if(alarm_read32(cmd->bytes+8)!=ALARM_CONTROL_VOLUME)return ALARM_CONTROL_NOT_APPLICABLE;
+    if(!has_volume())return ALARM_CONTROL_INVALID;
+    alarm_control_preference_plan_v1 plan={.struct_size=sizeof(plan),.namespace_id=1,
+        .before_size=alarm_read32(cmd->bytes+12),.after_size=alarm_read32(cmd->bytes+80)};
+    memcpy(plan.key,ALARM_VOLUME_KEY,sizeof(ALARM_VOLUME_KEY));
+    memcpy(plan.before,cmd->bytes+16,plan.before_size);memcpy(plan.after,cmd->bytes+48,plan.after_size);
+    *out=plan;return ALARM_CONTROL_OK;
+}
+static int32_t reconcile_preferences(void *ctx,const alarm_control_command_v1 *cmd){
+    (void)ctx;int32_t rc=valid_call();if(rc)return rc;
+    if(!valid_command(cmd)||alarm_read32(cmd->bytes+8)!=ALARM_CONTROL_VOLUME||!has_volume())return ALARM_CONTROL_INVALID;
+    uint8_t actual[32]={0};uint32_t size=0,after=alarm_read32(cmd->bytes+80);
+    rc=get(ALARM_VOLUME_KEY,actual,sizeof(actual),&size);if(retained)return ALARM_CONTROL_RETAINED;
+    if(rc!=RISC_BOUND_KEY_VALUE_OK&&rc!=RISC_BOUND_KEY_VALUE_NOT_FOUND)return ALARM_CONTROL_STORAGE;
+    if(rc==RISC_BOUND_KEY_VALUE_NOT_FOUND||size!=after||memcmp(actual,cmd->bytes+48,after))return ALARM_CONTROL_STALE;
+    return refresh_scheduler();
+}
+static const alarm_control_preferences_v1 api={{1,sizeof(api),NULL,step,read_snapshot,prepare,apply,dismiss},
+    ALARM_CONTROL_PREFERENCES_TAG,1,preference_plan,reconcile_preferences};
 static bool start(const risc_provider_dependency_v1 *deps,size_t count){
     if(started||retained||!deps||count!=3)return false;
     store=NULL;scheduler=NULL;

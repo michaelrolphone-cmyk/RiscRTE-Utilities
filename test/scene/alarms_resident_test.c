@@ -29,7 +29,7 @@ static int32_t step_status(void*c){(void)c;return 0;}
 static int32_t prepare_status(void*c,uint32_t a,uint32_t b,uint32_t d,alarm_control_command_v1*o){(void)c;(void)a;(void)b;(void)d;(void)o;assert(0);return 0;}
 static int32_t apply_status(void*c,const alarm_control_command_v1*q){(void)c;(void)q;assert(0);return 0;}
 static int32_t dismiss_status(void*c,const alarm_control_occurrence_v1*q){(void)c;(void)q;assert(0);return 0;}
-static bool acquire_api(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){assert(v==1&&id==0);g->slot=1;g->generation=1;g->api=!strcmp(n,RISC_SCENE_CAPABILITY)?(void*)&ui:!strcmp(n,ALARM_CONTROL_CAPABILITY)?(void*)&service:(void*)&data_api;return true;}
+static bool acquire_api(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){assert(v==1&&id==0);if(!strcmp(n,RISC_PREFERENCE_STORE_CAPABILITY))return false;g->slot=1;g->generation=1;g->api=!strcmp(n,RISC_SCENE_CAPABILITY)?(void*)&ui:!strcmp(n,ALARM_CONTROL_CAPABILITY)?(void*)&service:(void*)&data_api;return true;}
 static bool release_api(risc_runtime_capability_v1*g){releases++;*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;}
 static bool replaced_bad_bind(risc_resident_client_v1*c){replaced=true;other=rt;c->api_version=0;return true;}
 static void setup(void){
