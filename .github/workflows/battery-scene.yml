@@ -62,7 +62,11 @@ jobs:
             scene-*/receipt.json
             scene-*/run.log
             battery-runtime-*/results.json
-            battery-runtime-*/dependencies.json
+            battery-runtime-*/sources.json
+            battery-runtime-*/sdk-inputs.json
+            battery-runtime-*/runtime-build.json
+            battery-runtime-*/runtime-test
+            battery-runtime-*/*/*.elf
             battery-runtime-*/*/runtime.log
             battery-runtime-*/*/boot.json
           retention-days: 30
