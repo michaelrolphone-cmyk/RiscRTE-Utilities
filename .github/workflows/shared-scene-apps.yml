@@ -1,0 +1,84 @@
+name: Shared scene application delivery
+on:
+  pull_request:
+    paths: ['Apps/*scene*', 'scripts/**', 'test/shared_calculator/**', 'test/shared_stopwatch/**', 'test/scene/**', 'utilities-manifest.json', '.github/workflows/shared-scene-apps.yml']
+  workflow_dispatch:
+    inputs:
+      system_revision:
+        description: Exact published System commit containing the shared provider changes
+        required: true
+        default: 734f3171a743bbcefc90fb8d843981b77965bc12
+        type: string
+permissions:
+  contents: read
+jobs:
+  qualification:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Validate selected System identity
+        env:
+          SYSTEM_REVISION: ${{ inputs.system_revision || '734f3171a743bbcefc90fb8d843981b77965bc12' }}
+        run: '[[ "$SYSTEM_REVISION" =~ ^[0-9a-f]{40}$ ]]'
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 13eca114cb58469cf6004fafc3da84fbd9d29beb
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: ${{ inputs.system_revision || '734f3171a743bbcefc90fb8d843981b77965bc12' }}
+          path: System
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Source identity and host qualification
+        env:
+          SYSTEM_REVISION: ${{ inputs.system_revision || '734f3171a743bbcefc90fb8d843981b77965bc12' }}
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          test "$(git -C System rev-parse HEAD)" = "$SYSTEM_REVISION"
+          for source in Utilities Runtime System; do
+            printf '%s %s\n' "$source" "$(git -C "$source" rev-parse HEAD)"
+          done | tee evidence/source-heads.txt
+          python Utilities/scripts/test_shared_scene_apps.py 2>&1 | tee evidence/shared-builder.log
+          for mode in normal sanitized; do
+            san=""
+            if [ "$mode" = sanitized ]; then san="--sanitize"; fi
+            python Utilities/scripts/test_calculator_runtime.py --runtime Runtime --system-apps System --output runtime-$mode $san 2>&1 | tee evidence/runtime-$mode.log
+            python Utilities/scripts/test_stopwatch_runtime.py --runtime Runtime --system-apps System --output stopwatch-runtime-$mode $san 2>&1 | tee evidence/stopwatch-runtime-$mode.log
+            python Utilities/scripts/test_stopwatch_scene.py --include stopwatch-runtime-$mode/sdk/include --output stopwatch-controller-$mode $san 2>&1 | tee evidence/stopwatch-controller-$mode.log
+            python Utilities/scripts/test_stopwatch_provider.py --system-apps System --include stopwatch-runtime-$mode/sdk/include --output stopwatch-provider-$mode $san 2>&1 | tee evidence/stopwatch-provider-$mode.log
+            python Utilities/scripts/test_calculator_scene.py --include runtime-$mode/sdk/include --output controller-$mode $san 2>&1 | tee evidence/controller-$mode.log
+          done
+      - name: Target ELF and identical device selections
+        run: |
+          set -euo pipefail
+          bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/shared-toolchain" 2>&1 | tee evidence/compiler.log
+          export NATIVE_APP_CC="$RUNNER_TEMP/shared-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc"
+          python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --output target-apps 2>&1 | tee evidence/target-apps.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-scene-apps-${{ github.sha }}
+          path: |
+            evidence/
+            target-apps/
+            stopwatch-runtime-*/results.json
+            stopwatch-runtime-*/dependencies.json
+            stopwatch-runtime-*/*/runtime.log
+            runtime-*/results.json
+            runtime-*/dependencies.json
+            runtime-*/*/runtime.log
+            runtime-*/*/boot.json
+            runtime-*/*/frame-first.raw
+            runtime-*/*/frame-latest.raw
+          retention-days: 30

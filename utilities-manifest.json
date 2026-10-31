@@ -333,5 +333,35 @@
       ],
       "min_firmware_version": "0.1.83"
     }
+  ],
+  "shared_scene_apps": [
+    {
+      "id": "calculator",
+      "version": "0.2.0",
+      "file_name": "calculator.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/calculator_scene.json",
+      "sources": [
+        "Apps/calculator_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
+    },
+    {
+      "id": "stopwatch",
+      "version": "0.2.0",
+      "file_name": "stopwatch.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/stopwatch_scene.json",
+      "sources": [
+        "Apps/stopwatch_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
+    }
   ]
 }
