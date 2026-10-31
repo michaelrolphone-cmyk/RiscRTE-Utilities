@@ -18,7 +18,7 @@
 #include <vector>
 using RiscBoot::Runtime;
 static std::string root,mode;
-static unsigned width=240,invocations,finis,unloads,launcher_visits,kv_writes,frame_count;
+static unsigned width=240,height=240,format=5,invocations,finis,unloads,launcher_visits,kv_writes,frame_count;
 static uint64_t millis;
 static unsigned headless_phase;
 static bool headless_done,exit_pending;
@@ -29,10 +29,12 @@ extern "C" unsigned scene_test_hardware_io();
 extern "C" void scene_test_hardware_closed();
 extern "C" unsigned scene_test_invocation(){return invocations;}
 extern "C" unsigned scene_test_width(){return width;}
+extern "C" unsigned scene_test_height(){return height;}
+extern "C" unsigned scene_test_format(){return format;}
 extern "C" int scene_test_mode(){return mode=="headless";}
 extern "C" uint64_t scene_test_millis(){return millis;}
 extern "C" void scene_test_frame(const void*p,size_t n){
-    ++frame_count;std::ofstream f(root+"/frame-"+std::to_string(invocations)+"-"+std::to_string(frame_count)+".raw",std::ios::binary);f.write(static_cast<const char*>(p),n);assert(f.good());
+    ++frame_count;for(const char*name:{"frame-first.raw","frame-latest.raw"}){if(!strcmp(name,"frame-first.raw")&&frame_count!=1)continue;std::ofstream f(root+"/"+name,std::ios::binary);f.write(static_cast<const char*>(p),n);assert(f.good());}
 }
 static void checkpoint(unsigned expected_minutes,bool committed){
     uint8_t encoded[228],payload[132];uint32_t size=0;uint64_t revision=0,actual=0;
@@ -53,8 +55,8 @@ extern "C" void scene_test_lifecycle(unsigned event){
 extern "C" int scene_test_launch(){
     if(mode=="headless"){assert(!scene_test_hardware_io());return headless_done?-2:-1;}
     assert(finis==invocations&&unloads==invocations);
-    if(invocations){void* h=dlopen((root+"/alarms.elf").c_str(),RTLD_NOW|RTLD_NOLOAD);assert(!h&&"previous application mapping is still resident");checkpoint(invocations==1?421:481,invocations==2);}
-    ++launcher_visits;return static_cast<int>(invocations);
+    if(invocations){void* h=dlopen((root+"/alarms.elf").c_str(),RTLD_NOW|RTLD_NOLOAD);assert(!h&&"previous application mapping is still resident");if(mode!="no-ui")checkpoint(invocations==1?421:481,invocations==2);}
+    ++launcher_visits;return mode=="no-ui"&&invocations==2?-2:static_cast<int>(invocations);
 }
 extern "C" void scene_test_headless(const alarm_control_api_v1* control){
     for(unsigned i=0;i<100;i++){assert(control->step(control->context)>=0);millis+=20;}
@@ -166,7 +168,7 @@ static void configure(bool utc){
     auto app=[&](const char* id,const char* elf,std::initializer_list<std::pair<const char*,unsigned>> requirements){
         JsonDocument doc;doc["type"]="application";doc["id"]=id;doc["version"]="0.3.0";doc["architecture"]="xtensa-esp32s3";doc["file_name"]=elf;doc["entry"]="app_main";
         auto p=policies.add<JsonObject>();std::string name=std::string(id)+".json";p["manifest"]=name;
-        auto rs=doc["requires"].to<JsonArray>();auto gs=p["grants"].to<JsonArray>();for(auto r:requirements){auto q=rs.add<JsonObject>();q["capability"]=r.first;q["api"]=1;auto g=gs.add<JsonObject>();g["capability"]=r.first;g["api"]=1;g["instance_id"]=r.second;}
+        auto rs=doc["requires"].to<JsonArray>();if(!strcmp(id,"alarms"))rs=doc["optional"].to<JsonArray>();auto gs=p["grants"].to<JsonArray>();for(auto r:requirements){auto q=rs.add<JsonObject>();q["capability"]=r.first;q["api"]=1;if(mode=="no-ui"&&!strcmp(r.first,"ui.scene"))continue;auto g=gs.add<JsonObject>();g["capability"]=r.first;g["api"]=1;g["instance_id"]=r.second;}
         file(name,serialized(doc));
     };
     if(mode=="headless"){app("launcher","launcher.elf",{});app("headless","headless.elf",{{"alarm.control",0}});}
@@ -176,7 +178,7 @@ static void configure(bool utc){
     std::vector<uint8_t> zone(44);zone[0]='T';zone[1]='Z';zone[2]=1;memcpy(zone.data()+4,"America/Denver",14);uint8_t sum=0xa5;for(unsigned i=0;i<44;i++)if(i!=3)sum^=zone[i];zone[3]=sum;kv[{1,"time_zone"}]=zone;
 }
 int main(int argc,char**argv){
-    assert(argc==4);root=argv[1];bool utc=!strcmp(argv[2],"paper");width=utc?800:240;if(const char* selected=getenv("ALARM_SCENE_COLOR_WIDTH")){char* end=nullptr;unsigned long value=strtoul(selected,&end,10);assert(end!=selected&&!*end&&value>=160&&value<=600);width=static_cast<unsigned>(value);}mode=argv[3];configure(utc);
+    assert(argc==4);root=argv[1];bool utc=!strcmp(argv[2],"paper");width=utc?800:240;if(const char* selected=getenv("ALARM_SCENE_COLOR_WIDTH")){char* end=nullptr;unsigned long value=strtoul(selected,&end,10);assert(end!=selected&&!*end&&value>=160&&value<=600);width=static_cast<unsigned>(value);}height=width==800?480:width;format=width==800?1:5;if(const char* selected=getenv("ALARM_SCENE_COLOR_HEIGHT")){char* end=nullptr;unsigned long value=strtoul(selected,&end,10);assert(end!=selected&&!*end&&value>=160&&value<=800);height=static_cast<unsigned>(value);}assert((uint64_t)width*height<=800u*480u);mode=argv[3];configure(utc);
     std::filesystem::create_directory(root+"/appdata");RiscStorage::AppDataFiles data({nullptr,[](void*){return static_cast<uint32_t>(millis);},[](void*){return true;},malloc,free});files=&data;assert(data.configure((root+"/appdata").c_str()));
     RiscBoot::AppDataBackend storage{&data,
         [](void*c,uint32_t n,const char*p,uint32_t*s,uint64_t*r){return static_cast<RiscStorage::AppDataFiles*>(c)->stat(n,p,s,r);},
@@ -188,11 +190,12 @@ int main(int argc,char**argv){
     port.controlEnd=[](){bool was=exit_pending;exit_pending=false;return was;};
     port.bindPlatforms=[](Runtime&r){return r.registerPlatform("platform.clock",1,Runtime::Scope::Global,0,scene_test_hardware(6))&&r.registerRealtime(static_cast<const risc_realtime_control_api_v1*>(scene_test_hardware(7)));};
     {RiscTest::FileSources sourceFiles({root.c_str()});Runtime r(port);assert(sourceFiles.bind(r));if(!r.prepare(root.c_str())){fprintf(stderr,"prepare: %s\n",r.error());return 2;}assert(!scene_test_hardware_io());if(!r.run()){fprintf(stderr,"run: %s\n",r.error());return 3;}assert(!r.retained());}
-    if(mode!="headless"){assert(frame_count>0);assert(invocations==2&&finis==2&&unloads==2&&launcher_visits==3);checkpoint(481,true);scene_test_hardware_closed();}
+    if(mode=="no-ui"){assert(frame_count==0&&kv_writes==0&&scene_test_hardware_io()==0);assert(invocations==2&&finis==2&&unloads==2&&launcher_visits==3);scene_test_hardware_closed();}
+    else if(mode!="headless"){assert(frame_count>0);assert(invocations==2&&finis==2&&unloads==2&&launcher_visits==3);checkpoint(481,true);scene_test_hardware_closed();}
     else {
         assert(headless_done&&headless_phase==4&&!invocations&&!frame_count&&!scene_test_hardware_io());
         assert(!dlopen((root+"/headless.elf").c_str(),RTLD_NOW|RTLD_NOLOAD));
     }
-    auto record=kv.at({3,utc?"alarm_utc_cfg":"alarm_cfg"});assert(record.size()==32);assert(kv_writes>=1);
-    printf("actual Runtime Alarms %s %s PASS inits=%u finis=%u actual-unloads=%u frames=%u KV-writes=%u\n",argv[2],argv[3],invocations,finis,unloads,frame_count,kv_writes);
+    if(mode!="no-ui"){auto record=kv.at({3,utc?"alarm_utc_cfg":"alarm_cfg"});assert(record.size()==32);assert(kv_writes>=1);}
+    printf("actual Runtime Alarms %ux%u format%u %s %s PASS inits=%u finis=%u actual-unloads=%u frames=%u KV-writes=%u\n",width,height,format,argv[2],argv[3],invocations,finis,unloads,frame_count,kv_writes);
 }

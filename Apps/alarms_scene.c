@@ -3,6 +3,7 @@
  * font, geometry, product, or form-factor dependencies. */
 #include "RiscRuntimeV1.h"
 #include "RiscSceneV1.h"
+#include "RiscSceneResidentV1.h"
 #include "RiscSceneStateV1.h"
 #include "RiscAppDataV1.h"
 #include "AlarmControlV1.h"
@@ -29,12 +30,18 @@ static risc_scene_document_v1 document,candidate;
 static risc_scene_navigation_v1 navigation;
 static const risc_runtime_api_v1 *runtime;
 static const risc_scene_api_v1 *scene;
+static const risc_scene_lifecycle_api_v1 *lifecycle;
+static risc_scene_resident_v1 resident;
+static bool close_scene(void);
+static bool reopen_scene(void);
+static bool configure_scene(void);
+static bool handoff(uint32_t reason);
 static const alarm_control_api_v1 *control;
 static const risc_app_data_v1 *storage;
 static risc_runtime_capability_v1 grants[3];
 static unsigned acquired;
 static uint64_t session,last_event;
-static bool terminal,recovery,storage_known,storage_present,force_read,command_not_attempted;
+static bool terminal,recovery,storage_known,storage_present,force_read,command_not_attempted,explicit_refresh;
 static uint8_t stored[CHECKPOINT_SIZE];static uint32_t stored_size;
 static char notice[72];
 
@@ -42,7 +49,7 @@ static void message(const char *text){snprintf(notice,sizeof(notice),"%s",text);
 static void retain(void){
     terminal=true;
     /* No provider calls, diagnostics, frees, or releases after this fence. */
-    (void)runtime->retain_invocation();
+    if(risc_runtime_get_api(1)==runtime)(void)runtime->retain_invocation();
 }
 static bool context_alive(void){
     if(terminal)return false;
@@ -161,7 +168,7 @@ static void declare(void){
     risc_scene_node_v1 *n=node(1,OVERVIEW,RISC_SCENE_TEXT_NODE,"ONE-SHOT ALARM");snprintf(n->text,sizeof(n->text),"%02u:%02u %s",state.minutes/60,state.minutes%60,status.zone);
     n=node(2,OVERVIEW,RISC_SCENE_TEXT_NODE,"STATUS");snprintf(n->text,sizeof(n->text),"%s",notice[0]?notice:status.status);
     n=node(3,OVERVIEW,RISC_SCENE_LINK,"EDIT TIME");n->target=EDIT_TIME;if(locked)n->flags=RISC_SCENE_DISABLED;
-    n=node(4,OVERVIEW,RISC_SCENE_LINK,"ALARM VOLUME");n->target=EDIT_VOLUME;if(!(status.flags&ALARM_CONTROL_HAS_VOLUME))n->flags=RISC_SCENE_HIDDEN;else if(locked)n->flags=RISC_SCENE_DISABLED;
+    n=node(4,OVERVIEW,RISC_SCENE_LINK,"ALARM VOLUME");n->target=EDIT_VOLUME;if(!(status.flags&ALARM_CONTROL_HAS_VOLUME)){n->kind=RISC_SCENE_TEXT_NODE;n->target=0;snprintf(n->text,sizeof(n->text),"VOLUME CONTROL UNAVAILABLE");}else if(locked)n->flags=RISC_SCENE_DISABLED;
     n=node(5,OVERVIEW,RISC_SCENE_LINK,"CANCEL ALARM");n->target=CONFIRM_CANCEL;n->flags=RISC_SCENE_DESTRUCTIVE;if(locked||!(status.flags&ALARM_CONTROL_ENABLED))n->flags|=RISC_SCENE_DISABLED;
     n=node(6,OVERVIEW,RISC_SCENE_ACTION,"DISMISS ALERT");n->action=DISMISS;if(!(status.flags&ALARM_CONTROL_ALERT))n->flags=RISC_SCENE_HIDDEN;
     n=node(7,OVERVIEW,RISC_SCENE_ACTION,"RETRY / REFRESH");n->action=REFRESH;
@@ -172,10 +179,10 @@ static void declare(void){
     n=node(11,EDIT_TIME,RISC_SCENE_ACTION,"ARM NEXT OCCURRENCE");n->action=ARM_NEXT;n->flags=RISC_SCENE_PRIMARY;
     if(locked||(status.flags&(ALARM_CONTROL_CONFIG_VALID|ALARM_CONTROL_CLOCK_VALID|ALARM_CONTROL_SERVICE_READY))!=(ALARM_CONTROL_CONFIG_VALID|ALARM_CONTROL_CLOCK_VALID|ALARM_CONTROL_SERVICE_READY))n->flags|=RISC_SCENE_DISABLED;
     n=node(12,EDIT_TIME,RISC_SCENE_ACTION,"DISCARD EDIT");n->action=DISCARD_TIME;if(state.pending)n->flags=RISC_SCENE_DISABLED;
-    n=node(13,EDIT_VOLUME,RISC_SCENE_INTEGER,"VOLUME PERCENT");n->action=CHANGE_VOLUME;n->value=(int32_t)state.volume;n->maximum=100;n->step=5;if(locked)n->flags=RISC_SCENE_DISABLED;
+    n=node(13,EDIT_VOLUME,RISC_SCENE_INTEGER,"VOLUME PERCENT");n->action=CHANGE_VOLUME;n->value=(int32_t)state.volume;n->maximum=100;n->step=5;if(locked||!(status.flags&ALARM_CONTROL_HAS_VOLUME))n->flags=RISC_SCENE_DISABLED;
     n=node(23,EDIT_VOLUME,RISC_SCENE_TEXT_NODE,"STATUS");snprintf(n->text,sizeof(n->text),"%s",notice);if(!notice[0])n->flags=RISC_SCENE_HIDDEN;
     n=node(14,EDIT_VOLUME,RISC_SCENE_ACTION,"SAVE VOLUME");n->action=SAVE_VOLUME;n->flags=RISC_SCENE_PRIMARY;
-    if(locked||!(status.flags&ALARM_CONTROL_VOLUME_VALID))n->flags|=RISC_SCENE_DISABLED;
+    if(locked||(status.flags&(ALARM_CONTROL_HAS_VOLUME|ALARM_CONTROL_VOLUME_VALID))!=(ALARM_CONTROL_HAS_VOLUME|ALARM_CONTROL_VOLUME_VALID))n->flags|=RISC_SCENE_DISABLED;
     n=node(15,EDIT_VOLUME,RISC_SCENE_ACTION,"DISCARD EDIT");n->action=DISCARD_VOLUME;if(state.pending)n->flags=RISC_SCENE_DISABLED;
     n=node(16,CONFIRM_CANCEL,RISC_SCENE_TEXT_NODE,"CANCEL ONE-SHOT ALARM");snprintf(n->text,sizeof(n->text),"COUNTDOWN AND OTHER EVENTS STAY");
     n=node(17,CONFIRM_CANCEL,RISC_SCENE_ACTION,"CONFIRM CANCEL");n->action=CANCEL_ALARM;n->flags=RISC_SCENE_DESTRUCTIVE;if(locked)n->flags|=RISC_SCENE_DISABLED;
@@ -183,6 +190,10 @@ static void declare(void){
     n=node(19,CONFIRM_RESET,RISC_SCENE_TEXT_NODE,"DISCARD SAVED DRAFT");snprintf(n->text,sizeof(n->text),"THIS DOES NOT CANCEL A SAVED ALARM");
     n=node(20,CONFIRM_RESET,RISC_SCENE_ACTION,"CONFIRM DRAFT RESET");n->action=RESET_DRAFT;n->flags=RISC_SCENE_DESTRUCTIVE;if(!reset_allowed())n->flags|=RISC_SCENE_DISABLED;
     n=node(21,CONFIRM_RESET,RISC_SCENE_ACTION,"KEEP DRAFT");n->action=BACK_TO_OVERVIEW;
+    n=node(24,OVERVIEW,RISC_SCENE_TEXT_NODE,"PRESENTATION CAPABILITIES");
+    if(!lifecycle)snprintf(n->text,sizeof(n->text),"AUTOMATIC REFRESH AND SHARED CONTROLS UNAVAILABLE");
+    else if(!resident.enabled)snprintf(n->text,sizeof(n->text),"SHARED CONTROLS UNAVAILABLE");
+    else n->flags=RISC_SCENE_HIDDEN;
 }
 static bool present_model(void){
     declare();if(!memcmp(&candidate,&document,sizeof(document)))return true;
@@ -232,7 +243,7 @@ static void prepare_command(uint32_t op,uint32_t value,uint32_t expected){
 static bool permitted_event(const risc_scene_event_v1 *e){
     if(e->struct_size!=sizeof(*e)||e->document_revision!=document.revision||!e->sequence||e->sequence<=last_event)return false;
     last_event=e->sequence;
-    if(e->kind==RISC_SCENE_SUSPEND_EVENT)return e->node==0&&e->action==0;
+    if(e->kind==RISC_SCENE_SUSPEND_EVENT||e->kind==RISC_SCENE_CONTROLS_EVENT)return e->node==0&&e->action==0;
     uint32_t flags=0;int32_t sr=scene->snapshot(scene->context,session,&navigation,&flags);
     if(scene_terminal(sr)||sr!=0)return false;
     uint32_t route=navigation.routes[navigation.depth-1];
@@ -251,11 +262,15 @@ static bool permitted_event(const risc_scene_event_v1 *e){
 }
 static bool handle_event(const risc_scene_event_v1 *e){
     if(!permitted_event(e))return false;
+    explicit_refresh=true;
     if(e->kind==RISC_SCENE_SUSPEND_EVENT){
         /* Recovery can leave without changing an unreadable prior checkpoint. */
         if(recovery)return true;
-        return checkpoint(false);
+        bool saved=checkpoint(false);
+        if(!saved&&!terminal)(void)configure_scene();
+        return saved;
     }
+    if(e->kind==RISC_SCENE_CONTROLS_EVENT)return resident.enabled?handoff(RISC_RESIDENT_CHECKPOINT_CONTROLS):false;
     switch(e->action){
     case CHANGE_TIME:state.minutes=(uint32_t)e->value;state.time_dirty=1;notice[0]=0;break;
     case CHANGE_VOLUME:state.volume=(uint32_t)e->value;state.volume_dirty=1;notice[0]=0;break;
@@ -301,9 +316,45 @@ static void close_dependencies(void){
     if(terminal)return;
     while(acquired){bool ok=runtime->release(&grants[--acquired]);if(!context_alive())return;if(!ok){retain();return;}}
 }
+static bool close_scene(void){
+    if(!session)return true;
+    for(unsigned attempt=0;attempt<250;attempt++){
+        int32_t rc=scene->close(scene->context,session);if(scene_terminal(rc))return false;
+        if(rc==RISC_SCENE_OK){session=0;return true;}
+        if(rc!=RISC_SCENE_AGAIN){retain();return false;}
+        runtime->yield_ms(20);if(!context_alive())return false;
+    }
+    retain();return false;
+}
+static bool configure_scene(void){
+    lifecycle=risc_scene_lifecycle_get_v1(scene);
+    explicit_refresh=true;
+    if(lifecycle){int32_t rc=lifecycle->configure(scene->context,session,resident.enabled?RISC_SCENE_FEATURE_SHARED_CONTROLS:0);if(scene_terminal(rc))return false;if(rc!=RISC_SCENE_OK){message("SHARED CONTROLS UNAVAILABLE");lifecycle=NULL;}}
+    return true;
+}
+static bool reopen_scene(void){
+    declare();document=candidate;
+    int32_t rc=scene->open(scene->context,&document,&navigation,&session);if(scene_terminal(rc)||rc!=RISC_SCENE_OK)return false;
+    last_event=0;return configure_scene();
+}
+static bool handoff(uint32_t reason){
+    /* Never overwrite an unreadable checkpoint. Pending commands remain an
+     * exact, durable journal, not a guessed successful save. */
+    if(!recovery&&!checkpoint(false)){
+        if(!terminal)(void)configure_scene();
+        return terminal;
+    }
+    if(!close_scene())return true;
+    int32_t rc=risc_scene_resident_dispatch_v1(&resident,reason);if(!context_alive())return true;
+    if(rc==RISC_RESIDENT_RETAINED){retain();return true;}
+    if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_BUSY)return true;
+    force_read=true;return !reopen_scene();
+}
+__attribute__((visibility("default"))) const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1={1,sizeof(risc_resident_app_descriptor_v1_t),RISC_RESIDENT_ROLE_FOREGROUND,0};
 __attribute__((visibility("default"))) void app_main(void){
     runtime=risc_runtime_get_api(1);
     if(!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_RETAIN_INVOCATION_V1_SIZE||!runtime->retain_invocation||!runtime->acquire||!runtime->release||!runtime->yield_ms)return;
+    explicit_refresh=true;lifecycle=NULL;resident=(risc_scene_resident_v1){0};
     acquired=0;terminal=false;command_not_attempted=false;session=0;last_event=0;recovery=false;storage_known=false;storage_present=false;stored_size=0;notice[0]=0;
     scene=NULL;control=NULL;storage=NULL;document=(risc_scene_document_v1){0};root_navigation();status=(alarm_control_snapshot_v1){0};fresh_model();
     if(!open_dependencies()){
@@ -314,6 +365,8 @@ __attribute__((visibility("default"))) void app_main(void){
         if(context_alive())close_dependencies();
         return;
     }
+    if(!risc_scene_resident_bind_v1(runtime,&resident)){retain();return;}
+    if(!context_alive())return;
     if(!refresh_status()){close_dependencies();return;}
     fresh_model();(void)load_checkpoint();if(terminal)return;
     declare();document=candidate;
@@ -324,6 +377,7 @@ __attribute__((visibility("default"))) void app_main(void){
         rc=scene->open(scene->context,&document,&navigation,&session);if(scene_terminal(rc))return;
     }
     if(rc!=RISC_SCENE_OK){close_dependencies();return;}
+    if(!configure_scene()){if(!terminal&&close_scene())close_dependencies();return;}
     unsigned ticks=0;force_read=true;bool leaving=false;
     for(;;){
         risc_scene_event_v1 event={.struct_size=sizeof(event)};
@@ -336,20 +390,23 @@ __attribute__((visibility("default"))) void app_main(void){
         uint32_t flags=0;rc=scene->snapshot(scene->context,session,&navigation,&flags);
         if(scene_terminal(rc))return;
         if(rc!=0)break;
+        if(resident.enabled){
+            uint32_t work=(state.pending||recovery)?RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY:0;
+            int32_t rr=risc_scene_resident_poll_work_v1(&resident,flags,work);if(!context_alive())return;
+            if(rr==RISC_RESIDENT_RETAINED){retain();return;}if(rr==RISC_RESIDENT_EXIT)break;
+            if(resident.policy&&!work&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))){if(handoff(RISC_RESIDENT_CHECKPOINT_POLICY))break;continue;}
+        }
         if(!(flags&RISC_SCENE_PRESENTING)){
             int32_t sr=control->step(control->context);if(service_terminal(sr))return;
             if(force_read||++ticks>=25){force_read=false;ticks=0;(void)refresh_status();if(terminal)return;}
         }
-        if(!present_model()){if(terminal)return;break;}
+        /* Status may advance independently, but never invalidate an active
+         * raster or held/queued contact. Without lifecycle tracking, publish
+         * only an explicit user refresh/action rather than a timer update. */
+        if(!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&(lifecycle||explicit_refresh)){
+            if(!present_model()){if(terminal)return;break;}explicit_refresh=false;
+        }
         runtime->yield_ms(20);if(!context_alive())return;
     }
-    /* Poll only closure, never ordinary input/service work after close starts. */
-    for(unsigned attempt=0;attempt<250;attempt++){
-        rc=scene->close(scene->context,session);if(scene_terminal(rc))return;
-        if(rc==RISC_SCENE_OK){session=0;close_dependencies();return;}
-        if(rc!=RISC_SCENE_AGAIN){retain();return;}
-        runtime->yield_ms(20);if(!context_alive())return;
-    }
-    /* An unconfirmed transfer is not a successfully suspended scene. */
-    retain();
+    if(close_scene())close_dependencies();
 }

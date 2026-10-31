@@ -58,6 +58,8 @@ jobs:
             python Utilities/scripts/test_stopwatch_scene.py --include stopwatch-runtime-$mode/sdk/include --output stopwatch-controller-$mode $san 2>&1 | tee evidence/stopwatch-controller-$mode.log
             python Utilities/scripts/test_stopwatch_provider.py --system-apps System --include stopwatch-runtime-$mode/sdk/include --output stopwatch-provider-$mode $san 2>&1 | tee evidence/stopwatch-provider-$mode.log
             python Utilities/scripts/test_calculator_scene.py --include runtime-$mode/sdk/include --output controller-$mode $san 2>&1 | tee evidence/controller-$mode.log
+            python Utilities/scripts/test_current_scene_release.py --runtime Runtime --system-apps System --output alarms-runtime-$mode $san 2>&1 | tee evidence/alarms-runtime-$mode.log
+            python Utilities/scripts/test_alarms_resident.py --include alarms-runtime-$mode/sdk/include --output alarms-resident-$mode $san 2>&1 | tee evidence/alarms-resident-$mode.log
           done
       - name: Target ELF and identical device selections
         run: |
@@ -72,6 +74,10 @@ jobs:
           path: |
             evidence/
             target-apps/
+            alarms-runtime-*/results.json
+            alarms-runtime-*/*/boot.json
+            alarms-runtime-*/*/frame-first.raw
+            alarms-runtime-*/*/frame-latest.raw
             stopwatch-runtime-*/results.json
             stopwatch-runtime-*/dependencies.json
             stopwatch-runtime-*/*/runtime.log
