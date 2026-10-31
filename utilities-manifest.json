@@ -333,5 +333,77 @@
       ],
       "min_firmware_version": "0.1.83"
     }
+  ],
+  "shared_scene_apps": [
+    {
+      "id": "calculator",
+      "version": "0.2.0",
+      "file_name": "calculator.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/calculator_scene.json",
+      "sources": [
+        "Apps/calculator_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
+    },
+    {
+      "id": "stopwatch",
+      "version": "0.2.0",
+      "file_name": "stopwatch.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/stopwatch_scene.json",
+      "sources": [
+        "Apps/stopwatch_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
+    },
+    {
+      "id": "alarms",
+      "version": "0.3.1",
+      "file_name": "alarms.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/alarms_scene.json",
+      "sources": [
+        "Apps/alarms_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
+    },
+    {
+      "id": "countdown",
+      "version": "0.2.0",
+      "file_name": "countdown.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/countdown_scene.json",
+      "sources": [
+        "Apps/countdown_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
+    },
+    {
+      "id": "battery",
+      "version": "0.2.0",
+      "file_name": "battery.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/battery_scene.json",
+      "sources": [
+        "Apps/battery_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
+    }
   ]
 }

@@ -3,7 +3,10 @@
   "entry": "app_main",
   "file_name": "alarms.elf",
   "id": "alarms",
-  "requires": [
+  "type": "application",
+  "version": "0.3.1",
+  "requires": [],
+  "optional": [
     {
       "api": 1,
       "capability": "ui.scene"
@@ -15,8 +18,11 @@
     {
       "api": 1,
       "capability": "storage.app-data"
+    },
+    {
+      "capability": "storage.preferences",
+      "api": 1
     }
   ],
-  "type": "application",
-  "version": "0.3.0"
+  "display_name": "Alarms"
 }

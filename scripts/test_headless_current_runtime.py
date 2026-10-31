@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 """Exercise actual unloadable Alarms/provider ELFs with the production Runtime."""
 import argparse
+import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 from scene_support import ROOT, sdk, time_sources
+from lifecycle_dependencies import Closure
 
 
 def run(runtime: Path, system: Path, output: Path, sanitize: bool, headless_only: bool = False) -> None:
     include = sdk(runtime, system, output/'sdk')
+    closure=Closure([('candidate',ROOT),('runtime',runtime),('system',system),('generated-sdk',include.parent)],output/'DEPENDENCIES.json')
+    def compile(command):
+        closure.record(command)
+        subprocess.run(command,check=True)
     cc, cxx = os.environ.get('CC', 'cc'), os.environ.get('CXX', 'c++')
     san = (['-g', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
             '-fno-omit-frame-pointer'] if sanitize else ['-g'])
@@ -19,13 +26,13 @@ def run(runtime: Path, system: Path, output: Path, sanitize: bool, headless_only
     if os.uname().sysname == 'Darwin':
         shared += ['-undefined', 'dynamic_lookup']
     def build(destination: Path, sources: list[Path | str], defines: list[str] = [], dso: bool = True):
-        subprocess.run([cc, *cflags, *(shared if dso else ['-c']), *defines,
-                        *map(str, sources), '-o', str(destination)], check=True)
+        compile([cc, *cflags, *(shared if dso else ['-c']), *defines,
+                        *map(str, sources), '-o', str(destination)])
     common = output/'common'
     common.mkdir()
     build(common/'launcher.elf', [ROOT/'test/scene/runtime_launcher.c'])
     build(common/'headless.elf', [ROOT/'Apps/alarms_headless.c'], ['-DALARM_HEADLESS_TEST'])
-    build(output/'hardware.o',[ROOT/'test/scene/runtime_hardware.c'],dso=False)
+    build(output/'hardware.o',[ROOT/'test/provider_lifecycle/headless_hardware.c'],dso=False)
     # Host helper's time conversion is linked once into the executable, not any
     # application. The product application itself remains exactly the same DSO.
     for index,source in enumerate(time_sources(system)):
@@ -35,14 +42,15 @@ def run(runtime: Path, system: Path, output: Path, sanitize: bool, headless_only
                'runtime/drivers/ProviderGraphV2.cpp', 'runtime/drivers/ProviderModuleV2.cpp',
                'runtime/storage/AppDataFiles.cpp')
     executable=output/'runtime-test'
-    subprocess.run([cxx,*san,'-std=c++17','-O0' if sanitize else '-O1','-Wall','-Wextra','-Werror',
+    compile([cxx,*san,'-std=c++17','-O0' if sanitize else '-O1','-Wall','-Wextra','-Werror',
                     '-Wno-missing-field-initializers','-DRISC_RUNTIME_PROVIDER_CAPACITY=28','-rdynamic','-I'+str(include),
                     *['-I'+str(runtime/path) for path in ('src','lib/ArduinoJson/src','test/drivers/stubs','test')],
                     *[str(runtime/'src'/source) for source in sources],
-                    str(ROOT/'test/scene/current_runtime_test.cpp'),str(output/'hardware.o'),
-                    *[str(output/f'time{i}.o') for i in range(3)],'-ldl','-o',str(executable)],check=True)
+                    str(ROOT/'test/provider_lifecycle/headless_runtime_test.cpp'),str(output/'hardware.o'),
+                    *[str(output/f'time{i}.o') for i in range(3)],'-Wl,--wrap=dlopen','-Wl,--wrap=dlclose','-ldl','-o',str(executable)])
     env=dict(os.environ)
     env.setdefault('ASAN_OPTIONS','detect_leaks=0')
+    cases=[]
     for profile in ('paper',):
         staging=output/profile
         shutil.copytree(common,staging)
@@ -54,18 +62,22 @@ def run(runtime: Path, system: Path, output: Path, sanitize: bool, headless_only
         scheduler_flags += (['-DALARM_NATIVE_UTC','-DALARM_VISUAL_ONLY','-DALARM_SERVICE_TAGGED_V2']
                             if native else ['-DALARM_VOLUME_CONTROL'])
         build(staging/'alarm-service.elf',[ROOT/'Services/alarm_service/service.c',*time_sources(system)],scheduler_flags)
-        for mode in ('headless',):
+        for mode in ('headless', 'clock-recovery', 'cancel-before-ready', 'clock-context'):
             fixture=output/f'{profile}-{mode}'
             shutil.copytree(staging,fixture)
             try:
-                subprocess.run([str(executable),str(fixture),profile,mode],env=env,check=True)
+                result=subprocess.run([str(executable),str(fixture),profile,'headless'],env=dict(env, PROVIDER_LIFECYCLE_FAULT='' if mode=='headless' else mode),text=True,capture_output=True)
+                print(result.stdout,end='');print(result.stderr,end='')
+                cases.append({'name':mode,'returncode':result.returncode,'stdout':result.stdout,'stderr':result.stderr,'modules':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in fixture.glob('*.elf')}})
+                (output/'RESULT.json').write_text(json.dumps({'cases':cases,'sanitizer':'address,undefined' if sanitize else 'none','runtime_executable_sha256':hashlib.sha256(executable.read_bytes()).hexdigest(),'scope':'Actual host Runtime and provider images, modeled physical services; no native device execution.'},indent=2)+'\n')
+                result.check_returncode()
             except subprocess.CalledProcessError:
                 # Generated fixtures contain no user data. Preserve the exact
                 # admission inputs in CI evidence rather than hiding bootstrap failures.
                 for manifest in sorted(fixture.glob('*.json')):
                     print(f'FAILED FIXTURE {manifest.name}: {manifest.read_bytes()!r}', flush=True)
                 raise
-    print('1 current mixed-service cold-headless owner execution passed; actual host ELF unmapping verified, not hardware execution.')
+    print('4 actual Runtime/headless provider lifecycle cases passed; host execution, no native device execution.')
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)

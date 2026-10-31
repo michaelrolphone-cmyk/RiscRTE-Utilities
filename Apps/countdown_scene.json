@@ -1,0 +1,24 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "file_name": "countdown.elf",
+  "id": "countdown",
+  "type": "application",
+  "version": "0.2.0",
+  "requires": [],
+  "optional": [
+    {
+      "api": 1,
+      "capability": "ui.scene"
+    },
+    {
+      "api": 1,
+      "capability": "countdown.control"
+    },
+    {
+      "api": 1,
+      "capability": "storage.app-data"
+    }
+  ],
+  "display_name": "Countdown"
+}
