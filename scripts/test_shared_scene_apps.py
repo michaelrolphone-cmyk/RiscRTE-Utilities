@@ -2,7 +2,7 @@
 """Guard shared-app identities, profile-free recipes and byte-identical selections."""
 import copy,json,tempfile,unittest
 from pathlib import Path
-from build_shared_scene_apps import inventory,distribute
+from build_shared_scene_apps import inventory,distribute,select_rows
 class SharedApps(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);(self.root/'Apps').mkdir()
@@ -12,6 +12,12 @@ class SharedApps(unittest.TestCase):
  def tearDown(self):self.temp.cleanup()
  def save(self,rows=None):
   (self.root/'Apps/app.json').write_text(json.dumps(self.manifest));(self.root/'utilities-manifest.json').write_text(json.dumps({'shared_scene_apps':rows or [self.row]}))
+ def test_cohort_default(self):
+  rows=[{"id":"a"},{"id":"b"}];self.assertEqual(select_rows(rows),rows)
+ def test_cohort_explicit(self):
+  rows=[{"id":"a"},{"id":"b"},{"id":"c"}];self.assertEqual(select_rows(rows,["c","a"]),[rows[0],rows[2]]);self.assertEqual(select_rows(rows,"b"),[rows[1]])
+ def test_cohort_invalid(self):
+  for selection in ([],["a","a"],["missing"]):self.assertRaises(ValueError,select_rows,[{"id":"a"}],selection)
  def test_valid(self):self.save();self.assertEqual(inventory(self.root)[0],self.row)
  def test_identity(self):self.row['version']='2';self.save();self.assertRaises(ValueError,inventory,self.root)
  def test_device_flags(self):self.row['defines']=['-DWATCH'];self.save();self.assertRaises(ValueError,inventory,self.root)
