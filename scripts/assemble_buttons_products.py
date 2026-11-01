@@ -13,6 +13,7 @@ def encode(value): return (json.dumps(value,sort_keys=True,indent=2)+'\n').encod
 def require(value,message):
     if not value: raise ValueError(message)
 PINS={
+ 'idle_home':'6ab2384bf5a75c928f5656268d442a10c717965486c7aecf308bb3d87b53490a',
  'watch_artifact':'3a5aadb0eeb5c4b37640d606978162b5c0484893aada661baca4ca39a12d66f2',
  'wave_artifact':'aae8665d9240bd49dbdae89f250525ccea6cabc44215133248ee1a2c7b19d1d6',
  'x4_store':'8d38a77bdb3dd1439e8736d9c0363798f20803e02b44fc1aa5dab578207c4adc',
@@ -33,6 +34,24 @@ def write_files(root,files):
         p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
 def same_provider(old,new):
     require({k:v for k,v in old.items() if k!='version'}=={k:v for k,v in new.items() if k!='version'},'Provider graph/ABI/identity change')
+HOME_PINS={'watch':('0.24.1','488c915da997573a2bb862c909e290e6290cc4a4c0c1cc15a47f4badffb54243'),'wave':('0.24.2','09a3e46e225737e660d6f9898509f9baadb0352c126246bc6199ecfadd646fda')}
+def validate_idle_home(old,new,row,lane):
+    require(lane in HOME_PINS,'No original idle host authority for this product')
+    require(new.get('id')=='twatch-clock' and new.get('file_name')=='default.elf','Unexpected Home identity')
+    require(new.get('version')==HOME_PINS[lane][0],'Home lacks qualified idle-only version')
+    same_provider(old,new)
+    require(row.get('manifest')=='default.json' and not row.get('image_source'),'Unexpected Home route')
+    require(any(g.get('capability')=='power.sleep' for g in row.get('grants',[])),'Original Home sleep grant missing')
+def install_idle_home(before,after,boot,lane,archive):
+    with zipfile.ZipFile(archive) as z:
+        elf=z.read(lane+'-first/default.elf')
+        require(elf==z.read(lane+'-repeat/default.elf') and sha(elf)==HOME_PINS[lane][1],'Qualified idle Home repeat/digest differs')
+        data=z.read(lane+'-first/default.json');require(data==z.read(lane+'-repeat/default.json'),'Home manifest repeat differs')
+        manifest=json.loads(data)
+    row=next(x for x in boot['app_capabilities'] if x['manifest']=='default.json')
+    validate_idle_home(json.loads(before['default.json']),manifest,row,lane)
+    after['default.elf']=elf;after['default.json']=data
+    return {'source':'b58a67cd926add5f9effc83ed07bdd337076e927','version':manifest['version'],'sha256':sha(elf),'policy_unchanged':True}
 def assemble(a):
     inputs={}
     for name,h in PINS.items():
@@ -87,6 +106,9 @@ def assemble(a):
             rec=json.loads(rtc['rtc-utc/receipt.json']);require('-DRTC_UTC_OFFSET_SECONDS=28800' in rec['builds'][0]['defines'] and sha(elf)==rec['builds'][0]['sha256'],'RTC UTC basis/proof differs')
             rm=json.loads(rtc['rtc-utc/package/manifest.json']);same_provider(json.loads(before['rtc/manifest.json']),rm)
             after['rtc/driver.elf']=elf;after['rtc/manifest.json']=encode(rm);allowed|={'rtc/driver.elf','rtc/manifest.json'}
+        idle_home=None
+        if lane in HOME_PINS:
+            idle_home=install_idle_home(before,after,nextboot,lane,a.idle_home);allowed|={'default.elf','default.json'}
         after['boot.json']=encode(nextboot)
         require(before.keys()==after.keys(),'Store membership changed')
         changed={n for n in before if before[n]!=after[n]};require(changed<=allowed,'Unrelated stored payload changed')
@@ -98,12 +120,12 @@ def assemble(a):
             with zipfile.ZipFile(out/'sd-apps.zip','w',compression=zipfile.ZIP_DEFLATED) as z:
                 for n,b in sorted(sd.items()):z.writestr(n,b)
             require(unzip((out/'sd-apps.zip').read_bytes())==sd,'SD round trip differs');write_files(out/'sd',sd)
-        results[lane]={'baseline_store_sha256':sha(raw),'store':store_receipt,'changed_files':sorted(changed),'unchanged_internal':len(before)-len(changed),'driver_count':len(boot['drivers']),'app_policy_count':len(boot['app_capabilities']),'grants':grant_receipt,'sd_original_count':len(sd_before),'sd_unchanged':sum(sd.get(n)==b for n,b in sd_before.items()),'sd_added':sorted(set(sd)-set(sd_before)),'app_sha256':sha(app),'scene_sha256':sha(scene),'profile_package':str(package.resolve()),'all_other_authority_unchanged':True}
+        results[lane]={'baseline_store_sha256':sha(raw),'store':store_receipt,'changed_files':sorted(changed),'unchanged_internal':len(before)-len(changed),'driver_count':len(boot['drivers']),'app_policy_count':len(boot['app_capabilities']),'grants':grant_receipt,'sd_original_count':len(sd_before),'sd_unchanged':sum(sd.get(n)==b for n,b in sd_before.items()),'sd_added':sorted(set(sd)-set(sd_before)),'app_sha256':sha(app),'scene_sha256':sha(scene),'profile_package':str(package.resolve()),'all_other_authority_unchanged':True,'idle_home':idle_home}
     receipt={'inputs':inputs,'app_sha256':sha(app),'products':results,'scope':'Private stores/SD and metadata only; no firmware execution or external publication'}
     (a.output/'assembly.json').write_bytes(encode(receipt));return receipt
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
-    for n in ('watch-artifact','wave-artifact','x4-store','x4-sd','watch-scene','wave-scene','x4-scene','package','bootfs-tools','output'):p.add_argument('--'+n,type=pathlib.Path,required=True)
+    for n in ('idle-home','watch-artifact','wave-artifact','x4-store','x4-sd','watch-scene','wave-scene','x4-scene','package','bootfs-tools','output'):p.add_argument('--'+n,type=pathlib.Path,required=True)
     for n in ('watch-rtc','wave-rtc'):p.add_argument('--'+n,type=pathlib.Path,required=True)
     p.add_argument('--expected-app-sha256',required=True)
     p.add_argument('--expected-manifest-sha256',required=True)

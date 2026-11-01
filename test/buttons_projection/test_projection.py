@@ -1,5 +1,6 @@
-import copy, importlib.util, pathlib, unittest
+import copy, importlib.util, pathlib, unittest, sys
 ROOT=pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(ROOT/'scripts'))
 spec=importlib.util.spec_from_file_location('buttons_projection',ROOT/'scripts/buttons_product_projection.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class Projection(unittest.TestCase):
  def setUp(self):
@@ -58,4 +59,17 @@ class Projection(unittest.TestCase):
  def test_control_and_digest_suffix_routes_rejected(self):
   for path in ('Apps/bad\n/ble_buttons.elf','Apps/image-'+('a'*64)+'suffix/ble_buttons.elf'):
    b=copy.deepcopy(self.boot);r=b['app_capabilities'][0];r['image_source']['path']=path;self.assertRaises(ValueError,m.update_buttons_route,b,r,'a'*64,'b'*64)
+class IdleHome(unittest.TestCase):
+ def test_required_qualified_version_and_identity(self):
+  from assemble_buttons_products import validate_idle_home
+  old={'id':'twatch-clock','file_name':'default.elf','version':'0.23.1','requires':[]}
+  new={**old,'version':'0.24.1'};row={'manifest':'default.json','grants':[{'capability':'power.sleep','api':1,'instance_id':0}]}
+  validate_idle_home(old,new,row,'watch')
+  for bad in [{**new,'version':'0.23.1'},{**new,'id':'other'},{**new,'requires':[{'capability':'new'}]}]:self.assertRaises(ValueError,validate_idle_home,old,bad,row,'watch')
+ def test_routes_and_authority_not_invented(self):
+  from assemble_buttons_products import validate_idle_home
+  old={'id':'twatch-clock','file_name':'default.elf','version':'0.23.2'};new={**old,'version':'0.24.2'};row={'manifest':'default.json','grants':[{'capability':'power.sleep'}]}
+  validate_idle_home(old,new,row,'wave')
+  for bad in [{**row,'image_source':{'path':'elsewhere'}},{**row,'grants':[]}]:self.assertRaises(ValueError,validate_idle_home,old,new,bad,'wave')
+  self.assertRaises(ValueError,validate_idle_home,old,new,row,'x4')
 if __name__=='__main__':unittest.main()
