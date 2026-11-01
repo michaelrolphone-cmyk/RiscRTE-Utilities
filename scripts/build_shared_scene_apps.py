@@ -80,10 +80,18 @@ def distribute(package, manifest, output):
         result[target] = {'path': str((dest/original.name).relative_to(output)), 'sha256': actual}
     return result
 
-def run(runtime, system, output):
+def select_rows(rows, selected_app=None):
+    if selected_app is None:
+        return rows
+    selected = [selected_app] if isinstance(selected_app, str) else selected_app
+    if not selected or len(selected) != len(set(selected)) or set(selected) - {row["id"] for row in rows}:
+        raise ValueError("Unknown or duplicate shared app selection")
+    return [row for row in rows if row["id"] in selected]
+
+def run(runtime, system, output, selected_app=None):
     if output.exists():
         raise FileExistsError('Use a new output directory')
-    rows = inventory()
+    rows = select_rows(inventory(), selected_app)
     output.mkdir(parents=True)
     sys.path.insert(0, str(system/'scripts'))
     try:
@@ -97,7 +105,7 @@ def run(runtime, system, output):
         temp = Path(temp)
         include = sdk.stage_sdk(runtime, system, temp)
         # Extra optional contracts are canonical owning-source bytes, never adapter code.
-        for directory in (system/'lib/PortableApps/include', ROOT/'lib/Alarm/include', ROOT/'lib/Bluetooth/include'):
+        for directory in (system/'sdk/app', system/'lib/PortableApps/include', ROOT/'lib/Alarm/include', ROOT/'lib/Bluetooth/include', ROOT/'lib/ContextFingerprint/include', ROOT/'lib/Contexts/include'):
             for source in directory.glob('*.h'):
                 dest = include/source.name
                 if not dest.exists():
@@ -114,6 +122,7 @@ def run(runtime, system, output):
             for row in rows:
                 manifest = json.loads((ROOT/row['manifest_path']).read_text())
                 sources = [ROOT/path for path in row['sources']]
+                sources += [local_path(system, path) for path in row.get('system_sources', [])]
                 package = output/'packages'/row['id']
                 built = builder.build(compiler, include, package, manifest, sources,
                                       defines=[], exports=set(row['exports']))
@@ -153,5 +162,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('runtime', 'system-apps', 'output'):
         parser.add_argument('--'+name, required=True, type=Path)
+    parser.add_argument('--app', action='append', help='Select a canonical app; repeat for an explicit cohort')
     args = parser.parse_args()
-    run(args.runtime.resolve(), args.system_apps.resolve(), args.output.resolve())
+    run(args.runtime.resolve(), args.system_apps.resolve(), args.output.resolve(), args.app)

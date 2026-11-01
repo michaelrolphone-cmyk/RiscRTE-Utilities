@@ -1,0 +1,57 @@
+{
+  "type": "application",
+  "id": "lora_messages",
+  "version": "0.2.0",
+  "architecture": "xtensa-esp32s3",
+  "file_name": "lora_messages.elf",
+  "entry": "app_main",
+  "requires": [],
+  "optional": [
+    {
+      "capability": "ui.scene",
+      "api": 1
+    },
+    {
+      "capability": "ui.text-input",
+      "api": 1
+    },
+    {
+      "capability": "radio.lora",
+      "api": 2
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1
+    },
+    {
+      "capability": "time.civil",
+      "api": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 2
+    },
+    {
+      "capability": "contexts.service",
+      "api": 1
+    },
+    {
+      "capability": "telemetry.broadcast",
+      "api": 1
+    },
+    {
+      "capability": "storage.shared-data",
+      "api": 1
+    },
+    {
+      "capability": "rtc.clock",
+      "api": 2
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1
+    }
+  ],
+  "display_name": "LoRa Messages",
+  "icon": "solid:f27a"
+}

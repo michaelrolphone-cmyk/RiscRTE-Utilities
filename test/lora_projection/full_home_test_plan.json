@@ -1,0 +1,214 @@
+{
+  "status": "planned, not executed",
+  "basis": {
+    "source": "michaelrolphone-cmyk/RiscRTE-Watch@ba88f5514b5bb8ed6e176c00b99e73aa055971a1",
+    "dependency_lock": {
+      "schema": 1,
+      "extraction": {
+        "repository": "michaelrolphone-cmyk/RiscRTE-T-Watch-S3",
+        "commit": "851b8998e804c57b2c9f42d9f8fd0a69e79f2b41"
+      },
+      "system": {
+        "repository": "michaelrolphone-cmyk/RiscRTE-System-Apps",
+        "commit": "bb0cadf3cec3445a64e11513b47b2676f3fdd92d"
+      },
+      "utilities": {
+        "repository": "michaelrolphone-cmyk/RiscRTE-Utilities",
+        "commit": "4fdcad2495c33fe63f5f6faca9b11ced3c739a5b"
+      },
+      "generic_power_providers": {
+        "repository": "michaelrolphone-cmyk/RiscRTE-Drivers",
+        "commit": "422e1e81a498fb6bdab9abf086325afc05a532dc",
+        "version": "0.1.0"
+      },
+      "compiler": "xtensa-esp32s3-elf-gcc 15.2.0 esp-15.2.0_20251204"
+    },
+    "versions": {
+      "watch": "0.25.1",
+      "wave": "0.25.2"
+    },
+    "watch_expected_flags": [
+      "-DWATCH_RESIDENT_HOST",
+      "-DWATCH_COMPACT_NOVA_ASSETS",
+      "-DWATCH_CRASH_REPORT",
+      "-DCRASH_REPORT_SESSION_FILES=1",
+      "-DWATCH_CRASH_REPORT_NAMESPACE=61",
+      "-DWATCH_SHARED_PREFERENCE_HEADERS",
+      "-DPORTABLE_PREFERENCE_STORE",
+      "-DWATCH_ATOMIC_PREFERENCES",
+      "-DPORTABLE_QUICK_ATOMIC_PREFERENCES",
+      "-DPORTABLE_QUICK_RADIOS",
+      "-DWATCH_COMPRESSED_CALENDAR_ALPHA",
+      "-DWATCH_COMPRESSED_FACE_ALPHA",
+      "-DWATCH_FAST_WAKE",
+      "-DWATCH_COLD_BOOT_ANIMATION",
+      "-DPORTABLE_WATCH_NATIVE_HEIGHT",
+      "-DPORTABLE_LOW_BATTERY",
+      "-DWATCH_RUNTIME_FEATURES",
+      "-DWATCH_BLE_BROADCAST",
+      "-DWATCH_CLOCK_LAUNCHER",
+      "-DWATCH_CLOCK_ALARMS",
+      "-DWATCH_CLOCK_POINTS",
+      "-DPORTABLE_RTC_UTC8_DENVER",
+      "-DWATCH_PAIRED_BOOT_CONFIRM",
+      "-DWATCH_QUICK_ACTIONS",
+      "-DWATCH_QUICK_RADIOS",
+      "-DWATCH_MOTION_WAKE",
+      "-DWATCH_ALARM_SLEEP_RESUME",
+      "-DWATCH_CONTEXTS_CLIENT",
+      "-flto",
+      "-Wl,--undefined=__udivdi3",
+      "-Wl,--undefined=__umoddi3",
+      "-Wl,--undefined=__divdi3",
+      "-Wl,--undefined=__moddi3",
+      "-DWATCH_AUTOMATIC_PROVISION"
+    ],
+    "wave_expected_flags": [
+      "-DWATCH_RESIDENT_HOST",
+      "-DWATCH_COMPACT_NOVA_ASSETS",
+      "-DWATCH_CRASH_REPORT",
+      "-DCRASH_REPORT_SESSION_FILES=1",
+      "-DWATCH_CRASH_REPORT_NAMESPACE=61",
+      "-DWATCH_SHARED_PREFERENCE_HEADERS",
+      "-DPORTABLE_PREFERENCE_STORE",
+      "-DWATCH_ATOMIC_PREFERENCES",
+      "-DPORTABLE_QUICK_ATOMIC_PREFERENCES",
+      "-DPORTABLE_QUICK_RADIOS",
+      "-DWATCH_COMPRESSED_CALENDAR_ALPHA",
+      "-DWATCH_COMPRESSED_FACE_ALPHA",
+      "-DWATCH_FAST_WAKE",
+      "-DWATCH_COLD_BOOT_ANIMATION",
+      "-DPORTABLE_WATCH_NATIVE_HEIGHT",
+      "-DPORTABLE_LOW_BATTERY",
+      "-DWATCH_RUNTIME_FEATURES",
+      "-DWATCH_BLE_BROADCAST",
+      "-DWATCH_CLOCK_LAUNCHER",
+      "-DWATCH_CLOCK_ALARMS",
+      "-DWATCH_CLOCK_POINTS",
+      "-DPORTABLE_RTC_UTC8_DENVER",
+      "-DWATCH_PAIRED_BOOT_CONFIRM",
+      "-DWATCH_QUICK_ACTIONS",
+      "-DWATCH_QUICK_RADIOS",
+      "-DWATCH_MOTION_WAKE",
+      "-DWATCH_ALARM_SLEEP_RESUME",
+      "-DWATCH_CONTEXTS_CLIENT",
+      "-flto",
+      "-Wl,--undefined=__udivdi3",
+      "-Wl,--undefined=__umoddi3",
+      "-Wl,--undefined=__divdi3",
+      "-Wl,--undefined=__moddi3",
+      "-DWATCH_AUTOMATIC_PROVISION",
+      "-DWATCH_SERIAL_TRANSFER_MODE"
+    ],
+    "resident_test_flags": [
+      "-DWATCH_MOTION_WAKE",
+      "-DWATCH_CLOCK_ALARMS",
+      "-DALARM_SERVICE_TAGGED_V2",
+      "-DWATCH_RESIDENT_HOST",
+      "-DWATCH_CLOCK_LAUNCHER",
+      "-DWATCH_QUICK_ACTIONS",
+      "-DWATCH_SHARED_PREFERENCE_HEADERS",
+      "-DPORTABLE_WATCH_NATIVE_HEIGHT",
+      "-DWATCH_COMPRESSED_CALENDAR_ALPHA",
+      "-DWATCH_COMPRESSED_FACE_ALPHA"
+    ],
+    "product_flags_not_in_resident_test": [
+      "-DWATCH_COMPACT_NOVA_ASSETS",
+      "-DWATCH_CRASH_REPORT",
+      "-DCRASH_REPORT_SESSION_FILES=1",
+      "-DWATCH_CRASH_REPORT_NAMESPACE=61",
+      "-DPORTABLE_PREFERENCE_STORE",
+      "-DWATCH_ATOMIC_PREFERENCES",
+      "-DPORTABLE_QUICK_ATOMIC_PREFERENCES",
+      "-DPORTABLE_QUICK_RADIOS",
+      "-DWATCH_FAST_WAKE",
+      "-DWATCH_COLD_BOOT_ANIMATION",
+      "-DPORTABLE_LOW_BATTERY",
+      "-DWATCH_RUNTIME_FEATURES",
+      "-DWATCH_BLE_BROADCAST",
+      "-DWATCH_CLOCK_POINTS",
+      "-DPORTABLE_RTC_UTC8_DENVER",
+      "-DWATCH_PAIRED_BOOT_CONFIRM",
+      "-DWATCH_QUICK_RADIOS",
+      "-DWATCH_ALARM_SLEEP_RESUME",
+      "-DWATCH_CONTEXTS_CLIENT",
+      "-flto",
+      "-Wl,--undefined=__udivdi3",
+      "-Wl,--undefined=__umoddi3",
+      "-Wl,--undefined=__divdi3",
+      "-Wl,--undefined=__moddi3"
+    ],
+    "missing_alarm_fallback": "WATCH_MOTION_WAKE present in both expected product profiles and successful resident-v15. ALARMS-only failure preserved in resident-v10.",
+    "actual_selected_product_receipt_verification": "Pending artifact transfer and first/repeat Home packages; source recipe alone is not proof of selected product bytes."
+  },
+  "required_additional_tests": [
+    {
+      "profile": "Watch0.25.1 automatic",
+      "flags": [
+        "WATCH_AUTOMATIC_PROVISION"
+      ],
+      "tests": [
+        "Build twice with exact original dependency lock; validate both input maps, exports, imports and manifest authority against original default.json.",
+        "Run actual Runtime/Graph+LoRa with complete production Home flags, including FAST_WAKE continuation before first outer frame and cold/warm entry.",
+        "Exercise automatic provisioning pending/failure/retention with settled LoRa owners; preserve installed-app authority and do not run provisioning against hardware."
+      ]
+    },
+    {
+      "profile": "Wave0.25.2 joint",
+      "flags": [
+        "WATCH_AUTOMATIC_PROVISION",
+        "WATCH_SERIAL_TRANSFER_MODE"
+      ],
+      "tests": [
+        "All Watch complete-profile cases with Wave selected display/power/source bindings.",
+        "Cooperative serial-transfer exit while radio/text/display are active; ensure complete owner settlement, no callback after terminal retention, and no unintended service work."
+      ]
+    },
+    {
+      "profile": "Both full Home profiles",
+      "flags": [
+        "-DWATCH_COMPACT_NOVA_ASSETS",
+        "-DWATCH_CRASH_REPORT",
+        "-DCRASH_REPORT_SESSION_FILES=1",
+        "-DWATCH_CRASH_REPORT_NAMESPACE=61",
+        "-DPORTABLE_PREFERENCE_STORE",
+        "-DWATCH_ATOMIC_PREFERENCES",
+        "-DPORTABLE_QUICK_ATOMIC_PREFERENCES",
+        "-DPORTABLE_QUICK_RADIOS",
+        "-DWATCH_FAST_WAKE",
+        "-DWATCH_COLD_BOOT_ANIMATION",
+        "-DPORTABLE_LOW_BATTERY",
+        "-DWATCH_RUNTIME_FEATURES",
+        "-DWATCH_BLE_BROADCAST",
+        "-DWATCH_CLOCK_POINTS",
+        "-DPORTABLE_RTC_UTC8_DENVER",
+        "-DWATCH_PAIRED_BOOT_CONFIRM",
+        "-DWATCH_QUICK_RADIOS",
+        "-DWATCH_ALARM_SLEEP_RESUME",
+        "-DWATCH_CONTEXTS_CLIENT",
+        "-flto",
+        "-Wl,--undefined=__udivdi3",
+        "-Wl,--undefined=__umoddi3",
+        "-Wl,--undefined=__divdi3",
+        "-Wl,--undefined=__moddi3"
+      ],
+      "tests": [
+        "Optional alarm absent: idle and text-idle must take WATCH_MOTION_WAKE crown-only fallback, with motion preference off and unavailable.",
+        "Alarm present: WATCH_ALARM_SLEEP_RESUME exact plan/reanchor, due-at-wake and late-prime occurrence, copied last-idle-alarm outcome, paused draft resume vs actual alarm cancellation.",
+        "WATCH_ATOMIC_PREFERENCES and PORTABLE_PREFERENCE_STORE: namespace1 read/write/Busy/failure and close barriers; no lost LoRa profile/history.",
+        "WATCH_CONTEXTS_CLIENT, WATCH_BLE_BROADCAST and WATCH_QUICK_RADIOS: pause/resume and cleanup-confirmation failure around controls, idle and alarm; preserve shared-data and radio authority.",
+        "Low-battery and native runtime-feature custody loss: terminal retention and no subsequent service I/O.",
+        "Crash-report/paired-boot/automatic-update calls preserve original namespaces and settle owners.",
+        "Physical keys during capture, between attention snapshot and update, and during modal completion; no repeated scene configure on ordinary updates.",
+        "Actual timestamp test through admitted time.civil and RTC with selected offset/timezone: send and receive history carry expected dates/minutes; native admission alone is insufficient.",
+        "Run strict normal and ASan/UBSan; unchanged controller retains prior evidence; any production controller repair requires session/presenter/root and repeat target reruns."
+      ]
+    }
+  ],
+  "not_claimed": [
+    "complete Home profile lifecycle pass",
+    "actual transferred product receipt pass",
+    "physical/hardware success"
+  ],
+  "scope_clarification": "Qualify LoRa-relevant alarm, idle, controls, text/radio/display ownership, input continuity and terminal retention under exact full selected flags. Other feature interactions are needed only where they affect these boundaries; no unrelated exhaustive Home feature suite."
+}
