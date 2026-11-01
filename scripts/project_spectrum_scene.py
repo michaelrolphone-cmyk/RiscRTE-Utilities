@@ -2,7 +2,7 @@
 import copy,re
 from pathlib import PurePosixPath
 IDENTITY={'type':'application','id':'audio_spectrum','file_name':'audio_spectrum.elf','architecture':'xtensa-esp32s3','entry':'app_main'}
-RETIRED={'display.output','input.touch.raw','input.navigation','input.power-key','power.sleep','display.power','rtc.clock','alarm.service','board.battery','net.wifi','bluetooth.hci','motion.accel','app.catalog','storage.key-value.atomic'}
+RETIRED={'display.output','input.touch.raw','input.navigation','input.power-key','power.sleep','display.power','alarm.service','board.battery','net.wifi','bluetooth.hci','motion.accel','app.catalog','storage.key-value.atomic'}
 ADDED={('ui.scene',1,0),('runtime.realtime',1,0)}
 def safe(path):
  if not isinstance(path,str) or not path or any(ord(c)<32 or ord(c)==127 for c in path):raise ValueError('invalid path')
@@ -18,6 +18,7 @@ def project(boot,canonical,elf_sha256,*,new_grants=None):
  for d in canonical.get('optional',[]):
   if set(d)!={'capability','api'} or not isinstance(d['capability'],str) or type(d['api'])!=int or d['api']<=0 or (d['capability'],d['api']) in declared:raise ValueError('malformed optional contract')
   declared.add((d['capability'],d['api']))
+ if any(cap=='rtc.clock' and api!=2 for cap,api in declared):raise ValueError('UTC suffix requires rtc.clock2')
  if any(cap in RETIRED for cap,api in declared):raise ValueError('physical and automatic-setting duties must remain host-owned')
  out=copy.deepcopy(boot);rows=[r for r in out['app_capabilities'] if r.get('manifest')=='audio_spectrum.json']
  if len(rows)>1:raise ValueError('duplicate Spectrum policy')
@@ -82,3 +83,40 @@ def replace_scene(boot,old_manifest,new_manifest,elf_sha256):
   if not re.search(r'image-[0-9a-f]{64}\.elf$',path):raise ValueError('unreviewed provider route')
   route['path']=re.sub(r'(?<=image-)[0-9a-f]{64}(?=\.elf$)',elf_sha256,path)
  return out
+
+
+def project_utc_successor(boot, original_boot, canonical, elf_sha256):
+ """Restore only an evidenced original RTC grant; never infer it for a new app."""
+ originals=[r for r in original_boot['app_capabilities'] if r.get('manifest')=='audio_spectrum.json']
+ if len(originals)>1:raise ValueError('ambiguous original Spectrum policy')
+ original_rtc=[g for r in originals for g in r['grants'] if key(g)[0]=='rtc.clock']
+ if original_rtc and (len(original_rtc)!=1 or key(original_rtc[0])!=('rtc.clock',2,8) or set(original_rtc[0])!={'capability','api','instance_id'}):raise ValueError('unreviewed original RTC authority')
+ out=copy.deepcopy(boot);rows=[r for r in out['app_capabilities'] if r.get('manifest')=='audio_spectrum.json']
+ if len(rows)!=1:raise ValueError('existing qualified Spectrum candidate required')
+ existing=[g for g in rows[0]['grants'] if key(g)[0]=='rtc.clock']
+ if existing and existing!=original_rtc:raise ValueError('RTC authority not evidenced by original policy')
+ if original_rtc and not existing:rows[0]['grants'].append(copy.deepcopy(original_rtc[0]))
+ if original_rtc:
+  bindings=[r for r in out['drivers'] if r.get('instance_id')==8 and r.get('manifest')=='rtc/manifest.json']
+  original_bindings=[r for r in original_boot['drivers'] if r.get('instance_id')==8 and r.get('manifest')=='rtc/manifest.json']
+  if len(bindings)!=1 or bindings!=original_bindings:raise ValueError('original RTC provider binding changed')
+ return project(out,canonical,elf_sha256)
+
+def replace_rtc(boot, old_manifest, new_manifest, *, offset_seconds):
+ """One existing descriptor, same dependencies/authority; copied UTC suffix only."""
+ if type(offset_seconds)!=int or offset_seconds!=28800:raise ValueError('explicit qualified civil basis required')
+ for manifest in (old_manifest,new_manifest):
+  for field in ('provides','requires'):
+   declarations=manifest.get(field)
+   if not isinstance(declarations,list) or any(not isinstance(d,dict) or set(d)!={'api','capability'} or type(d['api'])!=int or d['api']<=0 or not isinstance(d['capability'],str) for d in declarations):raise ValueError('invalid RTC declaration')
+ if old_manifest.get('provides')!=[{'api':2,'capability':'rtc.clock'}]:raise ValueError('existing RTC2 provider required')
+ if any(old_manifest.get(k)!=v for k,v in {'type':'driver','architecture':'xtensa-esp32s3','driver_abi':2,'file_name':'driver.elf'}.items()) or type(old_manifest.get('driver_abi'))!=int:raise ValueError('invalid original RTC identity')
+ def version(m):
+  v=m.get('version','')
+  if not isinstance(v,str) or not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)',v):raise ValueError('invalid RTC version')
+  return tuple(map(int,v.split('.')))
+ if {k:v for k,v in old_manifest.items() if k!='version'}!={k:v for k,v in new_manifest.items() if k!='version'}:raise ValueError('RTC descriptor or dependency drift')
+ if version(new_manifest)<=version(old_manifest):raise ValueError('fresh RTC suffix package required')
+ rows=[r for r in boot['drivers'] if r.get('manifest')=='rtc/manifest.json' and r.get('instance_id')==8]
+ if len(rows)!=1 or 'image_source' in rows[0]:raise ValueError('reviewed internal RTC binding required')
+ return copy.deepcopy(boot)

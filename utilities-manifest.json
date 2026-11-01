@@ -407,7 +407,7 @@
     },
     {
       "id": "audio_spectrum",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "file_name": "audio_spectrum.elf",
       "runtime_profile": "shared-scene-v1",
       "manifest_path": "Apps/audio_spectrum_scene.json",

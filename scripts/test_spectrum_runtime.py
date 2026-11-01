@@ -22,7 +22,7 @@ def dependencies(compiler,src,options):
   p=Path(path).resolve();actual_dependencies[str(p)]=hashlib.sha256(p.read_bytes()).hexdigest()
  (out/'actual-dependencies.json').write_text(json.dumps(actual_dependencies,indent=2)+'\n')
 def build(src,name,extra=[]):
- for unit in src:dependencies('cc',unit,['-std=c11',*incs,*extra])
+ for unit in src:dependencies('cc',unit,['-std=c11',*flags,*san,*incs,*extra])
  run(['cc','-std=c11',*flags,*san,*incs,*extra,'-fPIC','-fvisibility=hidden','-shared','-MMD','-MF',str(obj/(name+'.d')),*map(str,src),'-o',str(obj/name)])
 build([fix/'app.c'],'default.elf')
 build([fix/'host.c'],'host.elf')
@@ -34,7 +34,7 @@ providers=[('display','display.output'),('touch','input.touch.raw'),('nav','inpu
 for n,c in providers:build([fix/'provider.c'],n+'.elf',[f'-DTEST_ID="{n}"',f'-DTEST_CAP="{c}"',f'-DTEST_API={2 if n=="kv" else 1}'])
 sources=['bootstrap/Json.cpp','bootstrap/Board.cpp','bootstrap/Runtime.cpp','runtime/streams/AppStreamSessions.cpp','runtime/streams/ProviderQueueHost.cpp','runtime/drivers/ProviderGraphV2.cpp','runtime/drivers/ProviderModuleV2.cpp']
 cpp_includes=[*incs,'-I'+str(rt/'src'),'-I'+str(rt/'lib/ArduinoJson/src'),'-I'+str(rt/'test/drivers/stubs'),'-I'+str(rt/'test'),'-I'+str(fix)]
-for unit in [*[rt/'src'/x for x in sources],fix/'runtime_test.cpp']:dependencies('c++',unit,['-std=c++17',*cpp_includes])
+for unit in [*[rt/'src'/x for x in sources],fix/'runtime_test.cpp']:dependencies('c++',unit,['-std=c++17',*flags,*san,*cpp_includes])
 run(['c++','-std=c++17',*flags,*san,'-Wno-missing-field-initializers','-fno-pie','-no-pie','-rdynamic',*incs,'-I'+str(rt/'src'),'-I'+str(rt/'lib/ArduinoJson/src'),'-I'+str(rt/'test/drivers/stubs'),'-I'+str(rt/'test'),'-I'+str(fix),*[str(rt/'src'/s) for s in sources],str(fix/'runtime_test.cpp'),'-ldl','-o',str(out/'test')])
 def req(c):return {'capability':c,'api':2 if c=='storage.key-value' else 1}
 def manifest(n,c):return {'type':'driver','id':n,'version':'0.1.0','driver_abi':2,'architecture':'xtensa-esp32s3','file_name':n+'.elf','requires':[],'provides':[req(c)]}
@@ -67,4 +67,4 @@ for label,w,h,f in [('paper',800,480,1),('watch',240,240,5),('wave',410,502,5)]:
    result=run([str(out/'test'),str(d),mode,str(w),str(h),str(f)]).strip();print(result,flush=True);results.append(result)
 for path,digest in actual_dependencies.items():assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest,'Compiled dependency changed: '+path
 for path,digest in initial.items():assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest,'Source changed: '+path
-(out/'receipt.json').write_text(json.dumps({'results':results,'sanitize':a.sanitize,'app_sha256':hashlib.sha256((obj/'default.elf').read_bytes()).hexdigest(),'actual_compiled_dependencies':actual_dependencies,'scope':'Real Runtime/app/scene/canvas/text; doubled physical, microphone and KV2 endpoints. Native input and actual unload/reopen; no physical or full-learning claim.'},indent=2)+'\n')
+(out/'receipt.json').write_text(json.dumps({'results':results,'sanitize':a.sanitize,'app_sha256':hashlib.sha256((obj/'default.elf').read_bytes()).hexdigest(),'actual_compiled_dependencies':actual_dependencies,'scope':'Real Runtime/app/scene/canvas/text; doubled physical, microphone and KV2 endpoints. Native input and actual unload/reopen; RTC/Context capabilities absent in this matrix; UTC reader behavior is separately focused-qualified. No physical or full-learning claim.'},indent=2)+'\n')

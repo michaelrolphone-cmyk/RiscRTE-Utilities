@@ -6,6 +6,7 @@
 #include <string.h>
 #include "RiscRuntimeV1.h"
 #include "RiscRealtimeV1.h"
+#include "RiscRtcUtcV1.h"
 static bool spectrum_scene_background_live(void);
 #define PORTABLE_CONTEXTS_LIVE() spectrum_scene_background_live()
 #define PORTABLE_CONTEXTS_CUSTODY_SAFE() spectrum_scene_background_live()
@@ -18,7 +19,7 @@ static bool spectrum_scene_background_live(void);
 typedef struct {bool contexts_available,broadcast_available,contexts_valid,broadcast_valid,retained;contexts_status_v1 contexts;telemetry_broadcast_status_v1 broadcast;} spectrum_scene_background_status;
 static struct {
  const risc_runtime_api_v1*rt;bool(*alive)(void*);void(*retain)(void*);void*context;
- bool initialized,retained,busy,paused;portable_contexts_client contexts;
+ bool initialized,retained,busy,paused,clock_busy;portable_contexts_client contexts;
  battery_broadcast broadcast;contexts_fingerprint_service_v1 proxy;
  spectrum_scene_background_status status;
 } spectrum_bg;
@@ -29,14 +30,15 @@ static bool sb_alive_hook(void*c){(void)c;return spectrum_scene_background_live(
 static void sb_retain_hook(void*c){(void)c;(void)sb_fail();}
 static bool sb_empty(const risc_runtime_capability_v1*g){return !g->api&&!g->slot&&!g->generation;}
 /* 0 admitted, 1 clean absent, -1 terminal. */
-static int sb_acquire(const char*name,uint32_t id,risc_runtime_capability_v1*g){
+static int sb_acquire_version(const char*name,uint32_t version,uint32_t id,risc_runtime_capability_v1*g){
  if(!sb_check())return -1;
  if(!sb_empty(g)||(g->struct_size&&g->struct_size!=sizeof(*g))){sb_fail();return -1;}
  *g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};
- bool ok=spectrum_bg.rt->acquire(name,1,id,g);if(!sb_check())return -1;
+ bool ok=spectrum_bg.rt->acquire(name,version,id,g);if(!sb_check())return -1;
  if(g->struct_size!=sizeof(*g)||(ok?(!g->api||!g->slot||!g->generation):!sb_empty(g))){sb_fail();return -1;}
  return ok?0:1;
 }
+static int sb_acquire(const char*name,uint32_t id,risc_runtime_capability_v1*g){return sb_acquire_version(name,1,id,g);}
 static bool sb_release(risc_runtime_capability_v1*g){
  if(!sb_check())return false;
  if(sb_empty(g))return (g->struct_size==0||g->struct_size==sizeof(*g))||sb_fail();
@@ -46,17 +48,43 @@ static bool sb_release(risc_runtime_capability_v1*g){
  memset(g,0,sizeof(*g));return true;
 }
 static bool sb_data_result(int rc){if(!sb_check())return false;return (rc<=0&&rc>=RISC_APP_DATA_BUSY&&rc!=RISC_APP_DATA_CONTEXT&&rc!=RISC_APP_DATA_RETAINED)||sb_fail();}
-static bool spectrum_scene_background_clock(const risc_runtime_api_v1*rt,uint64_t*out){
- if(!out||rt!=spectrum_bg.rt||!sb_check())return false;
- *out=0;
- risc_runtime_capability_v1 g={0};int ac=sb_acquire(RISC_REALTIME_CAPABILITY,0,&g);if(ac)return ac>0;
+/* RTC provider UTC is authoritative, including clean failure. Calendar bounds
+ * 2000..2099 shifted by any supported +/-24h basis span this envelope. It
+ * includes the selected UTC+8 lower edge 946656000 without device inference.
+ * The native realtime fallback retains its original narrower UTC range. */
+static bool sb_clock_read(uint64_t*out){
+ risc_runtime_capability_v1 g={0};int ac=sb_acquire_version("rtc.clock",2,0,&g);
+ if(ac<0)return false;
+ if(!ac){
+  int status=risc_rtc_utc_status_v1(g.api);if(status<0)return sb_fail();
+  if(status){
+   risc_rtc_utc_client_v1 client={0};if(!risc_rtc_utc_bind_v1(g.api,&client))return sb_fail();
+   risc_rtc_utc_snapshot_v1 q={.struct_size=sizeof(q)},before=q;
+   bool ok=client.read(client.context,&q);if(!sb_check())return false;
+   if((!ok&&memcmp(&q,&before,sizeof(q)))||(ok&&(q.struct_size!=sizeof(q)||q.reserved)))return sb_fail();
+   if(ok&&q.epoch_seconds>=INT64_C(946598400)&&q.epoch_seconds<=INT64_C(4102531199))*out=(uint64_t)q.epoch_seconds;
+   return sb_release(&g);
+  }
+  if(!sb_release(&g))return false;
+ }
+ ac=sb_acquire(RISC_REALTIME_CAPABILITY,0,&g);if(ac)return ac>0;
  const risc_realtime_api_v1*p=g.api;if(p->api_version!=1||p->struct_size<sizeof(*p)||!p->read)return sb_fail();
- risc_realtime_snapshot_v1 q={.struct_size=sizeof(q)};int rc=p->read(p->context,&q);
+ risc_realtime_snapshot_v1 q={.struct_size=sizeof(q)},before=q;int rc=p->read(p->context,&q);
  if(!sb_check())return false;
  if(rc!=RISC_REALTIME_OK&&rc!=RISC_REALTIME_INVALID&&rc!=RISC_REALTIME_IO)return sb_fail();
+ if(rc&&memcmp(&q,&before,sizeof(q)))return sb_fail();
  if(!rc&&(q.struct_size!=sizeof(q)||q.reserved||q.validity>RISC_REALTIME_VALID||q.nanoseconds>=1000000000||q.nanoseconds%1000||q.monotonic_before_us>q.monotonic_after_us||(q.validity==RISC_REALTIME_UNSET&&(q.epoch_seconds||q.nanoseconds))))return sb_fail();
  if(!rc&&q.validity==RISC_REALTIME_VALID&&q.epoch_seconds>=946684800&&q.epoch_seconds<=4102444799LL)*out=(uint64_t)q.epoch_seconds;
  return sb_release(&g);
+}
+static bool spectrum_scene_background_clock(const risc_runtime_api_v1*rt,uint64_t*out){
+ if(!out||rt!=spectrum_bg.rt||!sb_check())return false;
+ *out=0;if(spectrum_bg.clock_busy)return sb_fail();
+ bool previous_busy=spectrum_bg.busy;spectrum_bg.busy=spectrum_bg.clock_busy=true;
+ uint64_t value=0;bool ok=sb_clock_read(&value);
+ spectrum_bg.clock_busy=false;spectrum_bg.busy=previous_busy;
+ if(ok)*out=value;
+ return ok;
 }
 static bool sb_fp(uint32_t op,void*q){
  if(!sb_check())return false;

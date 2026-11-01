@@ -23,3 +23,10 @@ exactly one resume per alarm, continued PCM while editing, cancellation without
 writes, and actual child unload/reopen. This is NOT the production Home observer,
 physical alarm scheduler, or complete selected firmware composition; those have
 separate qualification.
+
+The UTC-range successor keeps RTC and Contexts cleanly absent in these Runtime
+lanes. Successful configured UTC reads, authoritative unavailable results and
+malformed/custody fences are covered by the production background-helper suite;
+qualified provider targets separately establish the calendar conversion. This
+Runtime witness does not claim successful RTC-provider integration or physical
+clock behavior.

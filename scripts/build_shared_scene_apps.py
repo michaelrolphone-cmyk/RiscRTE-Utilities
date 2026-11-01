@@ -100,7 +100,7 @@ def run(runtime, system, output, selected_app=None):
         temp = Path(temp)
         include = sdk.stage_sdk(runtime, system, temp)
         # Extra optional contracts are canonical owning-source bytes, never adapter code.
-        for directory in (system/'lib/PortableApps/include', ROOT/'lib/Alarm/include', ROOT/'lib/Bluetooth/include'):
+        for directory in (system/'lib/PortableApps/include', ROOT/'lib/Alarm/include', ROOT/'lib/Bluetooth/include', ROOT/'sdk/app'):
             for source in directory.glob('*.h'):
                 dest = include/source.name
                 if not dest.exists():

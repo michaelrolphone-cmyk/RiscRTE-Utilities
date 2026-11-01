@@ -12,6 +12,7 @@ for d in [a.system/'lib/PortableApps/include',a.system/'sdk/app',a.runtime/'sdk/
 public={'Apps/battery_broadcast.h':'751944f139a3fec9c946d788ac0db9b3b217f833','Apps/battery_preference_adapter.h':'b3be055f03497cdf57e0ab21cea5296b9ecbc9ba','lib/Bluetooth/include/TelemetryBroadcastPolicyV1.h':'5b9c10bff2d5e62f90762713a728b4eac4a28d0e'}
 for name,blob in public.items():
  h=(a.utilities/name).resolve();b=h.read_bytes();assert hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()==blob,'Not published bf111 input: '+name;origins[h.name]=h
+utc=ROOT/'sdk/app/RiscRtcUtcV1.h';assert hashlib.sha256(utc.read_bytes()).hexdigest()=='f50ed950c38cc103f4d0076c14470eb77092ee44611d5e11bb0c212bea6803ac';origins[utc.name]=utc
 for name,h in origins.items():shutil.copyfile(h,inc/name)
 source=ROOT/'test/spectrum_background/controller_test.c';dep=out/'test.d';binary=out/'test';commands=[]
 flags=['cc','-std=c11','-O0','-g0','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-missing-field-initializers','-I'+str(ROOT/'Apps'),'-I'+str(inc)]

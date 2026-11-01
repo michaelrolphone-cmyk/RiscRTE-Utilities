@@ -5,7 +5,7 @@
   "id": "audio_spectrum",
   "requires": [],
   "type": "application",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "display_name": "Audio Spectrum",
   "icon": "solid:f130",
   "optional": [
@@ -52,6 +52,10 @@
     {
       "api": 1,
       "capability": "runtime.realtime"
+    },
+    {
+      "api": 2,
+      "capability": "rtc.clock"
     }
   ]
 }

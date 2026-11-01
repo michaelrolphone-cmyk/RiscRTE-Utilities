@@ -24,18 +24,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: Utilities
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 472e0d94e52520cc1ccc70ade71c3a83a43f0d34
+          ref: 161d267a5ccf3ed176ff23320eba60e89fab7af1
           path: System
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: bd51ac6b4b7a0cd74bd76b2df7a9a1c889b3eb43
+          ref: 0052d1fc42e9cfc82d626c5a247d460919c87935
           path: Runtime
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -46,8 +47,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p qualification/source qualification/logs
-          test "$(git -C System rev-parse HEAD)" = 472e0d94e52520cc1ccc70ade71c3a83a43f0d34
-          test "$(git -C Runtime rev-parse HEAD)" = bd51ac6b4b7a0cd74bd76b2df7a9a1c889b3eb43
+          test "$(git -C System rev-parse HEAD)" = 161d267a5ccf3ed176ff23320eba60e89fab7af1
+          test "$(git -C Runtime rev-parse HEAD)" = 0052d1fc42e9cfc82d626c5a247d460919c87935
+          cmp Utilities/sdk/app/RiscRtcUtcV1.h System/sdk/app/RiscRtcUtcV1.h
+          test -f System/sdk/app/RiscSceneCanvasV1.h
+          test -f System/Services/scene_host/scene_canvas.inc
           for source in Utilities System Runtime; do
             printf '%s %s\n' "$source" "$(git -C "$source" rev-parse HEAD)"
             git -C "$source" archive --format=tar HEAD | gzip -n > "qualification/source/$source.tar.gz"
@@ -73,6 +77,9 @@ jobs:
           bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/spectrum-toolchain" 2>&1 | tee qualification/logs/compiler.log
           export NATIVE_APP_CC="$RUNNER_TEMP/spectrum-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc"
           python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --app audio_spectrum --output qualification/target-apps 2>&1 | tee qualification/logs/target-apps.log
+          python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --app audio_spectrum --output qualification/target-repeat 2>&1 | tee qualification/logs/target-repeat.log
+          cmp qualification/target-apps/packages/audio_spectrum/audio_spectrum.elf qualification/target-repeat/packages/audio_spectrum/audio_spectrum.elf
+          cmp qualification/target-apps/packages/audio_spectrum/audio_spectrum.json qualification/target-repeat/packages/audio_spectrum/audio_spectrum.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
