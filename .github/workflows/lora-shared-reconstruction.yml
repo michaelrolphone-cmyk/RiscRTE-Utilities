@@ -1,0 +1,45 @@
+name: Shared LoRa reconstruction
+on:
+  push:
+    branches: [work/lora-shared-reconstruction-20261101]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 0052d1fc42e9cfc82d626c5a247d460919c87935
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: eb4dd5306906d57e65f24f911d325bc87370666b
+          path: System
+          persist-credentials: false
+      - name: Fresh session and semantic presenter qualification
+        run: |
+          python3 Utilities/scripts/test_lora_scene_session.py --output evidence/session
+          python3 Utilities/scripts/test_lora_scene_presenter.py --system-apps System --output evidence/presenter
+      - name: Strict complete controller compile
+        run: python3 Utilities/scripts/check_lora_scene_source.py --runtime Runtime --system System --output evidence/compile
+      - name: Repeat canonical target and three identical selections
+        run: |
+          bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/lora-toolchain"
+          export NATIVE_APP_CC="$RUNNER_TEMP/lora-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc"
+          python3 Utilities/scripts/build_lora_scene.py --runtime Runtime --system System --output evidence/target
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lora-reconstruction-${{ github.sha }}
+          path: evidence
+          retention-days: 30

@@ -336,6 +336,23 @@
   ],
   "shared_scene_apps": [
     {
+      "id": "lora_messages",
+      "version": "0.2.0",
+      "file_name": "lora_messages.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/lora_scene.json",
+      "sources": [
+        "Apps/lora_scene.c"
+      ],
+      "system_sources": [
+        "lib/NativeApps/src/UnsignedDivisionCompat.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
+    },
+    {
       "id": "calculator",
       "version": "0.2.0",
       "file_name": "calculator.elf",

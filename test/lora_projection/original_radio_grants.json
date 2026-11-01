@@ -1,0 +1,17 @@
+{
+  "source": "Verbatim fresh native final-04 diagnostic supplied by owning parent; whole original artifact hashes already verified by native owner and enforced by assembler",
+  "watch": {
+    "artifact_sha256": "3a5aadb0eeb5c4b37640d606978162b5c0484893aada661baca4ca39a12d66f2",
+    "radio_grants": [
+      {
+        "api": 2,
+        "capability": "radio.lora",
+        "instance_id": 11
+      }
+    ]
+  },
+  "wave": {
+    "artifact_sha256": "aae8665d9240bd49dbdae89f250525ccea6cabc44215133248ee1a2c7b19d1d6",
+    "radio_grants": []
+  }
+}
