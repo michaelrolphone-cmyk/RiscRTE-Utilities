@@ -1,7 +1,7 @@
 # Shared semantic BLE Scanner
 
 `Apps/ble_scanner_scene.c` is the canonical shared-scene implementation, selected
-as `ble_scanner` version 0.3.1 in `utilities-manifest.json`. The original legacy
+as `ble_scanner` version 0.3.2 in `utilities-manifest.json`. The original legacy
 application remains intact for existing recipes. Build with
 `scripts/build_shared_scene_apps.py --runtime RUNTIME --system-apps SYSTEM --app ble_scanner --output OUT`.
 The one executable is reused byte-for-byte across product selections; product
@@ -32,15 +32,21 @@ and stops scan/background/text owners before the next output phase. Dismiss
 uses the exact copied occurrence token. Quiet editing still advances the alarm
 scheduler at settled text checkpoints. No automatic scan restart follows a
 modal or handoff. Manual copied attention preserves neutral-short Back and
-ignores long/combined events; ordinary host checkpoints require settled custody.
+ignores long/combined events. Automatic alarm handling uses the negotiated alarm-only
+checkpoint, never ordinary POLL/POLICY. Configured idle uses the key-independent
+idle contract after stopping owners. Ordinary idle preserves editor drafts; an
+actual alarm/cue/error outcome cancels editing through the copied outcome query.
+All host checkpoints require settled custody.
 
 ## Product metadata
 
 The Runtime permits only one declaration of each non-KV capability. Canonical
 metadata declares alarm.service API2; the checked projector selects the original
 product grant API (Watch/Wave1, X4 2) without changing the executable or provider.
-Original alarm grants and providers remain. Scene/profile/Home bytes remain
-unchanged. Watch's equivalent namespace-1 preferences facade is added only with
+Original alarm grants and providers remain. Scene/profile bytes remain unchanged.
+Watch/Wave select the repeat-qualified key-independent Home 0.25.1/0.25.2;
+only Home ELF and manifest version change, with original authority retained.
+X4 Home bytes remain unchanged. Watch's equivalent namespace-1 preferences facade is added only with
 native backend qualification; Wave/X4 retain their original atomic authority.
 Watch/Wave select the published RTC UTC suffix with explicit original +28800
 civil-time basis; X4 gains no RTC or Context authority. SD routes and unrelated
@@ -63,3 +69,6 @@ The owning workflow retains exact source archives, compiler dependency manifests
 commands, logs, binaries and target repeat hash/size receipts. Historical lost reconstruction tests
 are not used as evidence for this source. Product store preparation proves
 metadata admission and byte preservation, not physical firmware execution.
+
+See [key-independent handoff qualification](qualification/scanner-key-independent-handoff.md)
+for the repaired source pins, contract boundaries and exact evidence scope.
