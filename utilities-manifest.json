@@ -404,6 +404,25 @@
         "app_main",
         "risc_resident_app_descriptor_v1"
       ]
+    },
+    {
+      "id": "frequency_generator",
+      "version": "0.2.0",
+      "file_name": "frequency_generator.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/frequency_scene.json",
+      "sources": [
+        "Apps/frequency_scene.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ],
+      "capability_headers": [
+        "sdk/app/RiscResidentIdleV1.h",
+        "sdk/app/RiscRtcUtcV1.h",
+        "sdk/app/RiscPowerKeyV1.h"
+      ]
     }
   ]
 }

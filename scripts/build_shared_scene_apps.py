@@ -61,6 +61,26 @@ def inventory(root=ROOT):
             raise ValueError('Unexpected shared app export contract')
     return rows
 
+def stage_capability_headers(rows, system, include):
+    """Copy explicitly selected canonical flat app contracts, never adapters."""
+    canonical = (system/'sdk/app').resolve()
+    for row in rows:
+        selected = row.get('capability_headers', [])
+        if not isinstance(selected, list) or any(not isinstance(x, str) for x in selected):
+            raise ValueError('capability_headers must be a list of strings')
+        for relative in selected:
+            parts = Path(relative).parts
+            if len(parts) != 3 or parts[:2] != ('sdk', 'app') or Path(relative).suffix != '.h':
+                raise ValueError('Expected direct canonical app capability header: ' + relative)
+            source = local_path(system, relative)
+            if source.parent != canonical:
+                raise ValueError('Capability header resolves outside canonical sdk/app: ' + relative)
+            dest = include/source.name
+            if dest.exists() and dest.read_bytes() != source.read_bytes():
+                raise ValueError('Conflicting capability declaration: ' + source.name)
+            if not dest.exists():
+                shutil.copyfile(source, dest)
+
 def distribute(package, manifest, output):
     """Copy the single compiled module; validate complete content at each destination."""
     original = package/manifest['file_name']
@@ -102,6 +122,7 @@ def run(runtime, system, output):
                 dest = include/source.name
                 if not dest.exists():
                     shutil.copyfile(source, dest)
+        stage_capability_headers(rows, system, include)
         closure = Closure([('Runtime', runtime), ('System', system), ('Utilities', ROOT),
                            ('generated-sdk', temp)], output/'dependencies.json')
         original_run = subprocess.run
@@ -155,3 +176,4 @@ if __name__ == '__main__':
         parser.add_argument('--'+name, required=True, type=Path)
     args = parser.parse_args()
     run(args.runtime.resolve(), args.system_apps.resolve(), args.output.resolve())
+
