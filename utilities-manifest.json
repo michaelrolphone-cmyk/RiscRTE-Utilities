@@ -421,6 +421,23 @@
         "app_main",
         "risc_resident_app_descriptor_v1"
       ]
+    },
+    {
+      "id": "ble_buttons",
+      "version": "0.2.0",
+      "file_name": "ble_buttons.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/ble_buttons_scene.json",
+      "sources": [
+        "Apps/ble_buttons_scene.c"
+      ],
+      "system_sources": [
+        "lib/NativeApps/src/UnsignedDivisionCompat.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
     }
   ]
 }

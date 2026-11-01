@@ -1,0 +1,82 @@
+name: Shared BLE Buttons qualification
+on:
+  pull_request:
+    paths:
+      - 'Apps/ble_buttons_*'
+      - 'Apps/ble_hid_model.h'
+      - 'Apps/scanner_background.h'
+      - 'Apps/battery_broadcast.h'
+      - 'Apps/battery_preference_adapter.h'
+      - 'lib/Bluetooth/include/**'
+      - 'scripts/*buttons*'
+      - 'scripts/build_shared_scene_apps.py'
+      - 'utilities-manifest.json'
+      - 'test/ble_buttons*/**'
+      - 'test/buttons_projection/**'
+      - '.github/workflows/ble-buttons-scene.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 94d3382994bb22294954d58f8e8b8f2a7fb93767
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 0052d1fc42e9cfc82d626c5a247d460919c87935
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Retain complete owning source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qualification/source qualification/logs
+          test "$(git -C System rev-parse HEAD)" = 94d3382994bb22294954d58f8e8b8f2a7fb93767
+          test "$(git -C Runtime rev-parse HEAD)" = 0052d1fc42e9cfc82d626c5a247d460919c87935
+          for source in Utilities System Runtime; do
+            git -C "$source" archive --format=tar HEAD | gzip -n > "qualification/source/$source.tar.gz"
+            git -C "$source" rev-parse HEAD > "qualification/source/$source.head"
+          done
+          sha256sum qualification/source/*.tar.gz > qualification/source/archives.sha256
+      - name: Fresh controller and actual Runtime evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s Utilities/test/buttons_projection -p 'test_*.py' -v 2>&1 | tee qualification/logs/projection.log
+          for mode in normal sanitized; do
+            san=(); if [ "$mode" = sanitized ]; then san=(--sanitize); fi
+            python Utilities/scripts/test_ble_buttons_session.py --runtime Runtime --system System --output "qualification/focused-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/focused-$mode.log"
+            python Utilities/scripts/test_scanner_background.py --runtime Runtime --system System --utilities Utilities --output "qualification/background-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/background-$mode.log"
+            python Utilities/scripts/test_ble_buttons_runtime.py --runtime Runtime --system-apps System --output "qualification/runtime-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/runtime-$mode.log"
+          done
+      - name: One canonical target, repeat and three identical selections
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/buttons-toolchain" 2>&1 | tee qualification/logs/compiler.log
+          export NATIVE_APP_CC="$RUNNER_TEMP/buttons-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc"
+          python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --app ble_buttons --output qualification/target 2>&1 | tee qualification/logs/target.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ble-buttons-${{ github.sha }}
+          path: qualification/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
