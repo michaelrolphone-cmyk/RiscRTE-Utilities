@@ -1,0 +1,82 @@
+name: Shared Frequency qualification
+on:
+  pull_request:
+    paths: ['Apps/frequency*', 'scripts/*frequency*', 'scripts/build_shared_scene_apps.py', 'test/frequency*/**', 'utilities-manifest.json', '.github/workflows/frequency-scene.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualification:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [controller-target, actual-runtime]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 13eca114cb58469cf6004fafc3da84fbd9d29beb
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 1e62b5989312eb5f4bcd7e51c682a6bbd7c845d7
+          path: System
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Record exact sources
+        run: |
+          mkdir evidence
+          for source in Utilities Runtime System; do printf '%s %s\n' "$source" "$(git -C "$source" rev-parse HEAD)"; done | tee evidence/source-heads.txt
+      - name: Controller and background contracts
+        if: matrix.lane == 'controller-target'
+        run: |
+          set -euo pipefail
+          python Utilities/test/frequency_scene/capability_headers_test.py
+          python Utilities/scripts/test_shared_scene_apps.py
+          for mode in normal sanitized; do
+            san=""; if [ "$mode" = sanitized ]; then san="--sanitize"; fi
+            python Utilities/scripts/test_frequency_scene.py --runtime Runtime --system System --power-key-header System/sdk/app/RiscPowerKeyV1.h --output controller-$mode $san 2>&1 | tee evidence/controller-$mode.log
+            python Utilities/scripts/test_frequency_background.py --runtime Runtime --system System --output background-$mode $san 2>&1 | tee evidence/background-$mode.log
+          done
+      - name: Repeat target and byte-identical selections
+        if: matrix.lane == 'controller-target'
+        run: |
+          set -euo pipefail
+          bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/toolchain" 2>&1 | tee evidence/compiler.log
+          export NATIVE_APP_CC="$RUNNER_TEMP/toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc"
+          python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --output target-apps 2>&1 | tee evidence/target.log
+      - name: Actual Runtime native navigation
+        if: matrix.lane == 'actual-runtime'
+        run: |
+          set -euo pipefail
+          for mode in normal sanitized; do
+            san=""; if [ "$mode" = sanitized ]; then san="--sanitize"; fi
+            python Utilities/scripts/test_frequency_runtime.py --runtime Runtime --system-apps System --power-key-header System/sdk/app/RiscPowerKeyV1.h --output runtime-$mode $san 2>&1 | tee evidence/runtime-$mode.log
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-frequency-${{ matrix.lane }}-${{ github.sha }}
+          path: |
+            evidence/
+            target-apps/
+            controller-*/*.json
+            controller-*/*.log
+            background-*/*.json
+            background-*/*.log
+            runtime-*/results.json
+            runtime-*/dependencies.json
+            runtime-*/build.log
+            runtime-*/*/runtime.log
+            runtime-*/*/boot.json
+          retention-days: 30

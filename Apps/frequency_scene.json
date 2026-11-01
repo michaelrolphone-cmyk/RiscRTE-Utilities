@@ -1,0 +1,52 @@
+{
+  "id": "frequency_generator",
+  "display_name": "Frequency Generator",
+  "version": "0.2.0",
+  "file_name": "frequency_generator.elf",
+  "type": "application",
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "requires": [],
+  "optional": [
+    {
+      "capability": "ui.scene",
+      "api": 1
+    },
+    {
+      "capability": "audio.output",
+      "api": 1
+    },
+    {
+      "capability": "alarm.service",
+      "api": 1
+    },
+    {
+      "capability": "input.power-key",
+      "api": 1
+    },
+    {
+      "capability": "storage.key-value",
+      "api": 1
+    },
+    {
+      "capability": "storage.shared-data",
+      "api": 1
+    },
+    {
+      "capability": "contexts.service",
+      "api": 1
+    },
+    {
+      "capability": "telemetry.broadcast",
+      "api": 1
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1
+    },
+    {
+      "capability": "rtc.clock",
+      "api": 2
+    }
+  ]
+}

@@ -7,7 +7,7 @@ on:
       system_revision:
         description: Exact published System commit containing the shared provider changes
         required: true
-        default: 734f3171a743bbcefc90fb8d843981b77965bc12
+        default: 161d267a5ccf3ed176ff23320eba60e89fab7af1
         type: string
 permissions:
   contents: read
@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Validate selected System identity
         env:
-          SYSTEM_REVISION: ${{ inputs.system_revision || '734f3171a743bbcefc90fb8d843981b77965bc12' }}
+          SYSTEM_REVISION: ${{ inputs.system_revision || '161d267a5ccf3ed176ff23320eba60e89fab7af1' }}
         run: '[[ "$SYSTEM_REVISION" =~ ^[0-9a-f]{40}$ ]]'
       - uses: actions/checkout@v4
         with:
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: ${{ inputs.system_revision || '734f3171a743bbcefc90fb8d843981b77965bc12' }}
+          ref: ${{ inputs.system_revision || '161d267a5ccf3ed176ff23320eba60e89fab7af1' }}
           path: System
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -47,7 +47,7 @@ jobs:
           python-version: '3.11'
       - name: Source identity and host qualification
         env:
-          SYSTEM_REVISION: ${{ inputs.system_revision || '734f3171a743bbcefc90fb8d843981b77965bc12' }}
+          SYSTEM_REVISION: ${{ inputs.system_revision || '161d267a5ccf3ed176ff23320eba60e89fab7af1' }}
         run: |
           set -euo pipefail
           mkdir evidence
