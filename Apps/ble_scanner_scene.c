@@ -6,12 +6,15 @@
 #include "scanner_background.h"
 #include "RiscSceneResidentV1.h"
 #include "RiscResidentAttentionV1.h"
+#include "RiscResidentIdleV1.h"
+#include "RiscResidentAlarmV1.h"
 #include "RiscTextEntryV1.h"
 #include "PortableTextInputResidentCheckpoint.h"
 #include <stdio.h>
 static const risc_runtime_api_v1 *rt;
 static bool terminal,leaving,dirty,explicit_refresh,pending_name;
-static uint32_t handoff_reason;
+static uint32_t handoff_reason,idle_at,idle_ms;
+static bool idle_pending,idle_queried,host_alarm_supported,text_idle_applied;
 static scanner_session scan;
 static scanner_alarm alarm_client;
 static bool alarm_ui;
@@ -60,7 +63,7 @@ static int acquire(const char*name,risc_runtime_capability_v1*g){if(!alive(NULL)
 static bool snapshot(void){if(!ui_token)return true;
  uint32_t flags=0;risc_scene_navigation_v1 n={.api_version=1,.struct_size=sizeof(n)};int rc=scene->snapshot(scene->context,ui_token,&n,&flags);if(!alive(NULL))return false;
  if(rc!=RISC_SCENE_OK||n.api_version!=1||n.struct_size!=sizeof(n)||n.reserved||n.depth!=1||n.routes[0]!=1||(flags&~(RISC_SCENE_PRESENTING|RISC_SCENE_CLOSING|RISC_SCENE_INPUT_BUSY|RISC_SCENE_ACTIVITY)))return fail();
- navigation=n;ui_flags=flags;if(flags&RISC_SCENE_ACTIVITY)resident.activity=true;return true;}
+ navigation=n;ui_flags=flags;if(flags&(RISC_SCENE_ACTIVITY|RISC_SCENE_INPUT_BUSY))resident.activity=true;return true;}
 static bool close_ui(void){if(!alive(NULL))return false;
  if(!ui_token)return true;
  int rc=scene->close(scene->context,ui_token);if(!alive(NULL))return false;
@@ -126,6 +129,7 @@ static bool selected_index(unsigned *out){
  return false;
 }
 static void policy_read(void){if(!scanner_background_pause())return;
+ uint32_t timeout=60000u;int timer=scanner_idle_timeout(&prefs,&timeout);if(!check_pref(timer))return;idle_ms=timeout;
  uint8_t flags=0;int rc=scanner_radio_allowed(&prefs,&flags);if(!check_pref(rc))return;
  view.radio_enabled=rc==SCANNER_PREF_OK&&(flags&PORTABLE_RADIO_BLUETOOTH)&&!(flags&PORTABLE_RADIO_AIRPLANE);view.enable_available=rc==SCANNER_PREF_OK&&!(flags&PORTABLE_RADIO_AIRPLANE);if(rc!=SCANNER_PREF_OK)notice("Radio settings unavailable");else if(flags&PORTABLE_RADIO_AIRPLANE)notice("Turn off Airplane mode");}
 static void aliases_load(void){
@@ -145,13 +149,25 @@ static bool bind_resident(void){attention=(risc_resident_attention_client_v1){0}
  if(!ok)return true;
  risc_resident_client_v1*c=&attention.base;if(c->api_version!=1||c->struct_size<sizeof(*c)||!c->invocation||c->role!=RISC_RESIDENT_ROLE_FOREGROUND||!c->checkpoint)return fail();
  resident.client=*c;resident.enabled=true;attention_available=risc_resident_attention_available_v1(&attention);return true;}
-static int checkpoint(uint32_t reason,uint32_t flags,uint32_t*out){risc_resident_request_v1 q={sizeof(q),reason,flags,0};risc_resident_reply_v1 r={sizeof(r),0};int rc=resident.client.checkpoint(resident.client.invocation,&q,&r);if(!alive(NULL))return RISC_RESIDENT_RETAINED;if(r.struct_size!=sizeof(r)||(r.flags&~(RISC_RESIDENT_REPLY_REDRAW|RISC_RESIDENT_REPLY_CONFIGURATION_CHANGED|RISC_RESIDENT_REPLY_POLICY_REQUEST))||(rc!=RISC_RESIDENT_OK&&r.flags)){fail();return RISC_RESIDENT_RETAINED;}if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_BUSY&&rc!=RISC_RESIDENT_EXIT&&rc!=RISC_RESIDENT_HANDOFF){fail();return RISC_RESIDENT_RETAINED;}if(out)*out=r.flags;return rc;}
+static int checkpoint(uint32_t reason,uint32_t flags,uint32_t*out){if(!alive(NULL)||!resident.enabled||!resident.client.checkpoint)return RISC_RESIDENT_RETAINED;risc_resident_request_v1 q={sizeof(q),reason,flags,0};risc_resident_reply_v1 r={sizeof(r),0};int rc=resident.client.checkpoint(resident.client.invocation,&q,&r);if(!alive(NULL))return RISC_RESIDENT_RETAINED;if(r.struct_size!=sizeof(r)||(r.flags&~(RISC_RESIDENT_REPLY_REDRAW|RISC_RESIDENT_REPLY_CONFIGURATION_CHANGED|RISC_RESIDENT_REPLY_POLICY_REQUEST))||(rc!=RISC_RESIDENT_OK&&r.flags)){fail();return RISC_RESIDENT_RETAINED;}if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_BUSY&&rc!=RISC_RESIDENT_EXIT&&rc!=RISC_RESIDENT_HANDOFF){fail();return RISC_RESIDENT_RETAINED;}if(out)*out=r.flags;return rc;}
+static void idle_activity(void){idle_at=millis();resident.activity=false;}
+static bool idle_due(void){
+ if(resident.activity)idle_activity();
+ return alive(NULL)&&idle_ms&&(uint32_t)(millis()-idle_at)>=idle_ms;
+}
+static bool negotiate_alarm(void){
+ host_alarm_supported=false;if(!resident.enabled)return true;
+ uint32_t flags=0;int rc=checkpoint(RISC_RESIDENT_QUERY_ALARM_ONLY,0,&flags);
+ if(rc==RISC_RESIDENT_BUSY)return true;
+ if(rc!=RISC_RESIDENT_OK||flags)return fail();
+ host_alarm_supported=true;return true;
+}
 static void back(void);
 static bool text_close(void){if(!text_token)return true;
  int rc=text_api->close(text_api->context,text_token);if(!alive(NULL))return false;
  if(rc==RISC_TEXT_ENTRY_AGAIN)return false;
  if(rc!=RISC_TEXT_ENTRY_OK)return fail();
- text_token=0;text_api=NULL;text_checkpoint=NULL;text_paused=text_pausing=false;return release(&text_grant);}
+ text_token=0;text_api=NULL;text_checkpoint=NULL;text_paused=text_pausing=false;idle_pending=idle_queried=false;return release(&text_grant);}
 static void text_step(void){
  if(!text_token||!alive(NULL))return;
  if(!text_closing){risc_text_entry_state_v1 v={.struct_size=sizeof(v)};int rc=text_api->poll(text_api->context,text_token,&v);if(!alive(NULL))return;
@@ -210,33 +226,82 @@ static void action(uint32_t a,uint32_t index){explicit_refresh=true;resident.act
  if(scanner_session_start(&scan)){memset(view.aliases,0,sizeof(view.aliases));memset(view.alias_state,0,sizeof(view.alias_state));notice("Starting passive scan");}else if(alive(NULL)){view.sensor_available=scan.available;notice("Bluetooth unavailable or busy; retry");}}
 }
 
+/* Automatic idle never uses POLL: that lane is allowed to consume Home keys.
+ * Full text detachment is required because no input-continuity promise exists. */
 static bool text_policy(void){
- if(!text_token||!text_checkpoint||text_closing||attention_pending)return true;
- risc_text_entry_checkpoint_state_v1 q={.struct_size=sizeof(q)};int rc=text_checkpoint->checkpoint_snapshot(text_api->context,text_token,&q);
  if(!alive(NULL))return false;
- if(rc!=RISC_TEXT_ENTRY_OK||q.struct_size!=sizeof(q)||(q.flags&~15u))return fail();
- text_presenting=!!(q.flags&RISC_TEXT_ENTRY_CHECKPOINT_PRESENTING);
- if(q.flags&RISC_TEXT_ENTRY_CHECKPOINT_ACTIVITY)resident.activity=true;
- if(text_presenting)return true;
- if(!text_pausing&&!text_paused){if(!scanner_background_step(true)||!scanner_background_capture())return false;
- if(scanner_background_capture_active()||scan.token||(q.flags&RISC_TEXT_ENTRY_CHECKPOINT_INPUT_BUSY))return true;
-  rc=portable_text_resident_poll(&resident,0,0,&text_continuity);if(!alive(NULL))return false;
- if(rc==RISC_RESIDENT_BUSY)return true;
- if(rc==RISC_RESIDENT_EXIT||rc==RISC_RESIDENT_HANDOFF){text_state=(risc_text_entry_state_v1){.struct_size=sizeof(text_state),.state=RISC_TEXT_ENTRY_CANCELLED,.flags=RISC_TEXT_ENTRY_HOME_CANCEL};text_closing=true;return true;}if(rc!=RISC_RESIDENT_OK)return fail();
- if(!resident.policy)return true;
- text_pausing=true;
+ if(!text_token||!text_checkpoint||text_closing||attention_pending)return true;
+ int rc;
+ if(!text_pausing&&!text_paused){
+  risc_text_entry_checkpoint_state_v1 q={.struct_size=sizeof(q)};
+  rc=text_checkpoint->checkpoint_snapshot(text_api->context,text_token,&q);
+  if(!alive(NULL))return false;
+  if(rc!=RISC_TEXT_ENTRY_OK||q.struct_size!=sizeof(q)||(q.flags&~15u))return fail();
+  text_presenting=!!(q.flags&RISC_TEXT_ENTRY_CHECKPOINT_PRESENTING);
+  if(q.flags&(RISC_TEXT_ENTRY_CHECKPOINT_ACTIVITY|RISC_TEXT_ENTRY_CHECKPOINT_INPUT_BUSY))resident.activity=true;
+  if(resident.activity)idle_activity();
+  if(text_presenting)return true;
+  if(!scanner_background_step(true)||!scanner_background_capture())return false;
+  if(!resident.enabled||(q.flags&RISC_TEXT_ENTRY_CHECKPOINT_INPUT_BUSY)||!idle_due())return true;
+  idle_pending=true;idle_queried=false;text_idle_applied=false;text_pausing=true;
  }
- if(text_pausing){if(!scanner_background_pause())return false;
- rc=text_continuity?text_checkpoint->pause(text_api->context,text_token):text_checkpoint->pause_for_focus_change(text_api->context,text_token);if(!alive(NULL))return false;
- if(rc==RISC_TEXT_ENTRY_AGAIN)return true;
- if(rc==RISC_TEXT_ENTRY_BUSY){text_pausing=false;return true;}if(rc!=RISC_TEXT_ENTRY_OK)return fail();
- text_pausing=false;text_paused=true;}
- uint32_t flags=0;rc=portable_text_resident_policy(&resident,text_continuity,&flags);if(!alive(NULL))return false;
- if(rc==RISC_RESIDENT_BUSY)return true;
- if(rc==RISC_RESIDENT_EXIT||rc==RISC_RESIDENT_HANDOFF){text_state=(risc_text_entry_state_v1){.struct_size=sizeof(text_state),.state=RISC_TEXT_ENTRY_CANCELLED,.flags=RISC_TEXT_ENTRY_HOME_CANCEL};text_closing=true;return true;}if(rc!=RISC_RESIDENT_OK)return fail();
- rc=text_checkpoint->resume(text_api->context,text_token,flags);if(!alive(NULL))return false;
+ if(text_pausing){
+  if(!stop_owners())return !terminal;
+  rc=text_checkpoint->pause_for_focus_change(text_api->context,text_token);if(!alive(NULL))return false;
+  if(rc==RISC_TEXT_ENTRY_AGAIN)return true;
+  if(rc==RISC_TEXT_ENTRY_BUSY){text_pausing=false;idle_pending=false;idle_activity();return true;}
+  if(rc!=RISC_TEXT_ENTRY_OK)return fail();
+  text_pausing=false;text_paused=true;
+ }
+ uint32_t flags=0;
+ if(!idle_queried){
+  rc=checkpoint(RISC_RESIDENT_QUERY_IDLE_ONLY,0,&flags);
+  if(rc==RISC_RESIDENT_BUSY)goto resume_editor;
+  if(rc!=RISC_RESIDENT_OK||flags)return fail();
+  idle_queried=true;
+ }
+ if(!text_idle_applied) {
+  rc=checkpoint(RISC_RESIDENT_APPLY_IDLE_ONLY,0,&flags);
+  if(rc==RISC_RESIDENT_BUSY)return true;
+  if(rc==RISC_RESIDENT_EXIT||rc==RISC_RESIDENT_HANDOFF){
+   text_state=(risc_text_entry_state_v1){.struct_size=sizeof(text_state),.state=RISC_TEXT_ENTRY_CANCELLED,.flags=RISC_TEXT_ENTRY_HOME_CANCEL};text_closing=true;return true;
+  }
+  if(rc!=RISC_RESIDENT_OK||(flags&RISC_RESIDENT_REPLY_POLICY_REQUEST))return fail();
+  text_idle_applied=true;
+ }
+ if(host_alarm_supported) {
+  rc=checkpoint(RISC_RESIDENT_QUERY_LAST_IDLE_ALARM,0,&flags);
+  if(rc==RISC_RESIDENT_BUSY)return true;
+  if(rc!=RISC_RESIDENT_OK||(flags&~RISC_RESIDENT_REPLY_REDRAW))return fail();
+  if(flags&RISC_RESIDENT_REPLY_REDRAW) {
+   text_state=(risc_text_entry_state_v1){.struct_size=sizeof(text_state),.state=RISC_TEXT_ENTRY_CANCELLED};
+   text_closing=true;idle_pending=idle_queried=text_idle_applied=false;idle_activity();return true;
+  }
+ }
+resume_editor:
+ rc=text_checkpoint->resume(text_api->context,text_token,RISC_TEXT_ENTRY_RESUME_REDRAW|RISC_TEXT_ENTRY_RESUME_FOCUS_CHANGED);
+ if(!alive(NULL))return false;
  if(rc!=RISC_TEXT_ENTRY_OK)return fail();
- text_paused=false;return true;
+ text_paused=false;idle_pending=idle_queried=text_idle_applied=false;manual_neutral=false;idle_activity();policy_read();return alive(NULL);
+}
+static bool idle_step(void){
+ if(!alive(NULL))return false;
+ if(!idle_pending)return true;
+ if(!stop_owners()||!close_ui())return !terminal;
+ uint32_t flags=0;int rc;
+ if(!idle_queried){
+  rc=checkpoint(RISC_RESIDENT_QUERY_IDLE_ONLY,0,&flags);
+  if(rc==RISC_RESIDENT_BUSY){idle_pending=false;idle_activity();notice("Automatic idle unavailable");return true;}
+  if(rc!=RISC_RESIDENT_OK||flags)return fail();
+  idle_queried=true;
+ }
+ rc=checkpoint(RISC_RESIDENT_APPLY_IDLE_ONLY,0,&flags);
+ if(rc==RISC_RESIDENT_BUSY)return true;
+ if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_EXIT&&rc!=RISC_RESIDENT_HANDOFF)return fail();
+ if(flags&RISC_RESIDENT_REPLY_POLICY_REQUEST)return fail();
+ idle_pending=idle_queried=false;manual_neutral=false;idle_activity();
+ if(rc==RISC_RESIDENT_EXIT||rc==RISC_RESIDENT_HANDOFF){leaving=true;return true;}
+ policy_read();if(!alive(NULL))return false;notice("Paused - tap Scan");explicit_refresh=true;return true;
 }
 static bool attention_step(void){
  if(!alive(NULL)||!resident.enabled)return alive(NULL);
@@ -248,11 +313,12 @@ static bool attention_step(void){
  if(rc==RISC_RESIDENT_INCOMPATIBLE){attention_available=false;notice("Capture-safe alarm attention unavailable");}return true;}
   if(rc!=RISC_RESIDENT_OK||q.struct_size!=sizeof(q)||(q.supported_flags&~7u)||(q.pending_flags&~q.supported_flags))return fail();
  attention_pending=q.pending_flags;
+ if(!host_alarm_supported)attention_pending&=~RISC_RESIDENT_ATTENTION_ALARM;
   if(!(q.pending_flags&6u))manual_neutral=true;
  }
  if(!attention_pending)return true;
  uint32_t manual=attention_pending&6u;
- if(manual){int rc=attention.reject_manual(attention.base.invocation,manual);if(!alive(NULL))return false;
+ if(manual){resident.activity=true;int rc=attention.reject_manual(attention.base.invocation,manual);if(!alive(NULL))return false;
  if(rc==RISC_RESIDENT_BUSY)return true;
  if(rc!=RISC_RESIDENT_OK)return fail();
  attention_pending&=~manual;bool short_back=manual==RISC_RESIDENT_ATTENTION_CONTROLS&&manual_neutral;manual_neutral=false;if(short_back)back();}
@@ -261,12 +327,10 @@ static bool attention_step(void){
  if(text_token){text_state=(risc_text_entry_state_v1){.struct_size=sizeof(text_state),.state=RISC_TEXT_ENTRY_CANCELLED};text_closing=true;text_step();if(text_token||terminal)return !terminal;
  save_pending=false;}
  if(!close_ui())return !terminal;
- uint32_t flags=0;int rc=checkpoint(RISC_RESIDENT_CHECKPOINT_POLL,RISC_RESIDENT_POLL_INHIBIT_IDLE,&flags);if(rc==RISC_RESIDENT_BUSY)return true;
- if(rc!=RISC_RESIDENT_OK)return fail();
- if(!(flags&RISC_RESIDENT_REPLY_POLICY_REQUEST))return true;
- rc=checkpoint(RISC_RESIDENT_CHECKPOINT_POLICY,0,&flags);if(rc==RISC_RESIDENT_BUSY)return true;
+ uint32_t flags=0;int rc=checkpoint(RISC_RESIDENT_CHECKPOINT_ALARM,0,&flags);if(rc==RISC_RESIDENT_BUSY)return true;
+ if(flags&RISC_RESIDENT_REPLY_POLICY_REQUEST)return fail();
  if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_EXIT&&rc!=RISC_RESIDENT_HANDOFF)return fail();
- attention_pending=0;if(rc==RISC_RESIDENT_EXIT||rc==RISC_RESIDENT_HANDOFF)leaving=true;else policy_read();if(!alive(NULL))return false;notice("Stopped; tap Scan to start again");explicit_refresh=true;return true;
+ attention_pending=0;idle_pending=idle_queried=false;idle_activity();if(rc==RISC_RESIDENT_EXIT||rc==RISC_RESIDENT_HANDOFF)leaving=true;else policy_read();if(!alive(NULL))return false;notice("Stopped; tap Scan to start again");explicit_refresh=true;return true;
 }
 static bool alarm_stop_owners(void){
  if(!stop_owners())return false;
@@ -276,7 +340,7 @@ static bool alarm_stop_owners(void){
  return true;
 }
 static bool alarm_fallback(void){
- if(attention_available)return true;
+ if(host_alarm_supported)return true;
  if(!scanner_alarm_open(&alarm_client))return false;
  if(!alarm_client.api)return true;
  bool settled=!text_token;
@@ -301,7 +365,7 @@ static bool handoff_step(void){
  if(!close_ui())return !terminal;
  uint32_t flags=0;int rc=checkpoint(handoff_reason,0,&flags);if(rc==RISC_RESIDENT_BUSY)return true;
  if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_EXIT&&rc!=RISC_RESIDENT_HANDOFF)return fail();
- handoff_reason=0;if(rc==RISC_RESIDENT_EXIT||rc==RISC_RESIDENT_HANDOFF)leaving=true;explicit_refresh=dirty=true;policy_read();return !terminal;
+ handoff_reason=0;idle_activity();if(rc==RISC_RESIDENT_EXIT||rc==RISC_RESIDENT_HANDOFF)leaving=true;explicit_refresh=dirty=true;policy_read();return !terminal;
 }
 static bool events(void){
  if(!ui_token)return true;
@@ -327,13 +391,14 @@ static bool events(void){
 __attribute__((visibility("default"))) const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1={1,sizeof(risc_resident_app_descriptor_v1_t),RISC_RESIDENT_ROLE_FOREGROUND,0};
 __attribute__((visibility("default"))) void app_main(void){
  rt=risc_runtime_get_api(1);if(!rt||rt->api_version!=1||rt->struct_size<RISC_RUNTIME_RETAIN_INVOCATION_V1_SIZE||!rt->acquire||!rt->release||!rt->yield_ms||!rt->monotonic_ms||!rt->retain_invocation)return;
- terminal=leaving=cancel_pending=back_after_cancel=selected_valid=false;committed_count=0;memset(alias_types,0,sizeof(alias_types));memset(alias_addresses,0,sizeof(alias_addresses));ui_token=text_token=sequence=0;revision=ui_flags=attention_at=attention_pending=0;attention_available=attention_checked=manual_neutral=false;handoff_reason=0;pending_name=save_pending=save_retry=false;text_closing=text_paused=text_pausing=text_continuity=text_presenting=false;
+ terminal=leaving=cancel_pending=back_after_cancel=selected_valid=false;committed_count=0;memset(alias_types,0,sizeof(alias_types));memset(alias_addresses,0,sizeof(alias_addresses));ui_token=text_token=sequence=0;revision=ui_flags=attention_at=attention_pending=0;attention_available=attention_checked=manual_neutral=false;handoff_reason=0;idle_pending=idle_queried=host_alarm_supported=text_idle_applied=false;idle_ms=60000u;idle_at=0;pending_name=save_pending=save_retry=false;text_closing=text_paused=text_pausing=text_continuity=text_presenting=false;
  ui_grant=text_grant=(risc_runtime_capability_v1){0};scene=NULL;components=NULL;lifecycle=NULL;text_api=NULL;text_checkpoint=NULL;document=(risc_components_document_v1){0};navigation=(risc_scene_navigation_v1){.api_version=1,.struct_size=sizeof(navigation)};view=(scanner_presenter_model){.sensor_available=true,.name_available=true};dirty=explicit_refresh=true;
  int a=acquire(RISC_SCENE_CAPABILITY,&ui_grant);if(a<=0)return;
  scene=ui_grant.api;components=risc_scene_components_get_v1(scene);if(!components||!scene->next||!scene->snapshot||!scene->close){release(&ui_grant);return;}lifecycle=risc_scene_lifecycle_get_v1(scene);
  scanner_alarm_init(&alarm_client,rt,alive,retain,NULL);alarm_ui=false;
  scanner_session_init(&scan,rt,alive,retain,NULL);if(!check_pref(scanner_preferences_init(&prefs,rt,alive,retain,NULL)))return;
- if(!scanner_background_init(rt,alive,retain,NULL)||!bind_resident())return;
+ if(!scanner_background_init(rt,alive,retain,NULL)||!bind_resident()||!negotiate_alarm())return;
+ idle_activity();
  policy_read();if(!lifecycle)notice("Automatic updates/shared controls unavailable");
  while(alive(NULL)&&!leaving){
   if(scan.cleanup_pending){(void)scanner_session_stop(&scan);if(!alive(NULL))break;rt->yield_ms(10);continue;}
@@ -351,8 +416,9 @@ __attribute__((visibility("default"))) void app_main(void){
   if(scan.cleanup_pending||cancel_pending){rt->yield_ms(10);continue;}
   if(alarm_client.owned){if(!alarm_ui){rt->yield_ms(10);continue;}if(!text_token){(void)events();if(alarm_client.status.state!=ALARM_STATE_CUE)(void)publish();}if(alive(NULL))rt->yield_ms(10);continue;}
   if(handoff_reason){if(!handoff_step())break;rt->yield_ms(10);continue;}
+  if(idle_pending&&!text_token){if(!idle_step())break;rt->yield_ms(10);continue;}
   if(pending_name){begin_name();if(scan.cleanup_pending)continue;if(pending_name){rt->yield_ms(10);continue;}}
-  if(text_token){if(!text_paused&&!text_pausing)text_step();if(!alive(NULL))break;if(text_token&&!text_policy())break;rt->yield_ms(10);continue;}
+  if(text_token){if(text_closing||(!text_paused&&!text_pausing))text_step();if(!alive(NULL))break;if(text_token&&!text_policy())break;rt->yield_ms(10);continue;}
   bool drained=events();if(!alive(NULL)||leaving)break;if(!drained){rt->yield_ms(10);continue;}if(pending_name||handoff_reason||scan.cleanup_pending||cancel_pending)continue;
   uint32_t previous_state=scan.status.state,previous_count=scan.status.count;
   if(!scanner_session_step(&scan,millis())){if(terminal)break;continue;}
@@ -362,10 +428,16 @@ __attribute__((visibility("default"))) void app_main(void){
   if(prefs.phase==2||prefs.phase==3){if(!scanner_background_pause())break;int rc=scanner_preferences_step(&prefs);if(!check_pref(rc))break;if(rc!=SCANNER_PREF_PENDING){notice(rc==SCANNER_PREF_OK?"Bluetooth enabled":"Bluetooth enable failed");policy_read();}}
   if(!scanner_background_step(true)||!scanner_background_capture())break;
   dirty|=scan.token!=0;
-  if(lifecycle||explicit_refresh||!ui_token){(void)publish();}
   save_step();if(!alive(NULL))break;
   if(ui_token&&!snapshot())break;
-  if(resident.enabled&&!scan.token&&!save_pending&&!pending_name&&!scanner_background_capture_active()&&!(ui_flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY|RISC_SCENE_CLOSING))){uint32_t flags=0;int rc=checkpoint(RISC_RESIDENT_CHECKPOINT_POLL,resident.activity?RISC_RESIDENT_POLL_ACTIVITY:0,&flags);if(rc==RISC_RESIDENT_OK){resident.activity=false;if(flags&RISC_RESIDENT_REPLY_POLICY_REQUEST)handoff_reason=RISC_RESIDENT_CHECKPOINT_POLICY;}else if(rc==RISC_RESIDENT_EXIT||rc==RISC_RESIDENT_HANDOFF)leaving=true;}
+  /* Observe a settled cut before submitting the next scan frame, otherwise
+   * a continuously refreshed receipt can starve configured idle forever. */
+  if(resident.enabled&&!save_pending&&!save_retry&&!pending_name&&!(ui_flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY|RISC_SCENE_CLOSING))&&idle_due()){
+   idle_pending=true;idle_queried=false;if(!idle_step())break;
+  }else{
+   if(resident.activity)idle_activity();
+   if(lifecycle||explicit_refresh||!ui_token){(void)publish();}
+  }
   if(alive(NULL))rt->yield_ms(10);
  }
  if(!alive(NULL))return;

@@ -176,6 +176,28 @@ static inline int scanner_alias_read(scanner_preferences*s,uint8_t type,const ui
  rc=scanner_preferences_release(s,&s->storage);if(rc)return rc;
  return status==RISC_KEY_VALUE_BUSY?SCANNER_PREF_PENDING:valid?SCANNER_PREF_OK:SCANNER_PREF_ERROR;
 }
+
+/* Existing namespace-1 TV1 timer. Ordinary missing/corrupt records use the
+ * published 60s default; uncertainty and invalid custody still fail closed. */
+static inline int scanner_idle_timeout(scanner_preferences*s,uint32_t*out){
+ if(!out)return SCANNER_PREF_ERROR;
+ *out=60000u;
+ if(!scanner_preferences_guard(s))return scanner_preferences_retain(s);
+ if(s->phase)return SCANNER_PREF_PENDING;
+ int rc=scanner_preferences_acquire(s,RISC_KEY_VALUE_CAPABILITY,1,&s->storage);if(rc)return rc;
+ const risc_key_value_v1*kv=s->storage.api;
+ if(kv->api_version!=1||kv->struct_size<sizeof(*kv)||!kv->get)return scanner_preferences_retain(s);
+ uint8_t bytes[5]={0};uint32_t n=0;s->in_call=true;
+ int status=kv->get(kv->context,"sleep_idle",bytes,sizeof(bytes),&n);s->in_call=false;
+ if(!scanner_preferences_guard(s))return scanner_preferences_retain(s);
+ if(status!=RISC_KEY_VALUE_OK&&status!=RISC_KEY_VALUE_NOT_FOUND&&status!=RISC_KEY_VALUE_BUSY&&status!=RISC_KEY_VALUE_IO&&status!=RISC_KEY_VALUE_INVALID&&status!=RISC_KEY_VALUE_BUFFER_SMALL)return scanner_preferences_retain(s);
+ if(status==RISC_KEY_VALUE_NOT_FOUND&&n)return scanner_preferences_retain(s);
+ uint32_t seconds=(uint32_t)bytes[2]|((uint32_t)bytes[3]<<8);
+ if(status==RISC_KEY_VALUE_OK&&n==5&&bytes[0]==0x54&&bytes[1]==1&&bytes[4]==(uint8_t)(bytes[2]^bytes[3]^0xa5)&&seconds>=5&&seconds<=3600)*out=seconds*1000u;
+ rc=scanner_preferences_release(s,&s->storage);if(rc)return rc;
+ return SCANNER_PREF_OK;
+}
+
 static inline int scanner_radio_allowed(scanner_preferences*s,uint8_t*out){
  if(!out)return SCANNER_PREF_ERROR;
  *out=0;

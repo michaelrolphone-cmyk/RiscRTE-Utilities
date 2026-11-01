@@ -9,7 +9,7 @@
 typedef struct {
  const risc_runtime_api_v1 *rt;bool(*alive)(void*);void(*retain)(void*);void*context;
  risc_runtime_capability_v1 grant;const alarm_service_v1 *api;
- alarm_status_v1 status;bool checked,terminal,busy,owned;
+ alarm_status_v1 status;bool checked,terminal,busy,owned,closing;
 } scanner_alarm;
 static inline bool scanner_alarm_live(scanner_alarm*s){return !s->terminal&&s->rt&&risc_runtime_get_api(1)==s->rt&&s->alive(s->context);}
 static inline bool scanner_alarm_fail(scanner_alarm*s){if(!s->terminal){s->terminal=true;s->retain(s->context);}return false;}
@@ -73,9 +73,21 @@ static inline bool scanner_alarm_close(scanner_alarm*s){
  if(!scanner_alarm_check(s))return false;
  if(!s->api)return true;
  if(s->busy)return scanner_alarm_fail(s);
- s->busy=true;int rc=s->api->stop_only(s->api->context);if(!scanner_alarm_result(s,rc))return false;
+ s->busy=true;
+ if(!s->closing){
+  if(!scanner_alarm_snapshot(s))return false;
+  /* Normal release must not poison the shared scheduler with failure-only
+   * stop_only. READY/LOADING without an occurrence reserve no output. */
+  if(!s->owned&&s->status.error==ALARM_OK&&
+     (s->status.state==ALARM_STATE_READY||s->status.state==ALARM_STATE_LOADING)){
+   if(!scanner_alarm_release(s))return false;
+   s->busy=false;return true;
+  }
+  s->closing=true;
+ }
+ int rc=s->api->stop_only(s->api->context);if(!scanner_alarm_result(s,rc))return false;
  if(rc==ALARM_PENDING||rc==ALARM_BUSY){s->busy=false;return false;}
  if(rc!=ALARM_OK)return scanner_alarm_fail(s);
  if(!scanner_alarm_release(s))return false;
- s->busy=false;return true;
+ s->closing=false;s->busy=false;return true;
 }

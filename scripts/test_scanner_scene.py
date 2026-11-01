@@ -35,6 +35,9 @@ paths.extend([Path(__file__).resolve(),ROOT/'scripts/scanner_support.py'])
 inputs = {str(v):hashlib.sha256(v.read_bytes()).hexdigest() for v in paths}
 run([cc, *flags, str(source), '-o', str(out/'test')], 'build')
 cases=['attention-quiet','attention-alarm','attention-text','attention-short','attention-long','attention-unknown','attention-dirty-busy','alarm-editor-due','alarm-editor-presenting','alarm-reserve','alarm-close-pending','alarm-text','alarm-exact-ack','alarm-return','alarm-uncertain','no-ui','close-cut','close-continuation','text-again','text-accept','text-cancel','text-home','text-malformed','text-unknown-open','text-clean-absent','handoff-pref','stale-event','sequence-regression','identity-close','selection-changed','selection-moved','name-changed','alias-identity','save-retires','cancel-pending','handoff-pending','detail-moved','detail-gone','text-clean-again','text-dirty-again','loop-close','loop-pref']
+cases += ["idle-threshold","idle-wrap","idle-scene-held","idle-active-scan","idle-close-pending","idle-ui-pending","idle-unsupported","idle-apply-busy","idle-key-race","alarm-key-race","alarm-query-unsupported","alarm-oldhost-fallback","idle-text","idle-text-held","idle-text-presenting","idle-text-again","idle-text-busy","idle-text-key-race","idle-text-deep","idle-unknown"]
+cases += ["idle-text-alarm-outcome","idle-text-outcome-busy","idle-text-outcome-invalid","idle-text-outcome-retained","idle-text-old-host"]
+cases += ["loop-idle-alarm-close","loop-idle-exit-close","loop-idle-handoff-close"]
 for case in cases: run([str(out/'test'),case],case)
 count=len(cases);result=f'{count} root cases PASS\n'
 assert inputs == {str(v):hashlib.sha256(v.read_bytes()).hexdigest() for v in paths}

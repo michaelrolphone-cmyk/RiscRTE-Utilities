@@ -35,6 +35,7 @@ paths.extend([Path(__file__).resolve(),ROOT/'scripts/scanner_support.py'])
 inputs = {str(v):hashlib.sha256(v.read_bytes()).hexdigest() for v in paths}
 run([cc, *flags, str(source), '-o', str(out/'test')], 'build')
 cases=['legacy','refresh','refresh-reentry','absent','dirty','reserve','defer','blocked-stop','cue','generation','uncertain','unknown','bad-status','reentry','identity','ack','close-pending','close-output']
+cases += ["close-ready","close-loading","close-shared-ready","close-stale-owned","close-generation","close-cue","close-blocked","close-continuation","close-busy","close-bad-status","close-uncertain","close-unknown-status","close-reentry"]
 for case in cases: run([str(out/'test'),case],case)
 count=len(cases);result=f'{count} alarm cases PASS\n'
 assert inputs == {str(v):hashlib.sha256(v.read_bytes()).hexdigest() for v in paths}

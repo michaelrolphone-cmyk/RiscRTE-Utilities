@@ -5,7 +5,7 @@
   "id": "ble_scanner",
   "requires": [],
   "type": "application",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "display_name": "BLE Scanner",
   "icon": "solid:f7c0",
   "optional": [
