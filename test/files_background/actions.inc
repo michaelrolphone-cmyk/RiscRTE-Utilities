@@ -1,0 +1,55 @@
+static unsigned evals,reports,claims,messages,launches,put_count,fail_put;
+static uint16_t changed;
+static bool workflow_available;
+static unsigned workflow_kind;
+static char saved_key[12][32];static uint8_t saved_value[12][64];static uint32_t saved_size[12];static unsigned saved_count;
+static bool extra_fp(uint32_t op,void*arg){
+ if(op==CONTEXTS_FP_EVALUATE){contexts_evaluate_v1*q=arg;++evals;assert(q->observation.battery_valid&&q->observation.battery==17&&q->observation.charging&&q->observation.time_valid&&q->observation.hour==23);q->result.changed=changed;changed=0;for(unsigned i=0;i<CR_SETTINGS;i++){q->result.settings[i]=i==CR_BRIGHTNESS?7:1;q->result.winners[i]=0;}return true;}
+ contexts_workflow_v1*q=arg;
+ if(q->claim){++claims;q->available=workflow_available;workflow_available=false;q->rule=0;q->index=0;q->step.kind=workflow_kind;q->step.value=60;strcpy(q->step.text,"saved draft message");}
+ else {++reports;assert(!files_bg.status.pending_effects);if(q->result==CR_APPLIED||q->result==CR_PARTIAL)assert(put_count||extra_atomic);}
+ return true;
+}
+static int extra_get(const char*k,void*b,uint32_t cap,uint32_t*n){
+ *n=0;for(unsigned i=0;i<saved_count;i++)if(!strcmp(k,saved_key[i])){assert(cap>=saved_size[i]);memcpy(b,saved_value[i],saved_size[i]);*n=saved_size[i];return 0;}return RISC_KEY_VALUE_NOT_FOUND;
+}
+static int extra_put(const char*k,const void*b,uint32_t n){
+ touch();++put_count;assert((evals||extra_room)&&n<=64);if(extra_room)assert(room_claims==1);if(fail_put==put_count)return RISC_KEY_VALUE_INVALID;
+ unsigned i=0;while(i<saved_count&&strcmp(k,saved_key[i]))++i;if(i==saved_count){assert(saved_count<12);strcpy(saved_key[i],k);++saved_count;}
+ memcpy(saved_value[i],b,n);saved_size[i]=n;return 0;
+}
+static bool observe(void*c,files_background_observation*out){(void)c;*out=(files_background_observation){true,true,true,17,23};return true;}
+static bool message(void*c,const char text[33]){(void)c;assert(!strcmp(text,"saved draft message"));++messages;return true;}
+static bool launch_work(void*c,const char text[33]){(void)c;assert(!strcmp(text,"saved draft message"));++launches;return true;}
+static void setup_extra(void){extra_mode=extra_atomic=extra_room=extra_conflict=false;room_claims=room_reports=0;reset(true);assert(init());extra_mode=true;files_bg.hooks.observe=observe;files_bg.hooks.message=message;files_bg.hooks.launch=launch_work;evals=reports=claims=messages=launches=put_count=fail_put=0;changed=0;workflow_available=false;saved_count=0;}
+static int timer_status(void*c,alarm_status_v1*out){(void)c;*out=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*out),.state=ALARM_STATE_READY,.rtc_seconds=1800000000};return ALARM_OK;}
+static unsigned cancels,collects;
+static int cancel_pending(void*c,uint64_t token){(void)c;assert(token==9);++cancels;return RISC_ATOMIC_PENDING;}
+static int collect_pending(void*c,uint64_t token,risc_key_value_atomic_receipt_v1*out){(void)c;assert(token==9);if(++collects==1)return RISC_ATOMIC_PENDING;*out=(risc_key_value_atomic_receipt_v1){.struct_size=sizeof(*out),.status=RISC_ATOMIC_CANCELLED};return 0;}
+static const risc_preference_store_v1 pending_api={.api_version=1,.struct_size=sizeof(pending_api),.cancel=cancel_pending,.collect=collect_pending};
+static bool atomic_malformed,atomic_replacement,atomic_reentry;
+static uint64_t atomic_revision;static unsigned atomic_submits,atomic_collects,atomic_waits;static int atomic_result;
+static int auto_state(void*c,risc_key_value_atomic_state_v1*out){(void)c;if(atomic_malformed)return 99;*out=(risc_key_value_atomic_state_v1){.struct_size=sizeof(*out),.flags=3,.namespace_id=1,.max_mutations=2,.max_value_bytes=64,.max_group_bytes=512,.max_intent_bytes=176,.revision=atomic_revision};return 0;}
+static int auto_get(void*c,uint64_t rev,const char*k,void*b,uint32_t cap,uint32_t*n){(void)c;assert(rev==atomic_revision);int rc=extra_get(k,b,cap,n);return rc==RISC_KEY_VALUE_NOT_FOUND?RISC_ATOMIC_NOT_FOUND:rc;}
+static int auto_submit(void*c,uint64_t rev,const risc_key_value_atomic_mutation_v1*m,uint32_t count,const void*intent,uint32_t n,uint64_t*token){(void)c;assert(rev==atomic_revision&&count==1&&n==176&&!memcmp(intent,"PFA0001",7)&&((const uint8_t*)intent)[11]==PORTABLE_AUTOMATIC_HOME_RULES);++atomic_submits;if(atomic_replacement){current=&other;*token=99;return 0;}if(!atomic_result)assert(!extra_put(m->key,m->value,m->size));*token=99;return 0;}
+static int auto_collect(void*c,uint64_t token,risc_key_value_atomic_receipt_v1*out){(void)c;assert(token==99);if(atomic_reentry){assert(!files_background_pause());return RISC_ATOMIC_PENDING;}if(++atomic_collects%2)return RISC_ATOMIC_PENDING;*out=(risc_key_value_atomic_receipt_v1){.struct_size=sizeof(*out),.status=atomic_result,.revision=++atomic_revision,.operation_id=atomic_result?0:77};return 0;}
+static int auto_cancel(void*c,uint64_t t){(void)c;(void)t;return RISC_ATOMIC_PENDING;}
+static void auto_wait(uint32_t ms){assert(ms==1);++atomic_waits;}
+static void extra_tests(void){
+ setup_extra();changed=(1u<<CR_BRIGHTNESS)|(1u<<CR_VOLUME);assert(test_step(true));assert(put_count==2&&reports==1);assert(files_bg.status.pending_effects==((1u<<RISC_SETTINGS_BRIGHTNESS)|(1u<<RISC_SETTINGS_ALARM)));assert(files_background_effect_done(1,2));assert(files_background_effect_done(4,3));assert(files_bg.status.pending_effects==(1u<<4));assert(files_background_effect_done(4,1));files_bg.action_checked_valid=false;assert(test_step(true));assert(put_count==2&&reports==1);assert(files_background_close());
+ setup_extra();changed=(1u<<CR_BRIGHTNESS)|(1u<<CR_VOLUME);fail_put=1;assert(test_step(true));assert(put_count==2&&reports==1&&files_bg.status.pending_effects==(1u<<4));assert(files_background_effect_done(4,2));files_bg.action_checked_valid=false;assert(test_step(true)&&put_count==2);assert(files_background_close());
+ setup_extra();workflow_available=true;workflow_kind=CR_MESSAGE;files_background_boundary b={.settled=true,.audio_allowed=true,.radio_allowed=true,.broadcast_allowed=true};assert(files_background_step(&b));assert(!claims&&!messages);files_bg.action_checked_valid=false;b.workflow_ready=true;assert(files_background_step(&b));assert(claims==1&&messages==1&&reports==1&&!files_background_capture_active());files_bg.action_checked_valid=false;assert(files_background_step(&b));assert(messages==1);assert(files_background_close());
+ setup_extra();workflow_available=true;workflow_kind=CR_LAUNCH;b.workflow_ready=true;assert(files_background_step(&b));assert(launches==1&&reports==1);assert(files_background_close());
+ setup_extra();assert(test_step(true));unsigned before=calls;b.settled=false;for(unsigned i=0;i<100;i++){assert(files_background_step(&b));assert(files_background_capture());}assert(captures==100&&calls==before+100);assert(files_background_before_storage(false));assert(files_bg.contexts.loaded);b.sharing=true;before=calls;assert(files_background_step(&b)&&calls==before);assert(files_background_capture()&&calls==before);b.sharing=false;b.settled=true;assert(files_background_step(&b));assert(files_background_close());
+ setup_extra();extra_alarm=(alarm_service_v1){.api_version=1,.struct_size=sizeof(extra_alarm),.status=timer_status};workflow_available=true;workflow_kind=CR_TIMER;b.workflow_ready=true;assert(files_background_step(&b));assert(put_count==1&&reports==1&&files_bg.status.pending_effects==(1u<<4));assert(files_background_effect_done(4,2));files_bg.action_checked_valid=false;workflow_available=true;assert(files_background_step(&b));assert(put_count==1&&reports==2&&!files_bg.status.pending_effects);assert(files_background_close());
+ setup_extra();ble_present=true;assert(test_step(true));cancels=collects=0;files_bg.broadcast.edit=(portable_preference_atomic){.api=&pending_api,.token=9,.guard=fbg_alive_hook};assert(!files_background_pause());assert(!retains&&files_bg.status.cleanup_pending&&files_bg.broadcast.edit.token==9&&cancels==1);assert(files_background_pause());assert(!retains&&!files_bg.status.cleanup_pending&&!files_bg.broadcast.edit.token&&cancels==1&&collects==2);assert(files_background_close());
+ setup_extra();extra_atomic=true;atomic_revision=1;atomic_submits=atomic_collects=atomic_waits=0;atomic_result=0;rt.yield_ms=auto_wait;extra_atomic_api=(risc_key_value_atomic_v1){1,sizeof(extra_atomic_api),NULL,auto_state,auto_get,auto_submit,auto_collect,auto_cancel};changed=1u<<CR_BRIGHTNESS;assert(test_step(true));assert(atomic_submits==1&&atomic_collects==2&&atomic_waits==2&&put_count==1&&reports==1);assert(files_background_effect_done(1,1));files_bg.action_checked_valid=false;assert(test_step(true)&&atomic_submits==1);assert(files_background_close());
+ setup_extra();extra_atomic=true;atomic_revision=1;atomic_submits=atomic_collects=atomic_waits=0;atomic_result=RISC_ATOMIC_UNCERTAIN;rt.yield_ms=auto_wait;changed=1u<<CR_BRIGHTNESS;assert(test_step(true));assert(atomic_submits==1&&put_count==0&&reports==1&&!files_bg.status.pending_effects);files_bg.action_checked_valid=false;assert(test_step(true)&&atomic_submits==1);assert(files_background_close());
+ setup_extra();saved_count=1;strcpy(saved_key[0],PORTABLE_RADIO_KEY);saved_size[0]=4;memcpy(saved_value[0],(uint8_t[]){0x51,1,3,3^0xa5},4);ble_present=true;assert(test_step(true));assert(observed_policy.audio_allowed&&!observed_policy.radio_allowed&&ble_applied.radios_allowed);assert(files_background_close());
+ setup_extra();extra_room=true;files_bg.contexts.rules_available=false;portable_context_preset preset;portable_context_preset_init(&preset);preset.enabled=true;preset.source=CONTEXTS_AUDIO;preset.slot=0;preset.actions=PORTABLE_CONTEXT_BRIGHTNESS;preset.brightness=70;strcpy(preset.name,"office");saved_count=1;strcpy(saved_key[0],"ctx_p0");saved_size[0]=64;assert(portable_context_preset_encode(&preset,saved_value[0]));assert(test_step(true));assert(room_claims==1&&room_reports==1&&put_count==1&&files_bg.status.pending_effects==(1u<<1));assert(files_background_effect_done(1,2));files_bg.contexts.preset_checked=false;assert(test_step(true));assert(room_claims==1&&put_count==1);assert(files_background_close());
+ setup_extra();extra_room=extra_conflict=true;files_bg.contexts.rules_available=false;assert(test_step(true));assert(!room_claims&&!put_count&&!room_reports);assert(files_background_close());
+ setup_extra();extra_atomic=true;atomic_malformed=true;changed=1u<<CR_BRIGHTNESS;assert(!test_step(true)&&retains&&!put_count);terminal();atomic_malformed=false;
+ setup_extra();extra_atomic=true;atomic_replacement=true;atomic_result=0;rt.yield_ms=auto_wait;changed=1u<<CR_BRIGHTNESS;assert(!test_step(true)&&retains&&files_bg.automatic.operation.token==99);terminal();atomic_replacement=false;
+ setup_extra();extra_atomic=true;atomic_reentry=true;atomic_result=0;rt.yield_ms=auto_wait;changed=1u<<CR_BRIGHTNESS;assert(!test_step(true)&&retains&&files_bg.automatic.operation.token==99);terminal();atomic_reentry=false;
+ extra_mode=extra_atomic=extra_room=false;puts("Files automatic settings/result ordering, partial failure/no replay, workflow focus, presenting capture and sharing cases PASS");
+}
