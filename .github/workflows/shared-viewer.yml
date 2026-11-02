@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 8da05a9d3017d49e9c9a315cad32e322a1b6801d
+          ref: fa08d9716843ce629b2f8c94c7a0fc3d26dd9998
           path: .deps/System
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -92,6 +92,7 @@ jobs:
           git archive HEAD | gzip -n > qualification/source/utilities.tar.gz
           for source in System Runtime X4Runtime Bootfs; do
             git -C ".deps/$source" rev-parse HEAD > "qualification/source/$source.head"
+            git -C ".deps/$source" archive HEAD | gzip -n > "qualification/source/$source.tar.gz"
           done
       - uses: actions/upload-artifact@v4
         if: always()

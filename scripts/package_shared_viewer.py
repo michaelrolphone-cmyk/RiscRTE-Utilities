@@ -95,7 +95,11 @@ def run(inputs,tools,viewer,provider,output):
   nextboot['drivers'].append(binding)
   nextrow=next(r for r in nextboot['app_capabilities'] if r.get('manifest')=='model_viewer.json')
   nextrow['grants']=[g for g in row['grants'] if g['capability'] not in LOWER]+[{'capability':'ui.canvas','api':1,'instance_id':0}]
-  after['model_viewer.json']=manifest
+  product_manifest=copy.deepcopy(oldmanifest)
+  shared_manifest=json.loads(manifest)
+  for key in ('version','requires','optional'):product_manifest[key]=shared_manifest[key]
+  after['model_viewer.json']=encode(product_manifest)
+  if {k:v for k,v in product_manifest.items() if k not in ('version','requires','optional')}!={k:v for k,v in oldmanifest.items() if k not in ('version','requires','optional')}:raise ValueError('Original Viewer metadata mutation')
   if 'model_viewer.elf' in after:after['model_viewer.elf']=canonical
   if route:nextsd[route]=canonical
   after['viewer-canvas/driver.elf']=driver
@@ -112,6 +116,8 @@ def run(inputs,tools,viewer,provider,output):
   if not changed<=allowed or set(before)-set(after):raise ValueError('Unrelated inventory mutation')
   if {n for n in set(sd)|set(nextsd) if sd.get(n)!=nextsd.get(n)}-({route} if route else set()):raise ValueError('Unrelated SD mutation')
   d=output/lane;d.mkdir();image,packing=build(after,len(raw))
+  repeated,_=build(after,len(raw))
+  if image!=repeated:raise ValueError('Repeated store bytes differ')
   if read_image(image,len(raw))!=after:raise ValueError('Store readback differs')
   (d/'store.bin').write_bytes(image);(d/'original-model_viewer.elf').write_bytes(blob)
   for which,entries in (('before',before),('after',after),('before-sd',sd),('after-sd',nextsd)):
@@ -124,7 +130,7 @@ def run(inputs,tools,viewer,provider,output):
    if unzip(d/'sd-apps.zip')!=nextsd:raise ValueError('SD readback differs')
   if locate(after,nextsd)[0]!=canonical:raise ValueError('Product Viewer bytes differ')
   results[lane]={'original_sha256':sha(blob),'original_version':oldmanifest['version'],'viewer_sha256':sha(canonical),'viewer_bytes':len(canonical),'canvas_sha256':sha(driver),'changed_internal':sorted(changed),'changed_sd':[route] if route else [],'original_policy':row,'new_policy':nextrow,'provider_binding':binding,'provider_manifest':provider_manifest,'packing':packing,'unrelated_files_policies_namespaces_data_unchanged':True}
- receipt={'schema':1,'inputs':INPUTS,'tools':TOOLS,'canonical_sha256':sha(canonical),'canonical_bytes':len(canonical),'full_sidecar_identical':True,'products':results,'target_instructions_executed':False,'hardware_tested':False}
+ receipt={'schema':1,'inputs':INPUTS,'tools':TOOLS,'canonical_sha256':sha(canonical),'canonical_bytes':len(canonical),'full_sidecar_identical':True,'store_rebuild_repeat_identical':True,'products':results,'target_instructions_executed':False,'hardware_tested':False}
  (output/'receipt.json').write_bytes(encode(receipt));print(json.dumps(receipt,indent=2),flush=True)
 if __name__=='__main__':
  p=argparse.ArgumentParser()
