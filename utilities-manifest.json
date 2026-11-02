@@ -407,7 +407,7 @@
     },
     {
       "id": "ble_scanner",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "file_name": "ble_scanner.elf",
       "runtime_profile": "shared-scene-v1",
       "manifest_path": "Apps/ble_scanner_scene.json",

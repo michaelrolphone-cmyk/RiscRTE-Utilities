@@ -1,7 +1,7 @@
 # Shared semantic BLE Scanner
 
 `Apps/ble_scanner_scene.c` is the canonical shared-scene implementation, selected
-as `ble_scanner` version 0.3.2 in `utilities-manifest.json`. The original legacy
+as `ble_scanner` version 0.3.3 in `utilities-manifest.json`. The original legacy
 application remains intact for existing recipes. Build with
 `scripts/build_shared_scene_apps.py --runtime RUNTIME --system-apps SYSTEM --app ble_scanner --output OUT`.
 The one executable is reused byte-for-byte across product selections; product
@@ -72,3 +72,10 @@ metadata admission and byte preservation, not physical firmware execution.
 
 See [key-independent handoff qualification](qualification/scanner-key-independent-handoff.md)
 for the repaired source pins, contract boundaries and exact evidence scope.
+
+Ordinary document updates preserve the scene session's input ownership. Lifecycle
+configuration occurs when a new scene session opens; it is not repeated for an
+unchanged policy after each update. A current-revision navigation event arriving
+between update and return therefore remains deliverable. Closing and reopening
+still establishes a fresh input boundary. See
+[the publish regression](qualification/scanner-publish-input.md).

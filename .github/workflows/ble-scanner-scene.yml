@@ -72,6 +72,8 @@ jobs:
             python Utilities/scripts/test_scanner_presenter.py --system System --output "qualification/presenter-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/presenter-$mode.log"
             python Utilities/scripts/test_scanner_session.py --runtime Runtime --output "qualification/session-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/session-$mode.log"
             python Utilities/scripts/test_scanner_background.py --runtime Runtime --system System --utilities Utilities --output "qualification/background-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/background-$mode.log"
+            python Utilities/scripts/test_scanner_publish_provider.py --runtime Runtime --system System --output "qualification/publish-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/publish-$mode.log"
+            python Utilities/scripts/test_scanner_publish_provider.py --runtime Runtime --system System --provider-system RetainedSystem --output "qualification/publish-retained-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/publish-retained-$mode.log"
             python Utilities/scripts/test_scanner_runtime.py --runtime Runtime --system-apps System --output "qualification/runtime-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/runtime-$mode.log"
             python Utilities/scripts/test_scanner_runtime.py --runtime Runtime --system-apps System --provider-system RetainedSystem --output "qualification/runtime-retained-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/runtime-retained-$mode.log"
           done

@@ -89,6 +89,7 @@ static bool publish(void){
  scanner_presenter_node(&candidate,RISC_SCENE_ACTION,action,alert?"Dismiss":"Retry","");
  }else if(!scanner_presenter_build(&candidate,&view,revision+1))return fail();
  if(ui_token){candidate.revision=document.revision;if(!memcmp(&candidate,&document,sizeof(candidate))){dirty=false;return true;}candidate.revision=revision+1;}
+ bool new_session=!ui_token;
  uint64_t opened=0;int rc=ui_token?components->update(scene->context,ui_token,&candidate):components->open(scene->context,&candidate,NULL,&opened);
  if(!alive(NULL))return false;
  if(rc==RISC_SCENE_AGAIN||rc==RISC_SCENE_BUSY){if(opened)return fail();
@@ -98,7 +99,9 @@ static bool publish(void){
  ui_token=opened;sequence=0;}
  document=candidate;revision=document.revision;dirty=false;explicit_refresh=false;if(alarm_ui)committed_alarm=alarm_client.status.occurrence;
  memcpy(committed_devices,view.devices,sizeof(committed_devices));committed_count=view.status.count;
- if(lifecycle){rc=lifecycle->configure(scene->context,ui_token,resident.enabled?RISC_SCENE_FEATURE_SHARED_CONTROLS:0);if(!alive(NULL))return false;
+ /* Configuring establishes input ownership and consumes inherited input.
+  * Ordinary updates must preserve events arriving after the snapshot. */
+ if(new_session&&lifecycle){rc=lifecycle->configure(scene->context,ui_token,resident.enabled?RISC_SCENE_FEATURE_SHARED_CONTROLS:0);if(!alive(NULL))return false;
  if(rc!=RISC_SCENE_OK)return fail();}
  return true;
 }
