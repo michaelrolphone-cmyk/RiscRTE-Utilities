@@ -27,8 +27,16 @@ static void cs_step(const char*s,const char*value,unsigned action,int selected,i
 static unsigned cs_changes(const cr_rule*r){unsigned n=0;for(unsigned i=0;i<CR_SETTINGS;i++)n+=r->settings[i]!=CR_KEEP;return n;}
 static unsigned cs_samples(unsigned item){const contexts_profile_v1*p=cu_profile(item);return p?(p->samples[0]>p->samples[1]?p->samples[0]:p->samples[1]):0;}
 static void cs_when(const cr_rule*r,char*out,size_t n){const cr_item*t=&cu_store.items[r->item];if(t->kind==CR_PLACE)snprintf(out,n,"WHILE AT %s",t->name);else if(t->kind==CR_EVENT)snprintf(out,n,"WHEN %s IS HEARD",t->name);else if(t->kind==CR_BATTERY)snprintf(out,n,"BATTERY AT OR BELOW %u%%",t->arg0);else if(t->kind==CR_TIME)snprintf(out,n,"BETWEEN %02u:00 AND %02u:00",t->arg0,t->arg1);else cs_copy(out,n,t->kind==CR_CHARGER?"WHILE CHARGING":t->name);}
-static int cs_field_max(unsigned f){return f==CR_SLEEP||f==CR_DEEP?5:f==CR_FACE?(int)portable_contexts_face_count():f==CR_POWER?3:f==CR_NOTIFY?4:f==CR_BRIGHTNESS?10:f==CR_VOLUME?11:2;}
-static int32_t cs_field_value(unsigned f,int index){static const int idle[]={-1,15,30,60,300,0},deep[]={-1,600,1800,3600,14400,0};return f==CR_BRIGHTNESS?(index?index:-1):f==CR_SLEEP?idle[index]:f==CR_DEEP?deep[index]:index-1;}
+static int cs_field_max(unsigned f){
+#ifdef CONTEXTS_SHARED_APPLICATION
+if(f==CR_POWER||f==CR_NOTIFY)return cs_shared_option_max(f);
+#endif
+return f==CR_SLEEP||f==CR_DEEP?5:f==CR_FACE?(int)portable_contexts_face_count():f==CR_POWER?3:f==CR_NOTIFY?4:f==CR_BRIGHTNESS?10:f==CR_VOLUME?11:2;}
+static int32_t cs_field_value(unsigned f,int index){
+#ifdef CONTEXTS_SHARED_APPLICATION
+if(f==CR_POWER||f==CR_NOTIFY)return cs_shared_option_value(f,index);
+#endif
+static const int idle[]={-1,15,30,60,300,0},deep[]={-1,600,1800,3600,14400,0};return f==CR_BRIGHTNESS?(index?index:-1):f==CR_SLEEP?idle[index]:f==CR_DEEP?deep[index]:index-1;}
 static int cs_field_index(unsigned f,int32_t value){for(int i=0;i<=cs_field_max(f);i++)if(cs_field_value(f,i)==value)return i;return 0;}
 static void cs_item_rows(void){
  unsigned count=0;char sub[64];for(unsigned i=0;i<CR_ITEMS;i++){cr_item*t=&cu_store.items[i];if(!t->kind||(cu_kind<=CR_EVENT?t->kind!=cu_kind:t->kind<CR_SIGNAL))continue;
@@ -102,7 +110,11 @@ static void cs_declare(void){
   cs_header(r->name,"CONTEXT",true);cs_section("WHEN");cs_when(r,b,sizeof(b));cs_row(b,"","",CU_ROW_WHEN,RISC_SYMBOL_TRIGGER);cs_section("WHAT CHANGES");snprintf(value,sizeof(value),"%u CHANGES",cs_changes(r));cs_row("SETTINGS","FACE - POWER - NETWORK - SOUND",value,CU_ROW_SETTINGS,RISC_SYMBOL_SETTINGS);cs_section("WHAT RUNS");snprintf(value,sizeof(value),"%u STEPS",r->steps);cs_row("WORKFLOW","LAUNCH APPS AND MORE",value,CU_ROW_WORKFLOW,RISC_SYMBOL_WORKFLOW);cs_section("OPTIONS");
   static const unsigned holds[]={0,20,60,300,900};int at=0;for(unsigned i=0;i<5;i++)if(holds[i]==r->hold_seconds)at=(int)i;snprintf(value,sizeof(value),r->hold_seconds>=60?"%u MIN":r->hold_seconds?"%u S":"NO EXTRA",r->hold_seconds>=60?r->hold_seconds/60:r->hold_seconds);cs_step("STAYS ON FOR",value,CU_ROW_HOLD,at,0,4);snprintf(value,sizeof(value),"%u",r->priority);cs_step("PRIORITY",value,CU_ROW_PRIORITY,r->priority,1,9);cs_switch("ENABLED",CU_ROW_ENABLE,r->enabled);cs_row("RENAME","","",CU_ROW_RENAME,0);cs_button(cu_pending?"RETRY SAVE":"SAVE CONTEXT",CU_ROW_SAVE,RISC_SCENE_PRIMARY);n=cs_row("DELETE","","",CU_ROW_DELETE,0);cs_detail(n)->tone=RISC_TONE_DANGER;break;}
  case CU_SETTINGS:
-  cs_header("WHAT CHANGES",r->name,true);for(unsigned f=0;f<CR_SETTINGS;f++){cu_value(f,r->settings[f],value,sizeof(value));cs_step(cu_settings_names[f],value,CU_ROW_FIELD+f,cs_field_index(f,r->settings[f]),0,cs_field_max(f));if(!cu_field_available(f))cs_document.nodes[cs_document.node_count-1].flags|=RISC_SCENE_DISABLED;}cs_say("","NO CHANGE LEAVES THAT SETTING ALONE.");break;
+  cs_header("WHAT CHANGES",r->name,true);for(unsigned f=0;f<CR_SETTINGS;f++){cu_value(f,r->settings[f],value,sizeof(value));
+#ifdef CONTEXTS_SHARED_APPLICATION
+if(!cu_field_available(f))snprintf(value,sizeof(value),"UNAVAILABLE / SAVED VALUE KEPT");
+#endif
+cs_step(cu_settings_names[f],value,CU_ROW_FIELD+f,cs_field_index(f,r->settings[f]),0,cs_field_max(f));if(!cu_field_available(f))cs_document.nodes[cs_document.node_count-1].flags|=RISC_SCENE_DISABLED;}cs_say("","NO CHANGE LEAVES THAT SETTING ALONE.");break;
  case CU_WORKFLOW:
   cs_header("WORKFLOW",r->name,true);for(unsigned i=0;i<r->steps;i++){cr_step*w=&r->workflow[i];if(w->kind==CR_TIMER)snprintf(b,sizeof(b),"START TIMER %lu MIN",(unsigned long)w->value/60);else snprintf(b,sizeof(b),"%s %.32s",w->kind==CR_LAUNCH?"LAUNCH":"SHOW",w->text);cs_row(b,"RUNS WHEN IT STARTS / TAP TO REMOVE","",CU_ROW_STEP+i,w->kind==CR_TIMER?RISC_SYMBOL_CLOCK:RISC_SYMBOL_WORKFLOW);}if(!r->steps)cs_say("","NO STEPS YET.");if(r->steps<CR_STEPS)cs_row("ADD STEP","","",CU_ROW_ADD_STEP,RISC_SYMBOL_PLUS);break;
  case CU_ADD_STEP:cs_header("ADD STEP","THEN...",true);cs_row("LAUNCH AN APP","","",CU_ROW_LAUNCH,RISC_SYMBOL_WORKFLOW);cs_row("START A TIMER","","",CU_ROW_TIMER,RISC_SYMBOL_CLOCK);cs_row("SHOW A MESSAGE","","",CU_ROW_MESSAGE,RISC_SYMBOL_EVENT);break;
@@ -157,7 +169,11 @@ static void cs_event(const risc_scene_event_v1*e){
 #endif
  if(cu_pending&&a!=CU_ROW_SAVE&&a!=CU_ROW_CANCEL&&a!=CU_ROW_CONFIRM){cu_note("RETRY SAVE OR DISCARD");return;}
  if(e->kind==RISC_SCENE_VALUE_EVENT){cr_rule*r=&cu_store.rules[cu_rule];cr_item*t=&cu_store.items[cu_item];int v=e->value;const risc_scene_node_v1*n=&cs_document.nodes[e->node-1];if(v<n->minimum||v>n->maximum||n->flags&RISC_SCENE_DISABLED)return;
-  if(a>=CU_ROW_FIELD&&a<CU_ROW_FIELD+CR_SETTINGS){unsigned f=a-CU_ROW_FIELD;r->settings[f]=cs_field_value(f,v);cu_edit=true;return;}
+  if(a>=CU_ROW_FIELD&&a<CU_ROW_FIELD+CR_SETTINGS){unsigned f=a-CU_ROW_FIELD;
+#ifdef CONTEXTS_SHARED_APPLICATION
+if(!cu_field_available(f)||v<0||v>cs_field_max(f)){cu_note("SETTING UNAVAILABLE");return;}
+#endif
+r->settings[f]=cs_field_value(f,v);cu_edit=true;return;}
   if(a==CU_ROW_PRIORITY){r->priority=(uint8_t)v;cu_edit=true;return;}
   if(a==CU_ROW_HOLD){const uint32_t hold[]={0,20,60,300,900};r->hold_seconds=hold[v];cu_edit=true;return;}
   if(a==CU_ROW_ARG0||a==CU_ROW_ARG1){if(t->kind==CR_TIME&&v==(a==CU_ROW_ARG0?t->arg1:t->arg0)){cu_note("FROM AND TO MUST DIFFER");return;}if(a==CU_ROW_ARG0)t->arg0=(uint8_t)(t->kind==CR_BATTERY?v*5:v);else t->arg1=(uint8_t)v;cu_edit=true;return;}

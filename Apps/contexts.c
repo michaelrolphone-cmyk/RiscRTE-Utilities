@@ -62,6 +62,9 @@ static void ctx_note(const char*s){ctx_message=s;ctx_dirty=true;}
 static void cs_retain(void){if(!cs_terminal){cs_terminal=true;if(ctx_runtime&&ctx_runtime->retain_invocation)(void)ctx_runtime->retain_invocation();}}
 static bool cs_alive(void){if(cs_terminal)return false;if(!risc_runtime_get_api(1)){cs_terminal=true;return false;}return true;}
 static bool cs_release(risc_runtime_capability_v1*g){if(!cs_alive())return false;if(g->api&&!ctx_runtime->release(g)){cs_retain();return false;}memset(g,0,sizeof(*g));return cs_alive();}
+#ifdef CONTEXTS_SHARED_APPLICATION
+#include "contexts_shared.inc"
+#endif
 static bool cs_backend_open(void){
  if(cs_client.api)return true;
  if(!portable_contexts_open(&cs_client,ctx_runtime)){
@@ -136,17 +139,28 @@ bool portable_contexts_rules_read(cr_store*out){return cs_backend_open()&&portab
 bool portable_contexts_rules_save(const cr_store*in){return cs_backend_open()&&portable_context_rules_save(&cs_client,in);}
 bool portable_contexts_models_save(void){return cs_backend_open()&&portable_fp_checkpoint(&cs_client,false)&&!cs_client.fingerprint_error;}
 unsigned portable_contexts_face_count(void){
-#ifdef PORTABLE_CONTEXT_FACE_COUNT
+#ifdef CONTEXTS_SHARED_APPLICATION
+ return sizeof(cs_face_names)/sizeof(cs_face_names[0]);
+#elif defined(PORTABLE_CONTEXT_FACE_COUNT)
  return PORTABLE_CONTEXT_FACE_COUNT;
 #else
  return 0;
 #endif
 }
 const char*portable_contexts_face_name(unsigned id){
-#ifdef PORTABLE_CONTEXT_FACE_NAMES
+#ifdef CONTEXTS_SHARED_APPLICATION
+ return id<portable_contexts_face_count()?cs_face_names[id]:NULL;
+#elif defined(PORTABLE_CONTEXT_FACE_NAMES)
  static const char*const names[]=PORTABLE_CONTEXT_FACE_NAMES;return id<sizeof(names)/sizeof(*names)?names[id]:NULL;
 #else
  (void)id;return NULL;
+#endif
+}
+static bool cs_setting_applicable(unsigned field,int32_t value){
+#ifdef CONTEXTS_SHARED_APPLICATION
+ return cs_shared_setting_value(field,value);
+#else
+ (void)field;(void)value;return true;
 #endif
 }
 static bool cs_face_save(const risc_key_value_v1*kv,unsigned id){
@@ -186,6 +200,10 @@ static void ctx_fingerprint_setting(bool timing){
  ctx_note(ok?"SAVED / FRESH SAMPLES REQUIRED":"SAVE UNCONFIRMED / RETRY");
 }
 static void ctx_back(void){ctx_exit=true;}
+#ifndef CONTEXTS_SHARED_APPLICATION
+#define CS_CATALOG_COUNT portable_catalog_count
+#define CS_CATALOG(i) portable_catalog[i]
+#endif
 #include "contexts_controller.inc"
 #include "contexts_scene_view.inc"
 static bool cs_service_tick(void){
@@ -243,13 +261,13 @@ static bool cs_rules_tick(void){
   bool opened=ctx_automatic_open();const risc_key_value_v1 *settings=&ctx_automatic.view;uint16_t success=0;
   if(!cs_alive())return false;
   for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.changed&(1u<<field)){
-   if(opened&&pqa_preferences_valid(settings)&&cu_field_available(field)&&portable_context_setting(settings,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
+   if(opened&&pqa_preferences_valid(settings)&&cu_field_available(field)&&cs_setting_applicable(field,q.result.settings[field])&&portable_context_setting(settings,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
    if(ctx_automatic.retained||ctx_automatic.operation.token||ctx_automatic.running||!cs_alive()){cs_retain();return false;}
   }
   if(!ctx_automatic_close())return false;
 #else
   risc_runtime_capability_v1 g={.struct_size=sizeof(g)};bool opened=ctx_runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);uint16_t success=0;
-  for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.changed&(1u<<field))if(opened&&pqa_preferences_valid(g.api)&&cu_field_available(field)&&portable_context_setting(g.api,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
+  for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.changed&(1u<<field))if(opened&&pqa_preferences_valid(g.api)&&cu_field_available(field)&&cs_setting_applicable(field,q.result.settings[field])&&portable_context_setting(g.api,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
   if(!cs_release(&g))return false;
 #endif
   for(unsigned i=0;i<CR_RULES;i++){bool changed=false,complete=true;for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.winners[field]==(int)i&&(q.result.changed&(1u<<field))){changed=true;complete&=!!(success&(1u<<field));}if(changed){contexts_workflow_v1 report={.struct_size=sizeof(report),.rule=i,.result=complete?CR_APPLIED:CR_PARTIAL};if(!f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&report))return false;}}
@@ -268,7 +286,7 @@ static bool cs_rules_tick(void){
  if(a.available){bool ok=false;if(!portable_contexts_pause(&cs_client)){cs_retain();return false;}
   if(a.step.kind==CR_MESSAGE){cs_copy(cs_workflow_message,sizeof(cs_workflow_message),a.step.text);ok=true;ctx_dirty=true;}
   else if(a.step.kind==CR_TIMER){risc_runtime_capability_v1 storage={.struct_size=sizeof(storage)};ok=portable_context_timer(ctx_runtime,cs_alarm_grant.api,a.step.value,&storage);if(storage.api){cs_retain();return false;}}
-  else if(a.step.kind==CR_LAUNCH){for(unsigned i=0;i<portable_catalog_count;i++)if(portable_catalog[i].compatible&&!strcmp(portable_catalog[i].file_name,a.step.text)){cs_copy(cs_launch,sizeof(cs_launch),a.step.text);ok=true;}}
+  else if(a.step.kind==CR_LAUNCH){for(unsigned i=0;i<CS_CATALOG_COUNT;i++)if(CS_CATALOG(i).compatible&&!strcmp(CS_CATALOG(i).file_name,a.step.text)){cs_copy(cs_launch,sizeof(cs_launch),a.step.text);ok=true;}}
   if(cs_launch[0]){cs_launch_report=a;return true;}
   a.claim=false;a.result=ok?CR_RAN:CR_FAILED;if(!f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&a))return false;
  }
@@ -291,6 +309,9 @@ static bool cs_checkpoint(unsigned reason){
  bool training=cs_client.foreground_learning;if(!portable_contexts_pause(&cs_client)||!portable_contexts_close(&cs_client)){cs_retain();return false;}ctx_service=NULL;
  if(!cs_close_scene())return false;
  int rc=risc_scene_resident_dispatch_v1(&cs_resident,reason);if(!cs_alive())return false;if(rc==RISC_RESIDENT_RETAINED){cs_retain();return false;}if(rc!=RISC_RESIDENT_OK&&rc!=RISC_RESIDENT_BUSY)return false;
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if(!cs_shared_settings())return false;
+#endif
  if(!cs_backend_open())return false;
  cs_client.foreground_learning=training;ctx_dirty=true;return cs_open_scene(&nav);
 }
@@ -307,6 +328,9 @@ static void cs_cleanup(void){
  if(!cs_text_cleanup())return;
 #endif
  if(cs_client.api&&(!portable_contexts_pause(&cs_client)||!portable_contexts_close(&cs_client))){cs_retain();return;}
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if(!cs_shared_close())return;
+#endif
  if(cs_close_scene()){if(!cs_release(&cs_alarm_grant)||!cs_release(&cs_battery_grant)||!cs_release(&cs_civil_grant))return;(void)cs_release(&cs_scene_grant);}
 }
 __attribute__((visibility("default"))) const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1={1,sizeof(risc_resident_app_descriptor_v1_t),RISC_RESIDENT_ROLE_FOREGROUND,0};
@@ -324,7 +348,11 @@ __attribute__((visibility("default"))) void app_main(void){
  if(!risc_scene_resident_bind_v1(ctx_runtime,&cs_resident)){cs_retain();return;}
  (void)ctx_runtime->acquire(RISC_CIVIL_CLOCK_CAPABILITY,1,0,&cs_civil_grant);if(!cs_alive())return;
  (void)ctx_runtime->acquire(RISC_BATTERY_GAUGE_CAPABILITY,1,0,&cs_battery_grant);if(!cs_alive())return;
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if(!cs_shared_prepare()){cs_cleanup();return;}
+#else
  (void)ctx_runtime->acquire("alarm.service",CONTEXTS_ALARM_API,0,&cs_alarm_grant);if(!cs_alive())return;
+#endif
  cu_page=CU_HOME;cu_item=cu_rule=cu_offset=0;cu_kind=CR_PLACE;cu_edit=cu_pending=cu_learning_saved=cu_contact=cu_moved=false;cu_last_poll=cu_profile_generation=0;
  cu_loaded=portable_contexts_rules_read(&cu_store);if(!cu_loaded){cr_init(&cu_store);ctx_note("CONTEXT STORAGE UNAVAILABLE");}else cu_sync_profiles();cu_saved=cu_store;
  if(cs_client.api){if(!cs_service_tick()){cs_cleanup();return;}}
@@ -369,7 +397,11 @@ __attribute__((visibility("default"))) void app_main(void){
  }
  if(cs_launch[0]&&cs_alive()&&!cs_host_exit()){
   if(!portable_contexts_pause(&cs_client)||!cs_close_scene()){cs_retain();return;}
-  bool launched=ctx_runtime->request_launch&&ctx_runtime->request_launch(cs_launch);
+  bool launch_valid=true;
+#ifdef CONTEXTS_SHARED_APPLICATION
+  launch_valid=cs_shared_launch_valid(cs_launch);if(!cs_alive())return;
+#endif
+  bool launched=launch_valid&&ctx_runtime->request_launch&&ctx_runtime->request_launch(cs_launch);
   if(!cs_alive())return;
   const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(ctx_service);cs_launch_report.claim=false;cs_launch_report.result=launched?CR_RAN:CR_FAILED;
   if(f)(void)f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&cs_launch_report);

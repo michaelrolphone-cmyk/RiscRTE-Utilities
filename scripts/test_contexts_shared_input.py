@@ -45,6 +45,8 @@ def build(runtime, system, tmp, profile, shared, sanitized, baseline=None, nativ
     runtime,system = runtime.resolve(),system.resolve()
     include = stage(runtime, system, tmp / 'sdk')
     flags = ['-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I'+str(include),'-I'+str(system/'test/scene'),'-I'+str(system/'Services/text_input')]
+    if os.environ.get('CONTEXTS_SHARED_ELF_TEST')=='1':
+        flags += ['-DCONTEXTS_SHARED_APPLICATION']
     if sanitized:
         flags += ['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
     if profile == 'paper':
