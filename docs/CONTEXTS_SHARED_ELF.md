@@ -14,8 +14,9 @@ Alarm2 is explicitly negotiated/validated before clean absence permits Alarm1.
 Partial acquisition, malformed tables and uncertain release retain custody.
 Explicit closed-scene SETTINGS_PREPARE settles existing host readiness without
 policy writes or toggles. The resident Home's read-only setting/option queries determine offered
-settings; an older/absent host displays unavailable rather than inventing
-support. Unsupported saved values are preserved and are not applied.
+settings; an absent host displays unavailable rather than inventing support.
+A matching resident host is required: Runtime may fence an old host's unknown
+callback result as retained custody rather than allow an unsafe fallback. Unsupported saved values are preserved and are not applied.
 Workflow launch identities are revalidated against the native catalog generation.
 
 All rendering, geometry, input targets and keyboard presentation stay in

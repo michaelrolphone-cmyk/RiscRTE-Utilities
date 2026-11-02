@@ -49,6 +49,15 @@ def run(root):
   bindings.append({'name':name,'size':len(data),'sha256':wanted,'url':asset['browser_download_url']})
  if release.get('draft'):
   release=request(base+'/releases/'+str(release['id']),{'draft':False,'prerelease':True},method='PATCH')
+ # Draft asset URLs contain an untagged placeholder. Resolve final public
+ # URLs only after publication and independently fetch them without a token.
+ public_assets={a['name']:a for a in request(base+'/releases/'+str(release['id'])+'/assets')}
+ for binding in bindings:
+  asset=public_assets[binding['name']]
+  assert asset['size']==binding['size'] and asset.get('digest')=='sha256:'+binding['sha256']
+  with urllib.request.urlopen(asset['browser_download_url'],timeout=60) as response:public_bytes=response.read()
+  if len(public_bytes)!=binding['size'] or digest(public_bytes)!=binding['sha256']:raise ValueError('Public download differs: '+binding['name'])
+  binding['url']=asset['browser_download_url']
  receipt={'repo':repo,'tag':tag,'source_commit':commit,'release_url':release['html_url'],'assets':bindings,'physical_testing':'not performed'}
  (package/'publication.json').write_text(json.dumps(receipt,indent=2)+'\n')
  print(json.dumps(receipt,indent=2))
