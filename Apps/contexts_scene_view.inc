@@ -112,12 +112,16 @@ static void cs_declare(void){
  case CU_SETTINGS:
   cs_header("WHAT CHANGES",r->name,true);for(unsigned f=0;f<CR_SETTINGS;f++){cu_value(f,r->settings[f],value,sizeof(value));
 #ifdef CONTEXTS_SHARED_APPLICATION
-if(!cu_field_available(f))snprintf(value,sizeof(value),"UNAVAILABLE / SAVED VALUE KEPT");
+if(!cu_field_available(f)||!cs_shared_setting_value(f,r->settings[f]))snprintf(value,sizeof(value),"UNAVAILABLE / SAVED VALUE KEPT");
 #endif
 cs_step(cu_settings_names[f],value,CU_ROW_FIELD+f,cs_field_index(f,r->settings[f]),0,cs_field_max(f));if(!cu_field_available(f))cs_document.nodes[cs_document.node_count-1].flags|=RISC_SCENE_DISABLED;}cs_say("","NO CHANGE LEAVES THAT SETTING ALONE.");break;
  case CU_WORKFLOW:
   cs_header("WORKFLOW",r->name,true);for(unsigned i=0;i<r->steps;i++){cr_step*w=&r->workflow[i];if(w->kind==CR_TIMER)snprintf(b,sizeof(b),"START TIMER %lu MIN",(unsigned long)w->value/60);else snprintf(b,sizeof(b),"%s %.32s",w->kind==CR_LAUNCH?"LAUNCH":"SHOW",w->text);cs_row(b,"RUNS WHEN IT STARTS / TAP TO REMOVE","",CU_ROW_STEP+i,w->kind==CR_TIMER?RISC_SYMBOL_CLOCK:RISC_SYMBOL_WORKFLOW);}if(!r->steps)cs_say("","NO STEPS YET.");if(r->steps<CR_STEPS)cs_row("ADD STEP","","",CU_ROW_ADD_STEP,RISC_SYMBOL_PLUS);break;
- case CU_ADD_STEP:cs_header("ADD STEP","THEN...",true);cs_row("LAUNCH AN APP","","",CU_ROW_LAUNCH,RISC_SYMBOL_WORKFLOW);cs_row("START A TIMER","","",CU_ROW_TIMER,RISC_SYMBOL_CLOCK);cs_row("SHOW A MESSAGE","","",CU_ROW_MESSAGE,RISC_SYMBOL_EVENT);break;
+ case CU_ADD_STEP:cs_header("ADD STEP","THEN...",true);cs_row("LAUNCH AN APP","","",CU_ROW_LAUNCH,RISC_SYMBOL_WORKFLOW);cs_row("START A TIMER","","",CU_ROW_TIMER,RISC_SYMBOL_CLOCK);
+#ifdef CONTEXTS_SHARED_APPLICATION
+if(!cs_alarm_grant.api){cs_document.nodes[cs_document.node_count-1].flags|=RISC_SCENE_DISABLED;cs_say("","TIMER SERVICE UNAVAILABLE");}
+#endif
+cs_row("SHOW A MESSAGE","","",CU_ROW_MESSAGE,RISC_SYMBOL_EVENT);break;
  case CU_SOURCES:
   cs_header("SOURCES","INDEPENDENT RF AND AUDIO",true);for(unsigned i=0;i<2;i++){bool available=(cs_source_mask&(1u<<i))!=0;cs_switch(i?"RF":"AUDIO",CU_ROW_SOURCE+i,!!(ctx_fp.sources&(1u<<i)));if(!available)cs_document.nodes[cs_document.node_count-1].flags|=RISC_SCENE_DISABLED;cs_say("",!available?"UNAVAILABLE ON THIS DEVICE.":ctx_fp.feature_flags[i]&4?"BURST TIMING READY":ctx_fp.feature_flags[i]&2?"SPECTRUM READY; BUILDING TIMING":"WAITING FOR FRESH SAMPLES.");}cs_switch("TIMING ONLY",CU_ROW_SOURCE+2,ctx_fp.temporal_only);break;
  case CU_DELETE:case CU_CANCEL:

@@ -28,6 +28,9 @@ def run(runtime,system,output):
   # Deployment references, not three recompilations: the immutable object is one.
   references={device:{'elf':'contexts/contexts.elf','sha256':receipt['sha256']}
    for device in ('X4','T-Watch','Waveshare')}
+  pins={name:subprocess.check_output(['git','-C',str(path),'rev-parse','HEAD'],text=True).strip()
+   for name,path in (('utilities',ROOT),('system',system),('runtime',runtime))}
+  builder.json_write(output/'source-lock.json',{'schema':1,'commits':pins})
   builder.json_write(output/'delivery.json',{'schema':1,'application':receipt,
    'deployments':references,'physical_testing':'not performed',
    'presentation':'provider-owned ui.scene and ui.text-input',

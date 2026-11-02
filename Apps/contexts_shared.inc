@@ -35,23 +35,56 @@ static bool cs_shared_alarm(void){
  }
  return true;
 }
+static bool cs_catalog_result(int32_t rc){
+ if(!cs_alive())return false;
+ if(!portable_catalog_result(&cs_catalog,rc)&&cs_catalog.uncertain){cs_retain();return false;}
+ return rc==RISC_APP_CATALOG_OK;
+}
+static bool cs_shared_catalog(void){
+ int found=cs_shared_acquire(RISC_APP_CATALOG_CAPABILITY,1,&cs_catalog.grant);
+ if(found<=0)return found==0;
+ const risc_app_catalog_v1 *api=cs_catalog.grant.api;
+ if(api->api_version!=1||api->struct_size<sizeof(*api)||!api->snapshot||!api->get){cs_retain();return false;}
+ cs_catalog.api=api;cs_catalog.initialized=true;
+ risc_app_catalog_snapshot_v1 snapshot={.struct_size=sizeof(snapshot)};
+ if(!cs_catalog_result(api->snapshot(api->context,&snapshot)))return cs_alive();
+ if(snapshot.struct_size<sizeof(snapshot)||!snapshot.generation||snapshot.count>RISC_APP_CATALOG_MAX)return true;
+ cs_catalog.staging=malloc((size_t)snapshot.count*sizeof(*cs_catalog.staging));
+ if(snapshot.count&&!cs_catalog.staging)return true;
+ for(uint32_t i=0;i<snapshot.count;i++){
+  risc_app_catalog_entry_v1 entry={.struct_size=sizeof(entry)};
+  if(!cs_catalog_result(api->get(api->context,snapshot.generation,i,&entry)))goto invalid;
+  /* The existing persisted workflow ABI carries at most32 route bytes.
+   * Reject invalid metadata before the legacy manifest bridge can truncate. */
+  if(!memchr(entry.id,0,sizeof(entry.id))||strlen(entry.id)>=sizeof(((t5_app_manifest_t*)0)->file_name)-3u||
+     !portable_catalog_entry(&entry,&cs_catalog.staging[i]))goto invalid;
+  for(uint32_t j=0;j<i;j++)if(!strcmp(cs_catalog.staging[j].route,cs_catalog.staging[i].route)||
+    !strcmp(cs_catalog.staging[j].manifest.file_name,cs_catalog.staging[i].manifest.file_name))goto invalid;
+ }
+ risc_app_catalog_snapshot_v1 after={.struct_size=sizeof(after)};
+ if(!cs_catalog_result(api->snapshot(api->context,&after)))goto invalid;
+ if(after.struct_size<sizeof(after)||after.count!=snapshot.count||after.generation!=snapshot.generation)goto invalid;
+ cs_catalog.entries=cs_catalog.staging;cs_catalog.staging=NULL;cs_catalog.count=snapshot.count;cs_catalog.generation=snapshot.generation;
+ return true;
+invalid:
+ if(!cs_alive()||cs_catalog.uncertain)return false;
+ portable_catalog_clear(&cs_catalog);return true;
+}
 static bool cs_shared_launch_valid(const char *route){
  for(unsigned i=0;i<cs_catalog.count;i++){
-  if(strcmp(CS_CATALOG(i).file_name,route))continue;
-  portable_app_catalog_launch launch;
-  bool ok=portable_catalog_launch_prepare(&cs_catalog,i,&launch);
-  if(!cs_alive())return false;
-  if(cs_catalog.uncertain){cs_retain();return false;}
-  /* Existing rule records have a 32-byte launch identity. Never truncate or
-   * reinterpret a longer modern native route as an authorized old filename. */
-  return ok&&!strcmp(launch.route,route);
+  if(!CS_CATALOG(i).compatible||strcmp(CS_CATALOG(i).file_name,route))continue;
+  risc_app_catalog_entry_v1 current={.struct_size=sizeof(current)};
+  int rc=cs_catalog.api->get(cs_catalog.api->context,cs_catalog.generation,i,&current);
+  if(!cs_catalog_result(rc)){if(cs_alive())portable_catalog_clear(&cs_catalog);return false;}
+  return current.struct_size>=sizeof(current)&&current.flags==RISC_APP_CATALOG_AVAILABLE&&
+   portable_catalog_path(current.file_name,sizeof(current.file_name))&&!strcmp(current.file_name,route);
  }
  return false;
 }
 static bool cs_shared_close(void){
  if(cs_catalog.uncertain){cs_retain();return false;}
- if(!portable_catalog_close(&cs_catalog,ctx_runtime)||!cs_alive()){cs_retain();return false;}
- return true;
+ if(!cs_release(&cs_catalog.grant))return false;
+ portable_catalog_clear(&cs_catalog);cs_catalog=(portable_app_catalog){0};return true;
 }
 static int cs_shared_query(uint32_t reason){
  risc_resident_request_v1 request={sizeof(request),reason,0,0};
@@ -100,8 +133,7 @@ static int32_t cs_shared_option_value(unsigned field,int index){
 static bool cs_shared_prepare(void){
  cs_catalog=(portable_app_catalog){0};cs_setting_mask=0;
  if(!cs_shared_alarm())return false;
- (void)portable_catalog_refresh(&cs_catalog,ctx_runtime);
- if(!cs_alive())return false;
+ if(!cs_shared_catalog())return false;
  if(cs_catalog.uncertain){cs_retain();return false;}
  for(unsigned i=0;i<cs_catalog.count;i++)
   if(strlen(cs_catalog.entries[i].route)>32||strcmp(cs_catalog.entries[i].route,CS_CATALOG(i).file_name))

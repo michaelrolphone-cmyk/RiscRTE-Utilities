@@ -6,7 +6,7 @@ on:
     paths: ['Apps/contexts*', 'lib/Contexts/**', 'scripts/*contexts*', 'test/contexts/**', '.github/workflows/contexts-shared-elf.yml']
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   qualify:
     runs-on: ubuntu-24.04
@@ -53,6 +53,11 @@ jobs:
           pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
       - name: Build the single device-independent ELF
         run: python scripts/build_contexts_shared.py --runtime .dependencies/runtime --system-apps .dependencies/system --output build/shared-target
+      - name: Publish immutable qualified prerelease
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/publish_contexts_shared.py --build build
       - uses: actions/upload-artifact@v4
         if: always()
         with:

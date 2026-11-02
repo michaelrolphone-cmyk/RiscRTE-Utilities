@@ -49,7 +49,7 @@ def build(runtime, system, tmp, profile, shared, sanitized, baseline=None, nativ
         flags += ['-DCONTEXTS_SHARED_APPLICATION']
     if sanitized:
         flags += ['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
-    if profile == 'paper':
+    if profile == 'paper' and os.environ.get('CONTEXTS_SHARED_ELF_TEST')!='1':
         flags += ['-DCONTEXTS_ALARM_API=2','-DCONTEXTS_SETTING_MASK=0x274u','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_CONTEXTS_SOURCE_MASK=CONTEXTS_RADIO']
     if profile == 'watch':
         flags += ['-DSCENE_HOST_TELEMETRY=0','-DSCENE_HOST_WATCH_240='+('0' if native else '1')]

@@ -171,7 +171,7 @@ static void cu_action(unsigned action){
  cr_rule*r=&cu_store.rules[cu_rule];cr_item*t=&cu_store.items[cu_item];
  if(action>=CU_ROW_DURATION&&action<CU_ROW_DURATION+5){const unsigned minutes[]={5,10,15,25,45};if(r->steps<CR_STEPS){r->workflow[r->steps++]=(cr_step){.kind=CR_TIMER,.value=minutes[action-CU_ROW_DURATION]*60};cu_edit=true;}cu_page_set(CU_WORKFLOW);return;}
  if(action>=CU_ROW_SOURCE&&action<CU_ROW_SOURCE+3){unsigned i=action-CU_ROW_SOURCE;ctx_model_source=i<2?i:0;ctx_fingerprint_setting(i==2);ctx_read_status();return;}
- if(action>=CU_ROW_APP&&action<CU_ROW_APP+CS_CATALOG_COUNT){unsigned i=action-CU_ROW_APP;if(r->steps<CR_STEPS){cr_step*w=&r->workflow[r->steps++];memset(w,0,sizeof(*w));w->kind=CR_LAUNCH;snprintf(w->text,sizeof(w->text),"%s",CS_CATALOG(i).file_name);cu_edit=true;}cu_page_set(CU_WORKFLOW);return;}
+ if(action>=CU_ROW_APP&&action<CU_ROW_APP+CS_CATALOG_COUNT){unsigned i=action-CU_ROW_APP;size_t length=strlen(CS_CATALOG(i).file_name);if(!CS_CATALOG(i).compatible||length>=sizeof(r->workflow[0].text)){cu_note("APP ROUTE UNAVAILABLE");return;}if(r->steps<CR_STEPS){cr_step*w=&r->workflow[r->steps++];memset(w,0,sizeof(*w));w->kind=CR_LAUNCH;memcpy(w->text,CS_CATALOG(i).file_name,length+1);cu_edit=true;}cu_page_set(CU_WORKFLOW);return;}
  if(action>=CU_ROW_STEP&&action<CU_ROW_STEP+CR_STEPS){unsigned i=action-CU_ROW_STEP;if(i<r->steps){for(unsigned j=i;j+1<r->steps;j++)r->workflow[j]=r->workflow[j+1];memset(&r->workflow[--r->steps],0,sizeof(cr_step));cu_edit=true;ctx_dirty=true;}return;}
  if(action>=CU_ROW_FIELD&&action<CU_ROW_FIELD+CR_SETTINGS){cu_cycle(action-CU_ROW_FIELD);return;}
  if(action>=CU_ROW_RULE&&action<CU_ROW_RULE+CR_RULES){cu_rule=action-CU_ROW_RULE;cu_edit=false;cu_page_set(CU_RULE);return;}
