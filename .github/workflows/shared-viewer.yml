@@ -63,7 +63,21 @@ jobs:
       - name: Actual Viewer through actual canvas provider
         run: python scripts/test_viewer_shared.py --runtime .deps/Runtime --system-apps .deps/System --output qualification/shared-host --jobs 2 --leak-sanitizer
       - name: Complete shared Viewer target
+        if: always()
         run: python scripts/build_shared_viewer.py --runtime .deps/Runtime --system .deps/System --output qualification/shared-target
+      - name: Build delivered canvas provider
+        if: always()
+        run: python .deps/System/scripts/build_canvas_services.py --runtime .deps/Runtime --output qualification/canvas-provider
+      - name: Project and admit actual products
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/package_shared_viewer.py --inputs qualification/inputs --bootfs-tools .deps/Bootfs/scripts --viewer qualification/shared-target --provider qualification/canvas-provider --output qualification/products
+          for mode in normal sanitized; do
+            flags=(); if [ "$mode" = sanitized ]; then flags=(--sanitize); fi
+            python .deps/System/scripts/test_files_product_admission.py --runtime .deps/Runtime --x4-runtime .deps/X4Runtime --assembly qualification/products --source-pins .deps/System/docs/files-product-runtime-source-pins.json --output "qualification/admission-$mode" "${flags[@]}"
+          done
       - name: Inspect exact Viewer product bindings
         run: python scripts/inspect_viewer_products.py --inputs qualification/inputs --bootfs-tools .deps/Bootfs/scripts --output qualification/inventory
       - name: Preserve source and identity

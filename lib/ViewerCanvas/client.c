@@ -29,7 +29,7 @@ static risc_file_open_source_info_v1 selected_source;
 static bool source_selected,source_stream;
 static uint64_t session,receipt,last_sequence;
 static risc_canvas_geometry_v1 geometry;
-static uint32_t receipt_at,frames,clock_last,buttons;
+static uint32_t receipt_at,frames,clock_last,buttons,nav_edges;
 static uint8_t *working,*snapshot,*model_bytes;
 static unsigned width,height,stride,selected,model_size,model_offset;
 static bool retained,exiting,dirty,started,blocked,back_exits;
@@ -169,8 +169,8 @@ static void input_poll(void){
   last_sequence=e.sequence;
   if(e.kind==RISC_CANVAS_CONTROLS_REQUEST){exiting=true;break;}
   if(e.kind==RISC_CANVAS_NAVIGATION){
-   buttons=e.navigation.buttons|e.navigation.pressed;
-   if(buttons&RISC_NAV_HOME)exiting=true;
+   buttons=e.navigation.buttons;nav_edges|=e.navigation.pressed;
+   if((buttons|nav_edges)&RISC_NAV_HOME)exiting=true;
    if(buttons&RISC_NAV_PAGE_BACK)buttons|=RISC_NAV_LEFT;
    if(buttons&RISC_NAV_PAGE_FORWARD)buttons|=RISC_NAV_RIGHT;
   }else if(e.kind==RISC_CANVAS_CONTACT){
@@ -189,7 +189,7 @@ bool canvas_contacts(risc_touch_snapshot_v1 *out){
 static bool poll_nowait(t5_app_input_t *in){
  memset(in,0,sizeof(*in));if(!canvas_alive()){in->exit_requested=true;return false;}
  if(HAS(rt,risc_runtime_api_v1,exit_requested)&&rt->exit_requested())exiting=true;
- input_poll();in->buttons=buttons&63;in->exit_requested=exiting||(back_exits&&(buttons&RISC_NAV_BACK));
+ nav_edges=0;input_poll();in->buttons=(buttons|nav_edges)&63;in->exit_requested=exiting||(back_exits&&((buttons|nav_edges)&RISC_NAV_BACK));
  pump();return !retained;
 }
 static bool poll_wait(t5_app_input_t *in,uint32_t ms){if(rt&&!retained)rt->yield_ms(ms?ms:1);return poll_nowait(in);}

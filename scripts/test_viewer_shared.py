@@ -135,6 +135,7 @@ def main():
                 result = future.result()
                 results["tests"].append(result)
                 print(("PASS " if result["returncode"] == 0 else "FAIL ") + result["key"], flush=True)
+                if result["returncode"]: print(result["output"], flush=True)
                 (a.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
     results["tests"].sort(key=lambda item: item["key"])
     results["sources_unchanged"] = before == {str(s): digest(s) for s in sources}
