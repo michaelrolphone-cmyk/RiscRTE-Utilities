@@ -75,8 +75,8 @@ int main(void){
  assert(api->struct_size==sizeof(alarm_service_descriptor_v2));
 #else
  points_catalog_projection projection={.struct_size=sizeof(projection)};
- result=ALARM_RETAINED;unsigned before=calls;
- assert(points_service_project(api,&projection)==ALARM_RETAINED&&calls==before+1);
+ result=ALARM_RETAINED;unsigned before_projection=calls;
+ assert(points_service_project(api,&projection)==ALARM_RETAINED&&calls==before_projection+1);
 #endif
  unsigned before=calls;assert(d->quiesce()&&calls==before);d->stop();assert(calls==before);
  assert(!alarm_service_descriptor(api));
