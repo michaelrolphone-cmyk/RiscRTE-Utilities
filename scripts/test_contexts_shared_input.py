@@ -45,9 +45,11 @@ def build(runtime, system, tmp, profile, shared, sanitized, baseline=None, nativ
     runtime,system = runtime.resolve(),system.resolve()
     include = stage(runtime, system, tmp / 'sdk')
     flags = ['-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I'+str(include),'-I'+str(system/'test/scene'),'-I'+str(system/'Services/text_input')]
+    if os.environ.get('CONTEXTS_SHARED_ELF_TEST')=='1':
+        flags += ['-DCONTEXTS_SHARED_APPLICATION']
     if sanitized:
         flags += ['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie']
-    if profile == 'paper':
+    if profile == 'paper' and os.environ.get('CONTEXTS_SHARED_ELF_TEST')!='1':
         flags += ['-DCONTEXTS_ALARM_API=2','-DCONTEXTS_SETTING_MASK=0x274u','-DPORTABLE_NATIVE_TIME_TOOLBAR','-DPORTABLE_CONTEXTS_SOURCE_MASK=CONTEXTS_RADIO']
     if profile == 'watch':
         flags += ['-DSCENE_HOST_TELEMETRY=0','-DSCENE_HOST_WATCH_240='+('0' if native else '1')]
@@ -106,8 +108,9 @@ def run(args):
         return {'commit':subprocess.check_output(['git','-C',str(path),'rev-parse','HEAD'],text=True).strip(),
                 'tree':subprocess.check_output(['git','-C',str(path),'rev-parse','HEAD^{tree}'],text=True).strip(),
                 'working_tree_status':subprocess.check_output(['git','-C',str(path),'status','--porcelain'],text=True).splitlines()}
-    if args.baseline_utilities:
-        assert (ROOT/'Apps/contexts_controller.inc').read_bytes() == (args.baseline_utilities/'Apps/contexts_controller.inc').read_bytes(), 'Contexts controller changed'
+    # The shared-app catalog/availability bridge intentionally changes controller
+    # source. Compile the exact predecessor below and require rendered/persisted
+    # behavior parity instead of requiring byte-identical implementation source.
     files = ['Apps/contexts.c','Apps/contexts_scene_view.inc','Apps/contexts_controller.inc','Apps/contexts_text_input.inc',
              'scripts/test_contexts_shared_input.py','test/contexts/app_test.c','test/contexts/host_probe.c',
              'test/contexts/shared_input_fixture.h','test/contexts/shared_input_fixture.inc']
@@ -115,6 +118,7 @@ def run(args):
                 'sources':{'utilities':pin(ROOT),'system':pin(args.system_apps),'watch_runtime':pin(args.runtime),
                            'x4_runtime':pin(args.x4_runtime),'baseline_utilities':pin(args.baseline_utilities)},
                 'source_sha256':{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in files},
+                'baseline_controller_sha256':hashlib.sha256((args.baseline_utilities/'Apps/contexts_controller.inc').read_bytes()).hexdigest() if args.baseline_utilities else None,
                 'sanitizer_options':os.environ.get('ASAN_OPTIONS','default')}
     for sanitized in ((False,True) if args.sanitize else (False,)):
         flavor = 'sanitized' if sanitized else 'normal'

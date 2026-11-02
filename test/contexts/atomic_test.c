@@ -2,6 +2,16 @@
 #include "app_test.c"
 int main(int argc,char **argv){
  assert(argc==2);const char *test=argv[1];uat_reset();native_alive=true;ctx_runtime=&app_runtime;ctx_service=&service.base;cs_client=(portable_contexts_client){.api=&service.base,.runtime=&app_runtime};
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if(!strcmp(test,"legacy-enable")){
+  shared_fault="no-atomic";assert(cs_atomic_detect()&&!cs_atomic_preferences);
+  assert(portable_contexts_enable(true)&&kv_writes==1&&!uat.commits&&preferences_size==4&&preferences[2]==1);
+  assert(app_acquires==app_releases);puts("Common Contexts clean-absence legacy preference PASS");return 0;
+ }
+ assert(cs_atomic_detect()&&cs_atomic_preferences);
+ cs_setting_mask=!strcmp(test,"automatic-rgb")?0x3ffu:0x274u;
+ cs_setting_options[CR_POWER]=7;cs_setting_options[CR_NOTIFY]=15;
+#endif
  ctx_fp_valid=true;ctx_fp=(contexts_fingerprint_status_v1){.struct_size=sizeof(ctx_fp),.sources=3};cs_source_mask=3;
  if(!strcmp(test,"enable")){cu_action(CU_ROW_AUTO);assert(ctx_enabled&&uat.commits==1&&!kv_writes);const uint8_t b[]={'C',1,1,0xa4};uat_assert_user("contexts_on",b,4,1);cu_action(CU_ROW_AUTO);assert(!ctx_enabled&&uat.commits==2);}
  else if(!strcmp(test,"sources")){cu_action(CU_ROW_SOURCE+1);assert(uat.commits==1&&ctx_fp.sources==3);uint8_t b=1;uat_assert_user("context_sources",&b,1,1);}

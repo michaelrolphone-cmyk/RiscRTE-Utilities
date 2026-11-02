@@ -49,7 +49,11 @@ static void cu_value(unsigned field,int32_t value,char*out,size_t size){
 #define CONTEXTS_SETTING_MASK ((1u<<CR_SETTINGS)-1u)
 #endif
 static bool cu_field_available(unsigned f){
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if(f>=CR_SETTINGS||!(cs_setting_mask&(1u<<f)))return false;
+#else
  if(f>=CR_SETTINGS||!(CONTEXTS_SETTING_MASK&(1u<<f)))return false;
+#endif
  if(f==CR_FACE)return portable_contexts_face_count()>0;
 #ifdef PORTABLE_CONTEXTS_PAPER
  if(ctx_paper){const uint16_t bits[]={PORTABLE_CONTEXT_FACE,PORTABLE_CONTEXT_SLEEP,PORTABLE_CONTEXT_IDLE,PORTABLE_CONTEXT_DEEP,0,0,PORTABLE_CONTEXT_BRIGHTNESS,PORTABLE_CONTEXT_VOLUME,PORTABLE_CONTEXT_ALERT,PORTABLE_CONTEXT_DND};return f<CR_SETTINGS&&(!bits[f]||(portable_contexts_action_mask()&bits[f]));}
@@ -100,7 +104,7 @@ static void cu_build(void){
   for(unsigned i=0;i<r->steps;i++){cr_step*w=&r->workflow[i];if(w->kind==CR_TIMER)snprintf(b,sizeof(b),"%lu MIN / TAP TO REMOVE",(unsigned long)(w->value/60));if(w->kind!=CR_TIMER)snprintf(b,sizeof(b),"%.32s / TAP TO REMOVE",w->text);cu_add(w->kind==CR_LAUNCH?"OPEN APP":w->kind==CR_TIMER?"START TIMER":"SHOW MESSAGE",b,CU_ROW_STEP+i,false);}if(r->steps<CR_STEPS)cu_add("+ ADD STEP","RUN ONCE ON ACTIVATION",CU_ROW_ADD_STEP,false);break;
  case CU_TIMER:{const unsigned minutes[]={5,10,15,25,45};for(unsigned i=0;i<5;i++){snprintf(b,sizeof(b),"%u MINUTES",minutes[i]);cu_add(b,"START ON ACTIVATION",CU_ROW_DURATION+i,false);}break;}
  case CU_ADD_STEP:cu_add("LAUNCH APP","CHOOSE AN INSTALLED APP",CU_ROW_LAUNCH,false);cu_add("START TIMER","CHOOSE DURATION",CU_ROW_TIMER,false);cu_add("SHOW MESSAGE","TYPE A SHORT MESSAGE",CU_ROW_MESSAGE,false);break;
- case CU_APPS:for(unsigned i=0;i<portable_catalog_count&&i<40;i++)if(portable_catalog[i].compatible)cu_add(portable_catalog[i].display_name,portable_catalog[i].file_name,CU_ROW_APP+i,false);if(!cu_count)cu_add("CATALOG UNAVAILABLE","NO APP CAN BE SELECTED",0,false);break;
+ case CU_APPS:for(unsigned i=0;i<CS_CATALOG_COUNT&&i<40;i++)if(CS_CATALOG(i).compatible)cu_add(CS_CATALOG(i).display_name,CS_CATALOG(i).file_name,CU_ROW_APP+i,false);if(!cu_count)cu_add("CATALOG UNAVAILABLE","NO APP CAN BE SELECTED",0,false);break;
  case CU_ACTIVITY:
   for(unsigned i=0;i<CR_LOGS;i++){contexts_log_v1 q={.struct_size=sizeof(q),.index=i};if(!cu_call(CONTEXTS_FP_LOG,&q))break;snprintf(b,sizeof(b),"%s / %lu SEC",q.entry.kind==CR_ENTER?"ACTIVATED":q.entry.kind==CR_LEAVE?"INACTIVE":q.entry.kind==CR_APPLIED?"SETTINGS APPLIED":q.entry.kind==CR_RAN?"ACTION RAN":"ACTION FAILED",(unsigned long)(q.entry.at_ms/1000));cu_add(q.entry.name,b,0,false);}if(!cu_count)cu_add("NO ACTIVITY YET","CONTEXT CHANGES APPEAR HERE",0,false);break;
  case CU_SOURCES:
@@ -160,11 +164,14 @@ static void cu_cycle(unsigned f){
  cu_edit=true;ctx_dirty=true;
 }
 static void cu_action(unsigned action){
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if((action==CU_ROW_TIMER||(action>=CU_ROW_DURATION&&action<CU_ROW_DURATION+5))&&!cs_alarm_grant.api){cu_note("TIMER UNAVAILABLE");return;}
+#endif
  if(cu_pending&&action!=CU_ROW_SAVE&&action!=CU_ROW_CANCEL&&action!=CU_ROW_CONFIRM){cu_note("RETRY SAVE OR DISCARD");return;}
  cr_rule*r=&cu_store.rules[cu_rule];cr_item*t=&cu_store.items[cu_item];
  if(action>=CU_ROW_DURATION&&action<CU_ROW_DURATION+5){const unsigned minutes[]={5,10,15,25,45};if(r->steps<CR_STEPS){r->workflow[r->steps++]=(cr_step){.kind=CR_TIMER,.value=minutes[action-CU_ROW_DURATION]*60};cu_edit=true;}cu_page_set(CU_WORKFLOW);return;}
  if(action>=CU_ROW_SOURCE&&action<CU_ROW_SOURCE+3){unsigned i=action-CU_ROW_SOURCE;ctx_model_source=i<2?i:0;ctx_fingerprint_setting(i==2);ctx_read_status();return;}
- if(action>=CU_ROW_APP&&action<CU_ROW_APP+portable_catalog_count){unsigned i=action-CU_ROW_APP;if(r->steps<CR_STEPS){cr_step*w=&r->workflow[r->steps++];memset(w,0,sizeof(*w));w->kind=CR_LAUNCH;snprintf(w->text,sizeof(w->text),"%s",portable_catalog[i].file_name);cu_edit=true;}cu_page_set(CU_WORKFLOW);return;}
+ if(action>=CU_ROW_APP&&action<CU_ROW_APP+CS_CATALOG_COUNT){unsigned i=action-CU_ROW_APP;size_t length=strlen(CS_CATALOG(i).file_name);if(!CS_CATALOG(i).compatible||length>=sizeof(r->workflow[0].text)){cu_note("APP ROUTE UNAVAILABLE");return;}if(r->steps<CR_STEPS){cr_step*w=&r->workflow[r->steps++];memset(w,0,sizeof(*w));w->kind=CR_LAUNCH;memcpy(w->text,CS_CATALOG(i).file_name,length+1);cu_edit=true;}cu_page_set(CU_WORKFLOW);return;}
  if(action>=CU_ROW_STEP&&action<CU_ROW_STEP+CR_STEPS){unsigned i=action-CU_ROW_STEP;if(i<r->steps){for(unsigned j=i;j+1<r->steps;j++)r->workflow[j]=r->workflow[j+1];memset(&r->workflow[--r->steps],0,sizeof(cr_step));cu_edit=true;ctx_dirty=true;}return;}
  if(action>=CU_ROW_FIELD&&action<CU_ROW_FIELD+CR_SETTINGS){cu_cycle(action-CU_ROW_FIELD);return;}
  if(action>=CU_ROW_RULE&&action<CU_ROW_RULE+CR_RULES){cu_rule=action-CU_ROW_RULE;cu_edit=false;cu_page_set(CU_RULE);return;}

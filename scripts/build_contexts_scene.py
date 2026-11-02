@@ -17,6 +17,8 @@ def stage(runtime,system,output):
  # Shared text entry's optional ABI belongs to the selected System host.
  text_api=system/'sdk/app/RiscTextEntryV1.h'
  if text_api.exists():shutil.copyfile(text_api,include/'RiscTextEntryV1.h')
+ shared_contract=system/'sdk/app/RiscResidentContextsV1.h'
+ if shared_contract.exists():shutil.copyfile(shared_contract,include/shared_contract.name)
  return include
 
 def run(runtime,system,output,catalog=None,target="watch",face_header=None,shared_input=False):

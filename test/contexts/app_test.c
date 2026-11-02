@@ -41,7 +41,7 @@ static cr_result automatic_result;static unsigned automatic_evaluations,automati
 #endif
 static int32_t pref_get(void*c,const char*n,void*p,uint32_t cap,uint32_t*size){(void)c;
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
- return uat_read(c,n,p,cap,size);
+ if(cs_atomic_preferences)return uat_read(c,n,p,cap,size);
 #endif
  *size=0;if(strcmp(n,"contexts_on")||!preferences_size)return RISC_KEY_VALUE_NOT_FOUND;assert(cap>=preferences_size);memcpy(p,preferences,preferences_size);*size=preferences_size;return 0;}
 static int32_t pref_put(void*c,const char*n,const void*p,uint32_t size){(void)c;assert(!strcmp(n,"contexts_on")&&size<=4);memcpy(preferences,p,size);preferences_size=size;kv_writes++;return 0;}
@@ -85,18 +85,63 @@ static bool fp(void*c,uint32_t op,void*p){(void)c;assert(native_alive);
  }
 }
 static const contexts_fingerprint_service_v1 service={.base={.api_version=1,.struct_size=sizeof(service),.step=svc_step,.pause=svc_pause,.status=svc_status,.request_export=svc_mask,.begin_export=svc_mask,.export_record=svc_record,.finish_export=svc_finish,.label=svc_label,.claim_preset=svc_claim,.preset_result=svc_result,.capture_audio=svc_pause},.fingerprint_abi=0x31504643u,.fingerprint=fp};
+#ifdef CONTEXTS_SHARED_APPLICATION
+static const char *shared_fault="";
+static unsigned shared_catalog_generation=1,shared_facade_requests,shared_legacy_requests;
+static int32_t shared_catalog_snapshot(void*c,risc_app_catalog_snapshot_v1*q){(void)c;*q=(risc_app_catalog_snapshot_v1){sizeof(*q),1,1};return 0;}
+static int32_t shared_catalog_get(void*c,uint64_t generation,uint32_t index,risc_app_catalog_entry_v1*q){
+ (void)c;if(generation!=shared_catalog_generation)return RISC_APP_CATALOG_STALE;if(index)return RISC_APP_CATALOG_NOT_FOUND;
+ *q=(risc_app_catalog_entry_v1){.struct_size=sizeof(*q),.flags=RISC_APP_CATALOG_AVAILABLE};
+ strcpy(q->file_name,"calculator.elf");strcpy(q->display_name,"CALCULATOR");strcpy(q->id,"calculator");return 0;
+}
+static const risc_app_catalog_v1 shared_catalog_api={1,sizeof(shared_catalog_api),NULL,shared_catalog_snapshot,shared_catalog_get};
+static int32_t shared_alarm_status(void*c,alarm_status_v1*q){(void)c;*q=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*q),.state=ALARM_STATE_READY,.rtc_seconds=1000};return 0;}
+static int32_t shared_alarm_op(void*c){(void)c;return 0;}
+static int32_t shared_alarm_ack(void*c,const alarm_token_v1*q){(void)c;(void)q;return 0;}
+static int32_t shared_alarm_sleep(void*c,alarm_sleep_v1*q){(void)c;(void)q;return 0;}
+static const alarm_service_descriptor_v2 shared_alarm_api={
+ .base={2,sizeof(shared_alarm_api),NULL,shared_alarm_status,shared_alarm_op,shared_alarm_op,shared_alarm_ack,shared_alarm_sleep,shared_alarm_op},
+ .tag=ALARM_SERVICE_DESCRIPTOR_TAG,.descriptor_version=1,.output_modes=ALARM_MODE_BOTH};
+static const alarm_service_v1 shared_legacy_alarm_api={1,sizeof(alarm_service_v1),NULL,shared_alarm_status,shared_alarm_op,shared_alarm_op,shared_alarm_ack,shared_alarm_sleep,shared_alarm_op};
+#endif
 static bool app_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)v;(void)id;assert(native_alive);
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
- if(!strcmp(n,RISC_KEY_VALUE_ATOMIC_CAPABILITY)){g->api=&uat_api;g->slot=++app_acquires;g->generation=1;return true;}
+ if(!strcmp(n,RISC_KEY_VALUE_ATOMIC_CAPABILITY)){
+#ifdef CONTEXTS_SHARED_APPLICATION
+  assert(v==1&&id==1);
+  if(!strcmp(shared_fault,"missing")||!strcmp(shared_fault,"no-atomic"))return false;
+  if(!strcmp(shared_fault,"dirty-atomic")){g->slot=99;return false;}
+  if(!strcmp(shared_fault,"bad-atomic")){g->api=&prefs;g->slot=++app_acquires;g->generation=1;return true;}
+#endif
+  g->api=&uat_api;g->slot=++app_acquires;g->generation=1;return true;
+ }
 #endif
  const void*p=!strcmp(n,RISC_SCENE_CAPABILITY)?api:!strcmp(n,CONTEXTS_SERVICE_CAPABILITY)?(const void*)&service:!strcmp(n,RISC_SHARED_DATA_CAPABILITY)?(const void*)&files:!strcmp(n,RISC_KEY_VALUE_CAPABILITY)?(const void*)&prefs:NULL;
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
  if(!strcmp(n,RISC_TEXT_ENTRY_CAPABILITY))return text_test_acquire(g);
 #endif
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if(!strcmp(shared_fault,"missing"))return false;
+ const bool facade=!strcmp(n,ALARM_SERVICE_FACADE_CAPABILITY);
+ const bool legacy=!strcmp(n,ALARM_SERVICE_CAPABILITY);
+ if(facade){assert(v==2&&id==0);shared_facade_requests++;}
+ if(legacy){assert(v==1&&id==0);shared_legacy_requests++;}
+ if(!strcmp(shared_fault,"partial")&&facade){g->slot=99;return false;}
+ if(!strcmp(shared_fault,"revoke")&&facade){native_alive=false;return false;}
+ if(!strcmp(n,RISC_APP_CATALOG_CAPABILITY))p=&shared_catalog_api;
+ if(facade&&strcmp(shared_fault,"legacy-alarm")&&strcmp(shared_fault,"no-alarm"))p=&shared_alarm_api;
+ if(legacy&&!strcmp(shared_fault,"legacy-alarm"))p=&shared_legacy_alarm_api;
+ if(!strcmp(shared_fault,"bad-alarm")&&facade)p=&prefs;
+#endif
  if(!p)return false;
  g->api=p;g->slot=++app_acquires;g->generation=1;if(p==&service)text_test_backend_after("backend-reacquire");return true;
 }
-static bool app_release(risc_runtime_capability_v1*g){assert(native_alive&&g->api);bool backend=g->api==&service;
+static bool app_release(risc_runtime_capability_v1*g){assert(native_alive&&g->api);
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if(!strcmp(shared_fault,"release")&&g->api==&shared_catalog_api)return false;
+ if(!strcmp(shared_fault,"atomic-release")&&g->api==&uat_api)return false;
+#endif
+bool backend=g->api==&service;
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
  if(g->api==&uat_api){uat.release_count++;if(uat.release_bad)return false;}
 #endif
@@ -134,6 +179,27 @@ static void tap(unsigned action,int value){
 static void back_input(void){nav_pressed=RISC_NAV_BACK;}
 static int32_t app_checkpoint(uint64_t invocation,const risc_resident_request_v1*q,risc_resident_reply_v1*r){
  assert(invocation==99);
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if(q->reason==RISC_CONTEXTS_SETTINGS_PREPARE){
+  assert(!q->flags&&!q->reserved&&!cs_session);
+  r->flags=!strcmp(shared_fault,"prepare-flags")?1u:0u;
+  if(!strcmp(shared_fault,"prepare-retained"))return RISC_RESIDENT_RETAINED;
+  if(!strcmp(shared_fault,"prepare-busy"))return RISC_RESIDENT_BUSY;
+  if(!strcmp(shared_fault,"prepare-old"))return RISC_RESIDENT_INVALID;
+  return RISC_RESIDENT_OK;
+ }
+ if(q->reason>=RISC_CONTEXTS_SETTING_OPTION_QUERY(0,0)&&q->reason<RISC_CONTEXTS_SETTING_OPTION_QUERY(CR_SETTINGS,0)){
+ r->flags=0;
+ if(!strcmp(shared_fault,"limited")){
+  unsigned value=(q->reason-RISC_CONTEXTS_SETTING_OPTION_QUERY(0,0))%16;
+  return value==1?RISC_RESIDENT_OK:RISC_RESIDENT_BUSY;
+ }
+ return RISC_RESIDENT_OK;
+}
+ if(q->reason>=RISC_CONTEXTS_SETTING_QUERY(0)&&q->reason<RISC_CONTEXTS_SETTING_QUERY(CR_SETTINGS)){
+  assert(!q->flags&&!q->reserved);r->flags=0;return RISC_RESIDENT_OK;
+ }
+#endif
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
  int32_t result=0;if(text_test_checkpoint(q,r,&result))return result;
 #endif
@@ -257,6 +323,44 @@ static void app_yield(uint32_t delay){
 }
 static const risc_runtime_api_v1 app_runtime={.api_version=1,.struct_size=sizeof(app_runtime),.yield_ms=app_yield,.diagnostic=diagnostic,.acquire=app_acquire,.release=app_release,.health=health,.retain_invocation=app_retain,.request_launch=app_request_launch,.exit_requested=app_exit_requested,.resident_shell=app_shell};
 const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){return native_alive&&v==1?&app_runtime:NULL;}
+#ifdef CONTEXTS_SHARED_APPLICATION
+static int shared_direct(const char *name){
+ shared_fault=name;ctx_runtime=&app_runtime;native_alive=true;cs_terminal=false;
+ assert(risc_scene_resident_bind_v1(ctx_runtime,&cs_resident));
+ bool ok=cs_shared_prepare();
+ if(!strcmp(name,"partial")||!strcmp(name,"bad-alarm")||!strcmp(name,"revoke")||!strcmp(name,"prepare-retained")||!strcmp(name,"prepare-flags")||!strcmp(name,"dirty-atomic")||!strcmp(name,"bad-atomic")||!strcmp(name,"atomic-release")){
+  assert(!ok&&cs_terminal);assert(!shared_legacy_requests);puts("shared acquisition retains uncertain custody PASS");return 0;
+ }
+ assert(ok);
+ assert(cs_atomic_preferences==(strcmp(name,"missing")!=0&&strcmp(name,"no-atomic")!=0));
+ if(strcmp(name,"missing")){
+  assert(shared_facade_requests==1);
+  if(!strcmp(name,"legacy-alarm"))assert(shared_legacy_requests==1&&cs_alarm_grant.api==&shared_legacy_alarm_api);
+  else if(!strcmp(name,"no-alarm"))assert(shared_legacy_requests==1&&!cs_alarm_grant.api);
+  else assert(!shared_legacy_requests&&cs_alarm_grant.api==&shared_alarm_api);
+ }
+ if(!strcmp(name,"missing"))assert(!cs_alarm_grant.api&&!cs_catalog.count);
+ else {
+  assert(cs_catalog.count==1&&cs_shared_launch_valid("calculator.elf"));
+  assert(!cs_shared_launch_valid("unknown.elf"));
+ }
+ if(!strcmp(name,"limited")){
+  assert(cs_shared_option_max(CR_POWER)==1);
+  assert(cs_shared_option_value(CR_POWER,0)==CR_KEEP);
+  assert(cs_shared_option_value(CR_POWER,1)==1);
+  assert(!cs_shared_setting_value(CR_POWER,2));
+  assert(cs_shared_setting_value(CR_NOTIFY,1)&&!cs_shared_setting_value(CR_NOTIFY,3));
+  cr_init(&cu_store);cu_store.rules[0].settings[CR_NOTIFY]=3;
+  assert(!cs_shared_setting_value(CR_NOTIFY,cu_store.rules[0].settings[CR_NOTIFY]));
+  assert(cu_store.rules[0].settings[CR_NOTIFY]==3);
+ }
+ if(!strcmp(name,"stale")){shared_catalog_generation=2;assert(!cs_shared_launch_valid("calculator.elf")&&!cs_catalog.count);shared_catalog_generation=1;}
+ bool closed=cs_shared_close();
+ if(!strcmp(name,"release")){assert(!closed&&cs_terminal);puts("shared release custody retained PASS");return 0;}
+ assert(closed&&cs_release(&cs_alarm_grant)&&app_acquires==app_releases);
+ printf("shared capabilities %s PASS\n",name);return 0;
+}
+#endif
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
 #include "shared_input_fixture.inc"
 #endif
@@ -268,7 +372,11 @@ int main(int argc,char**argv){
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
  uat_reset();uat.direct=false;
 #endif
- assert(argc==4);device=argv[1];folder=argv[2];fail_storage=!strcmp(argv[3],"storage");terminal_mode=!strcmp(argv[3],"retained");learning_mode=!strcmp(argv[3],"no-input")?1:!strcmp(argv[3],"delayed")?2:!strcmp(argv[3],"save-failure")?3:!strcmp(argv[3],"event-no-input")?4:0;
+ assert(argc==4);
+#ifdef CONTEXTS_SHARED_APPLICATION
+ if(!strncmp(argv[3],"shared-",7))return shared_direct(argv[3]+7);
+#endif
+ device=argv[1];folder=argv[2];fail_storage=!strcmp(argv[3],"storage");terminal_mode=!strcmp(argv[3],"retained");learning_mode=!strcmp(argv[3],"no-input")?1:!strcmp(argv[3],"delayed")?2:!strcmp(argv[3],"save-failure")?3:!strcmp(argv[3],"event-no-input")?4:0;
  native_exit_mode=!strcmp(argv[3],"exit-home")?1:!strcmp(argv[3],"exit-busy")?2:!strcmp(argv[3],"exit-keyboard")?3:!strcmp(argv[3],"exit-learning")?4:!strcmp(argv[3],"exit-saving")?5:0;
 
  if(!strcmp(device,"paper")){w=800;h=480;format=1;prof=(risc_scene_profile_v1){1,sizeof(prof),1,3,88,20,0,65535,0,270,0,0};}
