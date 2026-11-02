@@ -1,0 +1,64 @@
+name: Shared Home alarm facade
+on:
+  push:
+    branches: [work/shared-home-alarm-facade-20261102]
+  pull_request:
+    paths: ['Services/alarm_facade/**', 'lib/Alarm/include/AlarmServiceFacadeV2.h', 'scripts/*alarm_facade.py', 'test/native_apps/alarm_facade*', '.github/workflows/alarm-facade.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: alarm-facade-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container: espressif/idf:v6.1@sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Fetch exact owning sources
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/alarm-facade-$SOURCE_SHA"
+          mkdir -p "$root"
+          echo "FACADE_ROOT=$root" >> "$GITHUB_ENV"
+          clone() {
+            git init --quiet "$root/$3"
+            git -C "$root/$3" remote add origin "https://github.com/michaelrolphone-cmyk/$1.git"
+            git -C "$root/$3" fetch --quiet --no-tags --depth=1 origin "$2"
+            git -C "$root/$3" checkout --quiet --detach FETCH_HEAD
+            test "$(git -C "$root/$3" rev-parse HEAD)" = "$2"
+          }
+          clone RiscRTE-Utilities "$SOURCE_SHA" utilities
+          clone RiscRTE 0052d1fc42e9cfc82d626c5a247d460919c87935 runtime
+          clone RiscRTE-System-Apps a0046cd0777f21cf4e128a6d7a4d55e009a12fba system
+          clone RiscRTE-Watch 75c5a839c6acfb48a6116d38df8243b6094edb21 watch
+      - name: Production forwarding and unchanged scheduler normal plus sanitizers
+        run: |
+          set -euo pipefail
+          python "$FACADE_ROOT/utilities/scripts/test_alarm_facade.py" --runtime "$FACADE_ROOT/runtime" --system-apps "$FACADE_ROOT/system" --output "$FACADE_ROOT/tests"
+      - name: Build both target profiles and replay exact bytes
+        run: |
+          set -euo pipefail
+          . "$IDF_PATH/export.sh"
+          test "$(git -C "$IDF_PATH" rev-parse HEAD)" = fff9895c82d744c7237be8847347bdd1b07c6643
+          args=(--runtime "$FACADE_ROOT/runtime" --watch "$FACADE_ROOT/watch" --cc "$(command -v xtensa-esp32s3-elf-gcc)")
+          python "$FACADE_ROOT/utilities/scripts/build_alarm_facade.py" "${args[@]}" --output "$FACADE_ROOT/target"
+          python "$FACADE_ROOT/utilities/scripts/build_alarm_facade.py" "${args[@]}" --output "$FACADE_ROOT/replay"
+          for profile in legacy-clock-change tagged-owner; do
+            cmp "$FACADE_ROOT/target/$profile/driver.elf" "$FACADE_ROOT/replay/$profile/driver.elf"
+            cmp "$FACADE_ROOT/target/$profile/manifest.json" "$FACADE_ROOT/replay/$profile/manifest.json"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shared-home-alarm-facade-${{ github.sha }}
+          path: |
+            ${{ env.FACADE_ROOT }}/tests/receipt.json
+            ${{ env.FACADE_ROOT }}/target/
+          if-no-files-found: error
+          retention-days: 14
