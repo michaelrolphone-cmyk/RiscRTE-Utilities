@@ -9,7 +9,7 @@ def run(a):
  os.environ['CONTEXTS_SHARED_ELF_TEST']='1'
  with tempfile.TemporaryDirectory(prefix='contexts-shared-') as tmp:
   exe=build(a.runtime,a.system_apps,Path(tmp),'watch',True,a.sanitize,native=True)
-  for case in ('normal','legacy-alarm','no-alarm','no-atomic','dirty-atomic','bad-atomic','missing','partial','bad-alarm','revoke','release','limited','stale','prepare-busy','prepare-old','prepare-retained','prepare-flags'):
+  for case in ('normal','legacy-alarm','no-alarm','no-atomic','dirty-atomic','bad-atomic','atomic-release','missing','partial','bad-alarm','revoke','release','limited','stale','prepare-busy','prepare-old','prepare-retained','prepare-flags'):
    result=subprocess.run([str(exe),'watch',str(a.output),'shared-'+case],capture_output=True,text=True,
     env={**os.environ,'ASAN_OPTIONS':'detect_leaks=0:halt_on_error=1','UBSAN_OPTIONS':'halt_on_error=1'})
    (a.output/(case+'.log')).write_text(result.stdout+result.stderr)

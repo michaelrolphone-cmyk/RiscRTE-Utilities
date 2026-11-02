@@ -138,7 +138,8 @@ static bool app_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabil
 }
 static bool app_release(risc_runtime_capability_v1*g){assert(native_alive&&g->api);
 #ifdef CONTEXTS_SHARED_APPLICATION
- if(!strcmp(shared_fault,"release"))return false;
+ if(!strcmp(shared_fault,"release")&&g->api==&shared_catalog_api)return false;
+ if(!strcmp(shared_fault,"atomic-release")&&g->api==&uat_api)return false;
 #endif
 bool backend=g->api==&service;
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
@@ -327,7 +328,7 @@ static int shared_direct(const char *name){
  shared_fault=name;ctx_runtime=&app_runtime;native_alive=true;cs_terminal=false;
  assert(risc_scene_resident_bind_v1(ctx_runtime,&cs_resident));
  bool ok=cs_shared_prepare();
- if(!strcmp(name,"partial")||!strcmp(name,"bad-alarm")||!strcmp(name,"revoke")||!strcmp(name,"prepare-retained")||!strcmp(name,"prepare-flags")||!strcmp(name,"dirty-atomic")||!strcmp(name,"bad-atomic")){
+ if(!strcmp(name,"partial")||!strcmp(name,"bad-alarm")||!strcmp(name,"revoke")||!strcmp(name,"prepare-retained")||!strcmp(name,"prepare-flags")||!strcmp(name,"dirty-atomic")||!strcmp(name,"bad-atomic")||!strcmp(name,"atomic-release")){
   assert(!ok&&cs_terminal);assert(!shared_legacy_requests);puts("shared acquisition retains uncertain custody PASS");return 0;
  }
  assert(ok);
