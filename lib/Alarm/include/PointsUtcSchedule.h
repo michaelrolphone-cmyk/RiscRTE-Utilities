@@ -36,9 +36,9 @@ static inline bool points_utc_notice_enabled(const points_item *p,unsigned edge)
 }
 /* End remains a projection edge even when notify_end is disabled. Warning is
  * service-only and occurs exactly three elapsed minutes before the duration end. */
-static inline bool points_utc_event_for_day(const portable_timezone_rule *rule,const points_config *c,unsigned slot,uint32_t parent_day,
-                                        unsigned edge,points_event *out,uint32_t *flags) {
-    if(!c||!out||slot>=POINTS_MAX||edge>=POINTS_EDGE_COUNT||!parent_day||parent_day>36525)return false;
+static inline bool points_utc_event_for_day_bounded(const portable_timezone_rule *rule,const points_config *c,unsigned slot,uint32_t parent_day,
+                                        unsigned edge,points_event *out,uint32_t *flags,uint32_t maximum) {
+    if(!c||!out||maximum>ALARM_RTC_MAX||maximum<ALARM_RECOVERY_SECONDS||slot>=POINTS_MAX||edge>=POINTS_EDGE_COUNT||!parent_day||parent_day>36525)return false;
     const points_item *p=&c->points[slot];twatch_rtc_time_v1 civil;
     if(!p->enabled||!points_calendar((parent_day-1)*86400,&civil)||!(p->weekdays&(1u<<civil.weekday))||
        ((edge==POINTS_EDGE_END||edge==POINTS_EDGE_WARNING)&&!p->duration_minutes)||
@@ -53,7 +53,7 @@ static inline bool points_utc_event_for_day(const portable_timezone_rule *rule,c
         return false;
     }
     int64_t raw=candidates.candidate[0].epoch-INT64_C(946684800);
-    if(raw<0||raw>(int64_t)ALARM_RTC_MAX-ALARM_RECOVERY_SECONDS-(uint32_t)p->duration_minutes*60) {
+    if(raw<0||raw>(int64_t)maximum-ALARM_RECOVERY_SECONDS-(uint32_t)p->duration_minutes*60) {
         if(flags)*flags|=POINTS_FLAG_RANGE;
         return false;
     }
@@ -64,20 +64,31 @@ static inline bool points_utc_event_for_day(const portable_timezone_rule *rule,c
     else if(edge==POINTS_EDGE_WARNING)deadline+=(uint32_t)p->duration_minutes*60-180u;
     *out=(points_event){deadline,parent_day,(uint8_t)slot,(uint8_t)edge,p->kind,p->mode};return true;
 }
-static inline bool points_utc_project(const portable_timezone_rule *rule,const points_config *c,uint32_t now,points_projection *out) {
-    if(!c||!out)return false;
+/* Default service profile retains its original absolute upper bound. */
+static inline bool points_utc_event_for_day(const portable_timezone_rule *rule,const points_config *c,unsigned slot,uint32_t parent_day,
+                                        unsigned edge,points_event *out,uint32_t *flags) {
+    return points_utc_event_for_day_bounded(rule,c,slot,parent_day,edge,out,flags,ALARM_RTC_MAX);
+}
+/* A read-only legacy adapter may supply its provider-interpreted record ceiling.
+ * The same ceiling applies to start + elapsed duration + recovery, not just the
+ * displayed edge; this preserves range semantics for starts and ends together. */
+static inline bool points_utc_project_bounded(const portable_timezone_rule *rule,const points_config *c,uint32_t now,points_projection *out,uint32_t maximum) {
+    if(!c||!out||maximum>ALARM_RTC_MAX)return false;
     memset(out,0,sizeof(*out));uint32_t today;
     if(!c->revision)return true;
-    if(!points_config_valid(c)||!points_utc_local_day(rule,now,&today)){out->flags=POINTS_FLAG_RANGE;return false;}
+    if(!points_config_valid(c)||now>maximum||!points_utc_local_day(rule,now,&today)){out->flags=POINTS_FLAG_RANGE;return false;}
     for(int offset=-7;offset<=8;offset++) {
         int day=(int)today+offset;if(day<1||day>36525)continue;
         for(unsigned slot=0;slot<POINTS_MAX;slot++)for(unsigned edge=0;edge<2;edge++) {
-            points_event e;if(!points_utc_event_for_day(rule,c,slot,(uint32_t)day,edge,&e,offset>=0?&out->flags:NULL))continue;
+            points_event e;if(!points_utc_event_for_day_bounded(rule,c,slot,(uint32_t)day,edge,&e,offset>=0?&out->flags:NULL,maximum))continue;
             if(e.deadline<=now){if(!out->has_previous||points_event_before(&out->previous,&e)){out->previous=e;out->has_previous=true;}}
             else{unsigned at=0;while(at<out->count&&!points_event_before(&e,&out->next[at]))at++;
                 if(at<POINTS_NEXT_COUNT){unsigned n=out->count<POINTS_NEXT_COUNT?out->count++:POINTS_NEXT_COUNT-1;while(n>at){out->next[n]=out->next[n-1];n--;}out->next[at]=e;}}
         }
     }return true;
+}
+static inline bool points_utc_project(const portable_timezone_rule *rule,const points_config *c,uint32_t now,points_projection *out) {
+    return points_utc_project_bounded(rule,c,now,out,ALARM_RTC_MAX);
 }
 static inline bool points_utc_latest_for_edge(const portable_timezone_rule *rule,const points_config *c,const points_ledger *l,uint32_t now,
                                           unsigned slot,unsigned edge,points_event *out) {
