@@ -56,6 +56,14 @@ jobs:
           gh api repos/michaelrolphone-cmyk/RiscRTE-Wavshare-S3-Touch-AMOLED-2.06/actions/artifacts/13062911920/zip > qualification/inputs/wave.zip
           gh api -H 'Accept: application/octet-stream' repos/michaelrolphone-cmyk/RiscRTE-XTEINK-X4-PRO/releases/assets/648840942 > qualification/inputs/x4-store.bin
           gh api -H 'Accept: application/octet-stream' repos/michaelrolphone-cmyk/RiscRTE-XTEINK-X4-PRO/releases/assets/648840698 > qualification/inputs/x4-sd.zip
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Actual Viewer through actual canvas provider
+        run: python scripts/test_viewer_shared.py --runtime .deps/Runtime --system-apps .deps/System --output qualification/shared-host --jobs 2 --leak-sanitizer
+      - name: Complete shared Viewer target
+        run: python scripts/build_shared_viewer.py --runtime .deps/Runtime --system .deps/System --output qualification/shared-target
       - name: Inspect exact Viewer product bindings
         run: python scripts/inspect_viewer_products.py --inputs qualification/inputs --bootfs-tools .deps/Bootfs/scripts --output qualification/inventory
       - name: Preserve source and identity
