@@ -3,7 +3,7 @@ on:
   push:
     branches: [work/viewer-shared-elf-20261102]
   pull_request:
-    paths: ['scripts/*viewer*', 'tests/test_shared_viewer.py', 'docs/LISTS_SHARED_DELIVERY.md', '.github/workflows/shared-viewer.yml']
+    paths: ['Apps/model_viewer*', 'lib/ViewerCanvas/**', 'test/canvas/viewer_shared_test.c', 'scripts/*viewer*', 'docs/VIEWER_SHARED_DELIVERY.md', '.github/workflows/shared-viewer.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: db47bebca498e1eb44559fdbf69002b935f42dac
+          ref: 8da05a9d3017d49e9c9a315cad32e322a1b6801d
           path: .deps/System
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -68,6 +68,10 @@ jobs:
       - name: Build delivered canvas provider
         if: always()
         run: python .deps/System/scripts/build_canvas_services.py --runtime .deps/Runtime --output qualification/canvas-provider
+      - name: Compact provider loader metadata with full sidecars
+        if: always()
+        run: |
+          python scripts/compact_viewer_provider.py --system .deps/System --provider qualification/canvas-provider
       - name: Project and admit actual products
         if: always()
         shell: bash

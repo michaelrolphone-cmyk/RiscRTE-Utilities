@@ -24,7 +24,7 @@ CASES = ["ui", "pixels", "toolbar", "layout", "transform", "sd", "sd-legacy",
          "submit-retry", "status-unknown", "present-failed", "present-timeout",
          "invalid-surface", "missing-token", "unsubscribe-retained",
          "foreground-retained", "release-retained", "file-close-retained",
-         "data-retained"]
+         "data-retained", "no-canvas", "bad-canvas", "no-data", "no-navigation", "no-touch", "source", "source-busy", "source-retained"]
 
 
 def digest(path):

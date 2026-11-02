@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Canonical Lists packaging from exact published products; no app rewrite."""
+"""Shared Viewer product reconstruction preserving unrelated bytes and authority."""
 import argparse, hashlib, io, json, sys, zipfile
 from pathlib import Path, PurePosixPath
 from elftools.elf.elffile import ELFFile

@@ -77,7 +77,8 @@ static uint8_t *fx_allocation,*fx_pixels;
 static uint64_t fx_queue;
 static unsigned fx_ready_at,fx_queue_hash,fx_frame_state;
 static bool fx_finished,fx_armed,fx_sd,fx_sd_open,fx_legacy,fx_submit_failed;
-static bool fx_automatic,fx_fault_seen;
+static bool fx_automatic,fx_fault_seen,fx_source;
+static unsigned fx_source_reads;
 static const char *fx_case,*fx_sample_dir;
 static char fx_diagnostic[160];
 static risc_touch_snapshot_v1 fx_touch_state;
@@ -151,7 +152,7 @@ static void fx_event(unsigned event_kind,unsigned id,unsigned x,unsigned y){
 static void fx_tap(unsigned x,unsigned y){fx_event(RISC_TOUCH_EVENT_DOWN,7,x,y);fx_event(RISC_TOUCH_EVENT_UP,7,x,y);}
 static void fx_schedule(void){
     if(!fx_automatic||fx_finished||fx_retained||blocked||fx_submits<(fx_submit_failed?1u:2u))return;
-    if(!fx_is("ui")&&!fx_is("sd")&&!fx_is("sd-legacy")&&!fx_is("submit-retry")){
+    if(!fx_is("ui")&&!fx_is("sd")&&!fx_is("sd-legacy")&&!fx_is("submit-retry")&&!fx_is("source")&&!fx_is("source-busy")){
         if(fx_is("data-retained")){if(!fx_armed){fx_armed=true;fx_tap(width/2,MV_VIEW_TOP-8);}return;}
         fx_armed=true;fx_finished=true;fx_nav_buttons=RISC_NAV_HOME;return;
     }
@@ -159,7 +160,7 @@ static void fx_schedule(void){
     fx_phase_at=fx_ms;
     unsigned cx=width/2,cy=(MV_VIEW_TOP+MV_VIEW_BOTTOM)/2;
     switch(fx_phase++){
-    case 0:FX_CHECK(g_model.triangle_count==(fx_sd?1u:12u));fx_tap(width/2,height-16);break;
+    case 0:FX_CHECK(g_model.triangle_count==((fx_sd||fx_source)?1u:12u));fx_tap(width/2,height-16);break;
     case 1:FX_CHECK(mv_touch_mode==1);fx_event(1,7,cx,cy);break;
     case 2:fx_event(2,7,cx+12,cy+8);break;
     case 3:FX_CHECK(g_view.pan_x==12&&g_view.pan_y==8);fx_event(3,7,cx+12,cy+8);break;
@@ -184,7 +185,7 @@ static void fx_schedule(void){
 static bool fx_health(risc_runtime_health_v1 *h){FX_CHECK(!fx_retained);h->uptime_ms=fx_ms;return true;}
 static bool fx_monotonic(uint32_t *out){FX_CHECK(!fx_retained);fx_ms+=fx_clock_step;*out=fx_ms;return true;}
 static void fx_yield(uint32_t n){FX_CHECK(!fx_retained);FX_CHECK(++fx_yields<30000);fx_ms+=n?n:1;fx_guard();fx_schedule();}
-static bool fx_diag(const char *s){FX_CHECK(!fx_retained);snprintf(fx_diagnostic,sizeof(fx_diagnostic),"%s",s);return true;}
+static bool fx_diag(const char *s){FX_CHECK(!fx_retained);snprintf(fx_diagnostic,sizeof(fx_diagnostic),"%s",s);fprintf(stderr,"DIAGNOSTIC %s\n",s);return true;}
 static bool fx_retain(void){FX_CHECK(!fx_retained);fx_retained=true;fx_retain_calls++;return true;}
 static bool fx_info(void *c,risc_display_info_v1 *i){
     (void)c;FX_CHECK(!fx_retained);*i=(risc_display_info_v1){.api_version=1,.struct_size=sizeof(*i),.width=fx_w,.height=fx_h,.supported_formats=RISC_DISPLAY_FORMAT_BIT(fx_format),.flags=RISC_DISPLAY_INFO_ASYNC_PRESENT|(fx_format==RISC_DISPLAY_FORMAT_MONO1?RISC_DISPLAY_INFO_RETAINS_IMAGE:0)};return true;
@@ -226,7 +227,7 @@ static int32_t fx_next(void *c,uint64_t n,risc_touch_event_v1 *e){(void)c;FX_CHE
 static bool fx_snapshot(void *c,risc_touch_snapshot_v1 *s){(void)c;FX_CHECK(!fx_retained);*s=fx_touch_state;return true;}
 static const risc_touch_api_v1 fx_touch_api={1,sizeof(fx_touch_api),NULL,fx_subscribe,fx_unsubscribe,fx_poll,fx_next,fx_snapshot};
 static bool fx_nav_poll(void *c,risc_input_navigation_frame_v1 *n){(void)c;FX_CHECK(!fx_retained);memset(n,0,sizeof(*n));n->buttons=fx_nav_buttons;return true;}
-static bool fx_foreground(void *c,const risc_input_foreground_v1 *n,size_t count){(void)c;FX_CHECK(!fx_retained&&count<=1);if(count){FX_CHECK(!strcmp(n->capability,"input.touch.raw"));fx_foreground_claims++;}else{if(fx_is("foreground-retained")){fx_fault_seen=true;return false;}fx_foreground_releases++;}return true;}
+static bool fx_foreground(void *c,const risc_input_foreground_v1 *n,size_t count){(void)c;FX_CHECK(!fx_retained&&count<=1);if(count || (fx_is("no-touch") && fx_foreground_claims==fx_foreground_releases)){if(count)FX_CHECK(!strcmp(n->capability,"input.touch.raw"));fx_foreground_claims++;}else{if(fx_is("foreground-retained")){fx_fault_seen=true;return false;}fx_foreground_releases++;}return true;}
 static bool fx_nav_reset(void *c){(void)c;FX_CHECK(!fx_retained);return true;}
 static const risc_input_navigation_api_v1 fx_nav_api={1,sizeof(fx_nav_api),NULL,fx_nav_poll,fx_foreground,fx_nav_reset};
 static const char *fx_data_content(const char *n){return !strcmp(n,"model.obj")?fx_obj:!strcmp(n,"model.stl")?fx_stl:NULL;}
@@ -241,10 +242,27 @@ static bool fx_sd_seek(void *c,uint32_t h,uint64_t n){(void)c;FX_CHECK(!fx_retai
 static risc_storage_volume_api_v1_ext fx_sd_api={.base={.api_version=1,.struct_size=sizeof(fx_sd_api),.refresh=fx_sd_ready,.ready=fx_sd_ready,.file_open_read=fx_sd_open_read,.file_read=fx_sd_read,.file_close=fx_sd_close},.file_seek=fx_sd_seek};
 static bool fx_path(char *p,size_t n){FX_CHECK(!fx_retained);snprintf(p,n,"/sd/triangle.obj");return true;}
 static const t5_file_open_api_v1 fx_file_api={.api_version=1,.struct_size=sizeof(fx_file_api),.source_path_get=fx_path};
+static int32_t fx_source_info(risc_file_open_source_info_v1 *out){
+    FX_CHECK(!fx_retained);*out=(risc_file_open_source_info_v1){.struct_size=sizeof(*out),.size=sizeof(fx_obj)-1,.token=17};
+    snprintf(out->name,sizeof(out->name),"selected.obj");return RISC_FILE_SOURCE_OK;
+}
+static int32_t fx_source_read(uint64_t token,uint64_t offset,void *out,uint32_t cap,uint32_t *actual){
+    FX_CHECK(!fx_retained&&token==17&&offset<=sizeof(fx_obj)-1);fx_source_reads++;
+    if(fx_is("source-retained")){fx_fault_seen=true;return RISC_FILE_SOURCE_RETAINED;}
+    if(fx_is("source-busy")&&fx_source_reads%3==1)return RISC_FILE_SOURCE_BUSY;
+    uint32_t n=(uint32_t)(sizeof(fx_obj)-1-offset);if(n>cap)n=cap;if(n>7)n=7;
+    memcpy(out,fx_obj+offset,n);*actual=n;return RISC_FILE_SOURCE_OK;
+}
+static const risc_file_open_source_api_v1 fx_source_api={.api_version=1,.struct_size=sizeof(fx_source_api),.source_info=fx_source_info,.read_at=fx_source_read};
 static bool fx_acquire(const char *n,uint32_t v,uint64_t instance,risc_runtime_capability_v1 *g){
     FX_CHECK(!fx_retained&&v==1&&!instance);const void *api=NULL;
-    if(!strcmp(n,"ui.canvas"))api=&fx_provider.api;
-    else if(!strcmp(n,"storage.app-data"))api=&fx_data_api;
+    if(!strcmp(n,"ui.canvas")){
+      if(fx_is("no-canvas"))return false;
+      if(fx_is("bad-canvas"))fx_provider.api.api_version=2;
+      api=&fx_provider.api;
+    }
+    else if(!strcmp(n,"storage.app-data")&&!fx_is("no-data"))api=&fx_data_api;
+    else if(fx_source&&!strcmp(n,"file.open.source"))api=&fx_source_api;
     else if(fx_sd&&!strcmp(n,"storage.volume"))api=&fx_sd_api;else if(fx_sd&&!strcmp(n,"file.open"))api=&fx_file_api;
     if(!api)return false;g->api=api;g->slot=++fx_cap_acquired;return true;
 }
@@ -391,14 +409,27 @@ int main(int argc,char **argv){
     memset(fx_allocation,0xa5,fx_pixels_size+64);fx_pixels=fx_allocation+32;
     fx_touch_state.width=fx_w;fx_touch_state.height=fx_h;
     canvas_provider_init(&fx_provider,&fx_display_api,&fx_touch_api,fx_w>fx_h?3:0);
-    fx_provider.navigation=&fx_nav_api;
+    fx_provider.touch_rotation=fx_w>fx_h?1:0;
+    fx_provider.navigation=fx_is("no-navigation")?NULL:&fx_nav_api;
+    if(fx_is("no-touch"))fx_provider.touch=NULL;
+    fx_source=fx_is("source")||fx_is("source-busy")||fx_is("source-retained");
     fx_sd=fx_is("sd")||fx_is("sd-legacy")||fx_is("file-close-retained");fx_legacy=fx_is("sd-legacy");
     if(fx_legacy)fx_sd_api.base.struct_size=sizeof(risc_storage_volume_api_v1);
-    if(fx_is("pixels"))fx_pixels_test();else if(fx_is("toolbar"))fx_toolbar_test();
+    if(fx_is("no-canvas")||fx_is("bad-canvas")){
+        app_main();FX_CHECK(fx_diagnostic[0]&&!fx_submits);
+    }else if(fx_is("no-data")||fx_is("no-navigation")||fx_is("no-touch")){
+        fx_init_direct();FX_CHECK(mv_render(false));fx_drain();
+        if(fx_is("no-data")){
+          canvas_model_select(1);canvas_model_source(g_path,sizeof(g_path));
+          mv_model_t absent={0};FX_CHECK(!mv_load_model(g_path,&absent));mv_model_free(&absent);
+          FX_CHECK(g_model.triangle_count==12);
+        }
+        fx_direct_cleanup();
+    }else if(fx_is("pixels"))fx_pixels_test();else if(fx_is("toolbar"))fx_toolbar_test();
     else if(fx_is("layout")||fx_is("header")||fx_is("status")||fx_is("message"))fx_layout_test();else if(fx_is("transform"))fx_transform_test();
     else{fx_automatic=true;app_main();}
     fx_guard();
-    bool expected_retained=fx_is("status-unknown")||fx_is("present-failed")||fx_is("present-timeout")||fx_is("invalid-surface")||fx_is("missing-token")||fx_is("unsubscribe-retained")||fx_is("foreground-retained")||fx_is("release-retained")||fx_is("file-close-retained")||fx_is("data-retained");
+    bool expected_retained=fx_is("status-unknown")||fx_is("present-failed")||fx_is("present-timeout")||fx_is("invalid-surface")||fx_is("missing-token")||fx_is("unsubscribe-retained")||fx_is("foreground-retained")||fx_is("release-retained")||fx_is("file-close-retained")||fx_is("data-retained")||fx_is("source-retained");
     if(expected_retained){FX_CHECK(fx_fault_seen&&fx_retained&&fx_retain_calls==1&&fx_live&&retained);FX_CHECK(fx_diagnostic[0]);}
     else{
         FX_CHECK(!fx_retained&&!fx_retain_calls&&!fx_live&&!working&&!snapshot&&!fx_queue&&!fx_frame_state);
