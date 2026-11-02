@@ -21,7 +21,7 @@ def run(root):
  assert digest(elf.read_bytes())==delivery['application']['sha256']
  assert len({x['sha256'] for x in delivery['deployments'].values()})==1
  evidence={}
- for lane in ('shared-faults','shared-faults-sanitized','shared-native','shared-native-sanitized','shared-paper'):
+ for lane in ('shared-faults','shared-faults-sanitized','shared-atomic','shared-atomic-sanitized','shared-native','shared-native-sanitized','shared-paper'):
   data=(root/lane/'results.json').read_bytes();obj=json.loads(data)
   evidence[lane]={'sha256':digest(data),'result':obj}
  evidence_path=package/'qualification.json'

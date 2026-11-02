@@ -1,3 +1,6 @@
+#if defined(CONTEXTS_SHARED_APPLICATION) && !defined(PORTABLE_UTILITIES_ATOMIC_PREFERENCES)
+#define PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#endif
 /* Contexts foreground: semantic NOVA scenes and the shared detection service.
  * The historical portable renderer is never a shipping fallback. */
 #include "RiscSceneComponentsV1.h"
@@ -63,6 +66,8 @@ static void cs_retain(void){if(!cs_terminal){cs_terminal=true;if(ctx_runtime&&ct
 static bool cs_alive(void){if(cs_terminal)return false;if(!risc_runtime_get_api(1)){cs_terminal=true;return false;}return true;}
 static bool cs_release(risc_runtime_capability_v1*g){if(!cs_alive())return false;if(g->api&&!ctx_runtime->release(g)){cs_retain();return false;}memset(g,0,sizeof(*g));return cs_alive();}
 #ifdef CONTEXTS_SHARED_APPLICATION
+static bool cs_atomic_preferences;
+static bool cs_atomic_detect(void);
 #include "contexts_shared.inc"
 #endif
 static bool cs_backend_open(void){
@@ -89,6 +94,9 @@ bool portable_contexts_training(bool on){
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
 #include "utility_preference_atomic.h"
 #include "PortablePreferenceAutomatic.h"
+#ifndef CONTEXTS_SHARED_APPLICATION
+static const bool cs_atomic_preferences=true;
+#endif
 static utility_preference_atomic ctx_preference;
 static portable_preference_automatic ctx_automatic;
 static risc_runtime_capability_v1 ctx_automatic_grant;
@@ -121,7 +129,23 @@ static bool ctx_preference_save(const void *value,uint32_t size){
  int rc=utility_preference_submit(&ctx_preference,value,size);
  return utility_preference_finish(&ctx_preference,rc)==RISC_ATOMIC_OK;
 }
+#ifdef CONTEXTS_SHARED_APPLICATION
+static bool cs_atomic_detect(void){
+ risc_runtime_capability_v1 g={.struct_size=sizeof(g)};
+ bool found=ctx_runtime->acquire(RISC_KEY_VALUE_ATOMIC_CAPABILITY,1,1,&g);
+ if(!cs_alive())return false;
+ if(g.struct_size!=sizeof(g)||(found?(!g.api||!g.slot||!g.generation):(g.api||g.slot||g.generation))){cs_retain();return false;}
+ cs_atomic_preferences=found;
+ if(!found)return true;
+ if(!portable_preference_atomic_api_valid(g.api)){cs_retain();return false;}
+ bool closed=ctx_runtime->release(&g);
+ if(!cs_alive())return false;
+ if(!closed||g.struct_size!=sizeof(g)||g.api||g.slot||g.generation){cs_retain();return false;}
+ return true;
+}
+#endif
 bool portable_contexts_enable(bool on){
+ if(!cs_atomic_preferences)return cs_backend_open()&&portable_contexts_set_enabled(&cs_client,on);
  int rc=ctx_preference_begin("contexts_on");
  if(rc!=PORTABLE_PREFERENCE_READY){(void)utility_preference_finish(&ctx_preference,rc);return false;}
  if(!cs_backend_open()||!portable_contexts_pause(&cs_client)||!portable_contexts_release_storage(&cs_client)){
@@ -179,20 +203,23 @@ static bool ctx_read_status(void){
 static void ctx_fingerprint_setting(bool timing){
  if(!ctx_fp_valid)return;
  if(!timing&&!(cs_source_mask&(1u<<ctx_model_source))){ctx_note("SOURCE UNAVAILABLE");return;}
+ uint8_t value=timing?!ctx_fp.temporal_only:(uint8_t)(ctx_fp.sources^(1u<<ctx_model_source));bool ok=false;
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(cs_atomic_preferences){
  int rc=ctx_preference_begin(timing?"context_timing":"context_sources");
  if(rc!=PORTABLE_PREFERENCE_READY){(void)utility_preference_finish(&ctx_preference,rc);ctx_note("SAVE UNCONFIRMED / RETRY");return;}
  if(!portable_contexts_pause(&cs_client)){cs_retain();return;}
- uint8_t value=timing?!ctx_fp.temporal_only:(uint8_t)(ctx_fp.sources^(1u<<ctx_model_source));
- bool ok=ctx_preference_save(&value,1);
-#else
+ ok=ctx_preference_save(&value,1);
+ }else
+#endif
+ {
  if(!portable_contexts_pause(&cs_client)){cs_retain();return;}
- uint8_t value=timing?!ctx_fp.temporal_only:(uint8_t)(ctx_fp.sources^(1u<<ctx_model_source));risc_runtime_capability_v1 g={.struct_size=sizeof(g)};
- bool ok=ctx_runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);
+ risc_runtime_capability_v1 g={.struct_size=sizeof(g)};
+ ok=ctx_runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);
  if(ok&&!pqa_preferences_valid(g.api))ok=false;
  if(ok){const risc_key_value_v1*kv=g.api;const char*key=timing?"context_timing":"context_sources";uint8_t got=255;uint32_t size=0;int32_t rc=kv->put(kv->context,key,&value,1);ok=(rc==0||rc==RISC_KEY_VALUE_IO)&&!kv->get(kv->context,key,&got,1,&size)&&size==1&&got==value;}
  if(!cs_release(&g))return;
-#endif
+ }
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
  if(!cs_alive())return;
 #endif
@@ -257,19 +284,23 @@ static bool cs_rules_tick(void){
  if(cs_active!=q.result.active){cs_active=q.result.active;if(cu_page==CU_HOME)ctx_dirty=true;}
  if(q.result.changed){
   if(!portable_contexts_pause(&cs_client)){cs_retain();return false;}
+  uint16_t success=0;
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
-  bool opened=ctx_automatic_open();const risc_key_value_v1 *settings=&ctx_automatic.view;uint16_t success=0;
+  if(cs_atomic_preferences){
+  bool opened=ctx_automatic_open();const risc_key_value_v1 *settings=&ctx_automatic.view;
   if(!cs_alive())return false;
   for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.changed&(1u<<field)){
    if(opened&&pqa_preferences_valid(settings)&&cu_field_available(field)&&cs_setting_applicable(field,q.result.settings[field])&&portable_context_setting(settings,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
    if(ctx_automatic.retained||ctx_automatic.operation.token||ctx_automatic.running||!cs_alive()){cs_retain();return false;}
   }
   if(!ctx_automatic_close())return false;
-#else
-  risc_runtime_capability_v1 g={.struct_size=sizeof(g)};bool opened=ctx_runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);uint16_t success=0;
+  }else
+#endif
+  {
+  risc_runtime_capability_v1 g={.struct_size=sizeof(g)};bool opened=ctx_runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);
   for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.changed&(1u<<field))if(opened&&pqa_preferences_valid(g.api)&&cu_field_available(field)&&cs_setting_applicable(field,q.result.settings[field])&&portable_context_setting(g.api,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
   if(!cs_release(&g))return false;
-#endif
+  }
   for(unsigned i=0;i<CR_RULES;i++){bool changed=false,complete=true;for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.winners[field]==(int)i&&(q.result.changed&(1u<<field))){changed=true;complete&=!!(success&(1u<<field));}if(changed){contexts_workflow_v1 report={.struct_size=sizeof(report),.rule=i,.result=complete?CR_APPLIED:CR_PARTIAL};if(!f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&report))return false;}}
  }
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES

@@ -140,6 +140,7 @@ static bool cs_shared_prepare(void){
  for(unsigned i=0;i<cs_catalog.count;i++)
   if(strlen(cs_catalog.entries[i].route)>32||strcmp(cs_catalog.entries[i].route,CS_CATALOG(i).file_name))
    CS_CATALOG(i).compatible=false;
+ if(!cs_atomic_detect())return false;
  /* Applicability is supplied by the active host, not a product build mask. */
  return cs_shared_settings();
 }

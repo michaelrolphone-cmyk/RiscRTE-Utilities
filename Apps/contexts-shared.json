@@ -54,6 +54,18 @@
     {
       "capability": "alarm.service.facade",
       "api": 2
+    },
+    {
+      "capability": "storage.key-value.atomic",
+      "api": 1
+    },
+    {
+      "capability": "rtc.clock",
+      "api": 2
+    },
+    {
+      "capability": "runtime.realtime",
+      "api": 1
     }
   ]
 }

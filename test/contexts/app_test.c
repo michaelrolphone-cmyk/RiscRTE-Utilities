@@ -41,7 +41,7 @@ static cr_result automatic_result;static unsigned automatic_evaluations,automati
 #endif
 static int32_t pref_get(void*c,const char*n,void*p,uint32_t cap,uint32_t*size){(void)c;
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
- return uat_read(c,n,p,cap,size);
+ if(cs_atomic_preferences)return uat_read(c,n,p,cap,size);
 #endif
  *size=0;if(strcmp(n,"contexts_on")||!preferences_size)return RISC_KEY_VALUE_NOT_FOUND;assert(cap>=preferences_size);memcpy(p,preferences,preferences_size);*size=preferences_size;return 0;}
 static int32_t pref_put(void*c,const char*n,const void*p,uint32_t size){(void)c;assert(!strcmp(n,"contexts_on")&&size<=4);memcpy(preferences,p,size);preferences_size=size;kv_writes++;return 0;}
@@ -106,7 +106,15 @@ static const alarm_service_v1 shared_legacy_alarm_api={1,sizeof(alarm_service_v1
 #endif
 static bool app_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)v;(void)id;assert(native_alive);
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
- if(!strcmp(n,RISC_KEY_VALUE_ATOMIC_CAPABILITY)){g->api=&uat_api;g->slot=++app_acquires;g->generation=1;return true;}
+ if(!strcmp(n,RISC_KEY_VALUE_ATOMIC_CAPABILITY)){
+#ifdef CONTEXTS_SHARED_APPLICATION
+  assert(v==1&&id==1);
+  if(!strcmp(shared_fault,"missing")||!strcmp(shared_fault,"no-atomic"))return false;
+  if(!strcmp(shared_fault,"dirty-atomic")){g->slot=99;return false;}
+  if(!strcmp(shared_fault,"bad-atomic")){g->api=&prefs;g->slot=++app_acquires;g->generation=1;return true;}
+#endif
+  g->api=&uat_api;g->slot=++app_acquires;g->generation=1;return true;
+ }
 #endif
  const void*p=!strcmp(n,RISC_SCENE_CAPABILITY)?api:!strcmp(n,CONTEXTS_SERVICE_CAPABILITY)?(const void*)&service:!strcmp(n,RISC_SHARED_DATA_CAPABILITY)?(const void*)&files:!strcmp(n,RISC_KEY_VALUE_CAPABILITY)?(const void*)&prefs:NULL;
 #ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
@@ -319,10 +327,11 @@ static int shared_direct(const char *name){
  shared_fault=name;ctx_runtime=&app_runtime;native_alive=true;cs_terminal=false;
  assert(risc_scene_resident_bind_v1(ctx_runtime,&cs_resident));
  bool ok=cs_shared_prepare();
- if(!strcmp(name,"partial")||!strcmp(name,"bad-alarm")||!strcmp(name,"revoke")||!strcmp(name,"prepare-retained")||!strcmp(name,"prepare-flags")){
+ if(!strcmp(name,"partial")||!strcmp(name,"bad-alarm")||!strcmp(name,"revoke")||!strcmp(name,"prepare-retained")||!strcmp(name,"prepare-flags")||!strcmp(name,"dirty-atomic")||!strcmp(name,"bad-atomic")){
   assert(!ok&&cs_terminal);assert(!shared_legacy_requests);puts("shared acquisition retains uncertain custody PASS");return 0;
  }
  assert(ok);
+ assert(cs_atomic_preferences==(strcmp(name,"missing")!=0&&strcmp(name,"no-atomic")!=0));
  if(strcmp(name,"missing")){
   assert(shared_facade_requests==1);
   if(!strcmp(name,"legacy-alarm"))assert(shared_legacy_requests==1&&cs_alarm_grant.api==&shared_legacy_alarm_api);

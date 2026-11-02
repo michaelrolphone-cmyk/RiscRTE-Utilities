@@ -11,6 +11,9 @@ class ManifestContract(unittest.TestCase):
   rows={r['capability']:r['api'] for r in self.manifest['optional']}
   self.assertEqual(rows['alarm.service'],1)
   self.assertEqual(rows['alarm.service.facade'],2)
+  self.assertEqual(rows['storage.key-value.atomic'],1)
+  self.assertEqual(rows['rtc.clock'],2)
+  self.assertEqual(rows['runtime.realtime'],1)
  def test_old_range_is_rejected(self):
   for value in ('>=1','1',True,0,-1,4294967296):
    with self.subTest(value=value):
