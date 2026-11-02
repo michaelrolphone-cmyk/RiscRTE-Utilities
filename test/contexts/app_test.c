@@ -165,6 +165,14 @@ static void back_input(void){nav_pressed=RISC_NAV_BACK;}
 static int32_t app_checkpoint(uint64_t invocation,const risc_resident_request_v1*q,risc_resident_reply_v1*r){
  assert(invocation==99);
 #ifdef CONTEXTS_SHARED_APPLICATION
+ if(q->reason==RISC_CONTEXTS_SETTINGS_PREPARE){
+  assert(!q->flags&&!q->reserved&&!cs_session);
+  r->flags=!strcmp(shared_fault,"prepare-flags")?1u:0u;
+  if(!strcmp(shared_fault,"prepare-retained"))return RISC_RESIDENT_RETAINED;
+  if(!strcmp(shared_fault,"prepare-busy"))return RISC_RESIDENT_BUSY;
+  if(!strcmp(shared_fault,"prepare-old"))return RISC_RESIDENT_INVALID;
+  return RISC_RESIDENT_OK;
+ }
  if(q->reason>=RISC_CONTEXTS_SETTING_OPTION_QUERY(0,0)&&q->reason<RISC_CONTEXTS_SETTING_OPTION_QUERY(CR_SETTINGS,0)){
  r->flags=0;
  if(!strcmp(shared_fault,"limited")){
@@ -305,7 +313,7 @@ static int shared_direct(const char *name){
  shared_fault=name;ctx_runtime=&app_runtime;native_alive=true;cs_terminal=false;
  assert(risc_scene_resident_bind_v1(ctx_runtime,&cs_resident));
  bool ok=cs_shared_prepare();
- if(!strcmp(name,"partial")||!strcmp(name,"bad-alarm")||!strcmp(name,"revoke")){
+ if(!strcmp(name,"partial")||!strcmp(name,"bad-alarm")||!strcmp(name,"revoke")||!strcmp(name,"prepare-retained")||!strcmp(name,"prepare-flags")){
   assert(!ok&&cs_terminal);puts("shared acquisition retains uncertain custody PASS");return 0;
  }
  assert(ok);

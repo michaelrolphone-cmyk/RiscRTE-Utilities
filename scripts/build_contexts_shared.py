@@ -9,13 +9,7 @@ def run(runtime,system,output):
  builder=load('scene_build',system/'scripts/scene_build.py')
  with tempfile.TemporaryDirectory(prefix='contexts-common-') as temp:
   include=stage(runtime,system,Path(temp))
-  manifest=json.loads((ROOT/'Apps/contexts-scene.json').read_text())
-  manifest['version']='0.5.0'
-  manifest['requires']=[{'capability':'ui.scene','api':1}]
-  manifest['optional']=[{'capability':name,'api':api} for name,api in (
-   ('contexts.service',1),('storage.key-value',1),('storage.shared-data',1),
-   ('time.civil',1),('alarm.service','>=1'),('board.battery',1),
-   ('ui.text-input',1),('app.catalog',1))]
+  manifest=json.loads((ROOT/'Apps/contexts-shared.json').read_text())
   receipt=builder.build(builder.compiler_path(),include,output/'contexts',manifest,
    [ROOT/'Apps/contexts.c'],defines=['-DCONTEXTS_SHARED_APPLICATION','-DPORTABLE_CONTEXTS_SHARED_TEXT_INPUT'],
    exports={'app_main','risc_resident_app_descriptor_v1'})

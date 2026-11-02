@@ -8,14 +8,16 @@ def run(root):
  if len(commit)!=40 or any(c not in '0123456789abcdef' for c in commit):raise ValueError('Exact source SHA required')
  tag='contexts-shared-0.5.0-dev-'+commit[:12]
  base='https://api.github.com/repos/'+repo
- def request(url,body=None,method=None,binary=False):
+ def request(url,body=None,method=None,binary=False,raw_response=False):
   headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+  if raw_response:headers['Accept']='application/octet-stream'
   if body is not None:headers['Content-Type']='application/octet-stream' if binary else 'application/json'
   data=body if binary else None if body is None else json.dumps(body).encode()
   with urllib.request.urlopen(urllib.request.Request(url,data=data,headers=headers,method=method)) as response:
-   raw=response.read();return json.loads(raw) if raw else None
+   raw=response.read();return raw if raw_response else json.loads(raw) if raw else None
  package=root/'shared-target';delivery=json.loads((package/'delivery.json').read_text())
  elf=package/'contexts/contexts.elf';manifest=package/'contexts/contexts.json'
+ assert json.loads((package/'source-lock.json').read_text())['commits']['utilities']==commit
  assert digest(elf.read_bytes())==delivery['application']['sha256']
  assert len({x['sha256'] for x in delivery['deployments'].values()})==1
  evidence={}
@@ -30,7 +32,7 @@ def run(root):
  except urllib.error.HTTPError as error:
   if error.code!=404:raise
   release=request(base+'/releases',{'tag_name':tag,'target_commitish':commit,
-   'name':'Contexts0.5.0 shared ELF '+commit[:12],'draft':False,'prerelease':True,
+   'name':'Contexts0.5.0 shared ELF '+commit[:12],'draft':True,'prerelease':True,
    'body':'One byte-identical application ELF for X4, T-Watch and Waveshare. Provider-owned scenes/text/availability. Qualified owning host and target checks; matching provider/grant composition required. Physical testing not performed. Source '+commit})
  assets={a['name']:a for a in request(base+'/releases/'+str(release['id'])+'/assets')}
  bindings=[]
@@ -42,7 +44,11 @@ def run(root):
   else:
    asset=request(release['upload_url'].split('{')[0]+'?name='+urllib.parse.quote(name),data,binary=True)
   if asset['size']!=len(data) or asset.get('digest')!='sha256:'+wanted:raise ValueError('Uploaded asset hash mismatch: '+name)
+  downloaded=request(asset['url'],raw_response=True)
+  if len(downloaded)!=len(data) or digest(downloaded)!=wanted:raise ValueError('Downloaded asset hash mismatch: '+name)
   bindings.append({'name':name,'size':len(data),'sha256':wanted,'url':asset['browser_download_url']})
+ if release.get('draft'):
+  release=request(base+'/releases/'+str(release['id']),{'draft':False,'prerelease':True},method='PATCH')
  receipt={'repo':repo,'tag':tag,'source_commit':commit,'release_url':release['html_url'],'assets':bindings,'physical_testing':'not performed'}
  (package/'publication.json').write_text(json.dumps(receipt,indent=2)+'\n')
  print(json.dumps(receipt,indent=2))

@@ -12,7 +12,8 @@ desk_clock_face IDs. Actual launch choices come from admitted app.catalog.
 
 Alarm2 is explicitly negotiated/validated before clean absence permits Alarm1.
 Partial acquisition, malformed tables and uncertain release retain custody.
-The resident Home's read-only Contexts setting/option queries determine offered
+Explicit closed-scene SETTINGS_PREPARE settles existing host readiness without
+policy writes or toggles. The resident Home's read-only setting/option queries determine offered
 settings; an older/absent host displays unavailable rather than inventing
 support. Unsupported saved values are preserved and are not applied.
 Workflow launch identities are revalidated against the native catalog generation.
@@ -33,3 +34,8 @@ failures and option preservation using actual app code. Existing native985-case
 and paper/shared-input suites run with the common app switch, normal and
 ASan/UBSan. CI receipts, target validation and catalog publication are separate;
 physical testing is not implied.
+
+Apps/contexts-shared.json is the common source manifest. Release publication
+stages a draft, verifies every uploaded asset by metadata and downloaded bytes,
+and only then exposes the prerelease. Source commit locks and qualification
+records accompany the ELF; legacy catalog identities are preserved.

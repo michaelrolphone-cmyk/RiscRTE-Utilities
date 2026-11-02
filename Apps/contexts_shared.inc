@@ -97,6 +97,8 @@ static int cs_shared_query(uint32_t reason){
  cs_retain();return -1;
 }
 static bool cs_shared_settings(void){
+ /* Explicit closed-scene preparation is distinct from the pure queries. */
+ if(cs_resident.enabled&&cs_shared_query(RISC_CONTEXTS_SETTINGS_PREPARE)<0)return false;
  uint16_t mask=0;memset(cs_setting_options,0,sizeof(cs_setting_options));
  if(cs_resident.enabled)for(unsigned field=0;field<CR_SETTINGS;field++){
   int available=cs_shared_query(RISC_CONTEXTS_SETTING_QUERY(field));
