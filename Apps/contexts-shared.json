@@ -37,7 +37,7 @@
     },
     {
       "capability": "alarm.service",
-      "api": ">=1"
+      "api": 1
     },
     {
       "capability": "board.battery",
@@ -50,6 +50,10 @@
     {
       "capability": "app.catalog",
       "api": 1
+    },
+    {
+      "capability": "alarm.service.facade",
+      "api": 2
     }
   ]
 }

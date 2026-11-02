@@ -1,6 +1,6 @@
 /* One app artifact. Provider discovery is semantic, never target/geometry based. */
 #include "PortableAppCatalog.h"
-#include "AlarmServiceV2.h"
+#include "AlarmServiceFacadeV2.h"
 #include "RiscResidentContextsV1.h"
 static const char *const cs_face_names[]={
  "NOVA","ANALOG","RADAR","HEX","TERMINAL","MINIMAL","BINARY","CHRONO",
@@ -21,7 +21,7 @@ static int cs_shared_acquire(const char *name,uint32_t version,risc_runtime_capa
  return ok?1:0;
 }
 static bool cs_shared_alarm(void){
- int found=cs_shared_acquire(ALARM_SERVICE_CAPABILITY,2,&cs_alarm_grant);
+ int found=cs_shared_acquire(ALARM_SERVICE_FACADE_CAPABILITY,ALARM_SERVICE_FACADE_API,&cs_alarm_grant);
  if(found<0)return false;
  if(found){
   if(!alarm_service_descriptor(cs_alarm_grant.api)){cs_retain();return false;}

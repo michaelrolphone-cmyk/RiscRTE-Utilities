@@ -3,13 +3,29 @@
 import argparse,json,tempfile,hashlib,shutil,os,subprocess
 from pathlib import Path
 from build_contexts_scene import stage,load,ROOT
+def validate_declarations(manifest):
+ # Actual Runtime AppDeclarations/appPolicies use integer, exact API matching.
+ # A range or duplicate non-KV capability cannot express alternative APIs.
+ seen=set()
+ for group in ('requires','optional'):
+  rows=manifest.get(group,[])
+  if not isinstance(rows,list):raise ValueError('Capability declarations must be arrays')
+  for row in rows:
+   if set(row)!={'capability','api'} or not isinstance(row['capability'],str) or not row['capability']:
+    raise ValueError('Invalid capability declaration')
+   if type(row['api']) is not int or not 1<=row['api']<=0xffffffff:
+    raise ValueError('Capability API must be a positive uint32 integer')
+   if row['capability'] in seen:raise ValueError('Duplicate capability declaration')
+   seen.add(row['capability'])
+ return manifest
+
 def run(runtime,system,output):
  if output.exists():raise FileExistsError(output)
  output.mkdir(parents=True)
  builder=load('scene_build',system/'scripts/scene_build.py')
  with tempfile.TemporaryDirectory(prefix='contexts-common-') as temp:
   include=stage(runtime,system,Path(temp))
-  manifest=json.loads((ROOT/'Apps/contexts-shared.json').read_text())
+  manifest=validate_declarations(json.loads((ROOT/'Apps/contexts-shared.json').read_text()))
   receipt=builder.build(builder.compiler_path(),include,output/'contexts',manifest,
    [ROOT/'Apps/contexts.c'],defines=['-DCONTEXTS_SHARED_APPLICATION','-DPORTABLE_CONTEXTS_SHARED_TEXT_INPUT'],
    exports={'app_main','risc_resident_app_descriptor_v1'})

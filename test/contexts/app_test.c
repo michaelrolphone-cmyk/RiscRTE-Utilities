@@ -87,7 +87,7 @@ static bool fp(void*c,uint32_t op,void*p){(void)c;assert(native_alive);
 static const contexts_fingerprint_service_v1 service={.base={.api_version=1,.struct_size=sizeof(service),.step=svc_step,.pause=svc_pause,.status=svc_status,.request_export=svc_mask,.begin_export=svc_mask,.export_record=svc_record,.finish_export=svc_finish,.label=svc_label,.claim_preset=svc_claim,.preset_result=svc_result,.capture_audio=svc_pause},.fingerprint_abi=0x31504643u,.fingerprint=fp};
 #ifdef CONTEXTS_SHARED_APPLICATION
 static const char *shared_fault="";
-static unsigned shared_catalog_generation=1;
+static unsigned shared_catalog_generation=1,shared_facade_requests,shared_legacy_requests;
 static int32_t shared_catalog_snapshot(void*c,risc_app_catalog_snapshot_v1*q){(void)c;*q=(risc_app_catalog_snapshot_v1){sizeof(*q),1,1};return 0;}
 static int32_t shared_catalog_get(void*c,uint64_t generation,uint32_t index,risc_app_catalog_entry_v1*q){
  (void)c;if(generation!=shared_catalog_generation)return RISC_APP_CATALOG_STALE;if(index)return RISC_APP_CATALOG_NOT_FOUND;
@@ -102,6 +102,7 @@ static int32_t shared_alarm_sleep(void*c,alarm_sleep_v1*q){(void)c;(void)q;retur
 static const alarm_service_descriptor_v2 shared_alarm_api={
  .base={2,sizeof(shared_alarm_api),NULL,shared_alarm_status,shared_alarm_op,shared_alarm_op,shared_alarm_ack,shared_alarm_sleep,shared_alarm_op},
  .tag=ALARM_SERVICE_DESCRIPTOR_TAG,.descriptor_version=1,.output_modes=ALARM_MODE_BOTH};
+static const alarm_service_v1 shared_legacy_alarm_api={1,sizeof(alarm_service_v1),NULL,shared_alarm_status,shared_alarm_op,shared_alarm_op,shared_alarm_ack,shared_alarm_sleep,shared_alarm_op};
 #endif
 static bool app_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){(void)v;(void)id;assert(native_alive);
 #ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
@@ -113,11 +114,16 @@ static bool app_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabil
 #endif
 #ifdef CONTEXTS_SHARED_APPLICATION
  if(!strcmp(shared_fault,"missing"))return false;
- if(!strcmp(shared_fault,"partial")&&!strcmp(n,ALARM_SERVICE_CAPABILITY)){g->slot=99;return false;}
- if(!strcmp(shared_fault,"revoke")&&!strcmp(n,ALARM_SERVICE_CAPABILITY)){native_alive=false;return false;}
+ const bool facade=!strcmp(n,ALARM_SERVICE_FACADE_CAPABILITY);
+ const bool legacy=!strcmp(n,ALARM_SERVICE_CAPABILITY);
+ if(facade){assert(v==2&&id==0);shared_facade_requests++;}
+ if(legacy){assert(v==1&&id==0);shared_legacy_requests++;}
+ if(!strcmp(shared_fault,"partial")&&facade){g->slot=99;return false;}
+ if(!strcmp(shared_fault,"revoke")&&facade){native_alive=false;return false;}
  if(!strcmp(n,RISC_APP_CATALOG_CAPABILITY))p=&shared_catalog_api;
- if(!strcmp(n,ALARM_SERVICE_CAPABILITY)&&v==2)p=&shared_alarm_api;
- if(!strcmp(shared_fault,"bad-alarm")&&!strcmp(n,ALARM_SERVICE_CAPABILITY))p=&prefs;
+ if(facade&&strcmp(shared_fault,"legacy-alarm")&&strcmp(shared_fault,"no-alarm"))p=&shared_alarm_api;
+ if(legacy&&!strcmp(shared_fault,"legacy-alarm"))p=&shared_legacy_alarm_api;
+ if(!strcmp(shared_fault,"bad-alarm")&&facade)p=&prefs;
 #endif
  if(!p)return false;
  g->api=p;g->slot=++app_acquires;g->generation=1;if(p==&service)text_test_backend_after("backend-reacquire");return true;
@@ -314,9 +320,15 @@ static int shared_direct(const char *name){
  assert(risc_scene_resident_bind_v1(ctx_runtime,&cs_resident));
  bool ok=cs_shared_prepare();
  if(!strcmp(name,"partial")||!strcmp(name,"bad-alarm")||!strcmp(name,"revoke")||!strcmp(name,"prepare-retained")||!strcmp(name,"prepare-flags")){
-  assert(!ok&&cs_terminal);puts("shared acquisition retains uncertain custody PASS");return 0;
+  assert(!ok&&cs_terminal);assert(!shared_legacy_requests);puts("shared acquisition retains uncertain custody PASS");return 0;
  }
  assert(ok);
+ if(strcmp(name,"missing")){
+  assert(shared_facade_requests==1);
+  if(!strcmp(name,"legacy-alarm"))assert(shared_legacy_requests==1&&cs_alarm_grant.api==&shared_legacy_alarm_api);
+  else if(!strcmp(name,"no-alarm"))assert(shared_legacy_requests==1&&!cs_alarm_grant.api);
+  else assert(!shared_legacy_requests&&cs_alarm_grant.api==&shared_alarm_api);
+ }
  if(!strcmp(name,"missing"))assert(!cs_alarm_grant.api&&!cs_catalog.count);
  else {
   assert(cs_catalog.count==1&&cs_shared_launch_valid("calculator.elf"));
