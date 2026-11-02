@@ -1,10 +1,13 @@
 #ifndef UTILITIES_POINTS_UTC_SCHEDULE_H
 #define UTILITIES_POINTS_UTC_SCHEDULE_H
-/* Pure opt-in hooks for service and future Points writer/face integration.
+/* POINTS_UTC_PROJECTION_ONLY exposes pure recurrence for read-only adapters using
+ * copied, explicitly normalized absolute fields. It does not select record keys,
+ * narrow the legacy record range, or authorize persistence of converted records.
+ * Pure opt-in hooks for service and future Points writer/face integration.
  * All absolute fields are UTC seconds since 2000, never raw RTC wall time.
  * The caller supplies a resolved frozen catalog rule; no storage/provider I/O. */
-#ifndef ALARM_NATIVE_UTC
-#error "PointsUtcSchedule requires the explicit ALARM_NATIVE_UTC record profile"
+#if !defined(ALARM_NATIVE_UTC) && !defined(POINTS_UTC_PROJECTION_ONLY)
+#error "PointsUtcSchedule requires a native UTC record or explicit read-only projection profile"
 #endif
 #include "PointsSchedule.h"
 #include "PortableTimeZone.h"
