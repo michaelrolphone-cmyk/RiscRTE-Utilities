@@ -47,7 +47,7 @@ jobs:
           set -euo pipefail
           bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/shared-toolchain" 2>&1 | tee evidence/compiler.log
           export NATIVE_APP_CC="$RUNNER_TEMP/shared-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc"
-          python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --output target-apps 2>&1 | tee evidence/target-apps.log
+          python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --app calculator --app stopwatch --app alarms --app countdown --app battery --output target-apps 2>&1 | tee evidence/target-apps.log
           python Utilities/scripts/build_battery_broadcast.py --runtime Runtime --system-apps System --output target-broadcast 2>&1 | tee evidence/target-broadcast.log
       - uses: actions/upload-artifact@v4
         if: always()
