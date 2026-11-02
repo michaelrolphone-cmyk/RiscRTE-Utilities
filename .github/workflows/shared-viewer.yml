@@ -1,0 +1,103 @@
+name: Shared Viewer full ELF delivery
+on:
+  push:
+    branches: [work/viewer-shared-elf-20261102]
+  pull_request:
+    paths: ['Apps/model_viewer*', 'lib/ViewerCanvas/**', 'test/canvas/viewer_shared_test.c', 'scripts/*viewer*', 'docs/VIEWER_SHARED_DELIVERY.md', '.github/workflows/shared-viewer.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  products:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: fa08d9716843ce629b2f8c94c7a0fc3d26dd9998
+          path: .deps/System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 0052d1fc42e9cfc82d626c5a247d460919c87935
+          path: .deps/Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 6a3b3d46f5b2857eacc6e9863799dec1f466b036
+          path: .deps/X4Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: ab9ff33975680c5bb8d9a2e7ed346d0300732a4e
+          path: .deps/Bootfs
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pyelftools==0.32
+      - name: Retrieve immutable original product inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qualification/inputs qualification/logs
+          gh api repos/michaelrolphone-cmyk/RiscRTE-T-Watch-S3/actions/artifacts/13066458995/zip > qualification/inputs/watch.zip
+          gh api repos/michaelrolphone-cmyk/RiscRTE-Wavshare-S3-Touch-AMOLED-2.06/actions/artifacts/13062911920/zip > qualification/inputs/wave.zip
+          gh api -H 'Accept: application/octet-stream' repos/michaelrolphone-cmyk/RiscRTE-XTEINK-X4-PRO/releases/assets/648840942 > qualification/inputs/x4-store.bin
+          gh api -H 'Accept: application/octet-stream' repos/michaelrolphone-cmyk/RiscRTE-XTEINK-X4-PRO/releases/assets/648840698 > qualification/inputs/x4-sd.zip
+      - name: Install pinned target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Actual Viewer through actual canvas provider
+        run: python scripts/test_viewer_shared.py --runtime .deps/Runtime --system-apps .deps/System --output qualification/shared-host --jobs 2 --leak-sanitizer
+      - name: Complete shared Viewer target
+        if: always()
+        run: python scripts/build_shared_viewer.py --runtime .deps/Runtime --system .deps/System --output qualification/shared-target
+      - name: Build delivered canvas provider
+        if: always()
+        run: python .deps/System/scripts/build_canvas_services.py --runtime .deps/Runtime --output qualification/canvas-provider
+      - name: Compact provider loader metadata with full sidecars
+        if: always()
+        run: |
+          python scripts/compact_viewer_provider.py --system .deps/System --provider qualification/canvas-provider
+      - name: Project and admit actual products
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/package_shared_viewer.py --inputs qualification/inputs --bootfs-tools .deps/Bootfs/scripts --viewer qualification/shared-target --provider qualification/canvas-provider --output qualification/products
+          for mode in normal sanitized; do
+            flags=(); if [ "$mode" = sanitized ]; then flags=(--sanitize); fi
+            python .deps/System/scripts/test_files_product_admission.py --runtime .deps/Runtime --x4-runtime .deps/X4Runtime --assembly qualification/products --source-pins .deps/System/docs/files-product-runtime-source-pins.json --output "qualification/admission-$mode" "${flags[@]}"
+          done
+      - name: Inspect exact Viewer product bindings
+        run: python scripts/inspect_viewer_products.py --inputs qualification/inputs --bootfs-tools .deps/Bootfs/scripts --output qualification/inventory
+      - name: Preserve source and identity
+        if: always()
+        run: |
+          mkdir -p qualification/source
+          git rev-parse HEAD > qualification/source/utilities.head
+          git archive HEAD | gzip -n > qualification/source/utilities.tar.gz
+          for source in System Runtime X4Runtime Bootfs; do
+            git -C ".deps/$source" rev-parse HEAD > "qualification/source/$source.head"
+            git -C ".deps/$source" archive HEAD | gzip -n > "qualification/source/$source.tar.gz"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-viewer-products-${{ github.event.pull_request.head.sha || github.sha }}
+          path: qualification/
+          if-no-files-found: error
+          retention-days: 30
