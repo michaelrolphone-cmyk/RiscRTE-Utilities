@@ -438,6 +438,23 @@
         "app_main",
         "risc_resident_app_descriptor_v1"
       ]
+    },
+    {
+      "id": "ble_touchpad",
+      "version": "0.2.0",
+      "file_name": "ble_touchpad.elf",
+      "runtime_profile": "shared-scene-v1",
+      "manifest_path": "Apps/ble_touchpad_scene.json",
+      "sources": [
+        "Apps/ble_touchpad_scene.c"
+      ],
+      "system_sources": [
+        "lib/NativeApps/src/UnsignedDivisionCompat.c"
+      ],
+      "exports": [
+        "app_main",
+        "risc_resident_app_descriptor_v1"
+      ]
     }
   ]
 }
