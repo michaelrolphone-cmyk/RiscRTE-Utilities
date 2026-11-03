@@ -39,6 +39,9 @@ static void touch_edge(unsigned kind,unsigned id,int x,int y){
 }
 static bool touch_poll(void*c,size_t n){
  (void)c;++io_count;assert(n<=2&&!input_pending);
+ if(!hid_active&&input_state.contact_count&&scene_test_millis()>=gesture_due){
+  risc_touch_contact_v1 p=input_state.contacts[input_state.contact_count-1];touch_edge(RISC_TOUCH_EVENT_UP,p.id,p.x,p.y);return true;
+ }
  if(nav_index!=1||!hid_active||scene_test_observe(3)!=RISC_HID_READY||scene_test_observe(5)||held||presenting||scene_test_millis()<gesture_due)return true;
  int x,y;if(!scene_test_pointer_position(&x,&y))return true;
  static const struct{unsigned kind,id;int x,y;unsigned wait;} trace[]={

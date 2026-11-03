@@ -284,7 +284,7 @@ __attribute__((visibility("default"))) void app_main(void){
     if(alarm.terminal){bbo_retain(&owner);return;}
     if(hid.closing)continue;
     if(!alarm.reserved&&!leave&&!pending_checkpoint){if(!scanner_background_step(true)||!scanner_background_capture())return;}
-    if(alarm.status.state==ALARM_STATE_ALERT||alarm.status.state==ALARM_STATE_DISMISSING){if(view.page!=BB_ALERT){view.page=BB_ALERT;dirty=true;}}else if(view.page==BB_ALERT&&!alarm.reserved){view.page=BB_MAIN;dirty=true;}
+    if(alarm.status.state==ALARM_STATE_ALERT||alarm.status.state==ALARM_STATE_DISMISSING){if(view.page!=BB_ALERT){view.page=BB_ALERT;dirty=true;reset_view=true;}}else if(view.page==BB_ALERT&&!alarm.reserved){view.page=BB_MAIN;dirty=true;}
     /* Active HID owns native radio. No ordinary resident checkpoint can cross
      * its exit barrier. Explicit controls close it first, without auto-resume. */
     if(!hid.token&&!hid.closing&&!alarm.reserved&&!leave&&!pending_checkpoint&&resident.enabled&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY|RISC_SCENE_CLOSING))&&bbpolicy_due(&policy,now))pending_checkpoint=RISC_RESIDENT_APPLY_IDLE_ONLY;
