@@ -97,6 +97,8 @@ jobs:
             build/target/obd_dashboard.json
             build/target/build.json
             build/plain/frames/
+            build/plain/geometry-qualification.json
+            build/sanitized/geometry-qualification.json
             evidence/
           retention-days: 14
 
@@ -135,19 +137,19 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          repository: michaelrolphone-cmyk/RiscRTE-Watch
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
           ref: c69d7914935fccdc04749f7bfa429c74219bf88a
           path: WatchProduct
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          repository: michaelrolphone-cmyk/RiscRTE-Wave
+          repository: michaelrolphone-cmyk/RiscRTE-Wavshare-S3-Touch-AMOLED-2.06
           ref: 97ca6157aa9c3bba7c7fee3858aa7d0ff896d13b
           path: WaveProduct
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          repository: michaelrolphone-cmyk/RiscRTE-X4
+          repository: michaelrolphone-cmyk/RiscRTE-XTEINK-X4-PRO
           ref: e361e73de14314bb4b8d2fb3a24eb81e2390b0ee
           path: X4Product
           persist-credentials: false

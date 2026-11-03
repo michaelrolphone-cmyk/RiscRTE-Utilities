@@ -15,18 +15,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: Utilities
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE
-          ref: a91edf3fada6a559ec107186dd163d0c8da10d29
+          ref: 1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70
           path: Runtime
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: a3504d4f8f342d9d78383978e8b70032d0097c23
+          ref: f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165
           path: System
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -57,13 +58,14 @@ jobs:
           python -m pip install platformio==6.1.19
           pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
           python Utilities/scripts/build_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/target | tee evidence/target.log
-          echo 'afd304767b74a36edb1c3605762cd1ed6eeb6f5882ac6fbaed697ff79380f7ea  build/target/obd_dashboard.elf' | sha256sum --check
+          python Utilities/scripts/build_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/repeat
+          cmp build/target/obd_dashboard.elf build/repeat/obd_dashboard.elf
           git -C Utilities rev-parse HEAD > evidence/source-commit.txt
           git -C System rev-parse HEAD > evidence/scene-source-commit.txt
           tar -czf evidence/obd-source.tar.gz Utilities/Apps/obd_dashboard Utilities/Apps/obd_dashboard.json Utilities/scripts/build_obd_dashboard.py Utilities/scripts/test_obd_dashboard.py Utilities/test/obd
       - uses: actions/upload-artifact@v4
         with:
-          name: obd-dashboard-023
+          name: obd-dashboard-030
           path: |
             build/target/obd_dashboard.elf
             build/target/obd_dashboard.json
