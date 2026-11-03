@@ -35,3 +35,33 @@ jobs:
           name: shared-sdr-baseline-${{ github.event.pull_request.head.sha || github.sha }}
           path: out/baseline/
           if-no-files-found: error
+
+  canvas-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 710b200021b983ea55eb86a6fbddbbf5ce10a984
+          path: System
+          persist-credentials: false
+      - name: Real canvas provider and owned session normal and sanitized
+        run: |
+          set -euo pipefail
+          mkdir -p out/canvas
+          for mode in normal sanitized; do
+            flags=(); if [ "$mode" = sanitized ]; then flags+=(-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -no-pie); fi
+            cc -std=c11 -O1 -g -Wall -Wextra -Werror "${flags[@]}" -IApps/shared_sdr -ISystem/Services/canvas_host -ISystem/sdk/app -ISystem/lib/PortableApps/include -ISystem/Services/scene_profile Apps/shared_sdr/rf_capability_canvas_test.c -o "out/canvas/$mode"
+            ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 "out/canvas/$mode" 2>&1 | tee "out/canvas/$mode.log"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-sdr-canvas-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/canvas/
+          if-no-files-found: error
