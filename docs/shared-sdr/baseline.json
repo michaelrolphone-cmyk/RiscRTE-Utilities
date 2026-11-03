@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "tag": "bringup-shared-233e43841483adf570ae833a88d9b6fc08d68f1a",
+  "assets": [
+    {
+      "name": "product-watch-store.bin",
+      "bytes": 5570560,
+      "sha256": "56120d7c9a64f269bf67ec5bb647deb35f68a8cfcc2b08b3be6611e3de343ac3",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Watch/releases/download/bringup-shared-233e43841483adf570ae833a88d9b6fc08d68f1a/product-watch-store.bin"
+    },
+    {
+      "name": "product-watch-sd-apps.zip",
+      "bytes": 22,
+      "sha256": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Watch/releases/download/bringup-shared-233e43841483adf570ae833a88d9b6fc08d68f1a/product-watch-sd-apps.zip"
+    },
+    {
+      "name": "product-wave-store.bin",
+      "bytes": 5570560,
+      "sha256": "f92a9de1a8fb050b636476ff703ce68fa083a81c452b3ec82259f512733af64b",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Watch/releases/download/bringup-shared-233e43841483adf570ae833a88d9b6fc08d68f1a/product-wave-store.bin"
+    },
+    {
+      "name": "product-wave-sd-apps.zip",
+      "bytes": 1773644,
+      "sha256": "a4408526e9d08e90d5fe9f5dfeffc34b3cb03970d06b35dc15551465339bb33e",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Watch/releases/download/bringup-shared-233e43841483adf570ae833a88d9b6fc08d68f1a/product-wave-sd-apps.zip"
+    },
+    {
+      "name": "product-x4-store.bin",
+      "bytes": 5308416,
+      "sha256": "30f8f4ed7e4d56ec73e1f24533aa47200b19058aa9d55e577b60b51f252c6ec9",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Watch/releases/download/bringup-shared-233e43841483adf570ae833a88d9b6fc08d68f1a/product-x4-store.bin"
+    },
+    {
+      "name": "product-x4-sd-apps.zip",
+      "bytes": 5444854,
+      "sha256": "c1948739143957840a57ed3d9de4b5f7359d42be93df7b670386c7c56498f59a",
+      "url": "https://github.com/michaelrolphone-cmyk/RiscRTE-Watch/releases/download/bringup-shared-233e43841483adf570ae833a88d9b6fc08d68f1a/product-x4-sd-apps.zip"
+    }
+  ]
+}
