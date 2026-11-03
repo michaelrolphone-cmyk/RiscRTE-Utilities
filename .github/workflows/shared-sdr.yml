@@ -1,5 +1,7 @@
 name: Shared SDR convergence
 on:
+  push:
+    branches: ['work/shared-sdr-20261103']
   pull_request:
     paths: ['Apps/**', 'scripts/*sdr*', 'docs/shared-sdr/**', '.github/workflows/shared-sdr.yml']
 permissions:
@@ -11,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
@@ -30,6 +32,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: shared-sdr-baseline-${{ github.event.pull_request.head.sha }}
+          name: shared-sdr-baseline-${{ github.event.pull_request.head.sha || github.sha }}
           path: out/baseline/
           if-no-files-found: error
