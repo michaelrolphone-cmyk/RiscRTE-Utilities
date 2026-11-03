@@ -2,9 +2,9 @@ name: Shared OBD convergence
 on:
   push:
     branches: [work/shared-obd-20261103]
-    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/*shared_obd*', 'scripts/*obd_dashboard*', 'test/obd/**', 'docs/shared-obd/**', '.github/workflows/shared-obd.yml']
+    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/*shared_obd*', 'scripts/*obd_dashboard*', 'test/obd/**', 'test/shared_obd*', 'docs/shared-obd/**', '.github/workflows/shared-obd.yml']
   pull_request:
-    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/*shared_obd*', 'scripts/*obd_dashboard*', 'test/obd/**', 'docs/shared-obd/**', '.github/workflows/shared-obd.yml']
+    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/*shared_obd*', 'scripts/*obd_dashboard*', 'test/obd/**', 'test/shared_obd*', 'docs/shared-obd/**', '.github/workflows/shared-obd.yml']
 permissions:
   contents: read
 jobs:
@@ -13,6 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
@@ -30,7 +31,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: shared-obd-baseline-${{ github.sha }}
+          name: shared-obd-baseline-${{ github.event.pull_request.head.sha || github.sha }}
           path: out/baseline/
 
   qualify:
@@ -39,6 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: Utilities
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -89,11 +91,88 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: shared-obd-app-${{ github.sha }}
+          name: shared-obd-app-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             build/target/obd_dashboard.elf
             build/target/obd_dashboard.json
             build/target/build.json
             build/plain/frames/
             evidence/
+          retention-days: 14
+
+  products:
+    needs: [baseline, qualify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 710b200021b983ea55eb86a6fbddbbf5ce10a984
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: ab9ff33975680c5bb8d9a2e7ed346d0300732a4e
+          path: Bootfs
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 712ecc3f894dba99d9c9638941778a82f5856b97
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 0052d1fc42e9cfc82d626c5a247d460919c87935
+          path: X4Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Watch
+          ref: c69d7914935fccdc04749f7bfa429c74219bf88a
+          path: WatchProduct
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Wave
+          ref: 97ca6157aa9c3bba7c7fee3858aa7d0ff896d13b
+          path: WaveProduct
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-X4
+          ref: e361e73de14314bb4b8d2fb3a24eb81e2390b0ee
+          path: X4Product
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: shared-obd-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: incoming/baseline
+      - uses: actions/download-artifact@v4
+        with:
+          name: shared-obd-app-${{ github.event.pull_request.head.sha || github.sha }}
+          path: incoming/application
+      - name: Assemble and roundtrip all three exact products
+        run: |
+          set -euo pipefail
+          python3 scripts/assemble_shared_obd.py --system System --baseline incoming/baseline --application incoming/application/build/target --bootfs-tools Bootfs/scripts --output out/products
+      - name: Admit actual selected products with owning runtime and CpuPort
+        env:
+          OBD_SYSTEM: System
+        run: |
+          set -euo pipefail
+          python3 scripts/test_shared_obd_product_admission.py --bringup --runtime Runtime --x4-runtime X4Runtime --watch-product WatchProduct --wave-product WaveProduct --x4-product X4Product --assembly out/products --output out/admission-normal
+          python3 scripts/test_shared_obd_product_admission.py --bringup --runtime Runtime --x4-runtime X4Runtime --watch-product WatchProduct --wave-product WaveProduct --x4-product X4Product --assembly out/products --output out/admission-sanitized --sanitize
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-obd-products-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/
           retention-days: 14
