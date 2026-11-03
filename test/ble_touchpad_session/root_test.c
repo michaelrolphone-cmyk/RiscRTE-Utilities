@@ -78,6 +78,7 @@ int main(void){
   h=(risc_scene_hold_event_v1){.struct_size=sizeof(h),.event={.struct_size=sizeof(h.event),.kind=kind,.document_revision=document.revision,.sequence=1}};
   input(&h,0);assert(kind==RISC_SCENE_CONTROLS_EVENT?pending_checkpoint==RISC_RESIDENT_CHECKPOINT_CONTROLS:leave);
  }
+ reset_root();doc();resident.enabled=true;alarm.reserved=true;h=(risc_scene_hold_event_v1){.struct_size=sizeof(h),.event={.struct_size=sizeof(h.event),.kind=RISC_SCENE_CONTROLS_EVENT,.document_revision=document.revision,.sequence=1}};input(&h,0);assert(!pending_checkpoint&&reset_view);
  current_runtime=NULL;app_main();
  puts("Touchpad actual root and confirmation assertions PASS");return 0;
 }

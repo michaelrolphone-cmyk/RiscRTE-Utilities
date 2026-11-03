@@ -124,8 +124,8 @@ static void input(const risc_scene_hold_event_v1 *h,uint64_t now){
  if(e->struct_size!=sizeof(*e)||!e->sequence||e->sequence<=last_event||e->document_revision!=document.revision)return;
  last_event=e->sequence;
  /* Lifecycle intents are provider-owned, even while a new page is pending. */
- if(h->phase==RISC_HOLD_NONE&&e->kind==RISC_SCENE_CONTROLS_EVENT&&!e->node&&!e->action){if(resident.enabled&&!alarm.reserved)pending_checkpoint=RISC_RESIDENT_CHECKPOINT_CONTROLS;return;}
- if(h->phase==RISC_HOLD_NONE&&e->kind==RISC_SCENE_SUSPEND_EVENT&&!e->node&&!e->action){leave=true;return;}
+ if(h->phase==RISC_HOLD_NONE&&!h->reason&&!h->flags&&!h->generation&&!h->held_ms&&e->kind==RISC_SCENE_CONTROLS_EVENT&&!e->node&&!e->action){if(resident.enabled&&!alarm.reserved)pending_checkpoint=RISC_RESIDENT_CHECKPOINT_CONTROLS;else reset_view=true;return;}
+ if(h->phase==RISC_HOLD_NONE&&!h->reason&&!h->flags&&!h->generation&&!h->held_ms&&e->kind==RISC_SCENE_SUSPEND_EVENT&&!e->node&&!e->action){leave=true;return;}
  if(document.screen_key!=view.page+1)return;
  if(h->phase==RISC_HOLD_PRESS){
   const risc_scene_node_v1 *n=event_node(e);if(!n||n->kind!=RISC_COMPONENT_HOLD_KEY||!h->generation)return;
