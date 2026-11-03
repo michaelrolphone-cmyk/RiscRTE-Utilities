@@ -1,0 +1,180 @@
+name: Shared OBD convergence
+on:
+  push:
+    branches: [work/shared-obd-20261103]
+    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/*shared_obd*', 'scripts/*obd_dashboard*', 'test/obd/**', 'test/shared_obd*', 'docs/shared-obd/**', '.github/workflows/shared-obd.yml']
+  pull_request:
+    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/*shared_obd*', 'scripts/*obd_dashboard*', 'test/obd/**', 'test/shared_obd*', 'docs/shared-obd/**', '.github/workflows/shared-obd.yml']
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 710b200021b983ea55eb86a6fbddbbf5ce10a984
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: ab9ff33975680c5bb8d9a2e7ed346d0300732a4e
+          path: Bootfs
+          persist-credentials: false
+      - run: python3 scripts/inspect_shared_obd_baseline.py --system System --bootfs-tools Bootfs/scripts --output out/baseline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-obd-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/baseline/
+
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: f4b30f8ebcc6d8cb905c8e90c91b1691acbe8165
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Drivers
+          ref: 3a1b31c6d2cc90d7f082dd13d20ff7df77bd127c
+          path: Drivers
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate shared telemetry typography from existing sources
+        run: |
+          set -euo pipefail
+          python -m pip install Pillow==12.3.0
+          python System/scripts/generate_telemetry_fonts.py
+          echo '2d7501e42d6223ebbc191817715431182c435fea944a1a02166a0748a577eaf1  System/Services/scene_host/fonts/telemetry.inc' | sha256sum --check
+          git -C System diff --exit-code
+      - name: Test protocol, persistence and actual native app with the shared scene
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python Utilities/scripts/test_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/plain 2>&1 | tee evidence/host.log
+          python Utilities/scripts/test_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/sanitized --sanitize 2>&1 | tee evidence/sanitized.log
+      - name: Compile ESP32-S3 app and compare with the current-runtime executable
+        run: |
+          set -euo pipefail
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+          python Utilities/scripts/build_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/target | tee evidence/target.log
+          python Utilities/scripts/build_obd_dashboard.py --runtime Runtime --system System --drivers Drivers --output build/repeat
+          cmp build/target/obd_dashboard.elf build/repeat/obd_dashboard.elf
+          git -C Utilities rev-parse HEAD > evidence/source-commit.txt
+          git -C System rev-parse HEAD > evidence/scene-source-commit.txt
+          tar -czf evidence/obd-source.tar.gz Utilities/Apps/obd_dashboard Utilities/Apps/obd_dashboard.json Utilities/scripts/build_obd_dashboard.py Utilities/scripts/test_obd_dashboard.py Utilities/test/obd
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-obd-app-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            build/target/obd_dashboard.elf
+            build/target/obd_dashboard.json
+            build/target/build.json
+            build/plain/frames/
+            build/plain/geometry-qualification.json
+            build/sanitized/geometry-qualification.json
+            evidence/
+          retention-days: 14
+
+  products:
+    needs: [baseline, qualify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 710b200021b983ea55eb86a6fbddbbf5ce10a984
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: ab9ff33975680c5bb8d9a2e7ed346d0300732a4e
+          path: Bootfs
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 712ecc3f894dba99d9c9638941778a82f5856b97
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 0052d1fc42e9cfc82d626c5a247d460919c87935
+          path: X4Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: c69d7914935fccdc04749f7bfa429c74219bf88a
+          path: WatchProduct
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Wavshare-S3-Touch-AMOLED-2.06
+          ref: 97ca6157aa9c3bba7c7fee3858aa7d0ff896d13b
+          path: WaveProduct
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-XTEINK-X4-PRO
+          ref: e361e73de14314bb4b8d2fb3a24eb81e2390b0ee
+          path: X4Product
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: shared-obd-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: incoming/baseline
+      - uses: actions/download-artifact@v4
+        with:
+          name: shared-obd-app-${{ github.event.pull_request.head.sha || github.sha }}
+          path: incoming/application
+      - name: Assemble and roundtrip all three exact products
+        run: |
+          set -euo pipefail
+          python3 scripts/assemble_shared_obd.py --system System --baseline incoming/baseline --application incoming/application/build/target --bootfs-tools Bootfs/scripts --output out/products
+      - name: Admit actual selected products with owning runtime and CpuPort
+        env:
+          OBD_SYSTEM: System
+        run: |
+          set -euo pipefail
+          python3 scripts/test_shared_obd_product_admission.py --bringup --runtime Runtime --x4-runtime X4Runtime --watch-product WatchProduct --wave-product WaveProduct --x4-product X4Product --assembly out/products --output out/admission-normal
+          python3 scripts/test_shared_obd_product_admission.py --bringup --runtime Runtime --x4-runtime X4Runtime --watch-product WatchProduct --wave-product WaveProduct --x4-product X4Product --assembly out/products --output out/admission-sanitized --sanitize
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-obd-products-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/
+          retention-days: 14
