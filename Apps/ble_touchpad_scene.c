@@ -184,6 +184,7 @@ static bool update_view(uint32_t flags){
 }
 static bool alarm_stop(void *p){(void)p;return stop()&&pause_background();}
 static bool handoff(void){
+ if(alarm.reserved){pending_checkpoint=0;reset_view=true;return true;}
  if(!stop()||!pause_background()||!close_view())return false;
  int rc;
  if(pending_checkpoint==RISC_RESIDENT_APPLY_IDLE_ONLY&&!policy.idle_supported){
