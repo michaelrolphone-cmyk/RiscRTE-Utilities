@@ -3,6 +3,7 @@
 #include <string.h>
 #define ALARM_SERVICE_TAGGED_V2
 #define PORTABLE_NATIVE_CUSTODY_FENCE
+void portable_adapter_retain_silent(void);
 #include "PortableAlarmTerminalClient.h"
 static bool fenced,lost;
 static unsigned acquire_mode,retain_calls,release_calls;

@@ -104,8 +104,9 @@ jobs:
           mkdir -p out/lifecycle
           for mode in normal sanitized; do
             flags=(); if [ "$mode" = sanitized ]; then flags+=(-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -no-pie); fi
-            for test in sdr_resident_select sdr_alarm_facade; do
-              cc -std=c11 -O1 -g -Wall -Wextra -Werror "${flags[@]}" -IApps/shared_sdr -IRuntime/sdk/app -ISystem/lib/NativeApps/include -ISystem/lib/PortableApps/include -Ilib/Alarm/include "Apps/shared_sdr/${test}_test.c" -o "out/lifecycle/$test-$mode"
+            for test in sdr_resident_select sdr_alarm_facade sdr_controls_dispatch; do
+              extra=(); if [ "$test" = sdr_controls_dispatch ]; then extra+=(InstalledSystem/lib/PortableApps/src/quick_actions.c); fi
+              cc -std=c11 -O1 -g -Wall -Wextra -Werror "${flags[@]}" -IApps/shared_sdr -IRuntime/sdk/app -ISystem/lib/NativeApps/include -ISystem/lib/PortableApps/include -Ilib/Alarm/include "Apps/shared_sdr/${test}_test.c" "${extra[@]}" -o "out/lifecycle/$test-$mode"
               ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 "out/lifecycle/$test-$mode" 2>&1 | tee "out/lifecycle/$test-$mode.log"
             done
           done
