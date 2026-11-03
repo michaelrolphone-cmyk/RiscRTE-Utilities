@@ -8,7 +8,8 @@ static bool rt_diagnostic(const char*s){diagnostics++;snprintf(diag_text,sizeof(
 static bool rt_retain(void){retains++;return true;}
 static bool rt_clock(uint32_t *n){*n=1000;return true;}
 static void rt_yield(uint32_t n){(void)n;}
-static bool rt_acquire(const char*n,uint32_t v,uint64_t i,risc_runtime_capability_v1*g){(void)n;(void)v;(void)i;(void)g;return false;}
+static const void *unavailable_ui;static unsigned non_ui_acquires;
+static bool rt_acquire(const char*n,uint32_t v,uint64_t i,risc_runtime_capability_v1*g){(void)v;(void)i;if(unavailable_ui&&!strcmp(n,RISC_SCENE_CAPABILITY)){*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g),.api=unavailable_ui,.slot=1,.generation=1};return true;}if(unavailable_ui)non_ui_acquires++;return false;}
 static bool rt_release(risc_runtime_capability_v1*g){*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;}
 static risc_runtime_api_v1 runtime_api={.api_version=1,.struct_size=sizeof(runtime_api),.diagnostic=rt_diagnostic,.retain_invocation=rt_retain,.monotonic_ms=rt_clock,.yield_ms=rt_yield,.acquire=rt_acquire,.release=rt_release};
 static bool h_open(void*c,const char*n,bool b,uint64_t*t){(void)c;(void)n;(void)b;endpoint_calls++;*t=1;return true;}
@@ -36,6 +37,11 @@ static risc_scene_hold_event_v1 event(unsigned action,unsigned phase,uint64_t se
  for(unsigned i=0;i<document.node_count;i++)if(document.nodes[i].action==action)h.event.node=document.nodes[i].id;
  return h;
 }
+static int32_t unavailable_open(void*c,const risc_components_document_v1*d,const risc_scene_navigation_v1*n,uint64_t*s){(void)c;(void)d;(void)n;*s=0;return RISC_SCENE_UNAVAILABLE;}
+static int32_t unavailable_next(void*c,uint64_t s,risc_scene_event_v1*e){(void)c;(void)s;(void)e;return RISC_SCENE_UNAVAILABLE;}
+static int32_t unavailable_close(void*c,uint64_t s){(void)c;(void)s;return RISC_SCENE_UNAVAILABLE;}
+static int32_t unavailable_snapshot(void*c,uint64_t s,risc_scene_navigation_v1*n,uint32_t*f){(void)c;(void)s;(void)n;(void)f;return RISC_SCENE_UNAVAILABLE;}
+static int32_t unavailable_update(void*c,uint64_t s,const risc_components_document_v1*d){(void)c;(void)s;(void)d;return RISC_SCENE_UNAVAILABLE;}
 int main(void){
  reset_root();view.page=BB_PAIR;hid.token=1;hid.status=(risc_bluetooth_hid_status_v1){sizeof(hid.status),RISC_HID_PAIR_CONFIRM,0,123456,0,7};pair_generation=7;pair_number=123456;doc();risc_scene_hold_event_v1 h=event(BB_PAIR_ACCEPT,RISC_HOLD_PRESS,1);input(&h,1000);assert(paired_press);hid.status.pairing_number=654321;h.phase=RISC_HOLD_RELEASE;h.held_ms=100;input(&h,1100);assert(!confirmed&&!paired_press);
  reset_root();view.page=BB_PAIR;hid.token=1;hid.status=(risc_bluetooth_hid_status_v1){sizeof(hid.status),RISC_HID_PAIR_CONFIRM,0,123456,0,7};pair_generation=7;pair_number=123456;doc();h=event(BB_PAIR_ACCEPT,RISC_HOLD_PRESS,1);input(&h,1000);h.phase=RISC_HOLD_RELEASE;input(&h,1100);assert(confirmed==1&&hid.pair_accepted);
@@ -64,6 +70,9 @@ int main(void){
  }
  reset_root();view.hid_available=false;hid.api=NULL;view.page=BB_SETTINGS;action(BB_FORGET_OPEN,0);assert(view.page==BB_SETTINGS&&!endpoint_calls);action(BB_FORGET_CONFIRM,0);assert(!endpoint_calls);
  reset_root();risc_bluetooth_hid_v1 bad=h_api;bad.forget_bond=NULL;view.hid_available=bhs_init(&hid,&bad,bbo_live,&owner);assert(!view.hid_available&&!hid.api);action(BB_FORGET_CONFIRM,0);assert(!endpoint_calls);
+ reset_root();risc_scene_components_api_v1 ui={0};risc_scene_api_v1*base=(void*)&ui;
+ base->api_version=1;base->struct_size=sizeof(ui);base->next=unavailable_next;base->close=unavailable_close;base->snapshot=unavailable_snapshot;
+ ui.tag=RISC_COMPONENTS_TAG;ui.version=1;ui.open=unavailable_open;ui.update=unavailable_update;unavailable_ui=&ui;non_ui_acquires=0;app_main();assert(!non_ui_acquires&&!session);unavailable_ui=NULL;
  current_runtime=NULL;app_main();
  puts("Touchpad actual root and confirmation assertions PASS");return 0;
 }

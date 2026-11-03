@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: michaelrolphone-cmyk/RiscRTE-System-Apps
-          ref: 36bea0d9e838518e4b1ceadabcfb5cba282a458d
+          ref: efc788e4c9b0c4ba4ea96757d72c970b76af7a4f
           path: System
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p qualification/source qualification/logs
-          test "$(git -C System rev-parse HEAD)" = 36bea0d9e838518e4b1ceadabcfb5cba282a458d
+          test "$(git -C System rev-parse HEAD)" = efc788e4c9b0c4ba4ea96757d72c970b76af7a4f
           test "$(git -C Runtime rev-parse HEAD)" = 0052d1fc42e9cfc82d626c5a247d460919c87935
           for source in Utilities System Runtime; do
             git -C "$source" archive --format=tar HEAD | gzip -n > "qualification/source/$source.tar.gz"

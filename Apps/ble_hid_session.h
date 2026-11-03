@@ -113,7 +113,7 @@ static inline bool bhs_confirm(ble_hid_session *s,uint32_t generation,uint32_t n
  s->neutral=false;if(!ok||!accept)s->closing=true;else s->pair_accepted=true;return ok;
 }
 static inline bool bhs_forget(ble_hid_session *s){
- if(!bhs_live(s)||s->token||s->closing)return false;
+ if(!bhs_live(s)||!s->api||s->token||s->closing)return false;
  bool ok=s->api->forget_bond(s->api->context);
  return bhs_live(s)&&ok;
 }

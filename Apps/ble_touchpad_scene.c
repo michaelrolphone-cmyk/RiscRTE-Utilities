@@ -215,6 +215,9 @@ __attribute__((visibility("default"))) void app_main(void){
  components=risc_scene_components_get_v1(scene);if(!components){cleanup();return;}
  hold=risc_scene_hold_get_v1(scene);view.hold_available=hold!=NULL;
  pointer=risc_scene_pointer_get_v1(scene);view.pointer_available=pointer!=NULL;
+ /* Prove an available UI session before borrowing domain or storage services. */
+ (void)bhs_init(&hid,NULL,bbo_live,&owner);alarm=(ble_buttons_alarm){0};power_key=NULL;policy=(ble_buttons_policy){0};
+ if(!open_view()){cleanup();return;}
  bool got=bbo_acquire(&owner,&grants[1],RISC_BLUETOOTH_HID_CAPABILITY,1,0);if(!alive())return;
  view.hid_available=bhs_init(&hid,got?grants[1].api:NULL,bbo_live,&owner);
  if(!risc_scene_resident_bind_v1(owner.runtime,&resident)||!alive()){if(alive())bbo_retain(&owner);return;}
@@ -226,7 +229,7 @@ __attribute__((visibility("default"))) void app_main(void){
  if(power_key&&(power_key->api_version!=1||power_key->struct_size<sizeof(*power_key)||!power_key->events))power_key=NULL;
  policy=(ble_buttons_policy){0};uint64_t initial;if(!bbo_now(&owner,&initial)||!bbpolicy_load(&policy,&owner,initial))return;
  if(!scanner_background_init(owner.runtime,bbo_live,background_retain,&owner))return;
- background_ready=true;
+ background_ready=true;reset_view=true;
  unsigned cleanup_wait=0;
  for(;;){
   uint64_t now;if(!bbo_now(&owner,&now))return;
