@@ -64,6 +64,7 @@ static bool navigation(void*c,risc_input_navigation_frame_v1*out){
  if(++polls>10000){fprintf(stderr,"stuck phase=%u page=%u focus=%u token=%u state=%u terminal=%u dirty=%u reset=%u\n",nav_index,scene_test_observe(1),scene_test_observe(0),scene_test_observe(2),scene_test_observe(3),scene_test_observe(4),scene_test_observe(6),scene_test_observe(5));assert(0);}
  if(held||presenting||completions<=invocation_completions||++nav_wait<4)return true;
  nav_wait=0;
+ if(!scene_test_observe(8)){out->pressed=RISC_NAV_HOME;return true;}
  if(scene_test_observe(7)){unsigned target=scene_test_observe(111);if(target)out->pressed=scene_test_observe(0)==target?RISC_NAV_CONFIRM:RISC_NAV_DOWN;nav_index=3;return true;}
  if(nav_index==0){
   unsigned target=scene_test_observe(103);if(!target)return true;
@@ -109,6 +110,8 @@ unsigned scene_test_hardware_io(void){return io_count;}
 bool scene_test_storage_safe(void){return true;}
 bool scene_test_exit_safe(void){return !hid_active&&!held&&!presenting;}
 void scene_test_hardware_closed(void){
- if(submits){assert(opens==2&&reports>=4&&neutral_reports>=2);if(getenv("TOUCHPAD_ALARM"))assert(alarm_acks==2&&!alarm_output);else assert(clicks>=6&&drags>=2&&scrolls>=2&&motion_x>0);}
+ if(submits&&!getenv("TOUCHPAD_NO_HID")){assert(opens==2&&reports>=4&&neutral_reports>=2);if(getenv("TOUCHPAD_ALARM"))assert(alarm_acks==2&&!alarm_output);else assert(clicks>=6&&drags>=2&&scrolls>=2&&motion_x>0);}
  assert(!hid_active&&!reported_buttons&&opens==closes);assert(!held&&!presenting&&!subscribed&&acquisitions==submits+releases&&completions==submits);
 }
+
+void scene_test_hardware_debug(void){fprintf(stderr,"fixture nav=%u gesture=%u due=%llu contacts=%u pending=%u frame=%u held=%u alarmphase=%u output=%u\n",nav_index,gesture_step,(unsigned long long)gesture_due,input_state.contact_count,input_pending,presenting,held,alarm_phase,alarm_output);}

@@ -153,7 +153,11 @@ static bool open_view(void){
  navigation=(risc_scene_navigation_v1){.api_version=1,.struct_size=sizeof(navigation),.depth=1,.routes={1}};
  uint64_t opened=0;int rc=pointer?pointer->open(scene->context,&candidate,&navigation,&opened):hold?hold->open(scene->context,&candidate,&navigation,&opened):components->open(scene->context,&candidate,&navigation,&opened);
  if(!endpoint(rc))return false;
- if(rc!=0){if(opened|| (rc!=RISC_SCENE_BUSY&&rc!=RISC_SCENE_AGAIN)){bbo_retain(&owner);}return false;}
+ if(rc!=0){
+  if(!opened&&(rc==RISC_SCENE_UNAVAILABLE||rc==RISC_SCENE_INVALID)){leave=true;return false;}
+  if(opened||(rc!=RISC_SCENE_BUSY&&rc!=RISC_SCENE_AGAIN))bbo_retain(&owner);
+  return false;
+ }
  if(!opened){bbo_retain(&owner);return false;}
  session=opened;document=candidate;if(view.page==BB_PAIR){pair_generation=hid.status.connection_generation;pair_number=hid.status.pairing_number;}if(view.page==BB_ALERT)displayed_alarm=alarm.status.occurrence;last_event=0;dirty=false;
  lifecycle=risc_scene_lifecycle_get_v1(scene);

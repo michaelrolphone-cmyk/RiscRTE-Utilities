@@ -31,9 +31,10 @@ def run(runtime,system,output,sanitize=False,provider_system=None):
  for name,width,height,fmt in (('large',480,800,5),('watch',240,240,5),('amoled',410,502,5)):
   stage=output/name;shutil.copytree(common,stage)
   build(stage/'scene-presentation-profile.elf',[provider_system/'Services/scene_profile/profile.c'],['-DSCENE_PROFILE_PAPER=1'] if fmt==1 else [])
-  for case in ('demand','retained-providers','no-ui','alarm'):
-   mode='demand' if case=='alarm' else case
-   case_env=dict(env);case_env.pop('TOUCHPAD_ALARM',None)
+  for case in ('demand','retained-providers','no-ui','no-hid','alarm'):
+   mode='demand' if case in ('alarm','no-hid') else case
+   case_env=dict(env);case_env.pop('TOUCHPAD_ALARM',None);case_env.pop('TOUCHPAD_NO_HID',None)
+   if case=='no-hid':case_env['TOUCHPAD_NO_HID']='1'
    if case=='alarm':case_env['TOUCHPAD_ALARM']='1'
    target=output/(name+'-'+case);shutil.copytree(stage,target)
    assert hashlib.sha256((target/'ble_touchpad.elf').read_bytes()).hexdigest()==app_hash

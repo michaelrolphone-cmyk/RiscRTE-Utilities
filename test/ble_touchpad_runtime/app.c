@@ -11,6 +11,11 @@ static unsigned observe(unsigned key){
  if(key==5)return reset_view;
  if(key==6)return dirty;
  if(key==7)return view.page==BB_ALERT;
+ if(key==8)return view.hid_available;
+ if(key==9)return alarm.status.state;
+ if(key==10)return alarm.reserved;
+ if(key==11)return session!=0;
+ if(key==12)return hid.dirty;
  if(key>=100){for(unsigned i=0;i<document.node_count;i++)if(document.nodes[i].action==key-100)return document.nodes[i].id;}
  return 0;
 }

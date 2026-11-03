@@ -72,7 +72,7 @@ int main(void){
  reset_root();risc_bluetooth_hid_v1 bad=h_api;bad.forget_bond=NULL;view.hid_available=bhs_init(&hid,&bad,bbo_live,&owner);assert(!view.hid_available&&!hid.api);action(BB_FORGET_CONFIRM,0);assert(!endpoint_calls);
  reset_root();risc_scene_components_api_v1 ui={0};risc_scene_api_v1*base=(void*)&ui;
  base->api_version=1;base->struct_size=sizeof(ui);base->next=unavailable_next;base->close=unavailable_close;base->snapshot=unavailable_snapshot;
- ui.tag=RISC_COMPONENTS_TAG;ui.version=1;ui.open=unavailable_open;ui.update=unavailable_update;unavailable_ui=&ui;non_ui_acquires=0;app_main();assert(!non_ui_acquires&&!session);unavailable_ui=NULL;
+ ui.tag=RISC_COMPONENTS_TAG;ui.version=1;ui.open=unavailable_open;ui.update=unavailable_update;unavailable_ui=&ui;non_ui_acquires=0;app_main();assert(!non_ui_acquires&&!session&&!owner.terminal&&!retains);unavailable_ui=NULL;
  current_runtime=NULL;app_main();
  puts("Touchpad actual root and confirmation assertions PASS");return 0;
 }
