@@ -1,0 +1,34 @@
+name: Shared OBD convergence
+on:
+  push:
+    branches: [work/shared-obd-20261103]
+    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/*shared_obd*', 'scripts/*obd_dashboard*', 'test/obd/**', 'docs/shared-obd/**', '.github/workflows/shared-obd.yml']
+  pull_request:
+    paths: ['Apps/obd_dashboard/**', 'Apps/obd_dashboard.json', 'scripts/*shared_obd*', 'scripts/*obd_dashboard*', 'test/obd/**', 'docs/shared-obd/**', '.github/workflows/shared-obd.yml']
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 710b200021b983ea55eb86a6fbddbbf5ce10a984
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: ab9ff33975680c5bb8d9a2e7ed346d0300732a4e
+          path: Bootfs
+          persist-credentials: false
+      - run: python3 scripts/inspect_shared_obd_baseline.py --system System --bootfs-tools Bootfs/scripts --output out/baseline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-obd-baseline-${{ github.sha }}
+          path: out/baseline/
