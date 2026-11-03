@@ -52,6 +52,14 @@
       {
         "old": "static bool quick_interrupt(void);",
         "replacement": "static bool quick_interrupt(void);\nstatic void sdr_quick_alarm_capabilities(void);"
+      },
+      {
+        "old": "#include \"resident_adapter.inc\"\n#include \"resident_shell.inc\"",
+        "replacement": "#include \"resident_adapter.inc\"\n#include \"sdr_controls_dispatch.inc\"\n#include \"resident_shell.inc\""
+      },
+      {
+        "old": "#ifdef PORTABLE_RESIDENT_SHELL_CLIENT\n  /* A recognized pull-down is model state.",
+        "replacement": "  sdr_controls_dispatch();\n#ifdef PORTABLE_RESIDENT_SHELL_CLIENT\n  /* A recognized pull-down is model state."
       }
     ],
     "quick_adapter.inc": [
@@ -133,6 +141,7 @@
   "generated": [
     "sdr_resident_select.inc",
     "PortableAlarmClient.h",
-    "PortableAlarmTerminalClient.h"
+    "PortableAlarmTerminalClient.h",
+    "sdr_controls_dispatch.inc"
   ]
 }

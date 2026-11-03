@@ -50,7 +50,7 @@
         },
         {
           "old": "    policy_started=true;",
-          "replacement": "    canvas_prepared=true;\n    if(portable_sdr_sleep_prepare()!=1)goto done;\n    policy_started=true;"
+          "replacement": "    canvas_prepared=true;\n    int canvas_status=portable_sdr_sleep_prepare();\n    if(canvas_status!=1) {\n        if(canvas_status==-2){watch_bridge_retain(&guard);return WATCH_SLEEP_RETAINED;}\n        rc=WATCH_SLEEP_REFUSED;goto done;\n    }\n    policy_started=true;"
         },
         {
           "old": "    if(rc>=0 && !restore(d,width,height))rc=WATCH_SLEEP_FAILED;",
@@ -63,6 +63,10 @@
         {
           "old": "    if(rc<0)(void)watch_bridge_bool(&guard,false);\n    return rc;",
           "replacement": "    if(rc==ALARM_OUTPUT || rc==ALARM_RETAINED || rc<ALARM_FOREGROUND || rc>ALARM_PENDING)watch_bridge_retain(&guard);\n    else if(rc<0)(void)watch_bridge_bool(&guard,false);\n    return rc;"
+        },
+        {
+          "old": "        guarded_alarm.base=*alarms;guarded_alarm.base.prepare_sleep=alarm_prepare;",
+          "replacement": "        guarded_alarm.base=*alarms;guarded_alarm.base.struct_size=sizeof(guarded_alarm);\n        guarded_alarm.base.prepare_sleep=alarm_prepare;"
         }
       ]
     },

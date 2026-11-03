@@ -88,7 +88,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          repository: michaelrolphone-cmyk/RiscRTE-Runtime
+          repository: michaelrolphone-cmyk/RiscRTE
           ref: 712ecc3f894dba99d9c9638941778a82f5856b97
           path: Runtime
           persist-credentials: false
