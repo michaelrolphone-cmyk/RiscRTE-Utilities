@@ -102,7 +102,7 @@ static void action(unsigned a,uint64_t now){
  if(a==BB_BACK){back();return;}
  if(a==BB_ALARM_ACK){(void)bba_ack(&alarm,&displayed_alarm);dirty=true;return;}
  if(a==BB_STOP){(void)stop();return;}
- if(a==BB_SETTINGS_OPEN){if(!bhs_release(&hid)&&hid.token)return;view.page=BB_SETTINGS;dirty=true;return;}
+ if(a==BB_SETTINGS_OPEN){if(!stop())return;view.page=BB_SETTINGS;dirty=true;return;}
  if(a==BB_RECONNECT||a==BB_PAIR_START){if(alarm.reserved){message("ALARM OUTPUT RESERVED - WAIT");return;}if(!view.hid_available){message("BLUETOOTH HID UNAVAILABLE");return;}if(!stop()||!radio_allowed())return;if(bhs_open(&hid,"BLE Touchpad",a==BB_PAIR_START,now)){view.page=BB_MAIN;message(a==BB_PAIR_START?"Find BLE Touchpad on your host":"Waiting for saved host");(void)battery_update(now);}else message("Session start failed - cleanup required");return;}
  if(a==BB_FORGET_OPEN){if(!view.hid_available){message("BLUETOOTH HID UNAVAILABLE");return;}if(!stop())return;view.page=BB_FORGET;dirty=true;return;}
  if(a==BB_FORGET_CONFIRM){message(bhs_forget(&hid)?"Bond forgotten":"Forget failed");view.page=BB_SETTINGS;return;}
