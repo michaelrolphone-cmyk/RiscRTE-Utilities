@@ -25,7 +25,9 @@ static inline bool bhs_init(ble_hid_session *s,const risc_bluetooth_hid_v1 *api,
                            bool (*alive)(void *),void *owner){
  memset(s,0,sizeof(*s));s->api=api;s->alive=alive;s->owner=owner;s->held_index=-1;
  if(!bhs_live(s))return false;
- return api&&api->api_version==1&&api->struct_size>=sizeof(*api)&&api->open&&api->poll&&api->status&&api->confirm_pairing&&api->keyboard&&api->mouse&&api->release_all&&api->close&&api->forget_bond&&api->battery;
+ bool valid=api&&api->api_version==1&&api->struct_size>=sizeof(*api)&&api->open&&api->poll&&api->status&&api->confirm_pairing&&api->keyboard&&api->mouse&&api->release_all&&api->close&&api->forget_bond&&api->battery;
+ if(!valid)s->api=NULL;
+ return valid;
 }
 static inline bool bhs_release(ble_hid_session *s){
  if(!bhs_live(s))return false;
@@ -47,7 +49,7 @@ static inline bool bhs_close(ble_hid_session *s){
  return ok;
 }
 static inline bool bhs_open(ble_hid_session *s,const char *name,bool pairing,uint64_t now){
- if(!bhs_live(s)||s->token||s->closing)return false;
+ if(!bhs_live(s)||!s->api||s->token||s->closing)return false;
  uint64_t token=0;
  bool ok=s->api->open(s->api->context,name,pairing,&token);
  if(!bhs_live(s))return false;

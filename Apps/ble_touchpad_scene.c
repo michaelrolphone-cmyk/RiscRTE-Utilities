@@ -25,6 +25,7 @@ static risc_components_document_v1 document,candidate;
 static risc_scene_navigation_v1 navigation;
 static uint64_t session,last_event,hold_generation,last_battery;
 static uint32_t pair_generation,pair_number,pending_checkpoint;
+static risc_scene_event_v1 paired_identity;
 static bool dirty,leave,paired_press,local_fault,background_ready,reset_view;
 static char notice[96];
 static bool alive(void){return bbo_live(&owner);}
@@ -103,7 +104,7 @@ static void action(unsigned a,uint64_t now){
  if(a==BB_STOP){(void)stop();return;}
  if(a==BB_SETTINGS_OPEN){if(!bhs_release(&hid)&&hid.token)return;view.page=BB_SETTINGS;dirty=true;return;}
  if(a==BB_RECONNECT||a==BB_PAIR_START){if(alarm.reserved){message("ALARM OUTPUT RESERVED - WAIT");return;}if(!view.hid_available){message("BLUETOOTH HID UNAVAILABLE");return;}if(!stop()||!radio_allowed())return;if(bhs_open(&hid,"BLE Touchpad",a==BB_PAIR_START,now)){view.page=BB_MAIN;message(a==BB_PAIR_START?"Find BLE Touchpad on your host":"Waiting for saved host");(void)battery_update(now);}else message("Session start failed - cleanup required");return;}
- if(a==BB_FORGET_OPEN){if(!stop())return;view.page=BB_FORGET;dirty=true;return;}
+ if(a==BB_FORGET_OPEN){if(!view.hid_available){message("BLUETOOTH HID UNAVAILABLE");return;}if(!stop())return;view.page=BB_FORGET;dirty=true;return;}
  if(a==BB_FORGET_CONFIRM){message(bhs_forget(&hid)?"Bond forgotten":"Forget failed");view.page=BB_SETTINGS;return;}
  if(a==BB_CANCEL){view.page=BB_SETTINGS;dirty=true;return;}
  if(a==BB_PAIR_REJECT){(void)bhs_confirm(&hid,pair_generation,pair_number,false);(void)stop();view.page=BB_MAIN;}
@@ -114,7 +115,7 @@ static void input(const risc_scene_hold_event_v1 *h,uint64_t now){
  if(h->phase==RISC_HOLD_CANCEL||h->phase==RISC_HOLD_RELEASE){
   if(hid.holding)(void)bhs_release(&hid);
   if(!alive()||hid.terminal)return;
-  if(h->phase==RISC_HOLD_RELEASE&&paired_press&&h->generation==hold_generation&&h->held_ms<=800&&document.screen_key==BB_PAIR+1&&view.page==BB_PAIR&&e->document_revision==document.revision&&e->action==BB_PAIR_ACCEPT){(void)bhs_confirm(&hid,pair_generation,pair_number,true);dirty=true;}
+  if(h->phase==RISC_HOLD_RELEASE&&paired_press&&!leave&&!pending_checkpoint&&!reset_view&&h->reason==RISC_HOLD_REASON_NONE&&!h->flags&&!memcmp(e,&paired_identity,sizeof(*e))&&h->generation==hold_generation&&h->held_ms<=800&&document.screen_key==BB_PAIR+1&&view.page==BB_PAIR&&e->document_revision==document.revision&&e->action==BB_PAIR_ACCEPT){(void)bhs_confirm(&hid,pair_generation,pair_number,true);dirty=true;}
   paired_press=false;hold_generation=0;
   if(h->flags&RISC_HOLD_LOCAL_FAULT_PENDING){local_fault=true;(void)stop();}
   return;
@@ -126,7 +127,7 @@ static void input(const risc_scene_hold_event_v1 *h,uint64_t now){
  if(h->phase==RISC_HOLD_PRESS){
   const risc_scene_node_v1 *n=event_node(e);if(!n||n->kind!=RISC_COMPONENT_HOLD_KEY||!h->generation)return;
   hold_generation=h->generation;
-  if(e->action==BB_PAIR_ACCEPT){paired_press=true;}
+  if(e->action==BB_PAIR_ACCEPT&&e->kind==RISC_SCENE_ACTION_EVENT&&n->step==RISC_HOLD_CONFIRM&&h->reason==RISC_HOLD_REASON_NONE&&!h->held_ms&&!h->flags){paired_press=true;paired_identity=*e;}
   return;
  }
  if(e->kind==RISC_SCENE_CONTROLS_EVENT&&!e->node&&!e->action){if(resident.enabled&&!alarm.reserved)pending_checkpoint=RISC_RESIDENT_CHECKPOINT_CONTROLS;return;}
@@ -205,7 +206,7 @@ static void cleanup(void){
 __attribute__((visibility("default"))) const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1={1,sizeof(risc_resident_app_descriptor_v1_t),RISC_RESIDENT_ROLE_FOREGROUND,0};
 __attribute__((visibility("default"))) void app_main(void){
  if(!bbo_init(&owner))return;
- session=last_event=hold_generation=last_battery=0;pair_generation=pair_number=pending_checkpoint=0;dirty=true;leave=paired_press=local_fault=background_ready=false;notice[0]=0;
+ session=last_event=hold_generation=last_battery=0;pair_generation=pair_number=pending_checkpoint=0;paired_identity=(risc_scene_event_v1){0};dirty=true;leave=paired_press=local_fault=background_ready=false;notice[0]=0;
  view=(ble_touchpad_view){0};document=(risc_components_document_v1){0};resident=(risc_scene_resident_v1){0};scene=NULL;components=NULL;hold=NULL;pointer=NULL;lifecycle=NULL;reset_view=false;
  for(unsigned i=0;i<5;i++)grants[i]=(risc_runtime_capability_v1){.struct_size=sizeof(grants[i])};
  if(!bbo_acquire(&owner,&grants[0],RISC_SCENE_CAPABILITY,1,0))return;
@@ -253,11 +254,12 @@ __attribute__((visibility("default"))) void app_main(void){
    if(rc==0){
     if(p.struct_size!=sizeof(p)||p.kind>RISC_POINTER_RESET){bbo_retain(&owner);return;}
     if(p.kind==RISC_POINTER_RESET){
+     if(p.intent.struct_size!=sizeof(p.intent)||(p.intent.flags&~RISC_HOLD_LOCAL_FAULT_PENDING)||p.intent.phase||p.intent.reason||p.intent.generation||p.intent.held_ms||p.dx||p.dy||p.wheel_x||p.wheel_y||p.buttons||p.click){bbo_retain(&owner);return;}
      if(hid.token&&!bhs_release(&hid)&&!alive())return;
      if(p.intent.flags&RISC_HOLD_LOCAL_FAULT_PENDING){local_fault=true;(void)stop();}
     }else if(p.kind==RISC_POINTER_REPORT){
      const risc_scene_event_v1*e=&p.intent.event;
-     if(e->struct_size!=sizeof(*e)||!e->sequence||e->sequence<=last_event||p.intent.flags||p.intent.phase||p.intent.reason){bbo_retain(&owner);return;}
+     if(e->struct_size!=sizeof(*e)||!e->sequence||e->sequence<=last_event||e->kind||p.intent.flags||p.intent.phase||p.intent.reason||p.intent.generation||p.intent.held_ms){bbo_retain(&owner);return;}
      last_event=e->sequence;
      const risc_scene_node_v1*n=event_node(e);
      if(!reset_view&&!leave&&!pending_checkpoint&&view.page==BB_MAIN&&e->document_revision==document.revision&&n&&n->kind==RISC_COMPONENT_POINTER&&n->action==BB_POINTER&&btp_ready(&hid)){

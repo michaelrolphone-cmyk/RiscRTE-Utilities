@@ -53,6 +53,7 @@ static inline void btp_build(risc_components_document_v1*d,const ble_touchpad_vi
   if(!v->background_available)btp_node(d,RISC_SCENE_TEXT_NODE,0,"BACKGROUND LEARNING","UNAVAILABLE");
   if(!v->idle_available)btp_node(d,RISC_SCENE_TEXT_NODE,0,"IDLE POLICY","SETTINGS OR HOST SUPPORT UNAVAILABLE");
  }
+ if(!v->hid_available)for(unsigned i=0;i<d->node_count;i++)if(d->nodes[i].action==BB_RECONNECT||d->nodes[i].action==BB_PAIR_START||d->nodes[i].action==BB_FORGET_OPEN||d->nodes[i].action==BB_FORGET_CONFIRM)d->nodes[i].flags|=RISC_SCENE_DISABLED;
  if(v->alarm&&(v->alarm->state==ALARM_STATE_CUE||v->alarm->state==ALARM_STATE_BLOCKED||v->alarm->state==ALARM_STATE_ALERT||v->alarm->state==ALARM_STATE_DISMISSING))for(unsigned i=0;i<d->node_count;i++)if(d->nodes[i].action==BB_RECONNECT||d->nodes[i].action==BB_PAIR_START)d->nodes[i].flags|=RISC_SCENE_DISABLED;
- if(v->notice&&v->notice[0])btp_node(d,RISC_SCENE_TEXT_NODE,0,"NOTICE",v->notice);
+ if(v->notice&&v->notice[0]){snprintf(d->subtitle,sizeof(d->subtitle),"%.*s",(int)sizeof(d->subtitle)-1,v->notice);}
 }

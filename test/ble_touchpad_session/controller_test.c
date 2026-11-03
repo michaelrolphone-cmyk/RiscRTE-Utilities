@@ -25,5 +25,7 @@ int main(void){
  btp_build(&d,&view,1);assert(d.node_count&&d.nodes[2].kind==RISC_COMPONENT_POINTER);
  view.pointer_available=false;btp_build(&d,&view,2);for(unsigned i=0;i<d.node_count;i++)assert(d.nodes[i].kind!=RISC_COMPONENT_POINTER);
  view.page=BB_PAIR;view.hold_available=false;btp_build(&d,&view,3);for(unsigned i=0;i<d.node_count;i++)assert(d.nodes[i].kind!=RISC_COMPONENT_HOLD_KEY);
+ live=true;assert(!bhs_init(&s,NULL,alive,NULL));n=calls;assert(!bhs_forget(&s)&&!bhs_open(&s,"Touchpad",false,0)&&calls==n);
+ risc_bluetooth_hid_v1 bad=api;bad.forget_bond=NULL;assert(!bhs_init(&s,&bad,alive,NULL));assert(!bhs_forget(&s)&&calls==n);
  puts("Touchpad shared controller and legacy Buttons regression PASS");return 0;
 }
