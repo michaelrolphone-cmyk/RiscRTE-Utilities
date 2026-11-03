@@ -12,6 +12,8 @@ static void rf_adapter_canvas_retain(void *unused) {
 static bool rf_adapter_canvas_open(void) {
  if(rf_canvas_open(&rf_canvas,rt,rf_adapter_canvas_safe,
                    rf_adapter_canvas_retain,NULL)!=RF_CANVAS_READY)return false;
+ int controls=rf_canvas_controls_open(&rf_canvas);
+ if(controls==RF_CANVAS_RETAINED||controls==RF_CANVAS_PENDING)return false;
  display=&rf_canvas.surface.display;
  surface_format=RISC_DISPLAY_FORMAT_RGB565;paper_rotated=false;
  return display->get_info(display->context,&info);
@@ -52,11 +54,19 @@ static const risc_input_navigation_api_v1 *rf_adapter_navigation_open(void) {
  .reset=rf_adapter_navigation_reset,.foreground=rf_adapter_navigation_foreground};
  return &api;
 }
-/* Called by acquire_surface only after prior lease/receipt settles. The caller
- * invalidates RF layout before it emits a new frame after a geometry revision.
- * Optional saved background copies are rebuilt; provider-owned pixels never are. */
-static bool rf_adapter_canvas_geometry(void) {
- if(!rf_canvas_safe(&rf_canvas)||surface.frame||paper_token)return false;
+/* Commit new logical dimensions only before the RF controller lays out a
+ * frame. Outstanding provider work and modal copies stay untouched. */
+bool portable_sdr_canvas_refresh_geometry(void) {
+ if(!rf_canvas_safe(&rf_canvas))return false;
+ if(surface.frame||paper_token||rf_canvas.surface.lease||rf_canvas.surface.receipt)
+  return true;
+#ifdef PORTABLE_QUICK_ACTIONS
+ if(quick_modal||quick_replay_pending||quick_replay_delivery||quick_launch_pending)
+  return true;
+#endif
+#ifdef PORTABLE_ALARM_CLIENT
+ if(alarm_modal)return true;
+#endif
  risc_display_info_v1 next={0};
  if(!display->get_info(display->context,&next)||next.width<160||next.height<160||
     next.width>1024||next.height>1024)return false;
@@ -76,5 +86,15 @@ static bool rf_adapter_canvas_geometry(void) {
 #endif
  info=next;paper_rotated=false;
  return true;
+}
+/* Never commit a resize after RF has chosen its layout. A provider may change
+ * geometry between the pre-draw check and acquisition; defer that frame until
+ * the next pre-draw refresh instead of painting stale coordinates. */
+static bool rf_adapter_canvas_geometry(void) {
+ if(!rf_canvas_safe(&rf_canvas)||surface.frame||paper_token||
+    rf_canvas.surface.lease||rf_canvas.surface.receipt)return false;
+ risc_display_info_v1 next={0};
+ if(!display->get_info(display->context,&next))return false;
+ return next.width==info.width&&next.height==info.height;
 }
 #endif

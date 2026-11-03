@@ -111,7 +111,8 @@ static int existing_surface_checks(void){
 
 #include "rf_capability_canvas.h"
 static const risc_canvas_api_v1 *owned_canvas_api;
-static bool with_input,deny_release,change_owner;
+static bool with_input,with_controls,deny_release,change_owner,control_failure;
+static unsigned control_calls,control_raster_calls;
 static unsigned release_calls,retain_calls,activate_calls,deactivate_calls;
 static canvas_provider *input_provider_owned;
 static unsigned nav_phase;
@@ -131,10 +132,23 @@ static int32_t input_activate(void *c,uint64_t session){(void)c;assert(session);
 static int32_t input_deactivate(void *c,uint64_t session){(void)c;assert(session);deactivate_calls++;return canvas_provider_unbind_inputs(input_provider_owned,session);}
 static const risc_canvas_input_v1 input_api={.api_version=1,.struct_size=sizeof(input_api),
  .tag=RISC_CANVAS_INPUT_TAG,.activate=input_activate,.deactivate=input_deactivate};
+static bool control_info(void *ctx,risc_display_info_v1 *out) {
+ (void)ctx;*out=(risc_display_info_v1){.api_version=1,.struct_size=sizeof(*out),
+ .width=777,.height=888,.flags=RISC_DISPLAY_INFO_BRIGHTNESS};return true;
+}
+static bool control_set(void *ctx,uint16_t value,uint16_t maximum) {
+ (void)ctx;assert(value==30&&maximum==100);control_calls++;return !control_failure;
+}
+static bool control_acquire(void *ctx,uint32_t format,risc_display_surface_v1 *out) {
+ (void)ctx;(void)format;(void)out;control_raster_calls++;assert(!"control grant must not supply raster");return false;
+}
+static const risc_display_output_api_v1 controls_api={.api_version=1,.struct_size=sizeof(controls_api),
+ .get_info=control_info,.set_brightness=control_set,.acquire=control_acquire};
 static bool runtime_acquire(const char *name,uint32_t version,uint64_t instance,risc_runtime_capability_v1 *grant) {
  assert(version==1&&instance==0);
  if(!strcmp(name,RISC_CANVAS_RASTER_CAPABILITY))grant->api=owned_canvas_api;
  else if(!strcmp(name,RISC_CANVAS_INPUT_CAPABILITY)){if(!with_input)return false;grant->api=&input_api;}
+ else if(!strcmp(name,"display.output")){if(!with_controls)return false;grant->api=&controls_api;}
  else {assert(!"unexpected physical capability request");return false;}
  grant->slot=1;grant->generation=1;return true;
 }
@@ -169,6 +183,10 @@ static void owned_case(bool input,bool release_failure,bool replace_owner) {
   assert(rf_canvas_close(&c)==RF_CANVAS_PENDING&&!release_calls);
   assert(logical->unsubscribe(logical->context,sub));
  }
+ assert(rf_canvas_pause(&c)==RF_CANVAS_READY&&c.surface.quiesced&&!c.input_active);
+ assert(rf_canvas_resume(&c)==RF_CANVAS_READY&&!c.surface.quiesced&&c.input_active==input);
+ if(input)assert(activate_calls==2&&deactivate_calls==1);
+ activate_calls=deactivate_calls=0;
  assert(!c.surface.brightness); /* Physical output grant was never requested. */
  risc_display_surface_v1 f={0};
  assert(c.surface.display.acquire(&c.surface,RISC_DISPLAY_FORMAT_RGB565,&f));
@@ -187,10 +205,34 @@ static void owned_case(bool input,bool release_failure,bool replace_owner) {
  }else {assert(result==RF_CANVAS_READY);assert(release_calls==(input?2u:1u));assert(deactivate_calls==(input?1u:0u));}
  change_owner=false;deny_release=false;free(pixels);
 }
+static void control_case(bool available,bool fail) {
+ width=17;height=23;format=RISC_DISPLAY_FORMAT_RGB565;stride=34;physical_state=0;
+ pixels=calloc(height,stride);assert(pixels);
+ risc_display_output_api_v1 d={.api_version=1,.struct_size=sizeof(d),.get_info=info,
+ .acquire=acquire,.release=release,.submit=submit,.present_status=status};
+ canvas_provider p;canvas_provider_init(&p,&d,NULL,0);owned_canvas_api=&p.api;
+ with_input=false;with_controls=available;deny_release=change_owner=false;
+ control_failure=fail;control_calls=control_raster_calls=release_calls=retain_calls=0;
+ rf_capability_canvas c={0};
+ assert(rf_canvas_open(&c,&owner,NULL,retained,NULL)==RF_CANVAS_READY);
+ assert(rf_canvas_controls_open(&c)==(available?RF_CANVAS_READY:RF_CANVAS_UNAVAILABLE));
+ risc_display_info_v1 logical;assert(c.surface.display.get_info(&c.surface,&logical));
+ assert(logical.width==17&&logical.height==23);
+ assert(!!(logical.flags&RISC_DISPLAY_INFO_BRIGHTNESS)==available);
+ if(available) {
+  assert(c.surface.display.set_brightness(&c.surface,30,100)==!fail);
+  assert(control_calls==1);
+ }
+ assert(!control_raster_calls);
+ if(fail&&available)assert(c.retained&&retain_calls==1&&rf_canvas_close(&c)==RF_CANVAS_RETAINED);
+ else {assert(rf_canvas_close(&c)==RF_CANVAS_READY);assert(release_calls==(available?2u:1u));}
+ with_controls=false;control_failure=false;free(pixels);
+}
 int main(void) {
  assert(existing_surface_checks()==0);
  owned_case(false,false,false);owned_case(true,false,false);
  owned_case(false,true,false);owned_case(true,true,false);
  owned_case(false,false,true);owned_case(true,false,true);
- puts("RF capability canvas lifecycle cases PASS");return 0;
+ control_case(false,false);control_case(true,false);control_case(true,true);
+ puts("RF capability canvas lifecycle and optional controls cases PASS");return 0;
 }

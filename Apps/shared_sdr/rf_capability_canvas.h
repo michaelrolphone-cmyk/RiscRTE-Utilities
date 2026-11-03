@@ -13,9 +13,10 @@ typedef struct {
  const risc_runtime_api_v1 *owner,*identity;
  home_canvas_surface surface;
  home_canvas_touch touch;
- risc_runtime_capability_v1 canvas_grant,input_grant;
+ risc_runtime_capability_v1 canvas_grant,input_grant,control_grant;
  const risc_canvas_input_v1 *input;
- bool canvas_owned,input_owned,input_active,input_prepared,retained;
+ const risc_display_output_api_v1 *control;
+ bool canvas_owned,input_owned,control_owned,input_active,input_prepared,input_paused,retained;
  bool (*safe)(void*);
  void (*retain)(void*);
  void *context;
@@ -70,7 +71,7 @@ static inline int rf_canvas_release(rf_capability_canvas *c,
 static inline int rf_canvas_open(rf_capability_canvas *c,
  const risc_runtime_api_v1 *runtime,bool (*safe)(void*),
  void (*retain)(void*),void *context) {
- if(!c||c->retained||c->canvas_owned||c->input_owned||c->surface.session)
+ if(!c||c->retained||c->canvas_owned||c->input_owned||c->control_owned||c->surface.session)
   return RF_CANVAS_UNAVAILABLE;
  if(!runtime||runtime->api_version!=1||
     runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||
@@ -87,6 +88,40 @@ static inline int rf_canvas_open(rf_capability_canvas *c,
      rf_canvas_surface_retained,c,rf_canvas_safe,c))
   return c->retained?RF_CANVAS_RETAINED:RF_CANVAS_UNAVAILABLE;
  home_canvas_touch_init(&c->touch,&c->surface);
+ return RF_CANVAS_READY;
+}
+/* Optional control-only output. No physical raster methods are invoked, and
+ * no physical dimensions/format are consumed. Only declared brightness support
+ * is inspected. Logical raster/input geometry stays authoritative. */
+static inline bool rf_canvas_control_brightness(void *context,uint16_t value,uint16_t maximum) {
+ rf_capability_canvas *c=context;
+ if(!rf_canvas_safe(c)||!c->control||!c->control->set_brightness)return false;
+ if(!maximum||value>maximum)return false;
+ bool ok=c->control->set_brightness(c->control->context,value,maximum);
+ if(!rf_canvas_safe(c))return false;
+ if(!ok){rf_canvas_retain(c);return false;}
+ return true;
+}
+static inline int rf_canvas_controls_open(rf_capability_canvas *c) {
+ if(!rf_canvas_safe(c))return RF_CANVAS_RETAINED;
+ if(!c->surface.session)return RF_CANVAS_UNAVAILABLE;
+ if(c->surface.brightness)return RF_CANVAS_READY;
+ if(!c->control_owned) {
+  int rc=rf_canvas_acquire(c,"display.output",&c->control_grant,&c->control_owned);
+  if(rc!=RF_CANVAS_READY)return rc;
+ }
+ const risc_display_output_api_v1 *api=c->control_grant.api;
+ if(!api||api->api_version!=1||api->struct_size<sizeof(*api)||!api->get_info) {
+  rf_canvas_retain(c);return RF_CANVAS_RETAINED;
+ }
+ c->control=api;
+ if(!api->set_brightness)return RF_CANVAS_UNAVAILABLE;
+ risc_display_info_v1 capability={0};
+ bool read=api->get_info(api->context,&capability);
+ if(!rf_canvas_safe(c))return RF_CANVAS_RETAINED;
+ if(!read){rf_canvas_retain(c);return RF_CANVAS_RETAINED;}
+ if(!(capability.flags&RISC_DISPLAY_INFO_BRIGHTNESS))return RF_CANVAS_UNAVAILABLE;
+ c->surface.brightness=rf_canvas_control_brightness;c->surface.brightness_context=c;
  return RF_CANVAS_READY;
 }
 /* Optional logical input companion. A button-only provider is valid.
@@ -107,6 +142,34 @@ static inline int rf_canvas_input_open(rf_capability_canvas *c) {
  int rc=rf_canvas_result(c,c->input->activate(c->input->context,c->surface.session));
  if(rc==RF_CANVAS_READY)c->input_active=true;
  return rc;
+}
+/* Resident/modal pause is distinct from power sleep. Caller closes its local
+ * touch facade first. Grant/session identity remains pinned; physical input
+ * dependencies are deactivated, with no prepare_sleep or native power call. */
+static inline int rf_canvas_pause(rf_capability_canvas *c) {
+ if(!rf_canvas_safe(c))return RF_CANVAS_RETAINED;
+ if(c->surface.lease||c->surface.receipt||c->touch.subscribed||c->input_prepared)
+  return RF_CANVAS_PENDING;
+ if(!home_canvas_quiesce(&c->surface))
+  return c->retained?RF_CANVAS_RETAINED:RF_CANVAS_PENDING;
+ if(c->input_active) {
+  int rc=rf_canvas_result(c,c->input->deactivate(c->input->context,c->surface.session));
+  if(rc!=RF_CANVAS_READY)return rc;
+  c->input_active=false;c->input_paused=true;
+ }
+ return RF_CANVAS_READY;
+}
+static inline int rf_canvas_resume(rf_capability_canvas *c) {
+ if(!rf_canvas_safe(c))return RF_CANVAS_RETAINED;
+ if(c->input_prepared)return RF_CANVAS_PENDING; /* use the power-sleep path */
+ if(!home_canvas_resume(&c->surface))
+  return c->retained?RF_CANVAS_RETAINED:RF_CANVAS_PENDING;
+ if(c->input_paused) {
+  int rc=rf_canvas_input_open(c);
+  if(rc!=RF_CANVAS_READY)return rc;
+  c->input_paused=false;
+ }
+ return RF_CANVAS_READY;
 }
 static inline int rf_canvas_prepare_sleep(rf_capability_canvas *c) {
  if(!rf_canvas_safe(c))return RF_CANVAS_RETAINED;
@@ -151,5 +214,9 @@ static inline int rf_canvas_close(rf_capability_canvas *c) {
  c->input=NULL;
  if(c->surface.session&&!home_canvas_close(&c->surface))
   return c->retained?RF_CANVAS_RETAINED:RF_CANVAS_PENDING;
- return rf_canvas_release(c,&c->canvas_grant,&c->canvas_owned);
+ rc=rf_canvas_release(c,&c->canvas_grant,&c->canvas_owned);
+ if(rc!=RF_CANVAS_READY)return rc;
+ rc=rf_canvas_release(c,&c->control_grant,&c->control_owned);
+ if(rc==RF_CANVAS_READY)c->control=NULL;
+ return rc;
 }

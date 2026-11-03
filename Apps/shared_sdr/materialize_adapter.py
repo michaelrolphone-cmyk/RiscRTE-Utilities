@@ -41,7 +41,7 @@ adapter=once(adapter,"#ifdef PORTABLE_INPUT_NAVIGATION_LOCAL\n portable_input_na
 adapter=once(adapter,"#ifdef PORTABLE_INPUT_NAVIGATION_LOCAL\n  portable_input_navigation_close(rt);",
     "#if defined(PORTABLE_RF_SHARED_CANVAS)\n  /* Logical navigation has no independent grant. */\n#elif defined(PORTABLE_INPUT_NAVIGATION_LOCAL)\n  portable_input_navigation_close(rt);")
 adapter=once(adapter,'  portable_stage_log(rt,"draw-begin","");',
-    '#ifdef PORTABLE_RF_SHARED_CANVAS\n  if(!rf_adapter_canvas_geometry()){display_failure("RF logical canvas geometry unavailable");return false;}\n#endif\n  portable_stage_log(rt,"draw-begin","");')
+    '#ifdef PORTABLE_RF_SHARED_CANVAS\n  if(!rf_adapter_canvas_geometry())return false;\n#endif\n  portable_stage_log(rt,"draw-begin","");')
 adapter=once(adapter,"  if(dg.api && !rt->release(&dg))return;",
     "#ifdef PORTABLE_RF_SHARED_CANVAS\n  if(rf_canvas_close(&rf_canvas)!=RF_CANVAS_READY)return;\n#endif\n  if(dg.api && !rt->release(&dg))return;")
 adapter=once(adapter,"  if (dg.api && !rt->release(&dg))",

@@ -1,0 +1,94 @@
+{
+  "sources": {
+    "portable_sleep.c": {
+      "path": "apps/clock/portable_sleep.c",
+      "blob": "9b942f78d5278c115fd4b14162938a2f55546093",
+      "rules": [
+        {
+          "old": "#include \"PortableAppSleep.h\"",
+          "replacement": "#include \"PortableAppSleep.h\"\n#include \"AlarmServiceFacadeV2.h\"\nextern bool portable_sdr_sleep_snapshot(uint16_t *,uint32_t,uint32_t);\nextern int portable_sdr_sleep_prepare(void);\nextern bool portable_sdr_sleep_resume(void);\nstatic bool brightness_supported;"
+        },
+        {
+          "old": "    (void)c;const alarm_service_sleep_v1 *a=(const alarm_service_sleep_v1 *)alarm;\n    return guard.retained?ALARM_INVALID:alarm_result(a->resume_sleep(alarm->context,decision));",
+          "replacement": "    (void)c;\n    return guard.retained?ALARM_INVALID:alarm_result(alarm_service_resume(alarm,decision));"
+        },
+        {
+          "old": "d->get_info && d->acquire && d->release && d->submit && d->present_status && d->set_brightness;",
+          "replacement": "d->get_info && d->acquire && d->release && d->submit && d->present_status;"
+        },
+        {
+          "old": "    return watch_bridge_bool(&guard,d->set_brightness(d->context,0,100)) &&",
+          "replacement": "    return (!brightness_supported || watch_bridge_bool(&guard,d->set_brightness(d->context,0,100))) &&"
+        },
+        {
+          "old": "transfer(d,width,height,saved) && watch_bridge_bool(&guard,d->set_brightness(d->context,",
+          "replacement": "transfer(d,width,height,saved) && (!brightness_supported || watch_bridge_bool(&guard,d->set_brightness(d->context,"
+        },
+        {
+          "old": "            100));",
+          "replacement": "            100)));"
+        },
+        {
+          "old": "    bool darkened=false,policy_started=false;",
+          "replacement": "    bool darkened=false,policy_started=false,canvas_prepared=false;"
+        },
+        {
+          "old": "    if(alarms && (alarms->api_version!=1 || alarms->struct_size<sizeof(*alarms) ||\n       !alarms->prepare_sleep || !alarms->step || !alarms->status || !alarms->refresh || !watch_alarm_resume_ready(alarms)))goto done;\n    alarm_service_sleep_v1 guarded_alarm={0};",
+          "replacement": "    const alarm_service_descriptor_v2 *alarm_descriptor=alarm_service_descriptor(alarms);\n    if(!alarm_descriptor || !watch_alarm_resume_ready(alarms))goto done;\n    alarm_service_descriptor_v2 guarded_alarm=*alarm_descriptor;"
+        },
+        {
+          "old": "    width=info.width;height=info.height;",
+          "replacement": "    width=info.width;height=info.height;\n    brightness_supported=(info.flags&RISC_DISPLAY_INFO_BRIGHTNESS)!=0 && d->set_brightness;"
+        },
+        {
+          "old": "    risc_display_surface_v1 s={0};rc=WATCH_SLEEP_FAILED;\n    if(!acquire_surface(d,&s))goto done;\n    bool valid=surface_valid(&s,info.width,info.height);\n    if(valid)for(uint32_t y=0;y<info.height;y++)\n        memcpy(saved+(size_t)y*info.width,(uint8_t *)s.pixels+(size_t)y*s.stride_bytes,(size_t)info.width*2u);\n    release_surface(d,&s);\n    if(!valid || guard.retained)goto done;\n",
+          "replacement": "    rc=WATCH_SLEEP_FAILED;\n    if(!portable_sdr_sleep_snapshot(saved,width,height))goto done;\n"
+        },
+        {
+          "old": "    if(!watch_bridge_bool(&guard,d->set_brightness(d->context,0,100)))goto done;",
+          "replacement": "    if(brightness_supported && !watch_bridge_bool(&guard,d->set_brightness(d->context,0,100)))goto done;"
+        },
+        {
+          "old": "    policy_started=true;",
+          "replacement": "    canvas_prepared=true;\n    if(portable_sdr_sleep_prepare()!=1)goto done;\n    policy_started=true;"
+        },
+        {
+          "old": "    if(rc>=0 && !restore(d,width,height))rc=WATCH_SLEEP_FAILED;",
+          "replacement": "    if(canvas_prepared){if(!portable_sdr_sleep_resume()){watch_bridge_retain(&guard);return WATCH_SLEEP_RETAINED;}canvas_prepared=false;}\n    if(rc>=0 && !restore(d,width,height))rc=WATCH_SLEEP_FAILED;"
+        },
+        {
+          "old": "done:\n    if(guard.retained)return WATCH_SLEEP_RETAINED;",
+          "replacement": "done:\n    if(guard.retained)return WATCH_SLEEP_RETAINED;\n    if(canvas_prepared){if(!portable_sdr_sleep_resume()){watch_bridge_retain(&guard);return WATCH_SLEEP_RETAINED;}canvas_prepared=false;}"
+        },
+        {
+          "old": "    if(rc<0)(void)watch_bridge_bool(&guard,false);\n    return rc;",
+          "replacement": "    if(rc==ALARM_OUTPUT || rc==ALARM_RETAINED || rc<ALARM_FOREGROUND || rc>ALARM_PENDING)watch_bridge_retain(&guard);\n    else if(rc<0)(void)watch_bridge_bool(&guard,false);\n    return rc;"
+        }
+      ]
+    },
+    "watch_alarm_sleep.h": {
+      "path": "apps/clock/watch_alarm_sleep.h",
+      "blob": "b41db4a443c7b960676ac525a6e9e68ec68e7d84",
+      "rules": [
+        {
+          "old": "#include \"AlarmServiceV1.h\"",
+          "replacement": "#include \"AlarmServiceV2.h\""
+        },
+        {
+          "old": "    const alarm_service_sleep_v1 *extended=(const alarm_service_sleep_v1 *)a;\n    return a && a->api_version==ALARM_SERVICE_API_V1 &&\n        a->struct_size>=ALARM_SERVICE_SLEEP_V1_SIZE && extended->resume_sleep;",
+          "replacement": "    const alarm_service_descriptor_v2 *extended=alarm_service_descriptor(a);\n    return extended && (extended->features&ALARM_DESCRIPTOR_RESUME_SLEEP) && extended->resume_sleep;"
+        },
+        {
+          "old": "    const alarm_service_sleep_v1 *extended=(const alarm_service_sleep_v1 *)a;\n    return watch_alarm_resume_ready(a)?extended->resume_sleep(a->context,decision):ALARM_INVALID;",
+          "replacement": "    return watch_alarm_resume_ready(a)?alarm_service_resume(a,decision):ALARM_INVALID;"
+        }
+      ]
+    },
+    "watch_motion_client.h": {
+      "path": "apps/clock/watch_motion_client.h",
+      "blob": "ac7e0453f1c5cca77ae8d4513beac7b171601032",
+      "rules": []
+    }
+  },
+  "append_adapter": "\n/* Snapshot only the completed app-owned image, never newly acquired pixels. */\nbool portable_sdr_sleep_snapshot(uint16_t *out,uint32_t w,uint32_t h) {\n if(!out || failed || native_custody_retained || surface.frame || paper_token ||\n    !display_settled || !alarm_pixels_valid || !alarm_pixels ||\n    surface_format!=RISC_DISPLAY_FORMAT_RGB565 || w!=info.width || h!=info.height)return false;\n memcpy(out,alarm_pixels,(size_t)w*h*2u);return true;\n}\nint portable_sdr_sleep_prepare(void) {\n if(native_custody_retained)return RF_CANVAS_RETAINED;\n return rf_canvas_prepare_sleep(&rf_canvas);\n}\nbool portable_sdr_sleep_resume(void) {\n if(native_custody_retained)return false;\n int rc=rf_canvas_resume_sleep(&rf_canvas);\n if(rc!=RF_CANVAS_READY){portable_adapter_retain_silent();return false;}\n return true;\n}\n"
+}
