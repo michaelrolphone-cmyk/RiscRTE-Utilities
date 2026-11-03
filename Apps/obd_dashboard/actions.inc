@@ -17,8 +17,6 @@ static void action(obd_app*a,unsigned id,int value){
   if(id==ACT_FORGET){a->have_peer=false;memset(&a->selected_peer,0,sizeof(a->selected_peer));a->peer_name[0]=0;}
   a->stack_count=0;show(a,INTRO);return;
  }
- if(id==ACT_MOTION){go(a,MOTION);return;}
- if(id==ACT_LANDSCAPE&&a->telemetry_api&&a->telemetry_api->telemetry_version>=2){a->rotate_pending=(value!=0)!=a->landscape;return;}
  if(id==ACT_UNITS&&value>=0&&value<=1){a->data.cfg.imperial=(unsigned)value;persist(a);return;}
  if(id==ACT_UPDATE&&value>=0&&value<=2){static const unsigned ms[]={1000,2000,5000};a->data.cfg.update_ms=ms[value];persist(a);return;}
  if(id==ACT_PROTOCOL&&value>=0&&value<=7){
@@ -58,21 +56,15 @@ static void action(obd_app*a,unsigned id,int value){
  }
  if(id>=ACT_PID&&id<ACT_PID+OBD_METRICS){a->selected_metric=id-ACT_PID;go(a,DETAIL);return;}
  if(id>=ACT_ON_DASH&&id<ACT_ON_DASH+OBD_METRICS){
-  unsigned k=id-ACT_ON_DASH;if(!db_specs[k].selectable)return;
+  unsigned k=id-ACT_ON_DASH;if(!db_specs[k].selectable||!a->elm.samples[k].supported)return;
   unsigned at=0;while(at<a->data.cfg.dash_count&&a->data.cfg.dash[at]!=k)at++;
-  /* Checkbox events request a value, not an inversion. Repeated identical
-   * requests during an outstanding frame cannot undo the accepted edit. */
-  if((at<a->data.cfg.dash_count)==(value!=0))return;
-  if(value&&!a->elm.samples[k].supported)return;
   if(at<a->data.cfg.dash_count){for(unsigned j=at+1;j<a->data.cfg.dash_count;j++)a->data.cfg.dash[j-1]=a->data.cfg.dash[j];a->data.cfg.dash[--a->data.cfg.dash_count]=0;}
   else if(a->data.cfg.dash_count<8)a->data.cfg.dash[a->data.cfg.dash_count++]=k;else{feedback(a,"Max 8 sensors; remove one first");return;}
   persist(a);return;
  }
  if(id>=ACT_GRAPH_SENSOR&&id<ACT_GRAPH_SENSOR+OBD_METRICS){
-  unsigned k=id-ACT_GRAPH_SENSOR;
+  unsigned k=id-ACT_GRAPH_SENSOR;if(!a->elm.samples[k].supported)return;
   unsigned at=0;while(at<a->data.cfg.graph_count&&a->data.cfg.graph[at]!=k)at++;
-  if(a->screen==GRAPH_PICK&&(at<a->data.cfg.graph_count)==(value!=0))return;
-  if(at==a->data.cfg.graph_count&&!a->elm.samples[k].supported)return;
   if(at<a->data.cfg.graph_count){if(a->data.cfg.graph_count==1){feedback(a,"Keep at least one graph sensor");return;}for(unsigned j=at+1;j<a->data.cfg.graph_count;j++)a->data.cfg.graph[j-1]=a->data.cfg.graph[j];a->data.cfg.graph[--a->data.cfg.graph_count]=0;}
   else if(a->data.cfg.graph_count<3)a->data.cfg.graph[a->data.cfg.graph_count++]=k;else{feedback(a,"Max 3 sensors on a graph");return;}
   a->data.paused=false;persist(a);return;

@@ -2,7 +2,6 @@
  * transport internals. ELM protocol state is independent of the presenter.
  * Every live session owns an explicit serial grant and stops before shared UI. */
 #include "dashboard.h"
-#include "variant.h"
 #include "RiscSceneTelemetryV1.h"
 #include "RiscStorageVolumeFsV1.h"
 #include "RiscBluetoothSerialV1.h"
@@ -12,14 +11,14 @@
 #include <string.h>
 
 enum { ACT_BACK=1,ACT_SCAN,ACT_EXIT,ACT_DISCONNECT,ACT_PAUSE,ACT_UNITS,ACT_TAB,
- ACT_MOTION=40,ACT_LANDSCAPE,ACT_MORE=8,ACT_PREVIOUS,ACT_CONNECT,ACT_SETTINGS,ACT_CUSTOM,ACT_GRAPH_ADD,ACT_GRAPH_PAUSE,
+ ACT_MORE,ACT_PREVIOUS,ACT_CONNECT,ACT_SETTINGS,ACT_CUSTOM,ACT_GRAPH_ADD,ACT_GRAPH_PAUSE,
  ACT_GRAPH_SPAN,ACT_DETAIL_SPAN,ACT_THRESHOLD,ACT_LIMIT_HIGH,ACT_LIMIT_LOW,ACT_RESCAN,
  ACT_READINESS,ACT_LOG,ACT_ALERTS,ACT_UPDATE,ACT_PROTOCOL,ACT_ALERT_SWITCH,ACT_LOG_TRIP,
  ACT_CLEAR_ASK,ACT_CLEAR,ACT_KEEP,ACT_DISCONNECT_ASK,ACT_FORGET,ACT_ALERT_OK,ACT_MUTE,
  ACT_ALERT_GRAPH,ACT_POLL_PAUSE,ACT_PEER=100,ACT_CHANNEL=200,ACT_PID=300,
  ACT_ON_DASH=400,ACT_GRAPH_SENSOR=500,ACT_DTC=600,ACT_ALERT_ITEM=800 };
 enum screen {INTRO,PEERS,CHANNELS,DASHBOARD,NOTICE,GRAPH,DETAIL,CUSTOM,FAULTS,DTC_DETAIL,
- READINESS,INFO,ADLOG,SETTINGS,ALERTS,GRAPH_PICK,CONFIRM,ALERT_MODAL,SELECTED,CONNECTING,MOTION};
+ READINESS,INFO,ADLOG,SETTINGS,ALERTS,GRAPH_PICK,CONFIRM,ALERT_MODAL,SELECTED,CONNECTING};
 typedef struct {
  const risc_runtime_api_v1 *rt;
  const risc_bluetooth_serial_v1 *ble;
@@ -31,7 +30,6 @@ typedef struct {
  const risc_storage_volume_api_v1_ext *volume;
  const risc_storage_volume_api_v1_fs *fs;
  risc_storage_file_t log_file;char log_path[96];uint32_t log_bytes,last_log_sync,log_seen[OBD_METRICS];
- uint32_t log_started_ms;bool landscape,rotate_pending;
  bool log_seen_once[OBD_METRICS],save_config,storage_error;
  db_model data;risc_scene_telemetry_v1 plot_candidate,plot_document;
  unsigned stack[8],stack_count,selected_metric,codes_tab,graph_span,detail_span,confirm_action;
@@ -44,7 +42,6 @@ typedef struct {
  uint64_t session,token,sequence;
  uint32_t revision,now,last_paint,next_view,policy_at,send_blocked_at;
  bool send_blocked;
- uint32_t scene_activity;
  bool dirty,done,retained,imperial,elm_started,view_settled,upgrade_required,reload_required;
  char notice[80],peer_name[40];
  obd_client elm;
@@ -73,9 +70,9 @@ static void segments(obd_app*a,const char*choices,unsigned value,unsigned maximu
 }
 #include "storage.inc"
 static bool read_status(obd_app*);
-static bool stop_transport(obd_app*a,const char*why,bool keep_log){
+static bool stop_link(obd_app*a,const char*why){
  if(!authority(a))return retain_app(a);
- if(!keep_log&&!log_close(a))return false;
+ if(!log_close(a))return false;
  char reason[80];copy(reason,sizeof(reason),why);obd_stop(&a->elm,reason);a->elm_started=false;a->stable_tracking=false;a->send_blocked=false;
  if(a->token){
   for(unsigned i=0;i<3;i++){
@@ -85,14 +82,6 @@ static bool stop_transport(obd_app*a,const char*why,bool keep_log){
   if(a->token)return retain_app(a);
  }
  a->status.state=RISC_SERIAL_OFF;return true;
-}
-static bool stop_link(obd_app*a,const char*why){return stop_transport(a,why,false);}
-static bool retry_link(obd_app*a,const char*why){
- bool retry=a->have_peer&&!a->reload_required;
- if(!stop_transport(a,why,retry))return false;
- if(retry&&!a->reload_required){a->reconnecting=true;a->reconnect_at=a->now+3000;show(a,CONNECTING);}
- else notice(a,why);
- return true;
 }
 static bool close_scene(obd_app*a){
  if(!a->session)return true;
@@ -145,17 +134,17 @@ static bool shared(obd_app*a,unsigned reason){
 }
 static bool service_link(obd_app*a){
  if(a->reconnecting&&!a->reload_required&&!a->token&&(int32_t)(a->now-a->reconnect_at)>=0){
-  if(a->reconnect_attempts>=3){a->reconnecting=false;if(!log_close(a))return false;notice(a,"Reconnect stopped after 3 tries. Search again.");return true;}
+  if(a->reconnect_attempts>=3){a->reconnecting=false;notice(a,"Reconnect stopped after 3 tries. Search again.");return true;}
   a->reconnect_attempts++;a->reconnect_at=a->now+5000;
   bool opened=a->ble->open(a->ble->context,&a->token);if(!authority(a))return retain_app(a);
-  if(!opened){if(!stop_transport(a,"Reconnect open failed",true))return false;return true;}
+  if(!opened){if(!stop_link(a,"Reconnect open failed"))return false;return true;}
  }
  if(!a->token)return true;uint32_t before=a->status.state;
  bool ok=a->ble->poll(a->ble->context,a->token,4);if(!authority(a))return retain_app(a);
  if(!read_status(a))return retain_app(a);
  if(!ok||a->reload_required||a->status.state==RISC_SERIAL_FAULT||a->status.state==RISC_SERIAL_DISCONNECTED){
   char error[80];copy(error,sizeof(error),a->status.message);bool retry=a->have_peer&&(a->reconnecting||a->elm_started);
-  if(!stop_transport(a,error,retry))return false;
+  if(!stop_link(a,error))return false;
   if(retry&&!a->reload_required){a->reconnecting=true;a->reconnect_at=a->now+3000;show(a,DASHBOARD);}else notice(a,error);return true;
  }
  if(before!=a->status.state)a->dirty=true;
@@ -163,12 +152,12 @@ static bool service_link(obd_app*a){
   for(unsigned i=0;i<a->status.peer_count;i++){
    risc_serial_peer_v1 p={.struct_size=sizeof(p)};bool found=a->ble->peer(a->ble->context,a->token,i,&p);if(!authority(a))return retain_app(a);
    if(found&&p.address_type==a->selected_peer.address_type&&!memcmp(p.address,a->selected_peer.address,6)){
-    bool connected=a->ble->connect(a->ble->context,a->token,&p);if(!authority(a))return retain_app(a);if(!connected){if(!stop_transport(a,"Reconnect failed",true))return false;}
+    bool connected=a->ble->connect(a->ble->context,a->token,&p);if(!authority(a))return retain_app(a);if(!connected){if(!stop_link(a,"Reconnect failed"))return false;}
     /* The status snapshot belongs to the scan; do not expire a new connection. */
     return true;
    }
   }
-  if(a->status.state==RISC_SERIAL_SCAN_DONE&&(int32_t)(a->now-a->reconnect_at)>=0){if(!stop_transport(a,"Adapter not seen",true))return false;}
+  if(a->status.state==RISC_SERIAL_SCAN_DONE&&(int32_t)(a->now-a->reconnect_at)>=0){if(!stop_link(a,"Adapter not seen"))return false;}
  }
  if(a->status.state==RISC_SERIAL_CHANNELS&&a->screen!=CHANNELS){
   unsigned known=0,index=0;for(unsigned i=0;i<a->status.channel_count;i++){
@@ -191,14 +180,14 @@ static bool service_link(obd_app*a){
   if(a->seen_clear_status!=a->elm.clear_status){a->seen_clear_status=a->elm.clear_status;
    if(a->seen_clear_status==OBD_DIAG_VALID)feedback(a,"ECU acknowledged clear; rescanning");
    else if(a->seen_clear_status==OBD_DIAG_ERROR||a->seen_clear_status==OBD_DIAG_UNAVAILABLE)feedback(a,"Clear failed or cancelled; inspect log");}
-  if(a->elm.state==OBD_FAULT){char error[80];copy(error,sizeof(error),a->elm.message);return retry_link(a,error);}
+  if(a->elm.state==OBD_FAULT){char error[80];copy(error,sizeof(error),a->elm.message);if(!stop_link(a,error))return false;notice(a,error);return true;}
   if(a->elm.state==OBD_LIVE&&obd_fresh(&a->elm,OBD_RPM,a->now)){
    if(!a->stable_tracking){a->stable_tracking=true;a->stable_since=a->now;}
    else if((uint32_t)(a->now-a->stable_since)>=10000)a->reconnect_attempts=0;
   }else a->stable_tracking=false;
   if(a->screen==CONNECTING&&a->elm.state==OBD_LIVE&&a->elm.vin_status>=OBD_DIAG_VALID)show(a,DASHBOARD);
   if(a->elm.state==OBD_LIVE&&!a->initial_queries){obd_request_info(&a->elm);obd_request_faults(&a->elm);a->initial_queries=true;}
-  a->elm.poll_mask=a->log_file?((1u<<OBD_METRICS)-1):db_poll_mask(&a->data,a->screen==DETAIL?(int)a->selected_metric:-1);
+  a->elm.poll_mask=db_poll_mask(&a->data,a->screen==DETAIL?(int)a->selected_metric:-1);
   if(a->screen==INFO)a->elm.poll_mask|=(1u<<OBD_STANDARD)|(1u<<OBD_DISTANCE_CLEAR)|(1u<<OBD_DISTANCE_MIL)|(1u<<OBD_RUNTIME);
   const char*command;size_t n=obd_next(&a->elm,a->now,&command);
   if(n){
@@ -214,7 +203,6 @@ static bool service_link(obd_app*a){
  return true;
 }
 static bool serial_api_valid(const risc_bluetooth_serial_v1*b){return b&&b->api_version==1&&b->struct_size>=sizeof(*b)&&b->open&&b->poll&&b->status&&b->peer&&b->connect&&b->channel&&b->select_channel&&b->write&&b->read&&b->close;}
-#include "ui_loop.inc"
 extern __attribute__((visibility("default"))) const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1;
 const risc_resident_app_descriptor_v1_t risc_resident_app_descriptor_v1={1,sizeof(risc_resident_app_descriptor_v1_t),RISC_RESIDENT_ROLE_FOREGROUND,0};
 __attribute__((visibility("default"))) void app_main(void){
@@ -230,7 +218,7 @@ __attribute__((visibility("default"))) void app_main(void){
  found=a->rt->acquire("storage.volume",1,0,&a->grants[a->acquired]);if(!authority(a))return;
  if(found){const risc_storage_volume_api_v1*b=a->grants[a->acquired].api;a->acquired++;a->volume=risc_storage_volume_extension(b);a->fs=risc_storage_volume_fs(b);if(!storage_api_valid(a->volume,a->fs)){a->volume=NULL;a->fs=NULL;}}
  ui_ready:
- if(a->rt->diagnostic)a->rt->diagnostic(OBD_STARTUP_DIAGNOSTIC);if(!authority(a))return;
+ if(a->rt->diagnostic)a->rt->diagnostic("OBD/dashboard version=0.3.0 transport=BLE clear=confirmed-only");if(!authority(a))return;
  if(!a->rt->monotonic_ms(&a->now)||!authority(a))goto cleanup;
  db_init(&a->data,a->now);if(!load_settings(a))goto cleanup;a->imperial=a->data.cfg.imperial!=0;
  if(!publish(a,true))goto cleanup;
@@ -240,7 +228,7 @@ __attribute__((visibility("default"))) void app_main(void){
   db_tick(&a->data,&a->elm,a->now);
   if(a->data.alert_visible&&a->screen!=ALERT_MODAL&&a->screen!=CONFIRM){go(a,ALERT_MODAL);}
   if(!log_samples(a))break;
-  risc_scene_event_v1 event={.struct_size=sizeof(event)};int rc=next_scene(a,&event);
+  risc_scene_event_v1 event={.struct_size=sizeof(event)};int rc=a->scene->next(a->scene->context,a->session,&event);
   if(!authority(a)||rc==RISC_SCENE_RETAINED){retain_app(a);break;}if(rc!=RISC_SCENE_OK&&rc!=RISC_SCENE_IDLE)break;
   if(rc==RISC_SCENE_OK&&valid_event(a,&event)){
    if(event.kind==RISC_SCENE_SUSPEND_EVENT){a->done=true;break;}
@@ -252,29 +240,18 @@ __attribute__((visibility("default"))) void app_main(void){
   if(a->done||!authority(a))break;
   risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;
   if(!scene_ok(a,a->scene->snapshot(a->scene->context,a->session,&nav,&flags)))break;
-  flags|=a->scene_activity;a->scene_activity=0;
   if((uint32_t)(a->now-a->policy_at)>=100){
    a->policy_at=a->now;int status=risc_scene_resident_poll_work_v1(&a->resident,flags,a->token?RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY:0);
    if(status==RISC_RESIDENT_RETAINED||!authority(a)){retain_app(a);break;}if(status==RISC_RESIDENT_EXIT)break;
    if(a->resident.policy&&!a->token&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))){if(!shared(a,RISC_RESIDENT_CHECKPOINT_POLICY))break;continue;}
   }
-  if(a->rotate_pending&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))){
-   if(!close_scene(a))break;
-   a->landscape=!a->landscape;a->rotate_pending=false;
-   if(!publish(a,true))break;
-   continue;
-  }
   /* Schedule data repaint from completed presentation. Starting another frame
    * immediately on completion can otherwise make every visible hit map stale. */
   if(!(flags&RISC_SCENE_PRESENTING)&&!a->view_settled){a->view_settled=true;a->next_view=a->now;}
-  /* A user edit acknowledges logical control state immediately. Periodic
-   * telemetry still waits for presentation and never interrupts a contact. */
-  if(!(flags&RISC_SCENE_INPUT_BUSY)&&(a->dirty||(!(flags&RISC_SCENE_PRESENTING)&&(uint32_t)(a->now-a->next_view)>=a->data.cfg.update_ms))){
+  if(!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&(a->dirty||(uint32_t)(a->now-a->next_view)>=a->data.cfg.update_ms)){
    a->next_view=a->now;if(!publish(a,false))break;
   }
-  /* Coalesce checkbox edits in RAM; commit when leaving the selector or at
-   * the existing close/shared-control boundary, not between individual taps. */
-  if(a->save_config&&!editing_sensor_selection(a)&&a->view_settled&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!save_settings(a))break;
+  if(a->save_config&&a->view_settled&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!save_settings(a))break;
   a->rt->yield_ms(10);
  }
  cleanup:

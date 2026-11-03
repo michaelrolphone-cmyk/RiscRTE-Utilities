@@ -1,8 +1,8 @@
 /* Settings transactions and explicit trip recording use only the granted SD
  * volume. User files are never truncated; trip creation is exclusive. */
 static void feedback(obd_app*,const char*);
-#define DB_SETTINGS_PATH OBD_APP_DIRECTORY "/settings.v1"
-#define DB_SETTINGS_TEMP OBD_APP_DIRECTORY "/settings.tmp"
+#define DB_SETTINGS_PATH "/Apps/obd-dashboard/settings.v1"
+#define DB_SETTINGS_TEMP "/Apps/obd-dashboard/settings.tmp"
 typedef struct {uint32_t magic,size,crc;db_config config;} settings_record;
 static bool storage_api_valid(const risc_storage_volume_api_v1_ext*v,const risc_storage_volume_api_v1_fs*f){
  return v&&f&&v->base.ready&&v->base.stat&&v->base.file_open_read&&v->base.file_read&&v->base.file_write&&v->base.file_close&&v->file_open&&v->file_sync&&v->mkdir&&v->handle_error&&f->state.observe&&f->replace_file&&f->recover_replace;
@@ -54,12 +54,12 @@ static bool log_start(obd_app*a){
  if(!a->volume||!a->fs){storage_message(a,"Trip logging needs the SD volume");return true;}
  if(a->elm.state!=OBD_LIVE){feedback(a,"Connect to the ECU before recording");return true;}
  bool ready=a->volume->base.ready(a->volume->base.context);if(!storage_alive(a))return false;if(!ready){storage_message(a,"SD card is not ready");return true;}
- uint64_t size;bool isdir=false;bool exists=a->volume->base.stat(a->volume->base.context,OBD_TRIP_DIRECTORY,&size,&isdir);if(!storage_alive(a))return false;
- if(exists&&!isdir){storage_message(a,OBD_TRIP_DIRECTORY " is not a directory");return true;}
- if(!exists){bool ok=a->volume->mkdir(a->volume->base.context,OBD_TRIP_DIRECTORY);if(!storage_alive(a))return false;if(!ok){storage_message(a,"Cannot create " OBD_TRIP_DIRECTORY);return true;}}
+ uint64_t size;bool isdir=false;bool exists=a->volume->base.stat(a->volume->base.context,"/OBD",&size,&isdir);if(!storage_alive(a))return false;
+ if(exists&&!isdir){storage_message(a,"/OBD is not a directory");return true;}
+ if(!exists){bool ok=a->volume->mkdir(a->volume->base.context,"/OBD");if(!storage_alive(a))return false;if(!ok){storage_message(a,"Cannot create /OBD");return true;}}
  for(unsigned attempt=0;attempt<256;attempt++){
   if(a->data.cfg.trip_sequence==UINT32_MAX){storage_message(a,"Trip sequence exhausted");return true;}
-  snprintf(a->log_path,sizeof(a->log_path),OBD_TRIP_DIRECTORY "/trip-%08lu.csv",(unsigned long)++a->data.cfg.trip_sequence);
+  snprintf(a->log_path,sizeof(a->log_path),"/OBD/trip-%08lu.csv",(unsigned long)++a->data.cfg.trip_sequence);
   exists=a->volume->base.stat(a->volume->base.context,a->log_path,&size,&isdir);if(!storage_alive(a))return false;if(exists)continue;
   a->log_file=a->volume->file_open(a->volume->base.context,a->log_path,RISC_STORAGE_OPEN_WRITE|RISC_STORAGE_OPEN_CREATE|RISC_STORAGE_OPEN_EXCLUSIVE);
   if(!storage_alive(a))return false;break;
@@ -68,13 +68,13 @@ static bool log_start(obd_app*a){
  static const char header[]="elapsed_ms,ecu,pid,value_milli,unit\n";
  size_t n=a->volume->base.file_write(a->volume->base.context,a->log_file,header,sizeof(header)-1);if(!storage_alive(a))return false;
  if(n!=sizeof(header)-1){if(!log_close(a))return false;storage_message(a,"Trip header write failed");return true;}
- a->log_bytes=(uint32_t)n;a->last_log_sync=a->now;a->log_started_ms=a->now;memset(a->log_seen_once,0,sizeof(a->log_seen_once));a->save_config=true;feedback(a,"Recording CSV in " OBD_TRIP_DIRECTORY);return true;
+ a->log_bytes=(uint32_t)n;a->last_log_sync=a->now;memset(a->log_seen_once,0,sizeof(a->log_seen_once));a->save_config=true;feedback(a,"Recording CSV in /OBD");return true;
 }
 static bool log_samples(obd_app*a){
  if(!a->log_file)return true;
  for(unsigned i=0;i<OBD_METRICS;i++){
-  const obd_sample*s=&a->elm.samples[i];if((int32_t)(s->at_ms-a->log_started_ms)<0)continue;if(!obd_fresh(&a->elm,i,a->now)||(a->log_seen_once[i]&&a->log_seen[i]==s->at_ms))continue;
-  char line[112];int length=snprintf(line,sizeof(line),"%lu,%lX,%02X,%ld,%s\n",(unsigned long)(s->at_ms-a->log_started_ms),(unsigned long)a->elm.ecu,obd_specs[i].pid,(long)s->milli,obd_specs[i].unit);
+  const obd_sample*s=&a->elm.samples[i];if(!obd_fresh(&a->elm,i,a->now)||(a->log_seen_once[i]&&a->log_seen[i]==s->at_ms))continue;
+  char line[112];int length=snprintf(line,sizeof(line),"%lu,%lX,%02X,%ld,%s\n",(unsigned long)(s->at_ms-a->data.started_ms),(unsigned long)a->elm.ecu,obd_specs[i].pid,(long)s->milli,obd_specs[i].unit);
   if(length<=0||length>=(int)sizeof(line)){storage_message(a,"Trip row overflow");return log_close(a);}
   size_t n=a->volume->base.file_write(a->volume->base.context,a->log_file,line,(size_t)length);if(!storage_alive(a))return false;
   if(n!=(size_t)length){if(!log_close(a))return false;storage_message(a,"Trip write failed; recording stopped");return true;}

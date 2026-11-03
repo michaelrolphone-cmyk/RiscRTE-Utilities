@@ -1,7 +1,7 @@
 {
   "type": "application",
   "id": "obd-dashboard",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "display_name": "OBD Dashboard",
   "file_name": "obd_dashboard.elf",
   "icon": "solid:f7c0",
@@ -9,7 +9,14 @@
     {
       "capability": "ui.scene",
       "api": 1
-    },
+    }
+  ],
+  "description": "NOVA-7 BLE vehicle dashboard, graphs, diagnostic reads and explicitly confirmed code clearing.",
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "runtime_lifecycle": "foreground",
+  "supported_file_types": [],
+  "optional": [
     {
       "capability": "bluetooth.serial",
       "api": 1
@@ -18,10 +25,5 @@
       "capability": "storage.volume",
       "api": 1
     }
-  ],
-  "description": "OBD telemetry test: motion history, session logging and bounded reconnects.",
-  "architecture": "xtensa-esp32s3",
-  "entry": "app_main",
-  "runtime_lifecycle": "foreground",
-  "supported_file_types": []
+  ]
 }
