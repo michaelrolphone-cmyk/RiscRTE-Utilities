@@ -26,9 +26,13 @@ def run(runtime,system,drivers,out,sanitize):
  exe=out/'readiness-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'test/obd/readiness_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True)
  exe=out/'lifecycle-test';subprocess.run([cc,*flags,str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/lifecycle_test.c'),'-o',str(exe)],check=True);subprocess.run([str(exe)],env=env,check=True);subprocess.run([str(exe),'channel-labels'],env=env,check=True)
  exe=out/'app-test';subprocess.run([cc,*flags,str(system/'test/scene/telemetry_probe.c'),str(ROOT/'Apps/obd_dashboard/elm.c'),str(ROOT/'Apps/obd_dashboard/dashboard.c'),str(ROOT/'test/obd/app_test.c'),'-o',str(exe)],check=True)
- for scenario in range(25):
-  frames=out/'frames'/str(scenario);frames.mkdir(parents=True,exist_ok=True)
-  subprocess.run([str(exe),str(scenario),str(frames)],env=env,check=True,timeout=60)
+ receipts=[]
+ for width,height in ((480,800),(240,240),(240,320),(800,480)):
+  for scenario in range(26):
+   frames=out/'frames'/f'{width}x{height}'/str(scenario);frames.mkdir(parents=True,exist_ok=True)
+   subprocess.run([str(exe),str(scenario),str(frames),str(width),str(height)],env=env,check=True,timeout=60)
+   receipts.append(dict(width=width,height=height,scenario=scenario,sanitized=sanitize,success=True))
+ (out/'geometry-qualification.json').write_text(_manifest_json.dumps(receipts,indent=2)+'\n')
 if __name__=='__main__':
  p=argparse.ArgumentParser()
  for n in ('runtime','system','drivers','output'):p.add_argument('--'+n,type=Path,required=True)

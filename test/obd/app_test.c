@@ -14,6 +14,7 @@ static unsigned scenario,step,seen_publications,shared_calls,live_polls,paused_f
 static bool requested_policy;
 static uint32_t step_at;
 static const char *frames;
+static bool missing_storage;
 static bool missing_radio,close_failure,lost_in_read,test_reopen,stationary,overheat,force_link_drop;
 static unsigned clear_writes,reconnects;
 static unsigned radio_opens,write_attempts,selected_channel;
@@ -23,6 +24,7 @@ static bool radio_reload;
 static uint32_t reload_seen_at;
 static risc_scene_telemetry_api_v1 legacy_scene;
 #include "storage_fixture.inc"
+static bool geometry_snapshot(void*c,risc_touch_snapshot_v1*out){if(!snapshot(c,out))return false;out->width=(uint16_t)w;out->height=(uint16_t)h;return true;}
 int telemetry_test_target(unsigned,int,int*,int*);
 static bool late_reconnect(void){return (scenario==12||scenario==13||scenario==22)&&radio_opens>1;}
 static bool bopen(void*ctx,uint64_t*out){(void)ctx;assert(!radio_token&&!radio_reload);radio_token=44;*out=44;radio_state=RISC_SERIAL_SCANNING;response_at=response_size=0;radio_opens++;radio_opened_at=(uint32_t)ms;return true;}
@@ -75,23 +77,23 @@ static int32_t bread(void*ctx,uint64_t t,uint8_t*b,uint32_t n){(void)ctx;assert(
 static bool bclose(void*ctx,uint64_t t){(void)ctx;assert(native_alive&&t==radio_token&&t==44);close_count++;if(close_failure)return false;radio_token=0;radio_state=0;if(scenario==13&&radio_opens>1)nav_pressed=RISC_NAV_HOME;if(scenario==14)radio_reload=true;return true;}
 static const risc_bluetooth_serial_v1 serial_api={1,sizeof(serial_api),NULL,bopen,bpoll,bstatus,bpeer,bconnect,bchannel,bselect,bwrite,bread,bclose};
 static bool cap_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){assert(native_alive&&v==1&&!id);const void* a;
- if(!strcmp(n,"ui.scene")){if(scenario==7){memcpy(&legacy_scene,api,sizeof(legacy_scene));((risc_scene_api_v1*)&legacy_scene)->struct_size=sizeof(risc_scene_reading_links_api_v1);a=&legacy_scene;}else a=api;}else if(!strcmp(n,"bluetooth.serial")){if(missing_radio)return false;a=&serial_api;}else if(!strcmp(n,"storage.volume"))a=&fs_api;else return false;
+ if(!strcmp(n,"ui.scene")){if(scenario==7){memcpy(&legacy_scene,api,sizeof(legacy_scene));((risc_scene_api_v1*)&legacy_scene)->struct_size=sizeof(risc_scene_reading_links_api_v1);a=&legacy_scene;}else a=api;}else if(!strcmp(n,"bluetooth.serial")){if(missing_radio)return false;a=&serial_api;}else if(!strcmp(n,"storage.volume")){if(missing_storage)return false;a=&fs_api;}else return false;
  g->api=a;g->slot=++grant_count;g->generation=1;return true;}
 static bool cap_release(risc_runtime_capability_v1*g){assert(native_alive&&!radio_token&&g->slot);released_count++;return true;}
 static bool clock_now(uint32_t*out){assert(native_alive);*out=(uint32_t)ms;return true;}
 static bool retain_rt(void){retains++;native_alive=false;return true;}
 static bool diagnostic(const char*s){assert(strstr(s,"OBD/dashboard"));return true;}
-static void swipe(int direction){event_at=0;event_count=3;int y=direction>0?650:200,end=direction>0?200:650;
- events[0]=(risc_touch_event_v1){++seq,ms,1,0,240,(uint16_t)y};events[1]=(risc_touch_event_v1){++seq,ms+30,2,0,240,(uint16_t)(y+end)/2};events[2]=(risc_touch_event_v1){++seq,ms+60,3,0,240,(uint16_t)end};}
+static void swipe(int direction){event_at=0;event_count=3;int low=w==480&&h==800?200:(int)h/3,high=w==480&&h==800?650:(int)h*3/4;int y=direction>0?high:low,end=direction>0?low:high;unsigned x=w/2;
+ events[0]=(risc_touch_event_v1){++seq,ms,1,0,(uint16_t)x,(uint16_t)y};events[1]=(risc_touch_event_v1){++seq,ms+30,2,0,(uint16_t)x,(uint16_t)((y+end)/2)};events[2]=(risc_touch_event_v1){++seq,ms+60,3,0,(uint16_t)x,(uint16_t)end};}
 static void click(unsigned id,int val){
  int x=0,y=0,rc=telemetry_test_target(id,val,&x,&y);
  if(rc==2||rc==-1){swipe(rc==2?1:-1);step_at=(uint32_t)ms;return;}
  if(rc!=1){fprintf(stderr,"Missing target action=%u value=%d screen=%u step=%u revision=%u\n",id,val,app.screen,step,app.revision);assert(0);}
- fprintf(stderr,"TAP step=%u action=%u value=%d x=%d y=%d screen=%u\n",step,id,val,x,y,app.screen);touch_tap((unsigned)x,(unsigned)y);step++;step_at=(uint32_t)ms;
+ fprintf(stderr,"TAP step=%u action=%u value=%d x=%d y=%d screen=%u\n",step,id,val,x,y,app.screen);assert(x>=0&&y>=0&&(unsigned)x<w&&(unsigned)y<h);touch_tap((unsigned)x,(unsigned)y);step++;step_at=(uint32_t)ms;
 }
 static void capture(const char*name){
- if(!frames||!submits)return;char path[512];snprintf(path,sizeof(path),"%s/%s.pbm",frames,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P4\n480 800\n");
- for(unsigned i=0;i<480*800/8;i++){uint8_t b=pixels[16+i];assert(fwrite(&b,1,1,f)==1);}fclose(f);
+ if(!frames||!submits)return;char path[512];snprintf(path,sizeof(path),"%s/%s.pbm",frames,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P4\n%u %u\n",w,h);
+ for(unsigned i=0;i<((w+7)/8)*h;i++){uint8_t b=pixels[16+i];assert(fwrite(&b,1,1,f)==1);}fclose(f);
 }
 static void yield_rt(uint32_t delay){
  assert(native_alive);ms+=delay;if(ms>=240000){fprintf(stderr,"STALLED step=%u screen=%u state=%u dirty=%u pending=%u\n",step,app.screen,app.elm.state,app.dirty,event_count-event_at);assert(0);}
@@ -101,7 +103,7 @@ static void yield_rt(uint32_t delay){
  if(scenario==7){assert(app.upgrade_required&&!radio_token);capture("update-firmware");if(step==0)click(ACT_EXIT,0);return;}
  if(test_reopen){assert(app.data.cfg.imperial==1&&app.data.cfg.update_ms==2000&&app.data.cfg.dash_count==7);capture("restored-settings");app.done=true;return;}
  if(step==0&&app.screen==INTRO){capture("intro");click(ACT_SCAN,0);return;}
- if(missing_radio){if(app.screen==NOTICE){capture("missing-provider");app.done=true;}return;}
+ if(missing_radio){if(app.screen==NOTICE){assert(!app.ble&&!radio_opens&&!radio_tx&&!radio_rx&&strstr(app.notice,"bluetooth.serial"));capture("missing-provider");app.done=true;}return;}
  if(step==1&&app.screen==PEERS&&scenario==17){capture("home-during-scan");nav_pressed=RISC_NAV_HOME;step++;return;}
  if(step==1&&app.screen==PEERS){capture("devices");click(ACT_PEER,0);return;}
  if(step==2&&app.screen==SELECTED){capture("selected");click(ACT_CONNECT,0);return;}
@@ -109,9 +111,10 @@ static void yield_rt(uint32_t delay){
  if(scenario==2&&step==3&&app.elm.state==OBD_LIVE){close_failure=true;nav_pressed=RISC_NAV_HOME;step++;return;}
  if(scenario==3&&step==3&&app.elm.state==OBD_LIVE){lost_in_read=true;step++;return;}
  if(scenario==5){
-  if(step==3&&app.elm.state==OBD_LIVE){event_at=0;event_count=3;events[0]=(risc_touch_event_v1){++seq,ms,1,0,240,1};events[1]=(risc_touch_event_v1){++seq,ms+20,2,0,240,200};events[2]=(risc_touch_event_v1){++seq,ms+40,3,0,240,220};step++;step_at=(uint32_t)ms;}
+  if(step==3&&app.elm.state==OBD_LIVE){event_at=0;event_count=3;events[0]=(risc_touch_event_v1){++seq,ms,1,0,(uint16_t)(w/2),1};events[1]=(risc_touch_event_v1){++seq,ms+20,2,0,(uint16_t)(w/2),(uint16_t)(w==480&&h==800?200:h/2)};events[2]=(risc_touch_event_v1){++seq,ms+40,3,0,(uint16_t)(w/2),(uint16_t)(w==480&&h==800?220:h*3/5)};step++;step_at=(uint32_t)ms;}
   else if(step==4&&app.screen==INTRO){assert(shared_calls&&live_polls&&!radio_token);capture("shared-return");app.done=true;}return;
  }
+ if(scenario==25){if(step==3&&app.screen==DASHBOARD&&app.elm.state==OBD_LIVE){assert(!app.volume&&!app.fs&&!app.imperial);capture("live-without-storage");click(ACT_SETTINGS,0);}else if(step==4&&app.screen==SETTINGS)click(ACT_UNITS,1);else if(step==5&&app.storage_error&&!app.save_config&&!app.dirty){assert(app.imperial&&!strcmp(app.document.toast,"SD settings unavailable; session only"));capture("session-only-settings");click(ACT_LOG_TRIP,1);}else if(step==6&&!app.dirty){assert(!app.log_file&&!strcmp(app.document.toast,"Trip logging needs the SD volume"));assert(!sf_opens&&!sf_reads&&!sf_writes&&!sf_syncs&&!sf_replacements);capture("storage-unavailable");nav_pressed=RISC_NAV_HOME;step++;}return;}
  if(scenario>=17){
   if((scenario==18||scenario==19)&&step==3){
    assert(radio_token&&!radio_tx);capture(scenario==18?"home-during-connect":"home-during-backpressure");nav_pressed=RISC_NAV_HOME;step++;return;
@@ -237,9 +240,11 @@ static const risc_runtime_api_v1 runtime={.api_version=1,.struct_size=sizeof(run
 const risc_runtime_api_v1*risc_runtime_get_api(uint32_t v){return native_alive&&v==1?&runtime:NULL;}
 int main(int argc,char**argv){
  if(argc>1)scenario=(unsigned)atoi(argv[1]);if(argc>2)frames=argv[2];missing_radio=scenario==4;
- w=480;h=800;format=1;presentation_delay=100;poll_step=5;expected_intent=RISC_DISPLAY_PRESENT_LOW_LATENCY;
+ w=argc>3?(unsigned)atoi(argv[3]):480;h=argc>4?(unsigned)atoi(argv[4]):800;assert((w==240&&(h==240||h==320))||(w==480&&h==800)||(w==800&&h==480));missing_storage=scenario==25;format=1;presentation_delay=100;poll_step=5;expected_intent=RISC_DISPLAY_PRESENT_LOW_LATENCY;
  prof=(risc_scene_profile_v1){1,sizeof(prof),1,3,88,20,0,0xffff,0,0,0,0};
- driver=t5_driver_get(2);api=driver->capability;risc_provider_dependency_v1 deps[]={{"display.output",1,&disp},{"input.touch.raw",1,&raw},{"input.navigation",1,&nav},{"platform.clock",1,&clk},{"ui.presentation-profile",1,&prof}};
+ if(w==240)prof=(risc_scene_profile_v1){1,sizeof(prof),1,1,44,8,0,0xffff,0,0,0,0};
+ risc_touch_api_v1 geometry_raw=raw;geometry_raw.snapshot=geometry_snapshot;
+ driver=t5_driver_get(2);api=driver->capability;risc_provider_dependency_v1 deps[]={{"display.output",1,&disp},{"input.touch.raw",1,&geometry_raw},{"input.navigation",1,&nav},{"platform.clock",1,&clk},{"ui.presentation-profile",1,&prof}};
  sf_init();assert(driver->start(deps,5));app_main();
  if(scenario==2){assert(retains==1&&!released_count&&radio_token);puts("uncertain BLE close retains entire invocation PASS");return 0;}
  if(scenario==10){assert(sf_retain&&retains==1&&!released_count);puts("SD custody lost during write: retain without further I/O PASS");return 0;}
@@ -254,6 +259,7 @@ int main(int argc,char**argv){
  assert(driver->quiesce());driver->stop();
  /* Diagnostic endpoint: fixture counts, not device timing. */
  fprintf(stderr,"END scenario=%u step=%u screen=%u time=%llu rev=%u frames=%u tx=%u rx=%u msg=%s\n",scenario,step,app.screen,(unsigned long long)ms,app.revision,submits,radio_tx,radio_rx,app.elm.message);
+ if(scenario==25)assert(step==7&&radio_tx&&radio_rx&&!sf_opens&&!sf_reads&&!sf_writes&&!sf_syncs&&!sf_replacements);
  if(scenario==5)assert(shared_calls&&live_polls);
  if(!scenario)assert(step==42&&radio_tx&&radio_rx&&radio_polls>100&&submits>seen_publications);
  printf("actual app + native scene physical-touch simulation scenario=%u actions=%u frames=%u radio-polls=%u PASS\n",scenario,step,submits,radio_polls);
