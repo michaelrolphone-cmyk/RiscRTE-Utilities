@@ -73,6 +73,11 @@ int main(void){
  reset_root();risc_scene_components_api_v1 ui={0};risc_scene_api_v1*base=(void*)&ui;
  base->api_version=1;base->struct_size=sizeof(ui);base->next=unavailable_next;base->close=unavailable_close;base->snapshot=unavailable_snapshot;
  ui.tag=RISC_COMPONENTS_TAG;ui.version=1;ui.open=unavailable_open;ui.update=unavailable_update;unavailable_ui=&ui;non_ui_acquires=0;app_main();assert(!non_ui_acquires&&!session&&!owner.terminal&&!retains);unavailable_ui=NULL;
+ for(unsigned kind=RISC_SCENE_CONTROLS_EVENT;kind<=RISC_SCENE_SUSPEND_EVENT;kind++){
+  reset_root();view.page=BB_ALERT;doc();view.page=BB_MAIN;resident.enabled=true;dirty=true;
+  h=(risc_scene_hold_event_v1){.struct_size=sizeof(h),.event={.struct_size=sizeof(h.event),.kind=kind,.document_revision=document.revision,.sequence=1}};
+  input(&h,0);assert(kind==RISC_SCENE_CONTROLS_EVENT?pending_checkpoint==RISC_RESIDENT_CHECKPOINT_CONTROLS:leave);
+ }
  current_runtime=NULL;app_main();
  puts("Touchpad actual root and confirmation assertions PASS");return 0;
 }

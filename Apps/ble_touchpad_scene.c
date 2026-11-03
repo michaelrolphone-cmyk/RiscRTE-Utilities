@@ -123,6 +123,9 @@ static void input(const risc_scene_hold_event_v1 *h,uint64_t now){
  if(leave||pending_checkpoint)return;
  if(e->struct_size!=sizeof(*e)||!e->sequence||e->sequence<=last_event||e->document_revision!=document.revision)return;
  last_event=e->sequence;
+ /* Lifecycle intents are provider-owned, even while a new page is pending. */
+ if(h->phase==RISC_HOLD_NONE&&e->kind==RISC_SCENE_CONTROLS_EVENT&&!e->node&&!e->action){if(resident.enabled&&!alarm.reserved)pending_checkpoint=RISC_RESIDENT_CHECKPOINT_CONTROLS;return;}
+ if(h->phase==RISC_HOLD_NONE&&e->kind==RISC_SCENE_SUSPEND_EVENT&&!e->node&&!e->action){leave=true;return;}
  if(document.screen_key!=view.page+1)return;
  if(h->phase==RISC_HOLD_PRESS){
   const risc_scene_node_v1 *n=event_node(e);if(!n||n->kind!=RISC_COMPONENT_HOLD_KEY||!h->generation)return;
@@ -130,8 +133,6 @@ static void input(const risc_scene_hold_event_v1 *h,uint64_t now){
   if(e->action==BB_PAIR_ACCEPT&&e->kind==RISC_SCENE_ACTION_EVENT&&n->step==RISC_HOLD_CONFIRM&&h->reason==RISC_HOLD_REASON_NONE&&!h->held_ms&&!h->flags){paired_press=true;paired_identity=*e;}
   return;
  }
- if(e->kind==RISC_SCENE_CONTROLS_EVENT&&!e->node&&!e->action){if(resident.enabled&&!alarm.reserved)pending_checkpoint=RISC_RESIDENT_CHECKPOINT_CONTROLS;return;}
- if(e->kind==RISC_SCENE_SUSPEND_EVENT&&!e->node&&!e->action){leave=true;return;}
  if(e->kind!=RISC_SCENE_ACTION_EVENT)return;
  if(!e->node){if(e->action==BB_BACK)back();return;}
  const risc_scene_node_v1*n=event_node(e);if(!n||(n->kind!=RISC_SCENE_ACTION&&n->kind!=RISC_COMPONENT_HEADER_ACTION))return;
@@ -288,7 +289,7 @@ __attribute__((visibility("default"))) void app_main(void){
     if(alarm.terminal){bbo_retain(&owner);return;}
     if(hid.closing)continue;
     if(!alarm.reserved&&!leave&&!pending_checkpoint){if(!scanner_background_step(true)||!scanner_background_capture())return;}
-    if(alarm.status.state==ALARM_STATE_ALERT||alarm.status.state==ALARM_STATE_DISMISSING){if(view.page!=BB_ALERT){view.page=BB_ALERT;dirty=true;reset_view=true;}}else if(view.page==BB_ALERT&&!alarm.reserved){view.page=BB_MAIN;dirty=true;}
+    if(alarm.status.state==ALARM_STATE_ALERT||alarm.status.state==ALARM_STATE_DISMISSING){if(view.page!=BB_ALERT){view.page=BB_ALERT;dirty=true;reset_view=true;}}else if(view.page==BB_ALERT&&!alarm.reserved){view.page=BB_MAIN;dirty=true;reset_view=true;}
     /* Active HID owns native radio. No ordinary resident checkpoint can cross
      * its exit barrier. Explicit controls close it first, without auto-resume. */
     if(!hid.token&&!hid.closing&&!alarm.reserved&&!leave&&!pending_checkpoint&&resident.enabled&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY|RISC_SCENE_CLOSING))&&bbpolicy_due(&policy,now))pending_checkpoint=RISC_RESIDENT_APPLY_IDLE_ONLY;
