@@ -113,8 +113,22 @@ static int existing_surface_checks(void){
 static const risc_canvas_api_v1 *owned_canvas_api;
 static bool with_input,deny_release,change_owner;
 static unsigned release_calls,retain_calls,activate_calls,deactivate_calls;
-static int32_t input_activate(void *c,uint64_t session){(void)c;assert(session);activate_calls++;return RISC_CANVAS_OK;}
-static int32_t input_deactivate(void *c,uint64_t session){(void)c;assert(session);deactivate_calls++;return RISC_CANVAS_OK;}
+static canvas_provider *input_provider_owned;
+static unsigned nav_phase;
+static bool nav_poll(void *ctx,risc_input_navigation_frame_v1 *out) {
+ (void)ctx;*out=(risc_input_navigation_frame_v1){0};
+ if(nav_phase==1){out->buttons=out->pressed=RISC_NAV_BACK;nav_phase=2;}
+ else if(nav_phase==2){out->released=RISC_NAV_BACK;nav_phase=0;}
+ return true;
+}
+static bool nav_reset(void *ctx){(void)ctx;nav_phase=0;return true;}
+static bool nav_foreground(void *ctx,const risc_input_foreground_v1 *claims,size_t count) {
+ (void)ctx;(void)claims;assert(count==0);return true;
+}
+static const risc_input_navigation_api_v1 buttons_only={.api_version=1,.struct_size=sizeof(buttons_only),
+ .poll=nav_poll,.reset=nav_reset,.foreground=nav_foreground};
+static int32_t input_activate(void *c,uint64_t session){(void)c;assert(session);activate_calls++;return canvas_provider_bind_inputs(input_provider_owned,session,NULL,&buttons_only);}
+static int32_t input_deactivate(void *c,uint64_t session){(void)c;assert(session);deactivate_calls++;return canvas_provider_unbind_inputs(input_provider_owned,session);}
 static const risc_canvas_input_v1 input_api={.api_version=1,.struct_size=sizeof(input_api),
  .tag=RISC_CANVAS_INPUT_TAG,.activate=input_activate,.deactivate=input_deactivate};
 static bool runtime_acquire(const char *name,uint32_t version,uint64_t instance,risc_runtime_capability_v1 *grant) {
@@ -135,13 +149,26 @@ static void owned_case(bool input,bool release_failure,bool replace_owner) {
  risc_display_output_api_v1 d={.api_version=1,.struct_size=sizeof(d),.get_info=info,
  .acquire=acquire,.release=release,.submit=submit,.present_status=status};
  canvas_provider p;canvas_provider_init(&p,&d,NULL,0);
- owned_canvas_api=&p.api;with_input=input;deny_release=false;change_owner=false;
+ input_provider_owned=&p;owned_canvas_api=&p.api;with_input=input;deny_release=false;change_owner=false;
  release_calls=retain_calls=activate_calls=deactivate_calls=0;
  rf_capability_canvas c={0};
  assert(rf_canvas_open(&c,&owner,NULL,retained,NULL)==RF_CANVAS_READY);
  assert(c.surface.encoding==RISC_CANVAS_RGB565_ADAPTIVE&&c.surface.geometry.width==17);
  assert(rf_canvas_input_open(&c)==(input?RF_CANVAS_READY:RF_CANVAS_UNAVAILABLE));
  assert(c.input_active==input);
+ if(input) {
+  const risc_touch_api_v1 *logical=&c.touch.api;
+  uint64_t sub=logical->subscribe(logical->context);assert(sub);
+  assert(logical->poll(logical->context,1)); /* initial geometry gap */
+  nav_phase=1;assert(logical->poll(logical->context,1));
+  bool controls=false;
+  risc_input_navigation_frame_v1 down=home_canvas_touch_navigation(&c.touch,&controls);
+  risc_input_navigation_frame_v1 up=home_canvas_touch_navigation(&c.touch,&controls);
+  assert(down.pressed==RISC_NAV_BACK&&up.released==RISC_NAV_BACK);
+  assert(!c.touch.snapshot.contact_count&&!p.touch);
+  assert(rf_canvas_close(&c)==RF_CANVAS_PENDING&&!release_calls);
+  assert(logical->unsubscribe(logical->context,sub));
+ }
  assert(!c.surface.brightness); /* Physical output grant was never requested. */
  risc_display_surface_v1 f={0};
  assert(c.surface.display.acquire(&c.surface,RISC_DISPLAY_FORMAT_RGB565,&f));

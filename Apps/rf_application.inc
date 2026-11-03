@@ -691,6 +691,46 @@ static void draw_keyboard(void){
 }
 #endif
 static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return footer_y()-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}
+
+#ifdef PORTABLE_RF_SHARED_CANVAS
+extern bool portable_sdr_lifecycle_start(void);
+extern bool portable_sdr_canvas_refresh_geometry(void);
+/* Geometry is reported by the logical capability. Resize only bounded view
+ * state; saved records, DSP state and the 228-burst history remain owned here. */
+static int rf_view_width,rf_view_height;
+static bool rf_refresh_logical_geometry(void){
+ if(!portable_sdr_canvas_refresh_geometry())return false;
+ int width=app->screen_width(),height=app->screen_height();
+ if(width==rf_view_width&&height==rf_view_height)return true;
+ if(width<160||width>1024||height<160||height>1024)return false;
+ int old_width=PLOT_W,old_rows=HISTORY_H;
+ int new_width=width-12,new_height=height-74-RF_NATIVE_STATUS_HEIGHT;
+ int new_rows=new_height<RF_PLOT_MAX_H?new_height:RF_PLOT_MAX_H;
+ if(new_width<1||new_width>RF_PLOT_MAX_W||new_height<1||new_height>RF_PLOT_MAX_SIDE)return false;
+ if(rf_bulk&&rf_view_width){
+  uint8_t row[RF_PLOT_MAX_H];
+  if(old_rows!=new_rows)for(unsigned column=0;column<RF_HISTORY_COLUMNS;column++){
+   memcpy(row,history[column],(size_t)old_rows);
+   for(int y=0;y<new_rows;y++)history[column][y]=row[new_rows>1?y*(old_rows-1)/(new_rows-1):0];
+  }
+  uint16_t peaks[RF_PLOT_MAX_W];memcpy(peaks,peak_levels,(size_t)old_width*sizeof(*peaks));
+  for(int x=0;x<new_width;x++)peak_levels[x]=peaks[new_width>1?x*(old_width-1)/(new_width-1):0];
+ }
+ rf_view_width=width;rf_view_height=height;
+ rf_plot_width=new_width;rf_plot_height=new_height;
+ ui_height=(height*240+width-1)/width;if(ui_height<240)ui_height=240;
+ if(rf_bulk&&spectrum.transforms){
+  const uint32_t *values=cfa_background()?filtered_amplitude:spectrum.amplitude_q24;
+  rf_dsp_resample_values(&spectrum,values,spec_levels,spec_db,PLOT_W);
+  rf_dsp_resample_values(&spectrum,values,fall_levels,fall_db,PLOT_H);
+ }
+ contact_down=contact_plot=contact_drag=contact_moved=contact_controls=false;
+ paper_contact=(springboard_contact){0};
+ controls_move(controls_scroll);
+ dirty=urgent_draw=true;utility_frame_reset();return true;
+}
+#endif
+
 static void draw(void){
 #ifdef PORTABLE_RF_SHARED_TEXT_INPUT
  if(text_active||text_client.retained)return;
@@ -966,6 +1006,10 @@ static void rf_startup_end(const char *stage,uint32_t began){
 #define RF_STARTUP_STEP(stage, operation) do { uint32_t began=rf_startup_begin(stage);operation;rf_startup_end(stage,began); } while(0)
 
 void app_main(void){
+#ifdef PORTABLE_RF_SHARED_CANVAS
+ if(!portable_sdr_lifecycle_start())return;
+ rf_view_width=rf_view_height=0;
+#endif
  utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);waterfall_api=app;waterfall_runtime=runtime;
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms)return;
@@ -1045,6 +1089,9 @@ void app_main(void){
   }
 #endif
   normalize_monitor();
+#ifdef PORTABLE_RF_SHARED_CANVAS
+  if(!rf_refresh_logical_geometry())break;
+#endif
   uint32_t now=app->millis();if(dirty&&(!running||urgent_draw||(uint32_t)(now-painted)>=(paper?900u:100u))){draw();if(!utility_frame_pending)urgent_draw=false;}
   t5_app_input_t input={0};
   if(!app->poll(&input,running?1:30)){

@@ -34,10 +34,10 @@ for lane in ('watch','wave','x4'):
  providers=[]
  for row in boot['drivers']:
   manifest=json.loads(canonical[row['manifest']])
-  if any(x['capability'] in ('ui.canvas.raster','ui.canvas-input','ui.text-input','radio.iq','alarm.service','storage.key-value','storage.app-data') for x in manifest.get('provides',[])):
+  if any(x['capability'] in ('ui.canvas.raster','ui.canvas-input','ui.text-input','radio.iq','alarm.service','storage.key-value','storage.app-data','alarm.service.facade') for x in manifest.get('provides',[])):
    providers.append({'row':row,'manifest':manifest})
  records[lane]={'store_bytes':len(raw),'apps':matches,'providers':providers,'boot':boot,
  'files':{n:hashlib.sha256(b).hexdigest() for n,b in canonical.items()},
  'sd_files':{n:hashlib.sha256(b).hexdigest() for n,b in sd.items()}}
- print('SDR INVENTORY '+lane+' '+json.dumps({'apps':matches,'providers':providers}),flush=True)
+ print('SDR INVENTORY '+lane+' '+json.dumps({'apps':matches,'providers':providers,'resident_shell':boot.get('resident_shell')}),flush=True)
 (a.output/'inventory.json').write_text(json.dumps(records,indent=2)+'\n')
