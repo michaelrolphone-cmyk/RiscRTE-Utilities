@@ -52,6 +52,9 @@ for lane in ('watch','wave','x4'):
   row={'manifest':'obd_dashboard.json','grants':[{'capability':'ui.scene','api':1,'instance_id':0}]}
   for decl in common['optional']:
    matches=[k for k in available if k[:2]==(decl['capability'],decl['api'])]
+   if len(matches)>1 and decl['capability']=='storage.volume':
+    external={r['image_source']['volume_instance'] for r in boot['app_capabilities'] if 'image_source' in r}
+    matches=[k for k in matches if k[2] in external]
    assert len(matches)<=1,('Ambiguous optional provider',lane,matches)
    if matches:row['grants'].append({'capability':matches[0][0],'api':matches[0][1],'instance_id':matches[0][2]})
   boot['app_capabilities'].append(row)
@@ -96,6 +99,7 @@ for lane in ('watch','wave','x4'):
  assert all(packed[n]==data for n,data in stored.items() if n not in allowed and n not in representation_changes)
  assert decode_store(packed)==out
  encoding=storage_record(out,packed)
+ if encoding:encoding['selection']='Preserve existing envelopes; OBD first, then descending positive savings among raw ordinary internal applications; stop at first fixed-size pack preserving reserve'
  path=a.output/lane
  for name,entries in [('before',before),('before-stored',stored),('before-sd',sd),('after',out),('stored',packed),('after-sd',after_sd)]:write_tree(path/name,entries)
  selected=after_sd[row['image_source']['path']] if lane=='x4' else decode_store(packed)['obd_dashboard.elf']
