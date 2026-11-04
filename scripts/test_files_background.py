@@ -27,6 +27,13 @@ run(flags+['-MM','-MF',str(dep),str(source)],'dependencies')
 paths=[Path(x).resolve() for x in dep.read_text().replace('\\\n',' ').split(':',1)[1].split()]
 closure={str(x):hashlib.sha256(x.read_bytes()).hexdigest() for x in paths}
 run(flags+[str(source),'-lm','-o',str(binary)],'build');result=run([str(binary)],'test');print(result,end='')
+civil=ROOT/'test/files_background/civil_clock_test.c'
+run(flags+['-MM','-MF',str(out/'civil.d'),str(civil)],'civil-dependencies')
+for x in (out/'civil.d').read_text().replace('\\\n',' ').split(':',1)[1].split():
+ path=Path(x).resolve();closure[str(path)]=hashlib.sha256(path.read_bytes()).hexdigest()
+run(flags+[str(civil),'-lm','-o',str(out/'civil-test')],'civil-build')
+result+=run([str(out/'civil-test')],'civil-test');print(result.splitlines()[-1])
+
 for path,digest in closure.items():assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest,path
 closure[str(Path(__file__).resolve())]=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 (out/'receipt.json').write_text(json.dumps({'result':result,'sanitize':a.sanitize,'commands':commands,'source_sha256':closure,'header_origins':{k:str(v) for k,v in origins.items()},'published_utilities_blobs':public,'scope':'Files audio+RF applicability, mutual exclusion, BLE progression, CFP/rules persistence, claim-write-result ordering, legacy/native atomic settings, pending cleanup, timer no-overwrite, workflow root boundary and capture continuity. 67 custody/UTC cases plus 15 semantic scenarios. Context/KV/atomic/app-data/RTC/BLE/alarm/Runtime endpoints doubled; no physical-provider or composed-root qualification.'},indent=2)+'\n')
