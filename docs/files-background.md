@@ -15,7 +15,14 @@ backend or resolution selection occurs here.
    preserve the user's timezone; do not pass UTC hour. Invalid/unavailable time
    is represented with `local_time_valid=false`, not a fabricated default.
    Fingerprint UTC aging is read independently through the tagged RTC UTC suffix,
-   with the native realtime fallback only when that suffix is absent.
+   when present. With an old RTC calendar prefix, the helper copies and releases
+   RTC, then asks the optional `time.civil` policy suffix to interpret that raw
+   calendar using the provider's configured RTC basis. Native realtime is the
+   last fallback only when these authorities are cleanly absent. Recognized
+   malformed suffixes, retained results, dirty failure output from contracts that
+   require unchanged output, and clean invalid
+   time from an advertised authority never select another clock. No clock,
+   preference or RTC write is performed; no timezone/device basis is inferred.
 2. Supply the confirmed preset action mask and alarm output modes. These affect
    applicability only; unsupported saved fields are not rewritten. Optional
    Context absence is clean: telemetry continues and no Context actions run.
@@ -64,3 +71,8 @@ records exact commands and compiled-input SHA-256 values. Root composition,
 actual local-time provider availability, modal draft/dismiss behavior and selected
 product deployment remain integration responsibilities. The exact original X4
 Files authority has no Context/CFP/rules/RTC grants; no new grants are implied.
+
+Legacy RTC calendar-prefix reads may fill fields before reporting invalid time.
+Those failed-read fields are ignored; the grant is released and an available
+native realtime fallback may be consulted. The tagged UTC suffix and civil
+interpretation contracts still require unchanged failure output.

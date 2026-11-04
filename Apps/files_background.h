@@ -7,6 +7,7 @@
 #include "RiscRuntimeV1.h"
 #include "RiscRealtimeV1.h"
 #include "RiscRtcUtcV1.h"
+#include "RiscCivilClockV1.h"
 static bool files_background_live(void);
 #define PORTABLE_CONTEXTS_LIVE() files_background_live()
 #define PORTABLE_CONTEXTS_CUSTODY_SAFE() files_background_live()
@@ -64,6 +65,7 @@ static bool fbg_data_result(int rc){if(!fbg_check())return false;return (rc<=0&&
  * includes the selected UTC+8 lower edge 946656000 without device inference.
  * The native realtime fallback retains its original narrower UTC range. */
 static bool fbg_clock_read(uint64_t*out){
+ risc_rtc_calendar_v2 raw={0};bool raw_valid=false;
  risc_runtime_capability_v1 g={0};int ac=fbg_acquire_version("rtc.clock",2,0,&g);
  if(ac<0)return false;
  if(!ac){
@@ -76,8 +78,40 @@ static bool fbg_clock_read(uint64_t*out){
    if(ok&&q.epoch_seconds>=INT64_C(946598400)&&q.epoch_seconds<=INT64_C(4102531199))*out=(uint64_t)q.epoch_seconds;
    return fbg_release(&g);
   }
+  /* An old calendar prefix needs the installed civil provider's RTC basis.
+   * Copy/release RTC before consulting policy. Never infer a device basis. */
+  risc_rtc_clock_prefix_v2 rtc;memcpy(&rtc,g.api,sizeof(rtc));
+  /* Legacy prefix may fill fields before returning validation failure.
+   * Unlike the UTC suffix, it promises no unchanged output on false. */
+  if(rtc.read){raw_valid=rtc.read(rtc.context,&raw);
+   if(!fbg_check())return false;}
   if(!fbg_release(&g))return false;
  }
+ if(raw_valid){
+  ac=fbg_acquire(RISC_CIVIL_CLOCK_CAPABILITY,0,&g);if(ac<0)return false;
+  if(!ac){
+   const risc_civil_clock_api_v1*base=g.api;
+   if(base->api_version!=1||base->struct_size<RISC_CIVIL_CLOCK_BASE_SIZE||!base->read)return fbg_fail();
+   if(base->struct_size<RISC_CIVIL_CLOCK_POLICY_SIZE&&base->struct_size>=offsetof(risc_civil_clock_policy_v1,policy_tag)+sizeof(uint32_t)){
+    uint32_t tag;memcpy(&tag,(const uint8_t*)base+offsetof(risc_civil_clock_policy_v1,policy_tag),sizeof(tag));
+    if(tag==RISC_CIVIL_CLOCK_POLICY_TAG)return fbg_fail();
+   }
+   if(base->struct_size>=RISC_CIVIL_CLOCK_POLICY_SIZE){
+    const risc_civil_clock_policy_v1*policy=risc_civil_clock_get_policy(base,base->struct_size);
+    if(!policy)return fbg_fail();
+    risc_civil_calendar_v1 civil={.struct_size=sizeof(civil),.year=raw.year,.month=raw.month,.day=raw.day,.hour=raw.hour,.minute=raw.minute,.second=raw.second,.weekday=raw.weekday};
+    int64_t epoch=0;int rc=policy->interpret_rtc(policy->context,&civil,&epoch);
+    if(!fbg_check())return false;
+    if((rc!=0&&rc!=-1)||(rc&&epoch))return fbg_fail();
+    if(!rc&&epoch>=INT64_C(946598400)&&epoch<=INT64_C(4102531199))*out=(uint64_t)epoch;
+    /* Valid advertised policy owns success AND clean invalid time. */
+    return fbg_release(&g);
+   }
+   if(!fbg_release(&g))return false;
+  }
+ }
+ /* Native realtime remains the last fallback only when RTC UTC authority and
+  * a usable civil interpretation authority are both cleanly unavailable. */
  ac=fbg_acquire(RISC_REALTIME_CAPABILITY,0,&g);if(ac)return ac>0;
  const risc_realtime_api_v1*p=g.api;if(p->api_version!=1||p->struct_size<sizeof(*p)||!p->read)return fbg_fail();
  risc_realtime_snapshot_v1 q={.struct_size=sizeof(q)},before=q;int rc=p->read(p->context,&q);
