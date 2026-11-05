@@ -39,6 +39,9 @@ adapter=once(adapter,'#ifdef PORTABLE_INPUT_NAVIGATION\n#include "PortableNaviga
     history_state+'#include "rf_capability_canvas_adapter.inc"\n#ifdef PORTABLE_INPUT_NAVIGATION\n#include "PortableNavigation.h"')
 adapter=once(adapter,"static bool input_navigation_open(void) {\n#ifdef PORTABLE_INPUT_NAVIGATION_LOCAL",
     "static bool input_navigation_open(void) {\n#ifdef PORTABLE_RF_SHARED_CANVAS\n navigation=rf_adapter_navigation_open();\n#elif defined(PORTABLE_INPUT_NAVIGATION_LOCAL)")
+# The logical canvas owns navigation; only raw-navigation builds need a grant.
+adapter=once(adapter,"#ifndef PORTABLE_INPUT_NAVIGATION_LOCAL\nstatic risc_runtime_capability_v1 navigation_grant;",
+    "#if !defined(PORTABLE_INPUT_NAVIGATION_LOCAL) && !defined(PORTABLE_RF_SHARED_CANVAS)\nstatic risc_runtime_capability_v1 navigation_grant;")
 # Both finalization paths keep logical navigation reset, but own no local raw grant.
 adapter=once(adapter,"#ifdef PORTABLE_INPUT_NAVIGATION_LOCAL\n portable_input_navigation_close(rt);",
     "#if defined(PORTABLE_RF_SHARED_CANVAS)\n /* Logical navigation has no independent grant. */\n#elif defined(PORTABLE_INPUT_NAVIGATION_LOCAL)\n portable_input_navigation_close(rt);")
