@@ -241,6 +241,7 @@ def main():
                    "-I"+str(fixture_dir),
                    "-I"+str(system / "Services/canvas_host"),
                    "-I"+str(system / "Services/scene_profile"),
+                   "-I"+str(system / "lib/PortableApps/include"),
                    "-c", str(source), "-o", str(obj)]
             run_logged(cmd, out / (obj.stem+".log"), "compile", evidence)
             commands.append(cmd)
