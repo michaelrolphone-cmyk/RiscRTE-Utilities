@@ -1,3 +1,4 @@
+#include <inttypes.h>
 /* Shared room/event training and background selection, in existing NOVA units.
  * Both signal apps operate on exactly the CFP source records used by Contexts. */
 static unsigned shared_kind=CF_ROOM,shared_offset;
@@ -76,7 +77,7 @@ static void draw_shared(void){
    const cf_profile*p=&cfa_bank.profiles[slots[shared_offset+row]];int y=top+(int)row*44;
    fill(12,y,2,40,NOVA_DIM);text(1,22,y+3,206,p->name,NOVA_WHITE);
    if(!p->present[CFA_SOURCE])snprintf(b,sizeof(b),"ADD %s SAMPLE",CFA_SOURCE?"RF":"AUDIO");
-   else snprintf(b,sizeof(b),"%u WINDOWS / %s",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?"SETTINGS DIFFER":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?"BG READY":"TRAINED");
+   else snprintf(b,sizeof(b),"%" PRIu32 " WINDOWS / %s",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?"SETTINGS DIFFER":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?"BG READY":"TRAINED");
    text(1,22,y+22,206,b,NOVA_CAP);fill(22,y+41,206,1,NOVA_LINE);shared_target(12,y,216,40);
   }
   if(!n)center(1,12,116,216,"ADD A ROOM OR EVENT BELOW",NOVA_CAP);

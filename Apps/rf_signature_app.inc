@@ -1,3 +1,4 @@
+#include <inttypes.h>
 /* Saved spectral samples. Existing preference and frequency-label keys retain
  * their v1 encoding. New profile slots each commit independently through @2. */
 static rf_signature signatures[RF_SIGNATURE_SLOTS],signature_capture;
@@ -127,7 +128,7 @@ static void draw_signatures(void){
  text(0,12,7,216,"ACTIVITY SAMPLES",NOVA_CYAN);text(1,12,29,216,"256 COMPLEX / NOMINAL RF",NOVA_CAP);
  pill(10,49,70,30,"RAW",signature_mode==0);pill(85,49,70,30,"AUTO",signature_mode==1);pill(160,49,70,30,"MANUAL",signature_mode==2);
  char status[40];int selected=signature_filter();
- if(signature_goal)snprintf(status,sizeof(status),"%s ROOM %u / %u",running?"SAMPLING":"PAUSED",signature_capture.frames,signature_goal);
+ if(signature_goal)snprintf(status,sizeof(status),"%s ROOM %" PRIu32 " / %u",running?"SAMPLING":"PAUSED",signature_capture.frames,signature_goal);
  else if(signature_pending)snprintf(status,sizeof(status),"UNSAVED / TAP LABEL TO RETRY");
  else if(signature_errors)snprintf(status,sizeof(status),"UNREAD SAMPLES / RETRY");
  else if(selected>=0&&signature_mode==2)snprintf(status,sizeof(status),"MANUAL %.16s",signatures[selected].name);
@@ -138,7 +139,7 @@ static void draw_signatures(void){
  text(1,12,85,218,status,NOVA_CAP);
  if(signature_goal){pill(12,111,102,32,running?"STOP":"RESUME",false);pill(126,111,102,32,"CANCEL",false);center(1,12,157,216,"KEEP ROOM QUIET",NOVA_TEXT);center(1,12,177,216,"CANCEL DISCARDS THIS SAMPLE",NOVA_CAP);}
  else{
-  for(unsigned row=0;row<2;row++){unsigned slot=signature_scroll+row;if(slot>=RF_SIGNATURE_SLOTS)break;int y=107+(int)row*42;rf_signature *s=&signatures[slot];char label[40];snprintf(label,sizeof(label),"%u %.16s",slot+1,signature_errors&(1u<<slot)?"UNREAD":(signature_pending&(1u<<slot))&&!s->kind?"DELETE UNSAVED":s->kind?s->name:"EMPTY");text(1,14,y,151,label,NOVA_WHITE);snprintf(label,sizeof(label),s->kind?"%s / %u FRAMES":"TAP + TO CAPTURE",s->kind==1?"ROOM":"EVENT",s->frames);text(1,14,y+17,153,label,NOVA_CAP);if(s->kind==1)pill(174,y,54,31,"USE",signature_mode==2&&manual_room==(int)slot);else if(s->kind==2)text(1,177,y+8,49,event_slot==(int)slot?"MATCH":"EDIT",NOVA_CYAN);}
+  for(unsigned row=0;row<2;row++){unsigned slot=signature_scroll+row;if(slot>=RF_SIGNATURE_SLOTS)break;int y=107+(int)row*42;rf_signature *s=&signatures[slot];char label[40];snprintf(label,sizeof(label),"%u %.16s",slot+1,signature_errors&(1u<<slot)?"UNREAD":(signature_pending&(1u<<slot))&&!s->kind?"DELETE UNSAVED":s->kind?s->name:"EMPTY");text(1,14,y,151,label,NOVA_WHITE);snprintf(label,sizeof(label),s->kind?"%s / %" PRIu32 " FRAMES":"TAP + TO CAPTURE",s->kind==1?"ROOM":"EVENT",s->frames);text(1,14,y+17,153,label,NOVA_CAP);if(s->kind==1)pill(174,y,54,31,"USE",signature_mode==2&&manual_room==(int)slot);else if(s->kind==2)text(1,177,y+8,49,event_slot==(int)slot?"MATCH":"EDIT",NOVA_CYAN);}
   pill(10,195,29,28,"<",false);pill(43,195,68,28,"ROOM +",false);pill(116,195,79,28,"EVENT +",false);pill(201,195,29,28,">",false);
  }
  text(1,12,226,63,"BACK",NOVA_CYAN);text(1,87,226,87,running?"STOP RF":"START RF",NOVA_CYAN);text(1,182,226,52,"RETRY",NOVA_CYAN);
@@ -147,7 +148,7 @@ static void draw_signature_edit(void){
  center(0,12,14,216,!editing.color?"DELETE PENDING":editing.color==1?"ROOM SAMPLE":"EVENT SAMPLE",NOVA_CYAN);
  center(1,12,45,216,editing.color==1?"CAPTURE A COMPLETE TEMPORAL WINDOW":"CAPTURE A COMPLETE EVENT WINDOW",NOVA_CAP);
  round_rect(15,72,210,36,10,NOVA_DIM);text(1,24,81,193,editing.name[0]?editing.name:"TAP TO NAME",NOVA_WHITE);
- char detail[40];rf_signature *s=&signatures[signature_slot];snprintf(detail,sizeof(detail),"%u SAVED FRAMES",s->frames);center(1,12,120,216,detail,NOVA_CAP);
+ char detail[40];rf_signature *s=&signatures[signature_slot];snprintf(detail,sizeof(detail),"%" PRIu32 " SAVED FRAMES",s->frames);center(1,12,120,216,detail,NOVA_CAP);
  pill(14,149,100,36,!s->kind&&(signature_pending&(1u<<signature_slot))?"RETRY SAVE":s->kind?"ADD SAMPLE":"CAPTURE",true);pill(126,149,100,36,"CANCEL",false);
  if(s->kind||(signature_pending&(1u<<signature_slot)))pill(14,195,100,30,signature_delete_confirm?"CONFIRM":signature_pending&(1u<<signature_slot)?"DISCARD":"DELETE",false);
  if(signature_pending&(1u<<signature_slot))pill(126,195,100,30,"RETRY SAVE",false);

@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include "T5AppApi.h"
 #include "utility_frame.h"
 #include "RiscRuntimeV1.h"
@@ -570,7 +571,7 @@ static void draw_plot(void){
     fill(PLOT_X+x,PLOT_Y+y,1,1,fade(palette[history[source][row]],alpha));
    }
   }
-  draw_axes(true,true);char span[48];unsigned first=(history_next+RF_HISTORY_COLUMNS-history_count)%RF_HISTORY_COLUMNS,last=(history_next+RF_HISTORY_COLUMNS-1u)%RF_HISTORY_COLUMNS;uint32_t elapsed=history_count>1?history_times[last]-history_times[first]:0;snprintf(span,sizeof(span),"%u BURSTS / %u.%u s",history_count,elapsed/1000u,elapsed%1000u/100u);char high_name[20];short_freq(dsp_config.high_hz,high_name);int span_left=text_width(1,high_name)+10;fill(PLOT_X+span_left,PLOT_Y+PLOT_H-18,PLOT_W-span_left,18,0);text(1,PLOT_X+span_left+2,PLOT_Y+PLOT_H-18,PLOT_W-span_left-4,span,NOVA_CAP);
+  draw_axes(true,true);char span[48];unsigned first=(history_next+RF_HISTORY_COLUMNS-history_count)%RF_HISTORY_COLUMNS,last=(history_next+RF_HISTORY_COLUMNS-1u)%RF_HISTORY_COLUMNS;uint32_t elapsed=history_count>1?history_times[last]-history_times[first]:0;snprintf(span,sizeof(span),"%u BURSTS / %" PRIu32 ".%" PRIu32 " s",history_count,elapsed/1000u,elapsed%1000u/100u);char high_name[20];short_freq(dsp_config.high_hz,high_name);int span_left=text_width(1,high_name)+10;fill(PLOT_X+span_left,PLOT_Y+PLOT_H-18,PLOT_W-span_left,18,0);text(1,PLOT_X+span_left+2,PLOT_Y+PLOT_H-18,PLOT_W-span_left-4,span,NOVA_CAP);
  }
  else{
   draw_axes(false,false);text(1,PLOT_X+48,PLOT_Y+1,48,"dBFS",NOVA_CAP);int prev_y=PLOT_Y+PLOT_H-1,prev_peak=prev_y;
