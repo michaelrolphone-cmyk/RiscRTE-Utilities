@@ -115,6 +115,54 @@ static int32_t sc_get(void*c,const char*k,void*out,uint32_t cap,uint32_t*size) {
  *size=0;return RISC_KEY_VALUE_NOT_FOUND;
 }
 static const risc_key_value_v1 sc_preferences={1,sizeof(sc_preferences),NULL,sc_get,fx_put};
+/* Required boot-session and Quick radio peripherals. These host models expose
+ * copied state and checked transitions; they do not send RF or emulate hardware. */
+#include "TelemetryBroadcastV1.h"
+#include "PortableBluetoothControl.h"
+#include "WifiApi.h"
+static telemetry_broadcast_status_v1 sc_broadcast_state={.struct_size=sizeof(sc_broadcast_state)};
+static unsigned sc_broadcast_pauses,sc_broadcast_steps;
+static bool sc_bluetooth_enabled;
+static wifi_link_t sc_wifi_state=WIFI_LINK_DOWN;
+static bool sc_broadcast_pause(void *c) {
+ (void)c;fx_io();sc_broadcast_pauses++;
+ sc_broadcast_state.state=TELEMETRY_BROADCAST_PAUSED;return true;
+}
+static bool sc_broadcast_step(void *c,bool allow,const telemetry_broadcast_policy_v1 *p) {
+ (void)c;fx_io();assert(p&&p->struct_size==sizeof(*p));sc_broadcast_steps++;
+ sc_broadcast_state.enabled=p->enabled;sc_broadcast_state.settings_valid=p->settings_valid;
+ sc_broadcast_state.state=!p->settings_valid?TELEMETRY_BROADCAST_SETTINGS_ERROR:
+  !p->enabled?TELEMETRY_BROADCAST_OFF:!p->radios_allowed?TELEMETRY_BROADCAST_BLE_OFF:
+  !allow?TELEMETRY_BROADCAST_PAUSED:TELEMETRY_BROADCAST_LIVE;
+ return true;
+}
+static bool sc_broadcast_status(void *c,telemetry_broadcast_status_v1 *out) {
+ (void)c;fx_io();assert(out&&out->struct_size==sizeof(*out));*out=sc_broadcast_state;return true;
+}
+static int32_t sc_broadcast_enumerate(void *c,uint32_t index,risc_telemetry_field_v1 *out) {
+ (void)c;(void)index;(void)out;fx_io();return 0; /* No sensor fields in this host. */
+}
+static int32_t sc_broadcast_read(void *c,uint32_t id,int32_t *out) {
+ (void)c;(void)id;(void)out;fx_io();return 0;
+}
+static const telemetry_broadcast_v1 sc_broadcast={
+ .api_version=1,.struct_size=sizeof(sc_broadcast),.step=sc_broadcast_step,
+ .pause=sc_broadcast_pause,.status=sc_broadcast_status,
+ .enumerate=sc_broadcast_enumerate,.read=sc_broadcast_read};
+static bool sc_bluetooth_set(void *c,bool enabled) {
+ (void)c;fx_io();sc_bluetooth_enabled=enabled;return true;
+}
+static bool sc_bluetooth_status(void *c,uint8_t *out) {
+ (void)c;fx_io();assert(out);*out=sc_bluetooth_enabled?PORTABLE_BLUETOOTH_ON:PORTABLE_BLUETOOTH_OFF;return true;
+}
+static const portable_bluetooth_control_v1 sc_bluetooth={
+ .api_version=1,.struct_size=sizeof(sc_bluetooth),
+ .set_enabled=sc_bluetooth_set,.status=sc_bluetooth_status};
+static bool sc_wifi_disconnect(void *c) {(void)c;fx_io();sc_wifi_state=WIFI_LINK_DOWN;return true;}
+static wifi_link_t sc_wifi_status(void *c) {(void)c;fx_io();return sc_wifi_state;}
+static const wifi_api_v1 sc_wifi={
+ .api_version=1,.struct_size=sizeof(sc_wifi),.status=sc_wifi_status,
+ .disconnect_checked=sc_wifi_disconnect};
 static const char *sc_last_capability;
 static uint32_t sc_last_version;
 static uint64_t sc_last_instance;
@@ -139,6 +187,9 @@ static bool sc_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabili
  } else if(!strcmp(n,"input.touch.raw")||!strcmp(n,"input.navigation")) {
   assert(!"App requested physical input outside canvas");return false;
  } else if(v==1&&!strcmp(n,"storage.key-value"))g->api=&sc_preferences;
+ else if(v==1&&id==0&&!strcmp(n,TELEMETRY_BROADCAST_CAPABILITY))g->api=&sc_broadcast;
+ else if(v==1&&id==15&&!strcmp(n,"net.wifi"))g->api=&sc_wifi;
+ else if(v==1&&id==16&&!strcmp(n,"bluetooth.hci"))g->api=&sc_bluetooth;
  else if(!strcmp(n,"alarm.service"))return false; /* Optional tagged alarm absent. */
  else {*handled=0;return false;}
  g->slot=1;g->generation=1;fx_grants++;return true;

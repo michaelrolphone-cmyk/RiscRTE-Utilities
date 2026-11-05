@@ -8,6 +8,8 @@ The runner consumes the shipping build.json. It verifies staged dependency and E
 
 Host-only substitutions are explicit:
 - The RF renderer fixture includes the unchanged Waterfall controller and supplies display, input, radio, storage, clock and battery peripherals.
+- The required telemetry broadcast service and Quick Wi-Fi/Bluetooth controls use host copied-state models with checked pause, disconnect and enabled/status transitions. No network or radio hardware is driven; telemetry has no invented sensor fields. Optional canvas input, brightness and alarms remain absent in their intended lanes.
+- The Runtime retention callback records unexpected terminal retention; every clean scenario asserts zero retention before and after finalization. This is not a terminal-retention behavior test.
 - Physical display/input are accessed by the real canvas provider, not directly by the app. The app binds the canvas and its input companion.
 - The native sleep implementation is replaced by the fixture's sleep hook. These scenarios do not qualify native sleep.
 - The target-only SingleFloatDivisionCompat shim and Xtensa compiler/linker flags are omitted.
@@ -23,4 +25,4 @@ This is host software integration evidence. It does not prove physical display v
 
 ## Review status
 
-Initial implementation has been source-reviewed but not compiled or executed: the authorized Biome terminal was stalled and no staged shipping build was available there. Run the command in the owning CI after build_shared_sdr.py before treating any proposed coverage as verified.
+The owning CI has compiled and linked the normal host controller. Scenario qualification is still failing during initialization; no full geometry/modality matrix or sanitized host success is claimed. Exact run evidence is retained in the shared-sdr-controller artifact. Treat coverage as verified only after the corresponding scenario has passed, not merely because it is present in the runner.
