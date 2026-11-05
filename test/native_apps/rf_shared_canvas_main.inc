@@ -13,7 +13,7 @@ int main(int argc,char**argv) {
  int initialized=app_module_init();
  if(admitted) {
   assert(initialized==0);sc_corners();fx_app_api_phase=true;
-  app_main();assert(fx_done&&fx_checks&&sc_frames_checked);
+  app_main();assert(fx_done&&fx_checks&&sc_frames_checked&&sc_exit_observed);
  } else {
   if(initialized==0){app_main();assert(!fx_captures&&!fx_done);}
   assert(!fx_captures);

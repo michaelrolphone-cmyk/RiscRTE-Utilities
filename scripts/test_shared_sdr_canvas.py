@@ -95,6 +95,8 @@ def fixture():
                  " (void)c;fx_io();static uint32_t last;\n"
                  " *s=(risc_input_navigation_frame_v1){.buttons=fx_buttons,\n"
                  " .pressed=fx_buttons&~last,.released=last&~fx_buttons};last=fx_buttons;return true;\n}")
+    s = function(s, "static bool fx_health(", "static void fx_yield(",
+                 "static bool fx_health(risc_runtime_health_v1*h){h->uptime_ms=fx_ticks;return true;}")
     signature = "static bool fx_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){"
     s = once(s, signature, '#include "rf_shared_canvas_peripherals.inc"\n' + signature)
     s = once(s, " fx_io();assert(g->struct_size==sizeof(*g));",
@@ -102,7 +104,7 @@ def fixture():
              "int handled=0;bool result=sc_acquire(n,v,id,g,&handled);if(handled)return result;")
     s = once(s, ".request_launch=fx_launch,.acquire=fx_acquire,.release=fx_release};",
              ".request_launch=fx_launch,.acquire=fx_acquire,.release=fx_release,"
-             ".retain_invocation=sc_retain};")
+             ".retain_invocation=sc_retain,.exit_requested=sc_exit_requested};")
     s = once(s, "int main(int argc,char**argv){", "int rf_unused_fixture_main(int argc,char**argv){")
     s += '\n#include "rf_shared_canvas_main.inc"\n'
     return s

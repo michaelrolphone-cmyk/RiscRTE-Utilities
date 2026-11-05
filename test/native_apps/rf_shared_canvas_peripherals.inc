@@ -166,7 +166,9 @@ static const wifi_api_v1 sc_wifi={
 static const char *sc_last_capability;
 static uint32_t sc_last_version;
 static uint64_t sc_last_instance;
-static unsigned sc_retention_count;
+static unsigned sc_retention_count,sc_exit_observed;
+/* Script finish requests orderly Runtime exit; it does not revoke health. */
+static bool sc_exit_requested(void) {if(fx_done)sc_exit_observed++;return fx_done;}
 static bool sc_retain(void) {
  sc_retention_count++;
  fprintf(stderr,"Host Runtime retained invocation after capability=%s version=%u instance=%llu\n",
