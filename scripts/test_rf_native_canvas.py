@@ -15,7 +15,7 @@ a=p.parse_args();s=a.system_apps.resolve();out=a.output.resolve();out.mkdir(pare
 cat=out/'catalog.c';cat.write_text('#include "PortableApps.h"\nconst t5_app_manifest_t portable_catalog[1]={{.compatible=false}};\nconst unsigned portable_catalog_count=0;\n')
 flags=['PORTABLE_RF_NATIVE_CANVAS','PORTABLE_NOVA_UI','PORTABLE_WATCH_NATIVE_HEIGHT','PORTABLE_APP_OWNS_TOUCH_CHROME','PORTABLE_RADIO_SESSION','PORTABLE_ALARM_CLIENT','PORTABLE_APP_SLEEP_LOCAL','PORTABLE_FORCE_FULL_FRAMES','PORTABLE_INPUT_NAVIGATION','PORTABLE_INPUT_NAVIGATION_LOCAL','RF_RENDER_MONITOR_STATE','RF_RENDER_ORDERED_INPUT']
 runs=[]
-for width,height in [(160,160),(200,200),(240,240),(410,502),(320,240),(640,240),(240,320)]:
+for width,height in [(160,160),(200,200),(240,240),(410,502),(320,240),(640,240),(240,320),(480,800),(800,480)]:
  for san in (False,True):
   name=f'{width}x{height}'+('-san' if san else '');d=out/name;d.mkdir(exist_ok=True);exe=d/'rf'
   sf=['-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-no-pie'] if san else []

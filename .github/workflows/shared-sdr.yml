@@ -123,3 +123,27 @@ jobs:
           name: shared-sdr-controller-${{ github.event.pull_request.head.sha || github.sha }}
           path: out/
           if-no-files-found: error
+
+
+  native-geometry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 96742a20af660808cae6cd3a36eadd12a83a460f
+          path: InstalledSystem
+          persist-credentials: false
+      - name: Native RF pixels and input at representative square, portrait and landscape dimensions
+        run: python3 scripts/test_rf_native_canvas.py --system-apps InstalledSystem --output out/native-geometry
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-sdr-native-geometry-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/native-geometry/
+          if-no-files-found: error
