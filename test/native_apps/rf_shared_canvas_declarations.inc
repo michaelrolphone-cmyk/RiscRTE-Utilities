@@ -9,7 +9,7 @@ static unsigned sc_contacts,sc_before_rejection_contacts;
 static unsigned sc_before_resize_gaps,sc_before_resize_geometry;
 static void sc_dimensions(unsigned *,unsigned *);
 static void sc_report(risc_touch_snapshot_v1 *);
-static bool sc_command(const char *);
+static int sc_command(const char *);
 static void sc_verify_raster(void);
 static bool sc_info(void *,risc_display_info_v1 *);
 static unsigned sc_pixel(unsigned,unsigned);

@@ -80,7 +80,7 @@ def fixture():
                  "static void fx_corners(void){sc_corners();}")
     s = once(s, '  if(op[0]==\'#\'||!op[0]){fx_line[0]=0;continue;}',
              '  if(op[0]==\'#\'||!op[0]){fx_line[0]=0;continue;}\n'
-             '  if(sc_command(op)){fx_line[0]=0;continue;}')
+             '  int sc_status=sc_command(op);if(sc_status){if(sc_status==2)return;fx_line[0]=0;continue;}')
     s = function(s, "static bool fx_info(", "static void fx_frame_release(",
                  "static bool fx_info(void*c,risc_display_info_v1*s){return sc_info(c,s);}\n"
                  "static bool fx_frame(void*c,uint32_t f,risc_display_surface_v1*s){return sc_frame(c,f,s);}")

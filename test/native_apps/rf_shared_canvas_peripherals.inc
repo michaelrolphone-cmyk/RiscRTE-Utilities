@@ -203,10 +203,11 @@ static void sc_corners(void) {
  unsigned px,py;sc_physical(0,0,&px,&py);assert(sc_pixel(px,py)==0);
  sc_physical(w-1,h-1,&px,&py);assert(sc_pixel(px,py)==0);fx_checks++;
 }
-static unsigned sc_before_resize_refresh;
+static unsigned sc_before_resize_refresh,sc_resize_waits;
 extern unsigned rf_host_canvas_refresh_count(void),rf_host_canvas_pending(void);
 extern bool rf_host_probe_replay_defer(void);
-static bool sc_command(const char*op) {
+/* 2 defers this script command without consuming it or changing the device. */
+static int sc_command(const char*op) {
  if(!strcmp(op,"sc_replay_consumed")) {
   assert(!(rf_host_canvas_pending()&32u));fx_checks++;return true;
  }
@@ -234,7 +235,18 @@ static bool sc_command(const char*op) {
   assert(fx_subs==(sc_input_mode==2?1u:0u));fx_checks++;return true;
  }
  if(!strcmp(op,"sc_resize")||!strcmp(op,"sc_guard_resize")) {
-  assert(!fx_frames&&!fx_frame_pending&&!sc_provider.frames.lease&&!sc_provider.frames.receipts);
+  if(fx_frames||fx_frame_pending||sc_provider.frames.lease||sc_provider.frames.receipts||
+     (rf_host_canvas_pending()&15u)) {
+   if(++sc_resize_waits>256)
+    fprintf(stderr,"resize never settled line=%u polls=%u frames=%u pending=%u lease=%llu receipts=%p adapter=0x%x\n",
+     fx_lineno,fx_polls,fx_frames,(unsigned)fx_frame_pending,
+     (unsigned long long)sc_provider.frames.lease,(void*)sc_provider.frames.receipts,
+     rf_host_canvas_pending()&15u);
+   assert(sc_resize_waits<=256);return 2;
+  }
+  sc_resize_waits=0;
+  assert(!fx_frames&&!fx_frame_pending&&!sc_provider.frames.lease&&!sc_provider.frames.receipts&&
+         !(rf_host_canvas_pending()&15u));
   unsigned w,h;assert(sscanf(fx_line,"%*s %u %u",&w,&h)==2&&w<=FX_W&&h<=FX_H);
   sc_before_resize_refresh=rf_host_canvas_refresh_count();
   sc_before_resize_gaps=sc_gaps;sc_before_resize_geometry=sc_geometries;
