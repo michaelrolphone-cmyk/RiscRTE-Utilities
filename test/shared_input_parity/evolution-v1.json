@@ -1,0 +1,2237 @@
+{
+  "schema": 1,
+  "reviewed_source_revision": "09c75e37501a96510e500ad4010307d7a0aeec74",
+  "hash_scheme": "Git blob SHA-1 over exact UTF-8 bytes; manifest SHA-256 recorded per run",
+  "references": {
+    "rf": {
+      "baseline_revision": "82d17d0d902d427938af95aae0e976c8f78041ed",
+      "files": [
+        {
+          "path": "Apps/utility_frame.h",
+          "rationale": "Previously integrated capability-sized coordinate conversion; preserve centered default mapping.",
+          "before_git_blob_sha1": "8162b19c92bde5749a939d8f426b5f1692b0b1e5",
+          "after_git_blob_sha1": "35d2af8295cddaea71cde682f2cec480a9ddc17d",
+          "hunks": [
+            {
+              "start": 23,
+              "old": [],
+              "new": [
+                "\n",
+                "/* Match the Nova renderer using capability-reported physical dimensions.\n",
+                " * A width-scaled native-height build uses the same scale on both axes. */\n",
+                "static inline bool utility_color_dimensions(const t5_app_api_v1 *api) {\n",
+                "    return api->screen_width()>=240 && api->screen_width()<=1024 &&\n",
+                "           api->screen_height()>=240 && api->screen_height()<=1024;\n",
+                "}\n",
+                "static inline int utility_color_x(const t5_app_api_v1 *api,int x) {\n",
+                "#ifdef PORTABLE_WATCH_NATIVE_HEIGHT\n",
+                "    return x<0?-1:x*240/api->screen_width();\n",
+                "#else\n",
+                "    return x-(api->screen_width()-240)/2;\n",
+                "#endif\n",
+                "}\n",
+                "static inline int utility_color_y(const t5_app_api_v1 *api,int y) {\n",
+                "#ifdef PORTABLE_WATCH_NATIVE_HEIGHT\n",
+                "    return y<0?-1:y*240/api->screen_width();\n",
+                "#else\n",
+                "    return y-(api->screen_height()-240)/2;\n",
+                "#endif\n",
+                "}\n",
+                "static inline void utility_color_input(const t5_app_api_v1 *api,t5_app_input_t *in) {\n",
+                "    if(!in->tapped)return;\n",
+                "    int x=utility_color_x(api,in->touch_x),y=utility_color_y(api,in->touch_y);\n",
+                "    if(x<0||y<0||x>=240||in->touch_x>=api->screen_width()||in->touch_y>=api->screen_height()){in->tapped=false;return;}\n",
+                "    in->touch_x=(uint16_t)x;in->touch_y=(uint16_t)y;\n",
+                "}\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/rf_application.inc",
+          "rationale": "Shared-input isolation and Home safety; native-capable plot dimensions and bounded228-burst history; legacy opt-out paths remain checked by executable fixtures.",
+          "before_git_blob_sha1": "167e59e01cfbf02df8f9fa3b1265991c7d767469",
+          "after_git_blob_sha1": "6c7dfc05722f179a360237c52044ec1efc12da47",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 10,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                "#include \"PortableTextInputClient.h\"\n",
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "#include \"PortableTextInputPolicy.h\"\n",
+                "#endif\n",
+                "#else\n"
+              ]
+            },
+            {
+              "start": 11,
+              "old": [],
+              "new": [
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 31,
+              "old": [
+                "#define PLOT_W 228\n",
+                "#define PLOT_H (ui_height-74)\n"
+              ],
+              "new": [
+                "/* Plot coordinates are native pixels on the opt-in color canvas; paper keeps\n",
+                " * its established presentation. History remains 228 real bursts, independent\n",
+                " * of display width. Extra pixels are evaluated by the renderer, not by scaling\n",
+                " * a 240px framebuffer. The bounded history resolution is unchanged. */\n",
+                "#define RF_HISTORY_COLUMNS 228u\n",
+                "#define RF_NATIVE_STATUS_HEIGHT 36\n"
+              ]
+            },
+            {
+              "start": 34,
+              "old": [
+                "static int ui_height=240;\n"
+              ],
+              "new": [
+                "#ifdef PORTABLE_RF_NATIVE_CANVAS\n",
+                "#define RF_PLOT_MAX_W 1024\n",
+                "#define RF_PLOT_MAX_SIDE 1024\n",
+                "#else\n",
+                "#define RF_PLOT_MAX_W 228\n",
+                "#define RF_PLOT_MAX_SIDE 438\n",
+                "#endif\n",
+                "#define PLOT_W rf_plot_width\n",
+                "#define PLOT_H rf_plot_height\n",
+                "#define HISTORY_H (PLOT_H<RF_PLOT_MAX_H?PLOT_H:RF_PLOT_MAX_H)\n",
+                "static int ui_height=240,rf_plot_width=228,rf_plot_height=166;\n",
+                "static bool rf_native_canvas;\n"
+              ]
+            },
+            {
+              "start": 82,
+              "old": [
+                " uint8_t history[PLOT_W][RF_PLOT_MAX_H];\n"
+              ],
+              "new": [
+                " uint8_t history[RF_HISTORY_COLUMNS][RF_PLOT_MAX_H];\n"
+              ]
+            },
+            {
+              "start": 117,
+              "old": [
+                "static uint16_t spec_levels[PLOT_W],fall_levels[RF_PLOT_MAX_H],peak_levels[PLOT_W];\n",
+                "static int16_t spec_db[PLOT_W],fall_db[RF_PLOT_MAX_H];\n"
+              ],
+              "new": [
+                "static uint16_t spec_levels[RF_PLOT_MAX_W],fall_levels[RF_PLOT_MAX_SIDE],peak_levels[RF_PLOT_MAX_W];\n",
+                "static int16_t spec_db[RF_PLOT_MAX_W],fall_db[RF_PLOT_MAX_SIDE];\n"
+              ]
+            },
+            {
+              "start": 121,
+              "old": [
+                "static uint32_t history_times[PLOT_W];\n"
+              ],
+              "new": [
+                "static uint32_t history_times[RF_HISTORY_COLUMNS];\n"
+              ]
+            },
+            {
+              "start": 125,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                "static unsigned view,page,list_scroll;\n",
+                "static portable_text_client text_client;\n",
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "static portable_text_checkpoint_client text_checkpoint;\n",
+                "static bool text_policy_continuity;\n",
+                "#endif\n",
+                "static risc_text_entry_state_v1 text_state;\n",
+                "static bool text_active,text_closing,text_home,home_exit_requested,home_refusal_pending;\n",
+                "bool portable_app_before_home(void);\n",
+                "static unsigned text_return_page;\n",
+                "#else\n"
+              ]
+            },
+            {
+              "start": 126,
+              "old": [],
+              "new": [
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 139,
+              "old": [],
+              "new": [
+                "static bool native_plot_page(void){return rf_native_canvas&&page==PAGE_MAIN&&started&&view<2;}\n",
+                "static int plot_screen_width(void){return rf_native_canvas?app->screen_width():240;}\n",
+                "static int plot_screen_height(void){return rf_native_canvas?app->screen_height():ui_height;}\n",
+                "static int header_x(int x){return native_plot_page()?(x>=188?plot_screen_width()-240+x:x*(plot_screen_width()-55)/185):x;}\n",
+                "static int footer_y(void){return native_plot_page()?plot_screen_height():ui_height;}\n"
+              ]
+            },
+            {
+              "start": 141,
+              "old": [
+                "static int ui_x(int x){return x*ui_scale()+(paper?0:(app->screen_width()-240)/2);}\n",
+                "static int ui_y(int y){return paper?(ui_stretched()?y*app->screen_height()/240:y*ui_scale()):y+(app->screen_height()-240)/2;}\n",
+                "static int ui_unx(int x){return (x-(paper?0:(app->screen_width()-240)/2))/ui_scale();}\n",
+                "static int ui_uny(int y){return paper?(ui_stretched()?y*240/app->screen_height():y/ui_scale()):y-(app->screen_height()-240)/2;}\n"
+              ],
+              "new": [
+                "/* Legacy page models retain their logical control coordinates, but each\n",
+                " * primitive is laid out directly on the native surface. No glyph bitmap or\n",
+                " * finished page is enlarged. Controls use extra height as scrollable space. */\n",
+                "static int native_page_height(void){return page==PAGE_CONTROLS?ui_height:240;}\n",
+                "static int native_edge(int value,int physical,int logical){return value>=0?(value*physical+logical-1)/logical:value*physical/logical;}\n",
+                "static int ui_x(int x){if(rf_native_canvas)return native_plot_page()?x:native_edge(x,app->screen_width(),240);return x*ui_scale()+(paper?0:(app->screen_width()-240)/2);}\n",
+                "static int ui_y(int y){if(rf_native_canvas)return native_plot_page()?y:native_edge(y,app->screen_height(),native_page_height());return paper?(ui_stretched()?y*app->screen_height()/240:y*ui_scale()):y+(app->screen_height()-240)/2;}\n",
+                "static int ui_unx(int x){if(rf_native_canvas)return x<0||x>=app->screen_width()?-1:native_plot_page()?x:x*240/app->screen_width();return paper?x/ui_scale():utility_color_x(app,x);}\n",
+                "static int ui_uny(int y){if(rf_native_canvas)return y<0||y>=app->screen_height()?-1:native_plot_page()?y:y*native_page_height()/app->screen_height();return paper?(ui_stretched()?y*240/app->screen_height():y/ui_scale()):utility_color_y(app,y);}\n",
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                "static unsigned native_face(unsigned face){return face;}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 147,
+              "old": [],
+              "new": [
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int l=ui_x(x),top=ui_y(y);portable_nova_native_fill(l,top,ui_x(x+w)-l,ui_y(y+h)-top,c);return;}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 155,
+              "old": [],
+              "new": [
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int l=ui_x(x),top=ui_y(y);int radius=native_plot_page()?r:r*app->screen_width()/240;portable_nova_native_round(l,top,ui_x(x+w)-l,ui_y(y+h)-top,radius,c);return;}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 163,
+              "old": [],
+              "new": [
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int n=portable_nova_measure(native_face(face),s);return native_plot_page()?n:(n*240+app->screen_width()-1)/app->screen_width();}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 171,
+              "old": [],
+              "new": [
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int l=ui_x(x);portable_nova_native_text(native_face(face),l,ui_y(y),ui_x(x+w)-l,s,c);return;}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 180,
+              "old": [
+                "static void pill(int x,int y,int w,int h,const char *s,bool selected){if(paper){fill(x,y,w,h,NOVA_WHITE);if(!selected)fill(x+1,y+1,w-2,h-2,0);center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0:NOVA_WHITE);return;}round_rect(x,y,w,h,h/2,selected?NOVA_CYAN:NOVA_DIM);if(!selected)round_rect(x+1,y+1,w-2,h-2,(h-2)/2,0);center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0x001418u:NOVA_CYAN);}\n"
+              ],
+              "new": [
+                "static void pill(int x,int y,int w,int h,const char *s,bool selected){if(paper){fill(x,y,w,h,NOVA_WHITE);if(!selected)fill(x+1,y+1,w-2,h-2,0);center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0:NOVA_WHITE);return;}round_rect(x,y,w,h,h/2,selected?NOVA_CYAN:NOVA_DIM);if(!selected)round_rect(x+1,y+1,w-2,h-2,(h-2)/2,0);\n",
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int l=ui_x(x+2),r=ui_x(x+w-2),top=ui_y(y),bottom=ui_y(y+h),n=portable_nova_measure(1,s);portable_nova_native_text(1,l+(n<r-l?(r-l-n)/2:0),top+(bottom-top-15)/2-2,r-l,s,selected?0x001418u:NOVA_CYAN);return;}\n",
+                "#endif\n",
+                " center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0x001418u:NOVA_CYAN);}\n"
+              ]
+            },
+            {
+              "start": 247,
+              "old": [
+                "static bool rf_services_safe(void){return !rf_bulk||(!uncertain&&!temporal_retained());}\n"
+              ],
+              "new": [
+                "static bool rf_services_safe(void){return !rf_bulk||(!uncertain&&!temporal_retained()\n",
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " &&!text_client.retained\n",
+                "#endif\n",
+                " );}\n"
+              ]
+            },
+            {
+              "start": 261,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " if(text_client.retained)return false;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 323,
+              "old": [
+                "static void clear_analysis(void){signature_display_reset();memset(history,0,sizeof(history));memset(spec_levels,0,sizeof(spec_levels));memset(fall_levels,0,sizeof(fall_levels));memset(peak_levels,0,sizeof(peak_levels));memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));for(unsigned i=0;i<PLOT_W;i++)spec_db[i]=-12000;for(unsigned i=0;i<(unsigned)PLOT_H;i++)fall_db[i]=-12000;history_next=history_count=0;memset(history_times,0,sizeof(history_times));recorded_transform=0;}\n"
+              ],
+              "new": [
+                "static void clear_analysis(void){signature_display_reset();memset(history,0,sizeof(history));memset(spec_levels,0,sizeof(spec_levels));memset(fall_levels,0,sizeof(fall_levels));memset(peak_levels,0,sizeof(peak_levels));memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));for(unsigned i=0;i<(unsigned)PLOT_W;i++)spec_db[i]=-12000;for(unsigned i=0;i<(unsigned)PLOT_H;i++)fall_db[i]=-12000;history_next=history_count=0;memset(history_times,0,sizeof(history_times));recorded_transform=0;}\n"
+              ]
+            },
+            {
+              "start": 355,
+              "old": [
+                " for(unsigned i=0;i<PLOT_W;i++){unsigned decay=peak_levels[i]>196?peak_levels[i]-196:0;peak_levels[i]=spec_levels[i]>decay?spec_levels[i]:(uint16_t)decay;}\n",
+                " for(unsigned y=0;y<(unsigned)PLOT_H;y++)history[history_next][y]=(uint8_t)((uint32_t)fall_levels[y]*255/32767);\n",
+                " history_times[history_next]=burst_at;history_next=(history_next+1)%PLOT_W;if(history_count<PLOT_W)history_count++;\n"
+              ],
+              "new": [
+                " for(unsigned i=0;i<(unsigned)PLOT_W;i++){unsigned decay=peak_levels[i]>196?peak_levels[i]-196:0;peak_levels[i]=spec_levels[i]>decay?spec_levels[i]:(uint16_t)decay;}\n",
+                " for(unsigned y=0;y<(unsigned)HISTORY_H;y++){\n",
+                "  unsigned row=HISTORY_H>1?y*(unsigned)(PLOT_H-1)/(unsigned)(HISTORY_H-1):0;\n",
+                "  history[history_next][y]=(uint8_t)((uint32_t)fall_levels[row]*255/32767);\n",
+                " }\n",
+                " history_times[history_next]=burst_at;history_next=(history_next+1)%RF_HISTORY_COLUMNS;if(history_count<RF_HISTORY_COLUMNS)history_count++;\n"
+              ]
+            },
+            {
+              "start": 442,
+              "old": [
+                " round_rect(213,14,24,24,12,NOVA_DIM);round_rect(214,15,22,22,11,0);round_rect(220,21,10,10,5,NOVA_CYAN);round_rect(222,23,6,6,3,0);\n",
+                " for(unsigned i=0;i<4;i++){int x=i==0?224:i==1?233:i==2?224:215,y=i==0?17:i==1?25:i==2?33:25;fill(x,y,3,3,NOVA_CYAN);}\n"
+              ],
+              "new": [
+                " int offset=header_x(213)-213;\n",
+                " round_rect(213+offset,14,24,24,12,NOVA_DIM);round_rect(214+offset,15,22,22,11,0);round_rect(220+offset,21,10,10,5,NOVA_CYAN);round_rect(222+offset,23,6,6,3,0);\n",
+                " for(unsigned i=0;i<4;i++){int x=i==0?224:i==1?233:i==2?224:215,y=i==0?17:i==1?25:i==2?33:25;fill(x+offset,y,3,3,NOVA_CYAN);}\n"
+              ]
+            },
+            {
+              "start": 450,
+              "old": [
+                " tab(4,51,\"SPEC\",view==0);tab(58,50,\"FALL\",view==1);tab(111,74,\"MONITOR\",view==2);\n",
+                " if(view!=2){round_rect(188,14,22,24,11,prefs.show_labels?NOVA_CYAN:NOVA_DIM);if(!prefs.show_labels)round_rect(189,15,20,22,10,0);uint32_t c=prefs.show_labels?0x001418u:NOVA_CYAN;line(193,20,201,20,c);line(201,20,206,26,c);line(206,26,200,32,c);line(200,32,193,25,c);line(193,25,193,20,c);fill(195,22,2,2,c);}\n"
+              ],
+              "new": [
+                " tab(header_x(4),header_x(55)-header_x(4),\"SPEC\",view==0);tab(header_x(58),header_x(108)-header_x(58),\"FALL\",view==1);tab(header_x(111),header_x(185)-header_x(111),\"MONITOR\",view==2);\n",
+                " if(view!=2){int offset=header_x(188)-188;round_rect(188+offset,14,22,24,11,prefs.show_labels?NOVA_CYAN:NOVA_DIM);if(!prefs.show_labels)round_rect(189+offset,15,20,22,10,0);uint32_t c=prefs.show_labels?0x001418u:NOVA_CYAN;line(193+offset,20,201+offset,20,c);line(201+offset,20,206+offset,26,c);line(206+offset,26,200+offset,32,c);line(200+offset,32,193+offset,25,c);line(193+offset,25,193+offset,20,c);fill(195+offset,22,2,2,c);}\n"
+              ]
+            },
+            {
+              "start": 477,
+              "old": [],
+              "new": [
+                "/* Context status owns a separate strip on the native canvas. Its background\n",
+                " * and glyph bounds never intersect the data/axis rectangle. Paper is unchanged. */\n",
+                "static void draw_context_status(void){\n",
+                " int x=PLOT_X+(rf_native_canvas?2:5),y=PLOT_Y+PLOT_H+(rf_native_canvas?1:-55);\n",
+                " int width=rf_native_canvas?PLOT_W-4:218;char detected[48];\n",
+                " if(cfa_room.slot>=0)snprintf(detected,sizeof(detected),\"ROOM %.16s %u%%\",cfa_name(CF_ROOM,\"UNKNOWN\"),(unsigned)(cfa_room.confidence*100.f));else snprintf(detected,sizeof(detected),\"ROOM UNKNOWN\");\n",
+                " fill(x,y,width,17,0);text(1,x+2,y,width-4,detected,NOVA_WHITE);\n",
+                " bool recognized=cfa_event.slot>=0;\n",
+                " if(recognized)snprintf(detected,sizeof(detected),\"EVENT %.16s %u%%\",cfa_name(CF_EVENT,\"UNKNOWN\"),(unsigned)(cfa_event.confidence*100.f));\n",
+                " else if(rf_native_canvas&&event_slot>=0&&!event_match.complete){snprintf(detected,sizeof(detected),\"EVENT %.16s %u%%\",signatures[event_slot].name,event_confidence);recognized=true;}\n",
+                " else snprintf(detected,sizeof(detected),\"EVENT UNKNOWN\");\n",
+                " fill(x,y+18,width,17,0);text(1,x+2,y+18,width-4,detected,recognized?0x3dff9au:NOVA_CAP);\n",
+                "}\n"
+              ]
+            },
+            {
+              "start": 478,
+              "old": [
+                " if(view==1){for(unsigned x=0;x<history_count;x++){unsigned source=(history_next+PLOT_W-history_count+x)%PLOT_W;unsigned at=PLOT_W-history_count+x;unsigned alpha=at<12?at*255/12:at>PLOT_W-13?(PLOT_W-1-at)*255/12:255;for(unsigned y=0;y<(unsigned)PLOT_H;y++)fill(PLOT_X+(int)at,PLOT_Y+(int)y,1,1,fade(palette[history[source][y]],alpha));}draw_axes(true,true);char span[48];unsigned first=(history_next+PLOT_W-history_count)%PLOT_W,last=(history_next+PLOT_W-1u)%PLOT_W;uint32_t elapsed=history_count>1?history_times[last]-history_times[first]:0;snprintf(span,sizeof(span),\"%u BURSTS / %u.%u s\",history_count,elapsed/1000u,elapsed%1000u/100u);char high_name[20];short_freq(dsp_config.high_hz,high_name);int span_left=text_width(1,high_name)+10;fill(PLOT_X+span_left,PLOT_Y+PLOT_H-18,PLOT_W-span_left,18,0);text(1,PLOT_X+span_left+2,PLOT_Y+PLOT_H-18,PLOT_W-span_left-4,span,NOVA_CAP);}\n"
+              ],
+              "new": [
+                " if(view==1){\n",
+                "  /* Time is a 228-burst window on every screen. Native columns map directly to\n",
+                "   * retained samples; frequency rows are sampled separately from the FFT. */\n",
+                "  for(int x=0;x<PLOT_W;x++){\n",
+                "   unsigned age=(unsigned)(PLOT_W-1-x)*RF_HISTORY_COLUMNS/(unsigned)PLOT_W;\n",
+                "   if(age>=history_count)continue;\n",
+                "   unsigned source=(history_next+RF_HISTORY_COLUMNS-1u-age)%RF_HISTORY_COLUMNS;\n",
+                "   unsigned alpha=x<12?(unsigned)x*255/12:x>PLOT_W-13?(unsigned)(PLOT_W-1-x)*255/12:255;\n",
+                "   for(int y=0;y<PLOT_H;y++){\n",
+                "    unsigned row=PLOT_H>1?(unsigned)y*(unsigned)(HISTORY_H-1)/(unsigned)(PLOT_H-1):0;\n",
+                "    fill(PLOT_X+x,PLOT_Y+y,1,1,fade(palette[history[source][row]],alpha));\n",
+                "   }\n",
+                "  }\n",
+                "  draw_axes(true,true);char span[48];unsigned first=(history_next+RF_HISTORY_COLUMNS-history_count)%RF_HISTORY_COLUMNS,last=(history_next+RF_HISTORY_COLUMNS-1u)%RF_HISTORY_COLUMNS;uint32_t elapsed=history_count>1?history_times[last]-history_times[first]:0;snprintf(span,sizeof(span),\"%u BURSTS / %\" PRIu32 \".%\" PRIu32 \" s\",history_count,elapsed/1000u,elapsed%1000u/100u);char high_name[20];short_freq(dsp_config.high_hz,high_name);int span_left=text_width(1,high_name)+10;fill(PLOT_X+span_left,PLOT_Y+PLOT_H-18,PLOT_W-span_left,18,0);text(1,PLOT_X+span_left+2,PLOT_Y+PLOT_H-18,PLOT_W-span_left-4,span,NOVA_CAP);\n",
+                " }\n"
+              ]
+            },
+            {
+              "start": 495,
+              "old": [
+                " if(event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),\"%.16s %u%%\",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}\n",
+                " char detected[48];\n",
+                " if(cfa_room.slot>=0)snprintf(detected,sizeof(detected),\"ROOM %.16s %u%%\",cfa_name(CF_ROOM,\"UNKNOWN\"),(unsigned)(cfa_room.confidence*100.f));else snprintf(detected,sizeof(detected),\"ROOM UNKNOWN\");\n",
+                " fill(PLOT_X+5,PLOT_Y+PLOT_H-55,218,17,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-55,214,detected,NOVA_WHITE);\n",
+                " if(cfa_event.slot>=0)snprintf(detected,sizeof(detected),\"EVENT %.16s %u%%\",cfa_name(CF_EVENT,\"UNKNOWN\"),(unsigned)(cfa_event.confidence*100.f));else snprintf(detected,sizeof(detected),\"EVENT UNKNOWN\");\n",
+                " fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,17,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,detected,cfa_event.slot>=0?0x3dff9au:NOVA_CAP);\n"
+              ],
+              "new": [
+                " if(!rf_native_canvas&&event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),\"%.16s %u%%\",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}\n",
+                " draw_context_status();\n"
+              ]
+            },
+            {
+              "start": 572,
+              "old": [
+                " text(1,8,ui_height-22,140,label,NOVA_CYAN);text(1,183,ui_height-22,51,running?\"FREEZE\":\"EXIT\",NOVA_CAP);\n",
+                " if(pending_save||signature_pending||event_files.pending>=0)fill(150,ui_height-15,4,4,0xff6a5f);\n"
+              ],
+              "new": [
+                " text(1,8,footer_y()-22,140,label,NOVA_CYAN);text(1,native_plot_page()?plot_screen_width()-57:183,footer_y()-22,51,running?\"FREEZE\":\"EXIT\",NOVA_CAP);\n",
+                " if(pending_save||signature_pending||event_files.pending>=0)fill(150,footer_y()-15,4,4,0xff6a5f);\n"
+              ]
+            },
+            {
+              "start": 587,
+              "old": [],
+              "new": [
+                "#ifndef PORTABLE_RF_SHARED_TEXT_INPUT\n"
+              ]
+            },
+            {
+              "start": 599,
+              "old": [
+                "static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return ui_height-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}\n"
+              ],
+              "new": [
+                "#endif\n",
+                "static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return footer_y()-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}\n",
+                "\n",
+                "#ifdef PORTABLE_RF_SHARED_CANVAS\n",
+                "extern bool portable_sdr_lifecycle_start(void);\n",
+                "extern bool portable_sdr_canvas_refresh_geometry(void);\n",
+                "/* Geometry is reported by the logical capability. Resize only bounded view\n",
+                " * state; saved records, DSP state and the 228-burst history remain owned here. */\n",
+                "static int rf_view_width,rf_view_height;\n",
+                "static bool rf_refresh_logical_geometry(void){\n",
+                " if(!portable_sdr_canvas_refresh_geometry())return false;\n",
+                " int width=app->screen_width(),height=app->screen_height();\n",
+                " if(width==rf_view_width&&height==rf_view_height)return true;\n",
+                " if(width<160||width>1024||height<160||height>1024)return false;\n",
+                " int old_width=PLOT_W,old_rows=HISTORY_H;\n",
+                " int new_width=width-12,new_height=height-74-RF_NATIVE_STATUS_HEIGHT;\n",
+                " int new_rows=new_height<RF_PLOT_MAX_H?new_height:RF_PLOT_MAX_H;\n",
+                " if(new_width<1||new_width>RF_PLOT_MAX_W||new_height<1||new_height>RF_PLOT_MAX_SIDE)return false;\n",
+                " if(rf_bulk&&rf_view_width){\n",
+                "  uint8_t row[RF_PLOT_MAX_H];\n",
+                "  if(old_rows!=new_rows)for(unsigned column=0;column<RF_HISTORY_COLUMNS;column++){\n",
+                "   memcpy(row,history[column],(size_t)old_rows);\n",
+                "   for(int y=0;y<new_rows;y++)history[column][y]=row[new_rows>1?y*(old_rows-1)/(new_rows-1):0];\n",
+                "  }\n",
+                "  uint16_t peaks[RF_PLOT_MAX_W];memcpy(peaks,peak_levels,(size_t)old_width*sizeof(*peaks));\n",
+                "  for(int x=0;x<new_width;x++)peak_levels[x]=peaks[new_width>1?x*(old_width-1)/(new_width-1):0];\n",
+                " }\n",
+                " rf_view_width=width;rf_view_height=height;\n",
+                " rf_plot_width=new_width;rf_plot_height=new_height;\n",
+                " ui_height=(height*240+width-1)/width;if(ui_height<240)ui_height=240;\n",
+                " if(rf_bulk&&spectrum.transforms){\n",
+                "  const uint32_t *values=cfa_background()?filtered_amplitude:spectrum.amplitude_q24;\n",
+                "  rf_dsp_resample_values(&spectrum,values,spec_levels,spec_db,PLOT_W);\n",
+                "  rf_dsp_resample_values(&spectrum,values,fall_levels,fall_db,PLOT_H);\n",
+                " }\n",
+                " contact_down=contact_plot=contact_drag=contact_moved=contact_controls=false;\n",
+                " paper_contact=(springboard_contact){0};\n",
+                " controls_move(controls_scroll);\n",
+                " dirty=urgent_draw=true;utility_frame_reset();return true;\n",
+                "}\n",
+                "#endif\n",
+                "\n"
+              ]
+            },
+            {
+              "start": 601,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " if(text_active||text_client.retained)return;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 609,
+              "old": [
+                " if(page==PAGE_RECEIVER)draw_receiver();else if(page>=PAGE_SHARED)draw_shared();else if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();else if(page==PAGE_KEYBOARD)draw_keyboard();else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error||input_waiting){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}\n"
+              ],
+              "new": [
+                " if(page==PAGE_RECEIVER)draw_receiver();else if(page>=PAGE_SHARED)draw_shared();else if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();\n",
+                "#ifndef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " else if(page==PAGE_KEYBOARD)draw_keyboard();\n",
+                "#endif\n",
+                " else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error||input_waiting){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}\n"
+              ]
+            },
+            {
+              "start": 614,
+              "old": [],
+              "new": [
+                "#ifndef PORTABLE_RF_SHARED_TEXT_INPUT\n"
+              ]
+            },
+            {
+              "start": 615,
+              "old": [],
+              "new": [
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 616,
+              "old": [],
+              "new": [
+                "#ifndef PORTABLE_RF_SHARED_TEXT_INPUT\n"
+              ]
+            },
+            {
+              "start": 629,
+              "old": [],
+              "new": [
+                "#else\n",
+                "/* Only the copied name is edited. Done returns to the existing app editor;\n",
+                " * its Save/Train actions retain sole authority to change saved records. */\n",
+                "static void keyboard_begin(void){\n",
+                " if(text_active||text_client.retained)return;\n",
+                " text_return_page=page;shared_keyboard=page==PAGE_SHARED_EDIT;\n",
+                " text_state=(risc_text_entry_state_v1){.struct_size=sizeof(text_state)};\n",
+                " text_closing=text_home=false;\n",
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                " text_checkpoint=(portable_text_checkpoint_client){0};text_policy_continuity=false;\n",
+                "#endif\n",
+                " const char *caption=shared_keyboard?\"SIGNAL NAME\":page==PAGE_EVENT_LABEL?\"EVENT NAME\":page==PAGE_SIGNATURE_EDIT?\"SIGNATURE NAME\":\"LABEL NAME\";\n",
+                " int rc=portable_text_client_begin(&text_client,runtime,caption,editing.name,sizeof(editing.name));\n",
+                " if(rc!=RISC_TEXT_ENTRY_OK){shared_keyboard=false;if(!text_client.retained)notify(\"TEXT INPUT UNAVAILABLE / RETRY\");return;}\n",
+                " text_active=true;toast_message=NULL;set_page(PAGE_KEYBOARD);\n",
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                " rc=portable_text_checkpoint_enable(&text_client,&text_checkpoint);\n",
+                " if(rc!=RISC_TEXT_ENTRY_OK&&!text_client.retained){text_closing=true;text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify(\"TEXT INPUT UNAVAILABLE / RETRY\");}\n",
+                "#endif\n",
+                "}\n",
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "static void text_policy(void){\n",
+                " if(!text_checkpoint.pausing&&!text_checkpoint.paused){\n",
+                "  risc_text_entry_checkpoint_state_v1 snapshot={.struct_size=sizeof(snapshot)};\n",
+                "  int rc=portable_text_checkpoint_snapshot(&text_client,&text_checkpoint,&snapshot);\n",
+                "  if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;\n",
+                "  rc=portable_text_adapter_policy_prepare(snapshot.flags,&text_policy_continuity);\n",
+                "  if(rc<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                "  if(!rc)return;\n",
+                " }\n",
+                " int rc=portable_text_checkpoint_pause_mode(&text_client,&text_checkpoint,text_policy_continuity);\n",
+                " if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;\n",
+                " uint32_t flags=0;int policy=portable_text_adapter_policy_apply(text_policy_continuity,&flags);\n",
+                " if(policy<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                " if(text_client.retained)return;\n",
+                " if(policy>0){text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;return;}\n",
+                " (void)portable_text_checkpoint_resume(&text_client,&text_checkpoint,flags);\n",
+                "}\n",
+                "#endif\n",
+                "static void text_step(void){\n",
+                " if(!text_active||text_client.retained)return;\n",
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                " if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                " if(!text_closing&&(text_checkpoint.pausing||text_checkpoint.paused)){\n",
+                "  int attention=portable_text_adapter_attention();\n",
+                "  if(attention<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                "  if(!attention){text_policy();return;}\n",
+                "  text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;\n",
+                " }\n",
+                "#endif\n",
+                " if(!text_closing){\n",
+                "  int rc=portable_text_client_poll(&text_client,&text_state);\n",
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "  if(text_client.retained)return;\n",
+                "  if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                "#endif\n",
+                "  if(rc==RISC_TEXT_ENTRY_AGAIN||rc==RISC_TEXT_ENTRY_RETAINED||text_client.retained)return;\n",
+                "  if(rc!=RISC_TEXT_ENTRY_OK){text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify(\"TEXT INPUT UNAVAILABLE / RETRY\");}\n",
+                "  else if(text_state.state==RISC_TEXT_ENTRY_EDITING){\n",
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "   text_policy();\n",
+                "#endif\n",
+                "   return;\n",
+                "  }\n",
+                "  text_closing=true;\n",
+                " }\n",
+                " int rc=portable_text_client_close(&text_client);\n",
+                " if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;\n",
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                " text_checkpoint=(portable_text_checkpoint_client){0};\n",
+                "#endif\n",
+                " text_active=text_closing=false;text_home=(text_state.flags&RISC_TEXT_ENTRY_HOME_CANCEL)!=0;\n",
+                " if(text_state.state==RISC_TEXT_ENTRY_ACCEPTED){\n",
+                "  memset(editing.name,0,sizeof(editing.name));\n",
+                "  memcpy(editing.name,text_state.text,strlen(text_state.text));\n",
+                "  if(shared_keyboard)shared_keyboard_done();else set_page(text_return_page);\n",
+                " }else{shared_keyboard=false;set_page(text_return_page);}\n",
+                " memset(&text_state,0,sizeof(text_state));\n",
+                "}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 688,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " if(text_active||text_client.retained)return false;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 709,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " if(text_active||text_client.active||text_client.acquired||text_client.suspended||text_client.retained)return false;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 714,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " bool draft=false;\n",
+                "#else\n"
+              ]
+            },
+            {
+              "start": 715,
+              "old": [],
+              "new": [
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 735,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                "static bool request_text_home(void){\n",
+                " /* Physical/header Home keeps its deployed destination, distinct from the\n",
+                "  * app's nested Back/root-return route on the resident paper profile. */\n",
+                "#ifdef PORTABLE_HOME_APP\n",
+                " const char *destination=PORTABLE_HOME_APP;\n",
+                "#elif defined(RF_RETURN_APP)\n",
+                " const char *destination=RF_RETURN_APP;\n",
+                "#else\n",
+                " const char *destination=NULL;\n",
+                "#endif\n",
+                " if(!portable_app_before_home())return false;\n",
+                " bool needs_launch=destination!=NULL;\n",
+                "#ifdef PORTABLE_RESIDENT_SHELL_CLIENT\n",
+                " /* The resident adapter resumes the existing Home host when this child ends. */\n",
+                " if(destination&&!strcmp(destination,\"default.elf\"))needs_launch=false;\n",
+                "#endif\n",
+                " if(needs_launch&&(!runtime->request_launch||!runtime->request_launch(destination))){home_exit_requested=false;message=\"EXIT FAILED / RETRY\";notify(message);return false;}\n",
+                " return true;\n",
+                "}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 736,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " /* One coalesced touch/navigation event cannot activate a second action after\n",
+                "  * crown input transfers ownership to the shared host. */\n",
+                " if(text_active||text_client.retained)return false;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 737,
+              "old": [
+                " if(x<0||y<0||x>=240||y>=(ui_stretched()?240:ui_height))return false;\n"
+              ],
+              "new": [
+                " if(x<0||y<0||x>=(native_plot_page()?plot_screen_width():240)||y>=(native_plot_page()?plot_screen_height():rf_native_canvas?native_page_height():ui_stretched()?240:ui_height))return false;\n"
+              ]
+            },
+            {
+              "start": 743,
+              "old": [],
+              "new": [
+                "#ifndef PORTABLE_RF_SHARED_TEXT_INPUT\n"
+              ]
+            },
+            {
+              "start": 744,
+              "old": [],
+              "new": [
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 747,
+              "old": [
+                " if(y>=8&&y<42){if(x>=4&&x<55){view=0;list_scroll=0;lab_edit=false;}else if(x>=58&&x<108){view=1;list_scroll=0;lab_edit=false;}else if(x>=111&&x<185){view=2;list_scroll=0;lab_edit=false;}else if(x>=188&&x<210&&view!=2){if(load_errors&1u)notify(\"RETRY STORAGE FIRST\");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=213&&x<240){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}\n"
+              ],
+              "new": [
+                " if(y>=8&&y<42){if(x>=header_x(4)&&x<header_x(55)){view=0;list_scroll=0;lab_edit=false;}else if(x>=header_x(58)&&x<header_x(108)){view=1;list_scroll=0;lab_edit=false;}else if(x>=header_x(111)&&x<header_x(185)){view=2;list_scroll=0;lab_edit=false;}else if(x>=header_x(188)&&x<header_x(210)&&view!=2){if(load_errors&1u)notify(\"RETRY STORAGE FIRST\");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=header_x(213)&&x<header_x(240)){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}\n"
+              ]
+            },
+            {
+              "start": 751,
+              "old": [
+                " if(y>=ui_height-24&&y<ui_height){if(x>=6&&x<150)*toggle_requested=true;else if(x>=154&&x<240){if(running)*freeze_requested=true;else return request_root_exit();}}return false;\n"
+              ],
+              "new": [
+                " if(y>=footer_y()-24&&y<footer_y()){if(x>=6&&x<(native_plot_page()?plot_screen_width()-90:150))*toggle_requested=true;else if(x>=(native_plot_page()?plot_screen_width()-86:154)&&x<(native_plot_page()?plot_screen_width():240)){if(running)*freeze_requested=true;else return request_root_exit();}}return false;\n"
+              ]
+            },
+            {
+              "start": 759,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                "/* Home is an explicit cancellation, distinct from local Back and an ordinary\n",
+                " * app launch. Do not save pending edits as an incidental consequence of exit. */\n",
+                "bool portable_app_before_home(void){\n",
+                " if(text_active||text_client.active||text_client.acquired||text_client.suspended||text_client.retained)return false;\n",
+                " if(!rf_bulk||!portable_radio_services_safe()||event_data_scope.retained)return false;\n",
+                " capture_requested=false;\n",
+                " if(!portable_rf_suspend())return false;\n",
+                " signature_goal=0;signature_capture_slot=-1;memset(&signature_capture,0,sizeof(signature_capture));\n",
+                " event_armed=false;rt_segment_reset(&event_training);\n",
+                " cfa_learning_kind=cfa_learning_samples=0;cfa_learning_saved=false;\n",
+                " shared_keyboard=false;shared_name[0]=0;editing=(rf_label){0};\n",
+                " /* These are local retry/checkpoint intentions, not live storage operations.\n",
+                "  * Saved bytes stay authoritative, including a prior uncertain commit that\n",
+                "  * completed with clean custody. Never rewrite them as part of Home exit. */\n",
+                " pending_save=0;signature_pending=0;event_files.pending=-1;\n",
+                " cfa_changed=false;event_neural_checkpoint=false;\n",
+                " home_exit_requested=home_refusal_pending=true;set_page(PAGE_MAIN);return true;\n",
+                "}\n",
+                "#endif\n",
+                "\n"
+              ]
+            },
+            {
+              "start": 773,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_CANVAS\n",
+                " if(!portable_sdr_lifecycle_start())return;\n",
+                " rf_view_width=rf_view_height=0;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 776,
+              "old": [],
+              "new": [
+                " #if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<160||app->screen_height()>1024)return;\n",
+                "#else\n"
+              ]
+            },
+            {
+              "start": 777,
+              "old": [
+                " paper=paper_presentation_get();ui_height=paper?app->screen_height()/(app->screen_width()/240):240;if(ui_height<240||ui_height>512)return;\n"
+              ],
+              "new": [
+                "#endif\n",
+                " paper=paper_presentation_get();if(paper&&app->screen_width()<240)return;ui_height=paper?app->screen_height()/(app->screen_width()/240):240;if(ui_height<240||ui_height>512)return;\n",
+                " rf_native_canvas=false;\n",
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " rf_native_canvas=!paper;\n",
+                " if(rf_native_canvas){ui_height=(app->screen_height()*240+app->screen_width()-1)/app->screen_width();if(ui_height<240)ui_height=240;}\n",
+                "#endif\n",
+                " rf_plot_width=rf_native_canvas?app->screen_width()-12:228;\n",
+                " rf_plot_height=rf_native_canvas?app->screen_height()-74-RF_NATIVE_STATUS_HEIGHT:ui_height-74;\n",
+                " if(PLOT_W<1||PLOT_H<1||PLOT_W>RF_PLOT_MAX_W||PLOT_H>RF_PLOT_MAX_SIDE)return;\n"
+              ]
+            },
+            {
+              "start": 785,
+              "old": [
+                " pending_save=load_errors=0;storage_discard_confirm=false;page=PAGE_MAIN;view=list_scroll=key_page=key_choice=0;edit_slot=undo_slot=-1;message=\"READY / RF OFF\";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;\n"
+              ],
+              "new": [
+                " pending_save=load_errors=0;storage_discard_confirm=false;page=PAGE_MAIN;\n",
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " view=list_scroll=0;\n",
+                " text_client=(portable_text_client){0};text_state=(risc_text_entry_state_v1){0};text_active=text_closing=text_home=home_exit_requested=home_refusal_pending=shared_keyboard=false;text_return_page=PAGE_MAIN;\n",
+                "#else\n",
+                " view=list_scroll=key_page=key_choice=0;\n",
+                "#endif\n",
+                " edit_slot=undo_slot=-1;message=\"READY / RF OFF\";store_message=toast_message=NULL;last_pcm_at=rendered=recorded_transform=toast_until=painted=0;sample_rate=PREFERRED_RATE;pill_w=pill_h=0;controls_scroll=controls_touch_y=controls_touch_scroll=0;contact_controls=false;\n"
+              ]
+            },
+            {
+              "start": 800,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                "  if(text_client.retained)return;\n",
+                "  if(home_refusal_pending){\n",
+                "   /* A refused Home must never checkpoint another service or later save the\n",
+                "    * cancelled draft. Pause locally and mark records unread until the user\n",
+                "    * explicitly retries storage; a fresh Home remains immediately available. */\n",
+                "   home_refusal_pending=false;started=false;\n",
+                "   prefs=rf_preferences_default();memset(labels,0,sizeof(labels));\n",
+                "   load_errors=(uint16_t)((1u<<(RF_LABEL_MAX+1u))-1u);store_message=\"SAVED DATA UNREAD / RETRY\";\n",
+                "   memset(signatures,0,sizeof(signatures));memset(signature_means,0,sizeof(signature_means));\n",
+                "   signature_errors=255;signature_mode=0;manual_room=-1;rf_room_reset(&room_tracker);\n",
+                "   memset(&event_library,0,sizeof(event_library));event_library.identity=prefs.identity;\n",
+                "   rt_files_init(&event_files,event_files.api);memset(&event_neural,0,sizeof(event_neural));\n",
+                "   rt_segment_reset(&event_segment);memset(&event_match,0,sizeof(event_match));event_match.selected=-1;\n",
+                "   memset(&cfa_bank,0,sizeof(cfa_bank));cfa_loaded=false;cfa_failed=true;\n",
+                "   cfa_room.slot=cfa_event.slot=-1;cfa_manual_name[0]=0;\n",
+                "   configure_dsp();build_palette();set_page(PAGE_MAIN);notify(\"EXIT FAILED / RETRY HOME\");\n",
+                "  }\n",
+                "  if(text_active){\n",
+                "   text_step();\n",
+                "   if(text_client.retained)return;\n",
+                "   if(temporal_retained())retain();\n",
+                "   if(text_home){text_home=false;if(request_text_home())break;}\n",
+                "   /* Shared presentation never gates receive/analysis. Preserve the current\n",
+                "    * foreground capture policy while logical input or frame close is pending. */\n",
+                "   if(text_active){if(running)capture();if(running){temporal_tick();cfa_apply();}if(!temporal_retained())event_neural_tick();}\n",
+                "   if(text_client.retained)return;\n",
+                "   if(temporal_retained())retain();\n",
+                "   if(text_active)runtime->yield_ms(running?1:10);\n",
+                "   continue;\n",
+                "  }\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 801,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_CANVAS\n",
+                "  if(!rf_refresh_logical_geometry())break;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 807,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                "   if(home_exit_requested)break;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 813,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                "  if(input.exit_requested){if(portable_app_before_home())break;continue;}\n",
+                "  if(home_exit_requested){home_exit_requested=false;continue;}\n",
+                "#else\n"
+              ]
+            },
+            {
+              "start": 814,
+              "old": [
+                "  if(input.buttons&T5_APP_BUTTON_BACK){if(shared_back())continue;if(page==PAGE_KEYBOARD)keyboard_cancel();else if(page==PAGE_EVENT_CAPTURE){if(event_armed||event_training.ready)notify(\"SAVE OR CANCEL THE WINDOW\");else set_page(PAGE_EVENT_LABEL);}else if(page==PAGE_EVENT_EXAMPLES)set_page(PAGE_EVENT_LABEL);else if(page==PAGE_EVENT_LABEL)set_page(PAGE_EVENTS);else if(page==PAGE_EVENTS||page==PAGE_SIGNATURES||page==PAGE_RECEIVER)set_page(PAGE_CONTROLS);else if(page==PAGE_SIGNATURE_EDIT)set_page(PAGE_SIGNATURES);else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else if(request_root_exit())break;continue;}\n"
+              ],
+              "new": [
+                "#endif\n",
+                "  if(input.buttons&T5_APP_BUTTON_BACK){if(shared_back())continue;\n",
+                "#ifndef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                "   if(page==PAGE_KEYBOARD)keyboard_cancel();else\n",
+                "#endif\n",
+                "   if(page==PAGE_EVENT_CAPTURE){if(event_armed||event_training.ready)notify(\"SAVE OR CANCEL THE WINDOW\");else set_page(PAGE_EVENT_LABEL);}else if(page==PAGE_EVENT_EXAMPLES)set_page(PAGE_EVENT_LABEL);else if(page==PAGE_EVENT_LABEL)set_page(PAGE_EVENTS);else if(page==PAGE_EVENTS||page==PAGE_SIGNATURES||page==PAGE_RECEIVER)set_page(PAGE_CONTROLS);else if(page==PAGE_SIGNATURE_EDIT)set_page(PAGE_SIGNATURES);else if(page!=PAGE_MAIN){list_scroll=0;set_page(PAGE_MAIN);}else if(lab_edit){lab_edit=false;set_page(PAGE_MAIN);}else if(request_root_exit())break;\n",
+                "  continue;\n",
+                "  }\n"
+              ]
+            },
+            {
+              "start": 824,
+              "old": [],
+              "new": [
+                "#ifndef PORTABLE_RF_SHARED_TEXT_INPUT\n"
+              ]
+            },
+            {
+              "start": 825,
+              "old": [],
+              "new": [
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 827,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                "  if(text_client.retained)return;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 830,
+              "old": [
+                " stop();persist();if(event_data_scope.retained)retain();event_files.api=NULL;waterfall_release(&waterfall_grant,&radio_acquired);waterfall_radio=NULL;if(store_acquired&&!runtime->release(&store_grant))retain();store_acquired=false;storage=NULL;waterfall_release(&waterfall_preferences,&preferences_acquired);preferences=NULL;if(rf_bulk_allocated)app->psram_free(rf_bulk);rf_bulk=NULL;waterfall_log(\"SDR app exit\");\n"
+              ],
+              "new": [
+                " stop();\n",
+                "#ifdef PORTABLE_RF_SHARED_TEXT_INPUT\n",
+                " if(!home_exit_requested)persist();\n",
+                "#else\n",
+                " persist();\n",
+                "#endif\n",
+                " if(event_data_scope.retained)retain();\n",
+                " event_files.api=NULL;waterfall_release(&waterfall_grant,&radio_acquired);waterfall_radio=NULL;if(store_acquired&&!runtime->release(&store_grant))retain();store_acquired=false;storage=NULL;waterfall_release(&waterfall_preferences,&preferences_acquired);preferences=NULL;if(rf_bulk_allocated)app->psram_free(rf_bulk);rf_bulk=NULL;waterfall_log(\"SDR app exit\");\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/rf_controls.inc",
+          "rationale": "Portable uint32 formatting; clamp negative scroll overflow and avoid zero-divisor when controls fit.",
+          "before_git_blob_sha1": "ccf605a26279dd9cb2366eb776c1631b02a09ead",
+          "after_git_blob_sha1": "f7c78917a60cc122484049d8f1fedb04585c7b71",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 6,
+              "old": [
+                "#define CONTROLS_MAX_SCROLL (CONTROLS_COUNT*CONTROLS_ROW_HEIGHT-(CONTROLS_BOTTOM-CONTROLS_TOP))\n"
+              ],
+              "new": [
+                "#define CONTROLS_OVERFLOW (CONTROLS_COUNT*CONTROLS_ROW_HEIGHT-(CONTROLS_BOTTOM-CONTROLS_TOP))\n",
+                "#define CONTROLS_MAX_SCROLL (CONTROLS_OVERFLOW>0?CONTROLS_OVERFLOW:0)\n"
+              ]
+            },
+            {
+              "start": 13,
+              "old": [
+                " switch(setting){case 13:case 12:pill(110,y+4,122,40,\"OPEN\",false);return;case 1:snprintf(value,sizeof(value),\"%u.%uM\",prefs.low_hz/1000000u,prefs.low_hz%1000000u/100000u);break;case 2:snprintf(value,sizeof(value),\"%u.%uM\",dsp_config.high_hz/1000000u,dsp_config.high_hz%1000000u/100000u);break;case 6:snprintf(value,sizeof(value),\"%s\",palette_names[prefs.palette]);break;case 7:snprintf(value,sizeof(value),\"%+d dB\",prefs.gain_db);break;case 8:snprintf(value,sizeof(value),\"%s\",window_names[prefs.window]);break;case 9:snprintf(value,sizeof(value),\"%u\",prefs.fft_size);break;case 10:snprintf(value,sizeof(value),\"%d dB\",prefs.threshold_db);break;default:if(pending_save){pill(110,y+4,55,40,\"RETRY\",false);pill(171,y+4,61,40,storage_discard_confirm?\"SURE\":\"DISCARD\",false);}else pill(110,y+4,122,40,(signature_pending||event_files.pending>=0)?\"RETRY SAVE\":(store_message||signature_errors||event_files.ready!=3)?\"RETRY\":storage?\"SAVED\":\"RETRY\",false);return;}\n"
+              ],
+              "new": [
+                " switch(setting){case 13:case 12:pill(110,y+4,122,40,\"OPEN\",false);return;case 1:snprintf(value,sizeof(value),\"%\" PRIu32 \".%\" PRIu32 \"M\",prefs.low_hz/1000000u,prefs.low_hz%1000000u/100000u);break;case 2:snprintf(value,sizeof(value),\"%\" PRIu32 \".%\" PRIu32 \"M\",dsp_config.high_hz/1000000u,dsp_config.high_hz%1000000u/100000u);break;case 6:snprintf(value,sizeof(value),\"%s\",palette_names[prefs.palette]);break;case 7:snprintf(value,sizeof(value),\"%+d dB\",prefs.gain_db);break;case 8:snprintf(value,sizeof(value),\"%s\",window_names[prefs.window]);break;case 9:snprintf(value,sizeof(value),\"%u\",prefs.fft_size);break;case 10:snprintf(value,sizeof(value),\"%d dB\",prefs.threshold_db);break;default:if(pending_save){pill(110,y+4,55,40,\"RETRY\",false);pill(171,y+4,61,40,storage_discard_confirm?\"SURE\":\"DISCARD\",false);}else pill(110,y+4,122,40,(signature_pending||event_files.pending>=0)?\"RETRY SAVE\":(store_message||signature_errors||event_files.ready!=3)?\"RETRY\":storage?\"SAVED\":\"RETRY\",false);return;}\n"
+              ]
+            },
+            {
+              "start": 22,
+              "old": [
+                " text(0,12,7,216,\"CONTROLS\",NOVA_CYAN);char name[48];snprintf(name,sizeof(name),\"RF %uM / RECEIVER SETTINGS >\",sample_rate/1000000u);text(1,12,27,220,name,NOVA_CAP);\n"
+              ],
+              "new": [
+                " text(0,12,7,216,\"CONTROLS\",NOVA_CYAN);char name[48];snprintf(name,sizeof(name),\"RF %\" PRIu32 \"M / RECEIVER SETTINGS >\",sample_rate/1000000u);text(1,12,27,220,name,NOVA_CAP);\n"
+              ]
+            },
+            {
+              "start": 24,
+              "old": [
+                " int track=CONTROLS_BOTTOM-CONTROLS_TOP,thumb=track*track/(CONTROLS_COUNT*CONTROLS_ROW_HEIGHT);fill(236,CONTROLS_TOP,2,track,NOVA_LINE);fill(236,CONTROLS_TOP+controls_scroll*(track-thumb)/CONTROLS_MAX_SCROLL,2,thumb,NOVA_CYAN);\n"
+              ],
+              "new": [
+                " int track=CONTROLS_BOTTOM-CONTROLS_TOP,thumb=CONTROLS_MAX_SCROLL?track*track/(CONTROLS_COUNT*CONTROLS_ROW_HEIGHT):track;fill(236,CONTROLS_TOP,2,track,NOVA_LINE);fill(236,CONTROLS_TOP+(CONTROLS_MAX_SCROLL?controls_scroll*(track-thumb)/CONTROLS_MAX_SCROLL:0),2,thumb,NOVA_CYAN);\n"
+              ]
+            },
+            {
+              "start": 64,
+              "old": [
+                " switch(field){case 0:snprintf(out,32,\"%u.%03u MHz\",i->lo_hz/1000000u,i->lo_hz%1000000u/1000u);return;case 1:snprintf(out,32,\"%u MSa/s\",i->sample_rate_hz/1000000u);return;case 2:snprintf(out,32,\"%u MHz\",i->width_hz/1000000u);return;case 3:value=i->raw_gain;break;case 4:value=i->rf_gain;break;case 5:value=i->bb_gain;break;case 6:value=i->filter&63u;break;case 7:value=(i->filter>>8)&63u;break;case 8:case 9:case 10:case 11:value=i->dc[field-8];break;case 12:case 13:value=i->iq_correction==RF_RAW_AUTO?RF_RAW_AUTO:field==12?i->iq_correction&31u:(i->iq_correction>>8)&63u;break;case 14:snprintf(out,32,\"RESTORE\");return;case 15:snprintf(out,32,\"RESTORE SAVED\");return;default:snprintf(out,32,\"NOMINAL / RAW\");return;}\n",
+                " if(value==RF_RAW_AUTO)snprintf(out,32,\"AUTO\");else snprintf(out,32,\"%u RAW\",value);\n"
+              ],
+              "new": [
+                " switch(field){case 0:snprintf(out,32,\"%\" PRIu32 \".%03\" PRIu32 \" MHz\",i->lo_hz/1000000u,i->lo_hz%1000000u/1000u);return;case 1:snprintf(out,32,\"%\" PRIu32 \" MSa/s\",i->sample_rate_hz/1000000u);return;case 2:snprintf(out,32,\"%\" PRIu32 \" MHz\",i->width_hz/1000000u);return;case 3:value=i->raw_gain;break;case 4:value=i->rf_gain;break;case 5:value=i->bb_gain;break;case 6:value=i->filter&63u;break;case 7:value=(i->filter>>8)&63u;break;case 8:case 9:case 10:case 11:value=i->dc[field-8];break;case 12:case 13:value=i->iq_correction==RF_RAW_AUTO?RF_RAW_AUTO:field==12?i->iq_correction&31u:(i->iq_correction>>8)&63u;break;case 14:snprintf(out,32,\"RESTORE\");return;case 15:snprintf(out,32,\"RESTORE SAVED\");return;default:snprintf(out,32,\"NOMINAL / RAW\");return;}\n",
+                " if(value==RF_RAW_AUTO)snprintf(out,32,\"AUTO\");else snprintf(out,32,\"%\" PRIu32 \" RAW\",value);\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/rf_signature_app.inc",
+          "rationale": "Portable uint32 frame-count formatting; no signature model change.",
+          "before_git_blob_sha1": "2939cf9dacd6f3140d77c18782d76e16e69b3b97",
+          "after_git_blob_sha1": "25c23a29dac597798f685b7dd884c12b86f2471f",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 129,
+              "old": [
+                " if(signature_goal)snprintf(status,sizeof(status),\"%s ROOM %u / %u\",running?\"SAMPLING\":\"PAUSED\",signature_capture.frames,signature_goal);\n"
+              ],
+              "new": [
+                " if(signature_goal)snprintf(status,sizeof(status),\"%s ROOM %\" PRIu32 \" / %u\",running?\"SAMPLING\":\"PAUSED\",signature_capture.frames,signature_goal);\n"
+              ]
+            },
+            {
+              "start": 140,
+              "old": [
+                "  for(unsigned row=0;row<2;row++){unsigned slot=signature_scroll+row;if(slot>=RF_SIGNATURE_SLOTS)break;int y=107+(int)row*42;rf_signature *s=&signatures[slot];char label[40];snprintf(label,sizeof(label),\"%u %.16s\",slot+1,signature_errors&(1u<<slot)?\"UNREAD\":(signature_pending&(1u<<slot))&&!s->kind?\"DELETE UNSAVED\":s->kind?s->name:\"EMPTY\");text(1,14,y,151,label,NOVA_WHITE);snprintf(label,sizeof(label),s->kind?\"%s / %u FRAMES\":\"TAP + TO CAPTURE\",s->kind==1?\"ROOM\":\"EVENT\",s->frames);text(1,14,y+17,153,label,NOVA_CAP);if(s->kind==1)pill(174,y,54,31,\"USE\",signature_mode==2&&manual_room==(int)slot);else if(s->kind==2)text(1,177,y+8,49,event_slot==(int)slot?\"MATCH\":\"EDIT\",NOVA_CYAN);}\n"
+              ],
+              "new": [
+                "  for(unsigned row=0;row<2;row++){unsigned slot=signature_scroll+row;if(slot>=RF_SIGNATURE_SLOTS)break;int y=107+(int)row*42;rf_signature *s=&signatures[slot];char label[40];snprintf(label,sizeof(label),\"%u %.16s\",slot+1,signature_errors&(1u<<slot)?\"UNREAD\":(signature_pending&(1u<<slot))&&!s->kind?\"DELETE UNSAVED\":s->kind?s->name:\"EMPTY\");text(1,14,y,151,label,NOVA_WHITE);snprintf(label,sizeof(label),s->kind?\"%s / %\" PRIu32 \" FRAMES\":\"TAP + TO CAPTURE\",s->kind==1?\"ROOM\":\"EVENT\",s->frames);text(1,14,y+17,153,label,NOVA_CAP);if(s->kind==1)pill(174,y,54,31,\"USE\",signature_mode==2&&manual_room==(int)slot);else if(s->kind==2)text(1,177,y+8,49,event_slot==(int)slot?\"MATCH\":\"EDIT\",NOVA_CYAN);}\n"
+              ]
+            },
+            {
+              "start": 149,
+              "old": [
+                " char detail[40];rf_signature *s=&signatures[signature_slot];snprintf(detail,sizeof(detail),\"%u SAVED FRAMES\",s->frames);center(1,12,120,216,detail,NOVA_CAP);\n"
+              ],
+              "new": [
+                " char detail[40];rf_signature *s=&signatures[signature_slot];snprintf(detail,sizeof(detail),\"%\" PRIu32 \" SAVED FRAMES\",s->frames);center(1,12,120,216,detail,NOVA_CAP);\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/rf_temporal_app.inc",
+          "rationale": "Portable uint32 formatting and fail-closed retained app-data/adapter custody.",
+          "before_git_blob_sha1": "9f85aa5302c44b9026eabc30ca2ebac701e99915",
+          "after_git_blob_sha1": "0732a47661fb85167abb22654e352cf6023c7cd7",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 94,
+              "old": [
+                "static bool temporal_retained(void){return event_initialized&&event_files.retained;}\n"
+              ],
+              "new": [
+                "#ifdef PORTABLE_NATIVE_CUSTODY_FENCE\n",
+                "#include \"PortableNativeCustody.h\"\n",
+                "#endif\n",
+                "static bool temporal_retained(void){\n",
+                "#ifdef PORTABLE_NATIVE_CUSTODY_FENCE\n",
+                " if(portable_adapter_retained())return true;\n",
+                "#endif\n",
+                " return event_initialized&&(event_files.retained||event_data_scope.retained);\n",
+                "}\n"
+              ]
+            },
+            {
+              "start": 229,
+              "old": [
+                " if(event_match.selected==event_edit_slot){int shift=event_match.shift[event_edit_slot];snprintf(caption,sizeof(caption),\"SHIFT %+d bands %u / %u MHz\",shift,rf_coord_hz(&event_library.identity,event_match.observed_coord)/1000000u,rf_coord_hz(&event_library.identity,event_match.reference_coord[event_edit_slot])/1000000u);text(1,12,180,216,caption,NOVA_CAP);}\n"
+              ],
+              "new": [
+                " if(event_match.selected==event_edit_slot){int shift=event_match.shift[event_edit_slot];snprintf(caption,sizeof(caption),\"SHIFT %+d bands %\" PRIu32 \" / %\" PRIu32 \" MHz\",shift,rf_coord_hz(&event_library.identity,event_match.observed_coord)/1000000u,rf_coord_hz(&event_library.identity,event_match.reference_coord[event_edit_slot])/1000000u);text(1,12,180,216,caption,NOVA_CAP);}\n"
+              ]
+            },
+            {
+              "start": 236,
+              "old": [
+                " if(event_training.ready){const rt_example*e=&event_training.event;center(1,12,63,216,e->flags&RT_CONFIRMED_END?\"WHOLE EVENT / END CONFIRMED\":e->flags&RT_CLIPPED?\"END NOT VERIFIED / REVIEW\":\"READY TO SAVE\",e->flags&RT_CLIPPED?0xffd24au:NOVA_CYAN);snprintf(caption,sizeof(caption),\"SPAN %u ms / %u ONSETS\",e->duration_ms,e->impacts);center(1,12,90,216,caption,NOVA_TEXT);snprintf(caption,sizeof(caption),\"RISE %u / FALL %u ms\",e->attack_ms,e->decay_ms);center(1,12,112,216,caption,NOVA_CAP);snprintf(caption,sizeof(caption),\"PEAK %u MHz / %u BURSTS\",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->count);center(1,12,134,216,caption,NOVA_CAP);if(e->flags&RT_CLIPPED)pill(12,151,216,25,e->flags&RT_CONFIRMED_END?\"UNDO WHOLE EVENT\":\"USE AS WHOLE EVENT\",!!(e->flags&RT_CONFIRMED_END));int buttons=e->flags&RT_CLIPPED?188:175;pill(12,buttons,104,36,rt_partial(e)?\"SAVE WINDOW\":\"SAVE\",true);pill(124,buttons,104,36,\"CANCEL\",false);}\n"
+              ],
+              "new": [
+                " if(event_training.ready){const rt_example*e=&event_training.event;center(1,12,63,216,e->flags&RT_CONFIRMED_END?\"WHOLE EVENT / END CONFIRMED\":e->flags&RT_CLIPPED?\"END NOT VERIFIED / REVIEW\":\"READY TO SAVE\",e->flags&RT_CLIPPED?0xffd24au:NOVA_CYAN);snprintf(caption,sizeof(caption),\"SPAN %\" PRIu32 \" ms / %u ONSETS\",e->duration_ms,e->impacts);center(1,12,90,216,caption,NOVA_TEXT);snprintf(caption,sizeof(caption),\"RISE %\" PRIu32 \" / FALL %\" PRIu32 \" ms\",e->attack_ms,e->decay_ms);center(1,12,112,216,caption,NOVA_CAP);snprintf(caption,sizeof(caption),\"PEAK %\" PRIu32 \" MHz / %u BURSTS\",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->count);center(1,12,134,216,caption,NOVA_CAP);if(e->flags&RT_CLIPPED)pill(12,151,216,25,e->flags&RT_CONFIRMED_END?\"UNDO WHOLE EVENT\":\"USE AS WHOLE EVENT\",!!(e->flags&RT_CONFIRMED_END));int buttons=e->flags&RT_CLIPPED?188:175;pill(12,buttons,104,36,rt_partial(e)?\"SAVE WINDOW\":\"SAVE\",true);pill(124,buttons,104,36,\"CANCEL\",false);}\n"
+              ]
+            },
+            {
+              "start": 241,
+              "old": [
+                " for(unsigned row=0;row<2;row++){unsigned ex=event_example_scroll+row;const rt_example*e=&event_library.labels[event_edit_slot].examples[ex];int y=62+(int)row*58;char caption[64];snprintf(caption,sizeof(caption),e->id?\"%u %s / %u ms\":\"%u EMPTY\",ex+1,e->kind==1?\"POSITIVE\":\"NONMATCH\",e->duration_ms);text(1,12,y,166,caption,NOVA_WHITE);if(e->id){snprintf(caption,sizeof(caption),\"%s%u MHz / %u ONSETS\",e->flags&RT_CONFIRMED_END?\"END SET / \":e->flags&RT_CLIPPED?\"CLIP / \":\"\",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->impacts);text(1,12,y+22,172,caption,NOVA_CAP);pill(184,y,44,34,event_delete_example==(int)ex?\"SURE\":\"X\",false);}}\n"
+              ],
+              "new": [
+                " for(unsigned row=0;row<2;row++){unsigned ex=event_example_scroll+row;const rt_example*e=&event_library.labels[event_edit_slot].examples[ex];int y=62+(int)row*58;char caption[64];snprintf(caption,sizeof(caption),e->id?\"%u %s / %\" PRIu32 \" ms\":\"%u EMPTY\",ex+1,e->kind==1?\"POSITIVE\":\"NONMATCH\",e->duration_ms);text(1,12,y,166,caption,NOVA_WHITE);if(e->id){snprintf(caption,sizeof(caption),\"%s%\" PRIu32 \" MHz / %u ONSETS\",e->flags&RT_CONFIRMED_END?\"END SET / \":e->flags&RT_CLIPPED?\"CLIP / \":\"\",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->impacts);text(1,12,y+22,172,caption,NOVA_CAP);pill(184,y,44,34,event_delete_example==(int)ex?\"SURE\":\"X\",false);}}\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/audio_spectrum.c",
+          "rationale": "Previously integrated operation-scoped storage and color coordinate helpers; native-only branches remain excluded from opt-out.",
+          "before_git_blob_sha1": "0ba667275ceba1a0ade85d181e764e5bb4c0e64d",
+          "after_git_blob_sha1": "43562ed3d15ced89e1cf912511e96c5d7de5e68e",
+          "hunks": [
+            {
+              "start": 13,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "#include \"PortableTextInputPolicy.h\"\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 38,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                "#if !defined(PORTABLE_NATIVE_CANVAS) || !defined(PORTABLE_NOVA_UI) || !defined(PORTABLE_SPECTRUM_SHARED_TEXT_INPUT)\n",
+                "#error \"Native Spectrum requires native canvas, Nova and shared text input\"\n",
+                "#endif\n",
+                "#include \"spectrum_native_layout.h\"\n",
+                "static spectrum_native_layout native_layout;\n",
+                "static bool spectrum_native_draw(void);\n",
+                "static bool spectrum_native_contact(void);\n",
+                "static bool spectrum_native_tap(int,int,bool*,bool*);\n",
+                "static void spectrum_native_cursor(char[40]);\n",
+                "static unsigned spectrum_native_monitor_rows(void);\n",
+                "static int spectrum_native_controls_max(void);\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 67,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "static portable_text_checkpoint_client text_checkpoint;\n",
+                "static bool text_policy_continuity;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 88,
+              "old": [
+                "#ifdef PORTABLE_NOVA_UI\n"
+              ],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                " portable_nova_native_fill(x,y,w,h,c);\n",
+                "#elif defined(PORTABLE_NOVA_UI)\n"
+              ]
+            },
+            {
+              "start": 97,
+              "old": [
+                "#ifdef PORTABLE_NOVA_UI\n"
+              ],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                " portable_nova_native_round(x,y,w,h,r,c);\n",
+                "#elif defined(PORTABLE_NOVA_UI)\n"
+              ]
+            },
+            {
+              "start": 111,
+              "old": [
+                "#ifdef PORTABLE_NOVA_UI\n"
+              ],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                " portable_nova_native_text(face,x,y,w,s,c);\n",
+                "#elif defined(PORTABLE_NOVA_UI)\n"
+              ]
+            },
+            {
+              "start": 348,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                " spectrum_native_cursor(caption);return;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 422,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                " rows=spectrum_native_monitor_rows();\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 492,
+              "old": [],
+              "new": [
+                " #ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                " if(spectrum_native_draw())goto presented;\n",
+                " #endif\n"
+              ]
+            },
+            {
+              "start": 498,
+              "old": [],
+              "new": [
+                " #ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                "presented:\n",
+                " #endif\n"
+              ]
+            },
+            {
+              "start": 527,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                " text_checkpoint=(portable_text_checkpoint_client){0};text_policy_continuity=false;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 531,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                " rc=portable_text_checkpoint_enable(&text_client,&text_checkpoint);\n",
+                " if(rc!=RISC_TEXT_ENTRY_OK&&!text_client.retained){text_closing=true;text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify(\"TEXT INPUT UNAVAILABLE / RETRY\");}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 532,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "static void text_policy(void){\n",
+                " if(!text_checkpoint.pausing&&!text_checkpoint.paused){\n",
+                "  risc_text_entry_checkpoint_state_v1 snapshot={.struct_size=sizeof(snapshot)};\n",
+                "  int rc=portable_text_checkpoint_snapshot(&text_client,&text_checkpoint,&snapshot);\n",
+                "  if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;\n",
+                "  rc=portable_text_adapter_policy_prepare(snapshot.flags,&text_policy_continuity);\n",
+                "  if(rc<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                "  if(!rc)return;\n",
+                " }\n",
+                " int rc=portable_text_checkpoint_pause_mode(&text_client,&text_checkpoint,text_policy_continuity);\n",
+                " if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;\n",
+                " uint32_t flags=0;int policy=portable_text_adapter_policy_apply(text_policy_continuity,&flags);\n",
+                " if(policy<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                " if(text_client.retained)return;\n",
+                " if(policy>0){text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;return;}\n",
+                " (void)portable_text_checkpoint_resume(&text_client,&text_checkpoint,flags);\n",
+                "}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 534,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                " if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                " if(!text_closing&&(text_checkpoint.pausing||text_checkpoint.paused)){\n",
+                "  int attention=portable_text_adapter_attention();\n",
+                "  if(attention<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                "  if(!attention){text_policy();return;}\n",
+                "  text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;\n",
+                " }\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 536,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "  if(text_client.retained)return;\n",
+                "  if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 538,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                "  else if(text_state.state==RISC_TEXT_ENTRY_EDITING){text_policy();return;}\n",
+                "#else\n"
+              ]
+            },
+            {
+              "start": 539,
+              "old": [],
+              "new": [
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 543,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_TEXT_INPUT_POLICY\n",
+                " text_checkpoint=(portable_text_checkpoint_client){0};\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 589,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                " return spectrum_native_contact();\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 592,
+              "old": [
+                " int x=contact.x-(app->screen_width()-240)/2,y=contact.y-(app->screen_height()-240)/2;\n"
+              ],
+              "new": [
+                " int x=utility_color_x(app,contact.x),y=utility_color_y(app,contact.y);\n"
+              ]
+            },
+            {
+              "start": 613,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                "#define tap_action tap_action_legacy\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 620,
+              "old": [],
+              "new": [
+                " #ifndef PORTABLE_SPECTRUM_NATIVE_UI\n"
+              ]
+            },
+            {
+              "start": 621,
+              "old": [],
+              "new": [
+                " #endif\n"
+              ]
+            },
+            {
+              "start": 637,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                "#undef tap_action\n",
+                "#include \"spectrum_native_view.inc\"\n",
+                "static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested){\n",
+                " return spectrum_native_tap(x,y,toggle_requested,freeze_requested);\n",
+                "}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 642,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                " if(!spectrum_native_layout_make(&native_layout,app->screen_width(),app->screen_height()))return;\n",
+                "#else\n"
+              ]
+            },
+            {
+              "start": 643,
+              "old": [],
+              "new": [
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 656,
+              "old": [
+                " restore();signature_restore();event_restore();cfa_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);\n"
+              ],
+              "new": [
+                " restore();signature_restore();event_restore();if(temporal_retained())return;cfa_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);\n"
+              ]
+            },
+            {
+              "start": 705,
+              "old": [
+                "  if(input.tapped&&!consumed&&tap_action(input.touch_x-(app->screen_width()-240)/2,input.touch_y-(app->screen_height()-240)/2,&toggle_requested,&freeze_requested))break;\n"
+              ],
+              "new": [
+                "  #ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                "  if(input.tapped&&!consumed&&tap_action(input.touch_x,input.touch_y,&toggle_requested,&freeze_requested))break;\n",
+                "#else\n",
+                "  if(input.tapped&&!consumed&&tap_action(utility_color_x(app,input.touch_x),utility_color_y(app,input.touch_y),&toggle_requested,&freeze_requested))break;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 715,
+              "old": [
+                " stop();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;if(acquired&&!runtime->release(&grant))retain();if(store_acquired&&!runtime->release(&store_grant))retain();acquired=store_acquired=false;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};microphone=NULL;storage=NULL;\n"
+              ],
+              "new": [
+                " stop();if(temporal_retained())return;event_files.api=NULL;if(acquired&&!runtime->release(&grant))retain();if(store_acquired&&!runtime->release(&store_grant))retain();acquired=store_acquired=false;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};microphone=NULL;storage=NULL;\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/spectrum_temporal_app.inc",
+          "rationale": "Previously integrated operation-scoped app-data ownership and fail-closed custody.",
+          "before_git_blob_sha1": "1983519e065da117184cd62bbcbd5ef6e936cc52",
+          "after_git_blob_sha1": "c6e20c35417ff8581c904286decb87ca6ea7bdb6",
+          "hunks": [
+            {
+              "start": 9,
+              "old": [
+                "static risc_runtime_capability_v1 event_data_grant;\n",
+                "static bool event_data_acquired,event_initialized,event_armed,event_wait_quiet,event_known_hold,event_previous_active;\n"
+              ],
+              "new": [
+                "#include \"rf_app_data_scope.h\"\n",
+                "/* Reuse the RF app/shared-data transaction fence for Audio namespace 2. */\n",
+                "static rf_app_data_scope event_data_scope;\n",
+                "static bool event_initialized,event_armed,event_wait_quiet,event_known_hold,event_previous_active;\n"
+              ]
+            },
+            {
+              "start": 72,
+              "old": [
+                " if(event_data_acquired)return false;\n",
+                " event_data_grant=(risc_runtime_capability_v1){.struct_size=sizeof(event_data_grant)};\n",
+                " if(!runtime->acquire(\"storage.app-data\",1,2,&event_data_grant))return false;\n",
+                " event_data_acquired=true;\n",
+                " const risc_app_data_v1 *api=event_data_grant.api;if(!api||api->api_version!=1||api->struct_size<sizeof(*api)||!api->stat||!api->read||!api->replace)return false;event_files.api=api;return true;\n"
+              ],
+              "new": [
+                " /* Preserve eager admission: an unavailable/invalid store must not appear\n",
+                "  * readable to the fingerprint loader. Release the probe before publishing\n",
+                "  * this stable app-owned table; every later callback borrows its own lease. */\n",
+                " const risc_app_data_v1 *api=rf_data_bind(&event_data_scope,runtime,2u),*source=NULL;\n",
+                " int32_t result=rf_data_begin(&event_data_scope,&source);\n",
+                " if(!result)result=rf_data_finish(&event_data_scope,RISC_APP_DATA_OK);\n",
+                " if(result)return false;\n",
+                " event_files.api=api;return true;\n"
+              ]
+            },
+            {
+              "start": 88,
+              "old": [
+                " event_data_grant=(risc_runtime_capability_v1){0};event_data_acquired=false;event_initialized=true;event_armed=event_wait_quiet=event_known_hold=event_previous_active=false;event_pair_count=event_quiet=event_wait_count=event_missed=event_list_scroll=event_example_scroll=0;event_pair_active=false;event_edit_slot=event_delete_slot=event_delete_example=-1;event_capture_kind=ST_POSITIVE;event_edit_shift=1;event_armed_at=event_result_at=0;event_message=NULL;event_keyboard=false;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));event_load();\n"
+              ],
+              "new": [
+                " event_data_scope=(rf_app_data_scope){0};event_initialized=true;event_armed=event_wait_quiet=event_known_hold=event_previous_active=false;event_pair_count=event_quiet=event_wait_count=event_missed=event_list_scroll=event_example_scroll=0;event_pair_active=false;event_edit_slot=event_delete_slot=event_delete_example=-1;event_capture_kind=ST_POSITIVE;event_edit_shift=1;event_armed_at=event_result_at=0;event_message=NULL;event_keyboard=false;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));event_load();\n",
+                "}\n",
+                "#ifdef PORTABLE_NATIVE_CUSTODY_FENCE\n",
+                "#include \"PortableNativeCustody.h\"\n",
+                "#endif\n",
+                "static bool temporal_retained(void){\n",
+                "#ifdef PORTABLE_NATIVE_CUSTODY_FENCE\n",
+                " if(portable_adapter_retained())return true;\n",
+                "#endif\n",
+                " return event_initialized&&(event_files.retained||event_data_scope.retained);\n"
+              ]
+            },
+            {
+              "start": 90,
+              "old": [
+                "static bool temporal_retained(void){return event_initialized&&event_files.retained;}\n"
+              ],
+              "new": []
+            }
+          ]
+        },
+        {
+          "path": "Apps/spectrum_controls.inc",
+          "rationale": "Guarded native controls layout; default branch unchanged after preprocessing.",
+          "before_git_blob_sha1": "6b76350c41d75b1c330a269af3a7cecf901cb4bf",
+          "after_git_blob_sha1": "50a3b325978345d74827e9254369d8bed1f98335",
+          "hunks": [
+            {
+              "start": 7,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_SPECTRUM_NATIVE_UI\n",
+                "static void controls_move(int offset){\n",
+                " int maximum=spectrum_native_controls_max();\n",
+                " int next=clamp_int(offset,0,maximum);if(next!=controls_scroll){controls_scroll=next;dirty=true;}}\n",
+                "#else\n"
+              ]
+            },
+            {
+              "start": 8,
+              "old": [],
+              "new": [
+                "#endif\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/context_signal_library.inc",
+          "rationale": "Use PRIu32 for uint32 window counts on every ABI.",
+          "before_git_blob_sha1": "fbd9688cf0c5e67d3518187180369a517c50ec1a",
+          "after_git_blob_sha1": "9d3c0a6beecfb3eaa9c74493d369c18277bc6d9e",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 14,
+              "old": [
+                "#ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT\n"
+              ],
+              "new": [
+                "#if defined(PORTABLE_SPECTRUM_SHARED_TEXT_INPUT) || defined(PORTABLE_RF_SHARED_TEXT_INPUT)\n"
+              ]
+            },
+            {
+              "start": 40,
+              "old": [
+                "#ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT\n"
+              ],
+              "new": [
+                "#if defined(PORTABLE_SPECTRUM_SHARED_TEXT_INPUT) || defined(PORTABLE_RF_SHARED_TEXT_INPUT)\n"
+              ]
+            },
+            {
+              "start": 78,
+              "old": [
+                "   else snprintf(b,sizeof(b),\"%u WINDOWS / %s\",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?\"SETTINGS DIFFER\":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?\"BG READY\":\"TRAINED\");\n"
+              ],
+              "new": [
+                "   else snprintf(b,sizeof(b),\"%\" PRIu32 \" WINDOWS / %s\",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?\"SETTINGS DIFFER\":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?\"BG READY\":\"TRAINED\");\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/context_fingerprint_app.inc",
+          "rationale": "Do not notify or perform timing I/O after Contexts save retains custody.",
+          "before_git_blob_sha1": "8305abbecf7855cf084debae8d9a98df8d2f95d3",
+          "after_git_blob_sha1": "1872c35cb6c4a536756f2f8ffe09f5805b8d2314",
+          "hunks": [
+            {
+              "start": 142,
+              "old": [
+                "    if(!portable_contexts_models_save()){cfa_failed=true;notify(\"SHARED MODELS / RETRY SAVE\");return;}\n"
+              ],
+              "new": [
+                "    if(!portable_contexts_models_save()){cfa_failed=true;if(!temporal_retained())notify(\"SHARED MODELS / RETRY SAVE\");return;}\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "test/native_apps/rf_startup_contexts_test.c",
+          "rationale": "Model provisioned RTC acquisition with unset date; preserve retained-load no-later-I/O assertions; diagnostic output.",
+          "before_git_blob_sha1": "6c18a8f719062de7caf4bc2d9edc3ff21967c2eb",
+          "after_git_blob_sha1": "e70816f94b9ce442e0c3118bff91f3bd52355920",
+          "hunks": [
+            {
+              "start": 16,
+              "old": [],
+              "new": [
+                "/* The provisioned RTC may have an unset date, but acquisition succeeds. */\n",
+                "static bool fixture_rtc_read(void*c,twatch_rtc_time_v1*t){(void)c;memset(t,0,sizeof(*t));return true;}\n",
+                "static const twatch_rtc_api_v1 fixture_rtc={.api_version=2,.struct_size=sizeof(fixture_rtc),.read=fixture_rtc_read};\n"
+              ]
+            },
+            {
+              "start": 24,
+              "old": [],
+              "new": [
+                " else if(!strcmp(n,\"rtc.clock\")){assert(!release_failed);assert(v==2&&i==0);g->api=&fixture_rtc;}\n"
+              ]
+            },
+            {
+              "start": 33,
+              "old": [],
+              "new": [
+                " setbuf(stdout,NULL);\n"
+              ]
+            },
+            {
+              "start": 44,
+              "old": [],
+              "new": [
+                " printf(\"STARTUP retains=%u refusals=%u shared=%u failed=%u loaded=%u live=%u\\n\",retains,shared_refusals,shared_acquires,cfa_failed,cfa_loaded,appdata_live);\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "test/native_apps/rf_startup_dirty_checkpoint_test.c",
+          "rationale": "Model provisioned RTC acquisition with unset date; preserve dirty-record/checkpoint assertions; diagnostic output.",
+          "before_git_blob_sha1": "d07e7be39c4cc69349b68e8243286ba691233324",
+          "after_git_blob_sha1": "c47f5646013791f4882e3d60a35469f13a9dc9fe",
+          "hunks": [
+            {
+              "start": 17,
+              "old": [],
+              "new": [
+                "/* The provisioned RTC may have an unset date, but acquisition succeeds. */\n",
+                "static bool fixture_rtc_read(void*c,twatch_rtc_time_v1*t){(void)c;memset(t,0,sizeof(*t));return true;}\n",
+                "static const twatch_rtc_api_v1 fixture_rtc={.api_version=2,.struct_size=sizeof(fixture_rtc),.read=fixture_rtc_read};\n"
+              ]
+            },
+            {
+              "start": 25,
+              "old": [],
+              "new": [
+                " else if(!strcmp(n,\"rtc.clock\")){assert(v==2&&i==0);g->api=&fixture_rtc;}\n"
+              ]
+            },
+            {
+              "start": 34,
+              "old": [],
+              "new": [
+                " setbuf(stdout,NULL);\n"
+              ]
+            },
+            {
+              "start": 45,
+              "old": [],
+              "new": [
+                " printf(\"STARTUP retains=%u refusals=%u shared=%u failed=%u loaded=%u live=%u\\n\",retains,shared_refusals,shared_acquires,cfa_failed,cfa_loaded,appdata_live);\n"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "spectrum": {
+      "baseline_revision": "65bffc27f96088db3c2f76ee95ae812b223459f7",
+      "files": [
+        {
+          "path": "Apps/rf_application.inc",
+          "rationale": "Shared-input isolation and Home safety; native-capable plot dimensions and bounded228-burst history; legacy opt-out paths remain checked by executable fixtures.",
+          "before_git_blob_sha1": "31ec424a718cf4d6e3589e1ce3186ea8813e12e6",
+          "after_git_blob_sha1": "6c7dfc05722f179a360237c52044ec1efc12da47",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 38,
+              "old": [
+                "#define PLOT_W 228\n",
+                "#define PLOT_H (ui_height-74)\n"
+              ],
+              "new": [
+                "/* Plot coordinates are native pixels on the opt-in color canvas; paper keeps\n",
+                " * its established presentation. History remains 228 real bursts, independent\n",
+                " * of display width. Extra pixels are evaluated by the renderer, not by scaling\n",
+                " * a 240px framebuffer. The bounded history resolution is unchanged. */\n",
+                "#define RF_HISTORY_COLUMNS 228u\n",
+                "#define RF_NATIVE_STATUS_HEIGHT 36\n"
+              ]
+            },
+            {
+              "start": 41,
+              "old": [
+                "static int ui_height=240;\n"
+              ],
+              "new": [
+                "#ifdef PORTABLE_RF_NATIVE_CANVAS\n",
+                "#define RF_PLOT_MAX_W 1024\n",
+                "#define RF_PLOT_MAX_SIDE 1024\n",
+                "#else\n",
+                "#define RF_PLOT_MAX_W 228\n",
+                "#define RF_PLOT_MAX_SIDE 438\n",
+                "#endif\n",
+                "#define PLOT_W rf_plot_width\n",
+                "#define PLOT_H rf_plot_height\n",
+                "#define HISTORY_H (PLOT_H<RF_PLOT_MAX_H?PLOT_H:RF_PLOT_MAX_H)\n",
+                "static int ui_height=240,rf_plot_width=228,rf_plot_height=166;\n",
+                "static bool rf_native_canvas;\n"
+              ]
+            },
+            {
+              "start": 89,
+              "old": [
+                " uint8_t history[PLOT_W][RF_PLOT_MAX_H];\n"
+              ],
+              "new": [
+                " uint8_t history[RF_HISTORY_COLUMNS][RF_PLOT_MAX_H];\n"
+              ]
+            },
+            {
+              "start": 124,
+              "old": [
+                "static uint16_t spec_levels[PLOT_W],fall_levels[RF_PLOT_MAX_H],peak_levels[PLOT_W];\n",
+                "static int16_t spec_db[PLOT_W],fall_db[RF_PLOT_MAX_H];\n"
+              ],
+              "new": [
+                "static uint16_t spec_levels[RF_PLOT_MAX_W],fall_levels[RF_PLOT_MAX_SIDE],peak_levels[RF_PLOT_MAX_W];\n",
+                "static int16_t spec_db[RF_PLOT_MAX_W],fall_db[RF_PLOT_MAX_SIDE];\n"
+              ]
+            },
+            {
+              "start": 128,
+              "old": [
+                "static uint32_t history_times[PLOT_W];\n"
+              ],
+              "new": [
+                "static uint32_t history_times[RF_HISTORY_COLUMNS];\n"
+              ]
+            },
+            {
+              "start": 159,
+              "old": [],
+              "new": [
+                "static bool native_plot_page(void){return rf_native_canvas&&page==PAGE_MAIN&&started&&view<2;}\n",
+                "static int plot_screen_width(void){return rf_native_canvas?app->screen_width():240;}\n",
+                "static int plot_screen_height(void){return rf_native_canvas?app->screen_height():ui_height;}\n",
+                "static int header_x(int x){return native_plot_page()?(x>=188?plot_screen_width()-240+x:x*(plot_screen_width()-55)/185):x;}\n",
+                "static int footer_y(void){return native_plot_page()?plot_screen_height():ui_height;}\n"
+              ]
+            },
+            {
+              "start": 161,
+              "old": [
+                "static int ui_x(int x){return x*ui_scale()+(paper?0:(app->screen_width()-240)/2);}\n",
+                "static int ui_y(int y){return paper?(ui_stretched()?y*app->screen_height()/240:y*ui_scale()):y+(app->screen_height()-240)/2;}\n",
+                "static int ui_unx(int x){return paper?x/ui_scale():utility_color_x(app,x);}\n",
+                "static int ui_uny(int y){return paper?(ui_stretched()?y*240/app->screen_height():y/ui_scale()):utility_color_y(app,y);}\n"
+              ],
+              "new": [
+                "/* Legacy page models retain their logical control coordinates, but each\n",
+                " * primitive is laid out directly on the native surface. No glyph bitmap or\n",
+                " * finished page is enlarged. Controls use extra height as scrollable space. */\n",
+                "static int native_page_height(void){return page==PAGE_CONTROLS?ui_height:240;}\n",
+                "static int native_edge(int value,int physical,int logical){return value>=0?(value*physical+logical-1)/logical:value*physical/logical;}\n",
+                "static int ui_x(int x){if(rf_native_canvas)return native_plot_page()?x:native_edge(x,app->screen_width(),240);return x*ui_scale()+(paper?0:(app->screen_width()-240)/2);}\n",
+                "static int ui_y(int y){if(rf_native_canvas)return native_plot_page()?y:native_edge(y,app->screen_height(),native_page_height());return paper?(ui_stretched()?y*app->screen_height()/240:y*ui_scale()):y+(app->screen_height()-240)/2;}\n",
+                "static int ui_unx(int x){if(rf_native_canvas)return x<0||x>=app->screen_width()?-1:native_plot_page()?x:x*240/app->screen_width();return paper?x/ui_scale():utility_color_x(app,x);}\n",
+                "static int ui_uny(int y){if(rf_native_canvas)return y<0||y>=app->screen_height()?-1:native_plot_page()?y:y*native_page_height()/app->screen_height();return paper?(ui_stretched()?y*240/app->screen_height():y/ui_scale()):utility_color_y(app,y);}\n",
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                "static unsigned native_face(unsigned face){return face;}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 167,
+              "old": [],
+              "new": [
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int l=ui_x(x),top=ui_y(y);portable_nova_native_fill(l,top,ui_x(x+w)-l,ui_y(y+h)-top,c);return;}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 175,
+              "old": [],
+              "new": [
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int l=ui_x(x),top=ui_y(y);int radius=native_plot_page()?r:r*app->screen_width()/240;portable_nova_native_round(l,top,ui_x(x+w)-l,ui_y(y+h)-top,radius,c);return;}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 183,
+              "old": [],
+              "new": [
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int n=portable_nova_measure(native_face(face),s);return native_plot_page()?n:(n*240+app->screen_width()-1)/app->screen_width();}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 191,
+              "old": [],
+              "new": [
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int l=ui_x(x);portable_nova_native_text(native_face(face),l,ui_y(y),ui_x(x+w)-l,s,c);return;}\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 200,
+              "old": [
+                "static void pill(int x,int y,int w,int h,const char *s,bool selected){if(paper){fill(x,y,w,h,NOVA_WHITE);if(!selected)fill(x+1,y+1,w-2,h-2,0);center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0:NOVA_WHITE);return;}round_rect(x,y,w,h,h/2,selected?NOVA_CYAN:NOVA_DIM);if(!selected)round_rect(x+1,y+1,w-2,h-2,(h-2)/2,0);center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0x001418u:NOVA_CYAN);}\n"
+              ],
+              "new": [
+                "static void pill(int x,int y,int w,int h,const char *s,bool selected){if(paper){fill(x,y,w,h,NOVA_WHITE);if(!selected)fill(x+1,y+1,w-2,h-2,0);center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0:NOVA_WHITE);return;}round_rect(x,y,w,h,h/2,selected?NOVA_CYAN:NOVA_DIM);if(!selected)round_rect(x+1,y+1,w-2,h-2,(h-2)/2,0);\n",
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(rf_native_canvas){int l=ui_x(x+2),r=ui_x(x+w-2),top=ui_y(y),bottom=ui_y(y+h),n=portable_nova_measure(1,s);portable_nova_native_text(1,l+(n<r-l?(r-l-n)/2:0),top+(bottom-top-15)/2-2,r-l,s,selected?0x001418u:NOVA_CYAN);return;}\n",
+                "#endif\n",
+                " center(1,x+2,y+(h-15)/2-2,w-4,s,selected?0x001418u:NOVA_CYAN);}\n"
+              ]
+            },
+            {
+              "start": 350,
+              "old": [
+                "static void clear_analysis(void){signature_display_reset();memset(history,0,sizeof(history));memset(spec_levels,0,sizeof(spec_levels));memset(fall_levels,0,sizeof(fall_levels));memset(peak_levels,0,sizeof(peak_levels));memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));for(unsigned i=0;i<PLOT_W;i++)spec_db[i]=-12000;for(unsigned i=0;i<(unsigned)PLOT_H;i++)fall_db[i]=-12000;history_next=history_count=0;memset(history_times,0,sizeof(history_times));recorded_transform=0;}\n"
+              ],
+              "new": [
+                "static void clear_analysis(void){signature_display_reset();memset(history,0,sizeof(history));memset(spec_levels,0,sizeof(spec_levels));memset(fall_levels,0,sizeof(fall_levels));memset(peak_levels,0,sizeof(peak_levels));memset(label_active,0,sizeof(label_active));memset(level_valid,0,sizeof(level_valid));for(unsigned i=0;i<(unsigned)PLOT_W;i++)spec_db[i]=-12000;for(unsigned i=0;i<(unsigned)PLOT_H;i++)fall_db[i]=-12000;history_next=history_count=0;memset(history_times,0,sizeof(history_times));recorded_transform=0;}\n"
+              ]
+            },
+            {
+              "start": 382,
+              "old": [
+                " for(unsigned i=0;i<PLOT_W;i++){unsigned decay=peak_levels[i]>196?peak_levels[i]-196:0;peak_levels[i]=spec_levels[i]>decay?spec_levels[i]:(uint16_t)decay;}\n",
+                " for(unsigned y=0;y<(unsigned)PLOT_H;y++)history[history_next][y]=(uint8_t)((uint32_t)fall_levels[y]*255/32767);\n",
+                " history_times[history_next]=burst_at;history_next=(history_next+1)%PLOT_W;if(history_count<PLOT_W)history_count++;\n"
+              ],
+              "new": [
+                " for(unsigned i=0;i<(unsigned)PLOT_W;i++){unsigned decay=peak_levels[i]>196?peak_levels[i]-196:0;peak_levels[i]=spec_levels[i]>decay?spec_levels[i]:(uint16_t)decay;}\n",
+                " for(unsigned y=0;y<(unsigned)HISTORY_H;y++){\n",
+                "  unsigned row=HISTORY_H>1?y*(unsigned)(PLOT_H-1)/(unsigned)(HISTORY_H-1):0;\n",
+                "  history[history_next][y]=(uint8_t)((uint32_t)fall_levels[row]*255/32767);\n",
+                " }\n",
+                " history_times[history_next]=burst_at;history_next=(history_next+1)%RF_HISTORY_COLUMNS;if(history_count<RF_HISTORY_COLUMNS)history_count++;\n"
+              ]
+            },
+            {
+              "start": 469,
+              "old": [
+                " round_rect(213,14,24,24,12,NOVA_DIM);round_rect(214,15,22,22,11,0);round_rect(220,21,10,10,5,NOVA_CYAN);round_rect(222,23,6,6,3,0);\n",
+                " for(unsigned i=0;i<4;i++){int x=i==0?224:i==1?233:i==2?224:215,y=i==0?17:i==1?25:i==2?33:25;fill(x,y,3,3,NOVA_CYAN);}\n"
+              ],
+              "new": [
+                " int offset=header_x(213)-213;\n",
+                " round_rect(213+offset,14,24,24,12,NOVA_DIM);round_rect(214+offset,15,22,22,11,0);round_rect(220+offset,21,10,10,5,NOVA_CYAN);round_rect(222+offset,23,6,6,3,0);\n",
+                " for(unsigned i=0;i<4;i++){int x=i==0?224:i==1?233:i==2?224:215,y=i==0?17:i==1?25:i==2?33:25;fill(x+offset,y,3,3,NOVA_CYAN);}\n"
+              ]
+            },
+            {
+              "start": 477,
+              "old": [
+                " tab(4,51,\"SPEC\",view==0);tab(58,50,\"FALL\",view==1);tab(111,74,\"MONITOR\",view==2);\n",
+                " if(view!=2){round_rect(188,14,22,24,11,prefs.show_labels?NOVA_CYAN:NOVA_DIM);if(!prefs.show_labels)round_rect(189,15,20,22,10,0);uint32_t c=prefs.show_labels?0x001418u:NOVA_CYAN;line(193,20,201,20,c);line(201,20,206,26,c);line(206,26,200,32,c);line(200,32,193,25,c);line(193,25,193,20,c);fill(195,22,2,2,c);}\n"
+              ],
+              "new": [
+                " tab(header_x(4),header_x(55)-header_x(4),\"SPEC\",view==0);tab(header_x(58),header_x(108)-header_x(58),\"FALL\",view==1);tab(header_x(111),header_x(185)-header_x(111),\"MONITOR\",view==2);\n",
+                " if(view!=2){int offset=header_x(188)-188;round_rect(188+offset,14,22,24,11,prefs.show_labels?NOVA_CYAN:NOVA_DIM);if(!prefs.show_labels)round_rect(189+offset,15,20,22,10,0);uint32_t c=prefs.show_labels?0x001418u:NOVA_CYAN;line(193+offset,20,201+offset,20,c);line(201+offset,20,206+offset,26,c);line(206+offset,26,200+offset,32,c);line(200+offset,32,193+offset,25,c);line(193+offset,25,193+offset,20,c);fill(195+offset,22,2,2,c);}\n"
+              ]
+            },
+            {
+              "start": 504,
+              "old": [],
+              "new": [
+                "/* Context status owns a separate strip on the native canvas. Its background\n",
+                " * and glyph bounds never intersect the data/axis rectangle. Paper is unchanged. */\n",
+                "static void draw_context_status(void){\n",
+                " int x=PLOT_X+(rf_native_canvas?2:5),y=PLOT_Y+PLOT_H+(rf_native_canvas?1:-55);\n",
+                " int width=rf_native_canvas?PLOT_W-4:218;char detected[48];\n",
+                " if(cfa_room.slot>=0)snprintf(detected,sizeof(detected),\"ROOM %.16s %u%%\",cfa_name(CF_ROOM,\"UNKNOWN\"),(unsigned)(cfa_room.confidence*100.f));else snprintf(detected,sizeof(detected),\"ROOM UNKNOWN\");\n",
+                " fill(x,y,width,17,0);text(1,x+2,y,width-4,detected,NOVA_WHITE);\n",
+                " bool recognized=cfa_event.slot>=0;\n",
+                " if(recognized)snprintf(detected,sizeof(detected),\"EVENT %.16s %u%%\",cfa_name(CF_EVENT,\"UNKNOWN\"),(unsigned)(cfa_event.confidence*100.f));\n",
+                " else if(rf_native_canvas&&event_slot>=0&&!event_match.complete){snprintf(detected,sizeof(detected),\"EVENT %.16s %u%%\",signatures[event_slot].name,event_confidence);recognized=true;}\n",
+                " else snprintf(detected,sizeof(detected),\"EVENT UNKNOWN\");\n",
+                " fill(x,y+18,width,17,0);text(1,x+2,y+18,width-4,detected,recognized?0x3dff9au:NOVA_CAP);\n",
+                "}\n"
+              ]
+            },
+            {
+              "start": 505,
+              "old": [
+                " if(view==1){for(unsigned x=0;x<history_count;x++){unsigned source=(history_next+PLOT_W-history_count+x)%PLOT_W;unsigned at=PLOT_W-history_count+x;unsigned alpha=at<12?at*255/12:at>PLOT_W-13?(PLOT_W-1-at)*255/12:255;for(unsigned y=0;y<(unsigned)PLOT_H;y++)fill(PLOT_X+(int)at,PLOT_Y+(int)y,1,1,fade(palette[history[source][y]],alpha));}draw_axes(true,true);char span[48];unsigned first=(history_next+PLOT_W-history_count)%PLOT_W,last=(history_next+PLOT_W-1u)%PLOT_W;uint32_t elapsed=history_count>1?history_times[last]-history_times[first]:0;snprintf(span,sizeof(span),\"%u BURSTS / %u.%u s\",history_count,elapsed/1000u,elapsed%1000u/100u);char high_name[20];short_freq(dsp_config.high_hz,high_name);int span_left=text_width(1,high_name)+10;fill(PLOT_X+span_left,PLOT_Y+PLOT_H-18,PLOT_W-span_left,18,0);text(1,PLOT_X+span_left+2,PLOT_Y+PLOT_H-18,PLOT_W-span_left-4,span,NOVA_CAP);}\n"
+              ],
+              "new": [
+                " if(view==1){\n",
+                "  /* Time is a 228-burst window on every screen. Native columns map directly to\n",
+                "   * retained samples; frequency rows are sampled separately from the FFT. */\n",
+                "  for(int x=0;x<PLOT_W;x++){\n",
+                "   unsigned age=(unsigned)(PLOT_W-1-x)*RF_HISTORY_COLUMNS/(unsigned)PLOT_W;\n",
+                "   if(age>=history_count)continue;\n",
+                "   unsigned source=(history_next+RF_HISTORY_COLUMNS-1u-age)%RF_HISTORY_COLUMNS;\n",
+                "   unsigned alpha=x<12?(unsigned)x*255/12:x>PLOT_W-13?(unsigned)(PLOT_W-1-x)*255/12:255;\n",
+                "   for(int y=0;y<PLOT_H;y++){\n",
+                "    unsigned row=PLOT_H>1?(unsigned)y*(unsigned)(HISTORY_H-1)/(unsigned)(PLOT_H-1):0;\n",
+                "    fill(PLOT_X+x,PLOT_Y+y,1,1,fade(palette[history[source][row]],alpha));\n",
+                "   }\n",
+                "  }\n",
+                "  draw_axes(true,true);char span[48];unsigned first=(history_next+RF_HISTORY_COLUMNS-history_count)%RF_HISTORY_COLUMNS,last=(history_next+RF_HISTORY_COLUMNS-1u)%RF_HISTORY_COLUMNS;uint32_t elapsed=history_count>1?history_times[last]-history_times[first]:0;snprintf(span,sizeof(span),\"%u BURSTS / %\" PRIu32 \".%\" PRIu32 \" s\",history_count,elapsed/1000u,elapsed%1000u/100u);char high_name[20];short_freq(dsp_config.high_hz,high_name);int span_left=text_width(1,high_name)+10;fill(PLOT_X+span_left,PLOT_Y+PLOT_H-18,PLOT_W-span_left,18,0);text(1,PLOT_X+span_left+2,PLOT_Y+PLOT_H-18,PLOT_W-span_left-4,span,NOVA_CAP);\n",
+                " }\n"
+              ]
+            },
+            {
+              "start": 522,
+              "old": [
+                " if(event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),\"%.16s %u%%\",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}\n",
+                " char detected[48];\n",
+                " if(cfa_room.slot>=0)snprintf(detected,sizeof(detected),\"ROOM %.16s %u%%\",cfa_name(CF_ROOM,\"UNKNOWN\"),(unsigned)(cfa_room.confidence*100.f));else snprintf(detected,sizeof(detected),\"ROOM UNKNOWN\");\n",
+                " fill(PLOT_X+5,PLOT_Y+PLOT_H-55,218,17,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-55,214,detected,NOVA_WHITE);\n",
+                " if(cfa_event.slot>=0)snprintf(detected,sizeof(detected),\"EVENT %.16s %u%%\",cfa_name(CF_EVENT,\"UNKNOWN\"),(unsigned)(cfa_event.confidence*100.f));else snprintf(detected,sizeof(detected),\"EVENT UNKNOWN\");\n",
+                " fill(PLOT_X+5,PLOT_Y+PLOT_H-37,218,17,0);text(1,PLOT_X+7,PLOT_Y+PLOT_H-37,214,detected,cfa_event.slot>=0?0x3dff9au:NOVA_CAP);\n"
+              ],
+              "new": [
+                " if(!rf_native_canvas&&event_slot>=0&&!event_match.complete){char event_name[32];snprintf(event_name,sizeof(event_name),\"%.16s %u%%\",signatures[event_slot].name,event_confidence);fill(PLOT_X+35,PLOT_Y+PLOT_H-37,190,18,0);text(1,PLOT_X+37,PLOT_Y+PLOT_H-37,185,event_name,0x3dff9au);}\n",
+                " draw_context_status();\n"
+              ]
+            },
+            {
+              "start": 599,
+              "old": [
+                " text(1,8,ui_height-22,140,label,NOVA_CYAN);text(1,183,ui_height-22,51,running?\"FREEZE\":\"EXIT\",NOVA_CAP);\n",
+                " if(pending_save||signature_pending||event_files.pending>=0)fill(150,ui_height-15,4,4,0xff6a5f);\n"
+              ],
+              "new": [
+                " text(1,8,footer_y()-22,140,label,NOVA_CYAN);text(1,native_plot_page()?plot_screen_width()-57:183,footer_y()-22,51,running?\"FREEZE\":\"EXIT\",NOVA_CAP);\n",
+                " if(pending_save||signature_pending||event_files.pending>=0)fill(150,footer_y()-15,4,4,0xff6a5f);\n"
+              ]
+            },
+            {
+              "start": 628,
+              "old": [
+                "static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return ui_height-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}\n"
+              ],
+              "new": [
+                "static int toast_top(void){if(page==PAGE_MAIN&&view<2&&started)return footer_y()-42;return page==PAGE_EVENT_LABEL?177:page==PAGE_EVENTS?28:page==PAGE_EVENT_CAPTURE?58:page==PAGE_EVENT_EXAMPLES?32:198;}\n",
+                "\n",
+                "#ifdef PORTABLE_RF_SHARED_CANVAS\n",
+                "extern bool portable_sdr_lifecycle_start(void);\n",
+                "extern bool portable_sdr_canvas_refresh_geometry(void);\n",
+                "/* Geometry is reported by the logical capability. Resize only bounded view\n",
+                " * state; saved records, DSP state and the 228-burst history remain owned here. */\n",
+                "static int rf_view_width,rf_view_height;\n",
+                "static bool rf_refresh_logical_geometry(void){\n",
+                " if(!portable_sdr_canvas_refresh_geometry())return false;\n",
+                " int width=app->screen_width(),height=app->screen_height();\n",
+                " if(width==rf_view_width&&height==rf_view_height)return true;\n",
+                " if(width<160||width>1024||height<160||height>1024)return false;\n",
+                " int old_width=PLOT_W,old_rows=HISTORY_H;\n",
+                " int new_width=width-12,new_height=height-74-RF_NATIVE_STATUS_HEIGHT;\n",
+                " int new_rows=new_height<RF_PLOT_MAX_H?new_height:RF_PLOT_MAX_H;\n",
+                " if(new_width<1||new_width>RF_PLOT_MAX_W||new_height<1||new_height>RF_PLOT_MAX_SIDE)return false;\n",
+                " if(rf_bulk&&rf_view_width){\n",
+                "  uint8_t row[RF_PLOT_MAX_H];\n",
+                "  if(old_rows!=new_rows)for(unsigned column=0;column<RF_HISTORY_COLUMNS;column++){\n",
+                "   memcpy(row,history[column],(size_t)old_rows);\n",
+                "   for(int y=0;y<new_rows;y++)history[column][y]=row[new_rows>1?y*(old_rows-1)/(new_rows-1):0];\n",
+                "  }\n",
+                "  uint16_t peaks[RF_PLOT_MAX_W];memcpy(peaks,peak_levels,(size_t)old_width*sizeof(*peaks));\n",
+                "  for(int x=0;x<new_width;x++)peak_levels[x]=peaks[new_width>1?x*(old_width-1)/(new_width-1):0];\n",
+                " }\n",
+                " rf_view_width=width;rf_view_height=height;\n",
+                " rf_plot_width=new_width;rf_plot_height=new_height;\n",
+                " ui_height=(height*240+width-1)/width;if(ui_height<240)ui_height=240;\n",
+                " if(rf_bulk&&spectrum.transforms){\n",
+                "  const uint32_t *values=cfa_background()?filtered_amplitude:spectrum.amplitude_q24;\n",
+                "  rf_dsp_resample_values(&spectrum,values,spec_levels,spec_db,PLOT_W);\n",
+                "  rf_dsp_resample_values(&spectrum,values,fall_levels,fall_db,PLOT_H);\n",
+                " }\n",
+                " contact_down=contact_plot=contact_drag=contact_moved=contact_controls=false;\n",
+                " paper_contact=(springboard_contact){0};\n",
+                " controls_move(controls_scroll);\n",
+                " dirty=urgent_draw=true;utility_frame_reset();return true;\n",
+                "}\n",
+                "#endif\n",
+                "\n"
+              ]
+            },
+            {
+              "start": 892,
+              "old": [
+                " if(x<0||y<0||x>=240||y>=(ui_stretched()?240:ui_height))return false;\n"
+              ],
+              "new": [
+                " if(x<0||y<0||x>=(native_plot_page()?plot_screen_width():240)||y>=(native_plot_page()?plot_screen_height():rf_native_canvas?native_page_height():ui_stretched()?240:ui_height))return false;\n"
+              ]
+            },
+            {
+              "start": 904,
+              "old": [
+                " if(y>=8&&y<42){if(x>=4&&x<55){view=0;list_scroll=0;lab_edit=false;}else if(x>=58&&x<108){view=1;list_scroll=0;lab_edit=false;}else if(x>=111&&x<185){view=2;list_scroll=0;lab_edit=false;}else if(x>=188&&x<210&&view!=2){if(load_errors&1u)notify(\"RETRY STORAGE FIRST\");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=213&&x<240){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}\n"
+              ],
+              "new": [
+                " if(y>=8&&y<42){if(x>=header_x(4)&&x<header_x(55)){view=0;list_scroll=0;lab_edit=false;}else if(x>=header_x(58)&&x<header_x(108)){view=1;list_scroll=0;lab_edit=false;}else if(x>=header_x(111)&&x<header_x(185)){view=2;list_scroll=0;lab_edit=false;}else if(x>=header_x(188)&&x<header_x(210)&&view!=2){if(load_errors&1u)notify(\"RETRY STORAGE FIRST\");else{prefs.show_labels=!prefs.show_labels;pending_save|=1;persist();}}else if(x>=header_x(213)&&x<header_x(240)){list_scroll=0;set_page(PAGE_CONTROLS);}if(page==PAGE_MAIN)set_page(PAGE_MAIN);dirty=true;return false;}\n"
+              ]
+            },
+            {
+              "start": 908,
+              "old": [
+                " if(y>=ui_height-24&&y<ui_height){if(x>=6&&x<150)*toggle_requested=true;else if(x>=154&&x<240){if(running)*freeze_requested=true;else return request_root_exit();}}return false;\n"
+              ],
+              "new": [
+                " if(y>=footer_y()-24&&y<footer_y()){if(x>=6&&x<(native_plot_page()?plot_screen_width()-90:150))*toggle_requested=true;else if(x>=(native_plot_page()?plot_screen_width()-86:154)&&x<(native_plot_page()?plot_screen_width():240)){if(running)*freeze_requested=true;else return request_root_exit();}}return false;\n"
+              ]
+            },
+            {
+              "start": 951,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_CANVAS\n",
+                " if(!portable_sdr_lifecycle_start())return;\n",
+                " rf_view_width=rf_view_height=0;\n",
+                "#endif\n"
+              ]
+            },
+            {
+              "start": 954,
+              "old": [],
+              "new": [
+                " #if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<160||app->screen_height()>1024)return;\n",
+                "#else\n"
+              ]
+            },
+            {
+              "start": 955,
+              "old": [
+                " paper=paper_presentation_get();ui_height=paper?app->screen_height()/(app->screen_width()/240):240;if(ui_height<240||ui_height>512)return;\n"
+              ],
+              "new": [
+                "#endif\n",
+                " paper=paper_presentation_get();if(paper&&app->screen_width()<240)return;ui_height=paper?app->screen_height()/(app->screen_width()/240):240;if(ui_height<240||ui_height>512)return;\n",
+                " rf_native_canvas=false;\n",
+                "#if defined(PORTABLE_RF_NATIVE_CANVAS)&&defined(PORTABLE_NOVA_UI)\n",
+                " rf_native_canvas=!paper;\n",
+                " if(rf_native_canvas){ui_height=(app->screen_height()*240+app->screen_width()-1)/app->screen_width();if(ui_height<240)ui_height=240;}\n",
+                "#endif\n",
+                " rf_plot_width=rf_native_canvas?app->screen_width()-12:228;\n",
+                " rf_plot_height=rf_native_canvas?app->screen_height()-74-RF_NATIVE_STATUS_HEIGHT:ui_height-74;\n",
+                " if(PLOT_W<1||PLOT_H<1||PLOT_W>RF_PLOT_MAX_W||PLOT_H>RF_PLOT_MAX_SIDE)return;\n"
+              ]
+            },
+            {
+              "start": 1018,
+              "old": [],
+              "new": [
+                "#ifdef PORTABLE_RF_SHARED_CANVAS\n",
+                "  if(!rf_refresh_logical_geometry())break;\n",
+                "#endif\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/rf_controls.inc",
+          "rationale": "Portable uint32 formatting; clamp negative scroll overflow and avoid zero-divisor when controls fit.",
+          "before_git_blob_sha1": "ccf605a26279dd9cb2366eb776c1631b02a09ead",
+          "after_git_blob_sha1": "f7c78917a60cc122484049d8f1fedb04585c7b71",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 6,
+              "old": [
+                "#define CONTROLS_MAX_SCROLL (CONTROLS_COUNT*CONTROLS_ROW_HEIGHT-(CONTROLS_BOTTOM-CONTROLS_TOP))\n"
+              ],
+              "new": [
+                "#define CONTROLS_OVERFLOW (CONTROLS_COUNT*CONTROLS_ROW_HEIGHT-(CONTROLS_BOTTOM-CONTROLS_TOP))\n",
+                "#define CONTROLS_MAX_SCROLL (CONTROLS_OVERFLOW>0?CONTROLS_OVERFLOW:0)\n"
+              ]
+            },
+            {
+              "start": 13,
+              "old": [
+                " switch(setting){case 13:case 12:pill(110,y+4,122,40,\"OPEN\",false);return;case 1:snprintf(value,sizeof(value),\"%u.%uM\",prefs.low_hz/1000000u,prefs.low_hz%1000000u/100000u);break;case 2:snprintf(value,sizeof(value),\"%u.%uM\",dsp_config.high_hz/1000000u,dsp_config.high_hz%1000000u/100000u);break;case 6:snprintf(value,sizeof(value),\"%s\",palette_names[prefs.palette]);break;case 7:snprintf(value,sizeof(value),\"%+d dB\",prefs.gain_db);break;case 8:snprintf(value,sizeof(value),\"%s\",window_names[prefs.window]);break;case 9:snprintf(value,sizeof(value),\"%u\",prefs.fft_size);break;case 10:snprintf(value,sizeof(value),\"%d dB\",prefs.threshold_db);break;default:if(pending_save){pill(110,y+4,55,40,\"RETRY\",false);pill(171,y+4,61,40,storage_discard_confirm?\"SURE\":\"DISCARD\",false);}else pill(110,y+4,122,40,(signature_pending||event_files.pending>=0)?\"RETRY SAVE\":(store_message||signature_errors||event_files.ready!=3)?\"RETRY\":storage?\"SAVED\":\"RETRY\",false);return;}\n"
+              ],
+              "new": [
+                " switch(setting){case 13:case 12:pill(110,y+4,122,40,\"OPEN\",false);return;case 1:snprintf(value,sizeof(value),\"%\" PRIu32 \".%\" PRIu32 \"M\",prefs.low_hz/1000000u,prefs.low_hz%1000000u/100000u);break;case 2:snprintf(value,sizeof(value),\"%\" PRIu32 \".%\" PRIu32 \"M\",dsp_config.high_hz/1000000u,dsp_config.high_hz%1000000u/100000u);break;case 6:snprintf(value,sizeof(value),\"%s\",palette_names[prefs.palette]);break;case 7:snprintf(value,sizeof(value),\"%+d dB\",prefs.gain_db);break;case 8:snprintf(value,sizeof(value),\"%s\",window_names[prefs.window]);break;case 9:snprintf(value,sizeof(value),\"%u\",prefs.fft_size);break;case 10:snprintf(value,sizeof(value),\"%d dB\",prefs.threshold_db);break;default:if(pending_save){pill(110,y+4,55,40,\"RETRY\",false);pill(171,y+4,61,40,storage_discard_confirm?\"SURE\":\"DISCARD\",false);}else pill(110,y+4,122,40,(signature_pending||event_files.pending>=0)?\"RETRY SAVE\":(store_message||signature_errors||event_files.ready!=3)?\"RETRY\":storage?\"SAVED\":\"RETRY\",false);return;}\n"
+              ]
+            },
+            {
+              "start": 22,
+              "old": [
+                " text(0,12,7,216,\"CONTROLS\",NOVA_CYAN);char name[48];snprintf(name,sizeof(name),\"RF %uM / RECEIVER SETTINGS >\",sample_rate/1000000u);text(1,12,27,220,name,NOVA_CAP);\n"
+              ],
+              "new": [
+                " text(0,12,7,216,\"CONTROLS\",NOVA_CYAN);char name[48];snprintf(name,sizeof(name),\"RF %\" PRIu32 \"M / RECEIVER SETTINGS >\",sample_rate/1000000u);text(1,12,27,220,name,NOVA_CAP);\n"
+              ]
+            },
+            {
+              "start": 24,
+              "old": [
+                " int track=CONTROLS_BOTTOM-CONTROLS_TOP,thumb=track*track/(CONTROLS_COUNT*CONTROLS_ROW_HEIGHT);fill(236,CONTROLS_TOP,2,track,NOVA_LINE);fill(236,CONTROLS_TOP+controls_scroll*(track-thumb)/CONTROLS_MAX_SCROLL,2,thumb,NOVA_CYAN);\n"
+              ],
+              "new": [
+                " int track=CONTROLS_BOTTOM-CONTROLS_TOP,thumb=CONTROLS_MAX_SCROLL?track*track/(CONTROLS_COUNT*CONTROLS_ROW_HEIGHT):track;fill(236,CONTROLS_TOP,2,track,NOVA_LINE);fill(236,CONTROLS_TOP+(CONTROLS_MAX_SCROLL?controls_scroll*(track-thumb)/CONTROLS_MAX_SCROLL:0),2,thumb,NOVA_CYAN);\n"
+              ]
+            },
+            {
+              "start": 64,
+              "old": [
+                " switch(field){case 0:snprintf(out,32,\"%u.%03u MHz\",i->lo_hz/1000000u,i->lo_hz%1000000u/1000u);return;case 1:snprintf(out,32,\"%u MSa/s\",i->sample_rate_hz/1000000u);return;case 2:snprintf(out,32,\"%u MHz\",i->width_hz/1000000u);return;case 3:value=i->raw_gain;break;case 4:value=i->rf_gain;break;case 5:value=i->bb_gain;break;case 6:value=i->filter&63u;break;case 7:value=(i->filter>>8)&63u;break;case 8:case 9:case 10:case 11:value=i->dc[field-8];break;case 12:case 13:value=i->iq_correction==RF_RAW_AUTO?RF_RAW_AUTO:field==12?i->iq_correction&31u:(i->iq_correction>>8)&63u;break;case 14:snprintf(out,32,\"RESTORE\");return;case 15:snprintf(out,32,\"RESTORE SAVED\");return;default:snprintf(out,32,\"NOMINAL / RAW\");return;}\n",
+                " if(value==RF_RAW_AUTO)snprintf(out,32,\"AUTO\");else snprintf(out,32,\"%u RAW\",value);\n"
+              ],
+              "new": [
+                " switch(field){case 0:snprintf(out,32,\"%\" PRIu32 \".%03\" PRIu32 \" MHz\",i->lo_hz/1000000u,i->lo_hz%1000000u/1000u);return;case 1:snprintf(out,32,\"%\" PRIu32 \" MSa/s\",i->sample_rate_hz/1000000u);return;case 2:snprintf(out,32,\"%\" PRIu32 \" MHz\",i->width_hz/1000000u);return;case 3:value=i->raw_gain;break;case 4:value=i->rf_gain;break;case 5:value=i->bb_gain;break;case 6:value=i->filter&63u;break;case 7:value=(i->filter>>8)&63u;break;case 8:case 9:case 10:case 11:value=i->dc[field-8];break;case 12:case 13:value=i->iq_correction==RF_RAW_AUTO?RF_RAW_AUTO:field==12?i->iq_correction&31u:(i->iq_correction>>8)&63u;break;case 14:snprintf(out,32,\"RESTORE\");return;case 15:snprintf(out,32,\"RESTORE SAVED\");return;default:snprintf(out,32,\"NOMINAL / RAW\");return;}\n",
+                " if(value==RF_RAW_AUTO)snprintf(out,32,\"AUTO\");else snprintf(out,32,\"%\" PRIu32 \" RAW\",value);\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/rf_signature_app.inc",
+          "rationale": "Portable uint32 frame-count formatting; no signature model change.",
+          "before_git_blob_sha1": "2939cf9dacd6f3140d77c18782d76e16e69b3b97",
+          "after_git_blob_sha1": "25c23a29dac597798f685b7dd884c12b86f2471f",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 129,
+              "old": [
+                " if(signature_goal)snprintf(status,sizeof(status),\"%s ROOM %u / %u\",running?\"SAMPLING\":\"PAUSED\",signature_capture.frames,signature_goal);\n"
+              ],
+              "new": [
+                " if(signature_goal)snprintf(status,sizeof(status),\"%s ROOM %\" PRIu32 \" / %u\",running?\"SAMPLING\":\"PAUSED\",signature_capture.frames,signature_goal);\n"
+              ]
+            },
+            {
+              "start": 140,
+              "old": [
+                "  for(unsigned row=0;row<2;row++){unsigned slot=signature_scroll+row;if(slot>=RF_SIGNATURE_SLOTS)break;int y=107+(int)row*42;rf_signature *s=&signatures[slot];char label[40];snprintf(label,sizeof(label),\"%u %.16s\",slot+1,signature_errors&(1u<<slot)?\"UNREAD\":(signature_pending&(1u<<slot))&&!s->kind?\"DELETE UNSAVED\":s->kind?s->name:\"EMPTY\");text(1,14,y,151,label,NOVA_WHITE);snprintf(label,sizeof(label),s->kind?\"%s / %u FRAMES\":\"TAP + TO CAPTURE\",s->kind==1?\"ROOM\":\"EVENT\",s->frames);text(1,14,y+17,153,label,NOVA_CAP);if(s->kind==1)pill(174,y,54,31,\"USE\",signature_mode==2&&manual_room==(int)slot);else if(s->kind==2)text(1,177,y+8,49,event_slot==(int)slot?\"MATCH\":\"EDIT\",NOVA_CYAN);}\n"
+              ],
+              "new": [
+                "  for(unsigned row=0;row<2;row++){unsigned slot=signature_scroll+row;if(slot>=RF_SIGNATURE_SLOTS)break;int y=107+(int)row*42;rf_signature *s=&signatures[slot];char label[40];snprintf(label,sizeof(label),\"%u %.16s\",slot+1,signature_errors&(1u<<slot)?\"UNREAD\":(signature_pending&(1u<<slot))&&!s->kind?\"DELETE UNSAVED\":s->kind?s->name:\"EMPTY\");text(1,14,y,151,label,NOVA_WHITE);snprintf(label,sizeof(label),s->kind?\"%s / %\" PRIu32 \" FRAMES\":\"TAP + TO CAPTURE\",s->kind==1?\"ROOM\":\"EVENT\",s->frames);text(1,14,y+17,153,label,NOVA_CAP);if(s->kind==1)pill(174,y,54,31,\"USE\",signature_mode==2&&manual_room==(int)slot);else if(s->kind==2)text(1,177,y+8,49,event_slot==(int)slot?\"MATCH\":\"EDIT\",NOVA_CYAN);}\n"
+              ]
+            },
+            {
+              "start": 149,
+              "old": [
+                " char detail[40];rf_signature *s=&signatures[signature_slot];snprintf(detail,sizeof(detail),\"%u SAVED FRAMES\",s->frames);center(1,12,120,216,detail,NOVA_CAP);\n"
+              ],
+              "new": [
+                " char detail[40];rf_signature *s=&signatures[signature_slot];snprintf(detail,sizeof(detail),\"%\" PRIu32 \" SAVED FRAMES\",s->frames);center(1,12,120,216,detail,NOVA_CAP);\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/rf_temporal_app.inc",
+          "rationale": "Portable uint32 formatting and fail-closed retained app-data/adapter custody.",
+          "before_git_blob_sha1": "9f85aa5302c44b9026eabc30ca2ebac701e99915",
+          "after_git_blob_sha1": "0732a47661fb85167abb22654e352cf6023c7cd7",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 94,
+              "old": [
+                "static bool temporal_retained(void){return event_initialized&&event_files.retained;}\n"
+              ],
+              "new": [
+                "#ifdef PORTABLE_NATIVE_CUSTODY_FENCE\n",
+                "#include \"PortableNativeCustody.h\"\n",
+                "#endif\n",
+                "static bool temporal_retained(void){\n",
+                "#ifdef PORTABLE_NATIVE_CUSTODY_FENCE\n",
+                " if(portable_adapter_retained())return true;\n",
+                "#endif\n",
+                " return event_initialized&&(event_files.retained||event_data_scope.retained);\n",
+                "}\n"
+              ]
+            },
+            {
+              "start": 229,
+              "old": [
+                " if(event_match.selected==event_edit_slot){int shift=event_match.shift[event_edit_slot];snprintf(caption,sizeof(caption),\"SHIFT %+d bands %u / %u MHz\",shift,rf_coord_hz(&event_library.identity,event_match.observed_coord)/1000000u,rf_coord_hz(&event_library.identity,event_match.reference_coord[event_edit_slot])/1000000u);text(1,12,180,216,caption,NOVA_CAP);}\n"
+              ],
+              "new": [
+                " if(event_match.selected==event_edit_slot){int shift=event_match.shift[event_edit_slot];snprintf(caption,sizeof(caption),\"SHIFT %+d bands %\" PRIu32 \" / %\" PRIu32 \" MHz\",shift,rf_coord_hz(&event_library.identity,event_match.observed_coord)/1000000u,rf_coord_hz(&event_library.identity,event_match.reference_coord[event_edit_slot])/1000000u);text(1,12,180,216,caption,NOVA_CAP);}\n"
+              ]
+            },
+            {
+              "start": 236,
+              "old": [
+                " if(event_training.ready){const rt_example*e=&event_training.event;center(1,12,63,216,e->flags&RT_CONFIRMED_END?\"WHOLE EVENT / END CONFIRMED\":e->flags&RT_CLIPPED?\"END NOT VERIFIED / REVIEW\":\"READY TO SAVE\",e->flags&RT_CLIPPED?0xffd24au:NOVA_CYAN);snprintf(caption,sizeof(caption),\"SPAN %u ms / %u ONSETS\",e->duration_ms,e->impacts);center(1,12,90,216,caption,NOVA_TEXT);snprintf(caption,sizeof(caption),\"RISE %u / FALL %u ms\",e->attack_ms,e->decay_ms);center(1,12,112,216,caption,NOVA_CAP);snprintf(caption,sizeof(caption),\"PEAK %u MHz / %u BURSTS\",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->count);center(1,12,134,216,caption,NOVA_CAP);if(e->flags&RT_CLIPPED)pill(12,151,216,25,e->flags&RT_CONFIRMED_END?\"UNDO WHOLE EVENT\":\"USE AS WHOLE EVENT\",!!(e->flags&RT_CONFIRMED_END));int buttons=e->flags&RT_CLIPPED?188:175;pill(12,buttons,104,36,rt_partial(e)?\"SAVE WINDOW\":\"SAVE\",true);pill(124,buttons,104,36,\"CANCEL\",false);}\n"
+              ],
+              "new": [
+                " if(event_training.ready){const rt_example*e=&event_training.event;center(1,12,63,216,e->flags&RT_CONFIRMED_END?\"WHOLE EVENT / END CONFIRMED\":e->flags&RT_CLIPPED?\"END NOT VERIFIED / REVIEW\":\"READY TO SAVE\",e->flags&RT_CLIPPED?0xffd24au:NOVA_CYAN);snprintf(caption,sizeof(caption),\"SPAN %\" PRIu32 \" ms / %u ONSETS\",e->duration_ms,e->impacts);center(1,12,90,216,caption,NOVA_TEXT);snprintf(caption,sizeof(caption),\"RISE %\" PRIu32 \" / FALL %\" PRIu32 \" ms\",e->attack_ms,e->decay_ms);center(1,12,112,216,caption,NOVA_CAP);snprintf(caption,sizeof(caption),\"PEAK %\" PRIu32 \" MHz / %u BURSTS\",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->count);center(1,12,134,216,caption,NOVA_CAP);if(e->flags&RT_CLIPPED)pill(12,151,216,25,e->flags&RT_CONFIRMED_END?\"UNDO WHOLE EVENT\":\"USE AS WHOLE EVENT\",!!(e->flags&RT_CONFIRMED_END));int buttons=e->flags&RT_CLIPPED?188:175;pill(12,buttons,104,36,rt_partial(e)?\"SAVE WINDOW\":\"SAVE\",true);pill(124,buttons,104,36,\"CANCEL\",false);}\n"
+              ]
+            },
+            {
+              "start": 241,
+              "old": [
+                " for(unsigned row=0;row<2;row++){unsigned ex=event_example_scroll+row;const rt_example*e=&event_library.labels[event_edit_slot].examples[ex];int y=62+(int)row*58;char caption[64];snprintf(caption,sizeof(caption),e->id?\"%u %s / %u ms\":\"%u EMPTY\",ex+1,e->kind==1?\"POSITIVE\":\"NONMATCH\",e->duration_ms);text(1,12,y,166,caption,NOVA_WHITE);if(e->id){snprintf(caption,sizeof(caption),\"%s%u MHz / %u ONSETS\",e->flags&RT_CONFIRMED_END?\"END SET / \":e->flags&RT_CLIPPED?\"CLIP / \":\"\",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->impacts);text(1,12,y+22,172,caption,NOVA_CAP);pill(184,y,44,34,event_delete_example==(int)ex?\"SURE\":\"X\",false);}}\n"
+              ],
+              "new": [
+                " for(unsigned row=0;row<2;row++){unsigned ex=event_example_scroll+row;const rt_example*e=&event_library.labels[event_edit_slot].examples[ex];int y=62+(int)row*58;char caption[64];snprintf(caption,sizeof(caption),e->id?\"%u %s / %\" PRIu32 \" ms\":\"%u EMPTY\",ex+1,e->kind==1?\"POSITIVE\":\"NONMATCH\",e->duration_ms);text(1,12,y,166,caption,NOVA_WHITE);if(e->id){snprintf(caption,sizeof(caption),\"%s%\" PRIu32 \" MHz / %u ONSETS\",e->flags&RT_CONFIRMED_END?\"END SET / \":e->flags&RT_CLIPPED?\"CLIP / \":\"\",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->impacts);text(1,12,y+22,172,caption,NOVA_CAP);pill(184,y,44,34,event_delete_example==(int)ex?\"SURE\":\"X\",false);}}\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/context_signal_library.inc",
+          "rationale": "Use PRIu32 for uint32 window counts on every ABI.",
+          "before_git_blob_sha1": "6742e30c13f5a13326327e0174548232afe018e6",
+          "after_git_blob_sha1": "9d3c0a6beecfb3eaa9c74493d369c18277bc6d9e",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 78,
+              "old": [
+                "   else snprintf(b,sizeof(b),\"%u WINDOWS / %s\",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?\"SETTINGS DIFFER\":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?\"BG READY\":\"TRAINED\");\n"
+              ],
+              "new": [
+                "   else snprintf(b,sizeof(b),\"%\" PRIu32 \" WINDOWS / %s\",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?\"SETTINGS DIFFER\":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?\"BG READY\":\"TRAINED\");\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/context_fingerprint_app.inc",
+          "rationale": "Do not notify or perform timing I/O after Contexts save retains custody.",
+          "before_git_blob_sha1": "8305abbecf7855cf084debae8d9a98df8d2f95d3",
+          "after_git_blob_sha1": "1872c35cb6c4a536756f2f8ffe09f5805b8d2314",
+          "hunks": [
+            {
+              "start": 142,
+              "old": [
+                "    if(!portable_contexts_models_save()){cfa_failed=true;notify(\"SHARED MODELS / RETRY SAVE\");return;}\n"
+              ],
+              "new": [
+                "    if(!portable_contexts_models_save()){cfa_failed=true;if(!temporal_retained())notify(\"SHARED MODELS / RETRY SAVE\");return;}\n"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "native": {
+      "baseline_revision": "12c7440c4c2fd9b6b78e10f11a983947c145b346",
+      "files": [
+        {
+          "path": "Apps/context_signal_library.inc",
+          "rationale": "Use PRIu32 for uint32 window counts on every ABI.",
+          "before_git_blob_sha1": "6742e30c13f5a13326327e0174548232afe018e6",
+          "after_git_blob_sha1": "9d3c0a6beecfb3eaa9c74493d369c18277bc6d9e",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 78,
+              "old": [
+                "   else snprintf(b,sizeof(b),\"%u WINDOWS / %s\",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?\"SETTINGS DIFFER\":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?\"BG READY\":\"TRAINED\");\n"
+              ],
+              "new": [
+                "   else snprintf(b,sizeof(b),\"%\" PRIu32 \" WINDOWS / %s\",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?\"SETTINGS DIFFER\":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?\"BG READY\":\"TRAINED\");\n"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -51,6 +51,10 @@ def main():
         out=a.output/lane;out.mkdir();write(out/'before',before);write(out/'stored',packed)
         (out/'store.bin').write_bytes(image);zip_roundtrip(out/'sd-apps.zip',sd)
         receipt['products'][lane]={'alarm_migration':alarm_migration(before,selected(before)[2]),'before_selection':selected(before)[2],'after_selection':selected(after)[2],'packing':packing,'canonical_files':{n:sha(b) for n,b in after.items()},'stored_files':{n:sha(b) for n,b in packed.items()},'sd_files':{n:sha(b) for n,b in sd.items()},'encoded_images':sum(b.startswith(magic) for b in packed.values())}
+        image_path,_=paths(selected(after)[2])
+        stored_image=sd[image_path] if image_path else packed['waterfall.elf']
+        receipt['products'][lane]['image_storage']={'location':'sd' if image_path else 'internal','canonical_bytes':len(elf),'stored_bytes':len(stored_image)}
+        print('SHARED SDR PACK '+json.dumps({'product':lane,'packing':packing,'image_storage':receipt['products'][lane]['image_storage']},sort_keys=True),flush=True)
     (a.output/'roundtrip.json').write_bytes(encode(receipt))
     fixtures=a.system/'test/files_products/native';templates=json.loads((fixtures/'commands.json').read_text())
     for mode in ('normal','sanitized'):
@@ -89,6 +93,7 @@ def main():
             check(r.get('encoded_image_count',0)==receipt['products'][lane]['encoded_images'],'Envelope count mismatch')
             if lane=='x4':check(r.get('retained_sd_serial_graph_bound') and r.get('shared_sdr_catalog_admitted'),'X4 catalog/SD admission missing')
             receipt['products'][lane][mode]=r
+            print('SHARED SDR ADMISSION '+json.dumps({'product':lane,'mode':mode,'result':r},sort_keys=True),flush=True)
             (a.output/'qualification.json').write_bytes(encode(receipt))
     pin(a.runtime,RUNTIME);pin(a.system,SYSTEM);pin(a.bootfs,BOOTFS)
     receipt['status']='passed';(a.output/'qualification.json').write_bytes(encode(receipt))

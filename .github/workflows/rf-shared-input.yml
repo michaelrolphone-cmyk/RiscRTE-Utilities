@@ -13,6 +13,11 @@ on:
       - 'test/native_apps/rf_shared_input_safety_test.c'
       - 'test/native_apps/rf_app_data_scope_test.c'
       - 'scripts/test_rf_shared_input_safety.py'
+      - 'scripts/shared_input_parity_reference.py'
+      - 'test/shared_input_parity/**'
+      - 'tests/test_shared_input_parity_reference.py'
+      - 'scripts/test_rf_application.py'
+      - 'test/native_apps/rf_renderer_test.c'
       - '.github/workflows/rf-shared-input.yml'
 permissions:
   contents: read
@@ -39,7 +44,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 96742a20af660808cae6cd3a36eadd12a83a460f
+          path: .dependencies/renderer-system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 712ecc3f894dba99d9c9638941778a82f5856b97
+          path: .dependencies/runtime
+          persist-credentials: false
+      - name: Actual opt-out RF controller and local keyboard
+        run: >-
+          python scripts/test_rf_application.py
+          --system-apps .dependencies/renderer-system --runtime .dependencies/runtime --opt-out-contract
+          --scene labels-keyboard --scene keyboard-cancel --scene guard-keyboard
+          --scene guard-label-draft --scene slow-history --scene root-exit --scene local-opt-out-contract
       - name: Shared-client lifecycle, distinct Home, storage scope and opt-out parity
         run: python scripts/test_rf_shared_input_safety.py --system-apps .dependencies/system --baseline-utilities .dependencies/baseline
       - name: Source manifest and inventory contracts
         run: python -m unittest discover -s tests -v
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rf-shared-input-safety-${{ github.sha }}
+          path: |
+            build/rf-shared-input-safety/
+            build/rf-application/

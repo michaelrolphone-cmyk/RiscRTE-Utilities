@@ -27,6 +27,7 @@ p.add_argument('--watch', type=Path)
 p.add_argument('--runtime', type=Path, required=True)
 p.add_argument('--scene', action='append')
 p.add_argument('--normal-only', action='store_true')
+p.add_argument('--opt-out-contract', action='store_true', help='Reject shared-text acquisition and require local keyboard compilation')
 p.add_argument('--keep-going', action='store_true', help='Record every scene failure, then exit nonzero if any failed')
 p.add_argument('--native-canvas', action='store_true', help='Opt-in shared native RF plot canvas')
 a = p.parse_args()
@@ -118,6 +119,14 @@ def target_scenes(target):
         label.append(key_tap(32));current=(current+1)%3
     label += type_name('private-label')+[check('page',2),tap(194,154),tap(166,185),check('labels',1),check('color',7),check('pending',0),tap(140,26),tap(190,62),tap(70,105),check('page',2),tap(120,119),*type_name('x'),tap(176,185),check('labels',1),tap(200,103),check('labels',0),tap(193,211),check('labels',1),'snapshot labels','finish']
     result['labels-keyboard']=(scene(*label),{})
+    result['local-opt-out-contract']=(scene('wait 3','remember writes','remember app_writes',
+        tap(120,120),tap(120,61),tap(120,119),'wait 3',check('page',3),check('keyboard_frames',1,'ge'),
+        *type_name('Optout'),'same writes','same app_writes',check('page',2),
+        tap(120,119),key_tap(1),'raw 20 20',check('page',2),'name Optout',
+        'same writes','same app_writes',tap(166,185),check('labels',1),'different writes',
+        'same app_writes','wait 240',check('history',228),'history_order','nav 32',
+        'remember history','remember captures','wait 3','same history','same captures','finish'),{})
+
     room=['wait 3']+samples()+[tap(75,207),check('page',5),tap(110,89),*type_name('Room'),tap(60,165),check('signature_goal',64),'wait 8',tap(55,125),check('running',0),'remember signature_frames','remember captures','wait 5','same signature_frames','same captures',tap(55,125),check('running',1),'wait 70',check('signature_goal',0),check('room_frames',64),check('room_kind',1),check('signature_pending',0),tap(195,122),check('signature_mode',2),check('manual_room',0),tap(120,62),check('signature_mode',1),'wait 80',check('room_selected',0),tap(50,62),check('signature_mode',0),tap(70,118),check('page',5),tap(60,165),'wait 70',check('room_frames',128),tap(70,118),tap(60,165),'wait 6',tap(175,125),check('signature_goal',0),check('room_frames',128),'snapshot rooms','finish']
     result['rooms']=(scene(*room),{})
     result['nested-exit']=(scene('wait 3',tap(225,26),tap(120,30),check('page',10),'nav 1',check('page',1),'nav 1',check('page',0),'nav 1','wait 1',check('launches',1),check('running',0),'nav 1'),{'RF_RENDER_LAUNCH_REFUSE':'1','RF_RENDER_EXPECT_LAUNCH':'2'})
@@ -245,6 +254,7 @@ for sanitized in (False, True):
         out = OUT / target / ('sanitized' if sanitized else 'normal')
         out.mkdir(parents=True, exist_ok=True)
         flags = ['-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
+        if a.opt_out_contract: flags += ['-DRF_RENDER_OPT_OUT_CONTRACT']
         if a.native_canvas: flags += ['-DPORTABLE_RF_NATIVE_CANVAS','-DRF_RENDER_ORDERED_INPUT']
         san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitized else []
         if target == 'x4':

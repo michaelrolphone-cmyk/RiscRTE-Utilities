@@ -11,6 +11,12 @@
 #define PORTABLE_CONTEXTS_CHECK_LIVE() do{}while(0)
 #define portable_contexts_callback(value) (value)
 #endif
+#ifdef RF_RENDER_OPT_OUT_CONTRACT
+#ifdef PORTABLE_RF_SHARED_TEXT_INPUT
+#error "Opt-out fixture must use the local keyboard"
+#endif
+#include "RiscTextEntryV1.h"
+#endif
 #include "../../Apps/waterfall.c"
 #include "PortableApps.h"
 #include "RiscDisplayOutputV1.h"
@@ -52,6 +58,7 @@ static const risc_touch_api_v1 *fx_watch;
 #endif
 static struct {uint8_t before[32],pixels[FX_H*FX_STRIDE],after[32];} fx_raster;
 static unsigned fx_ticks=1000,fx_polls,fx_grants,fx_frames,fx_subs,fx_presents,fx_captures,fx_count,fx_suspend,fx_checks,fx_writes,fx_app_writes,fx_launches,fx_retries,fx_retained_yields,fx_poll_ms=120,fx_radio_acquires,fx_release_failures,fx_sleeps,fx_diag_total,fx_diag_startup,fx_diag_captures,fx_diag_stages,fx_diag_details,fx_diag_dumps,fx_expected_launch;
+static unsigned fx_keyboard_frames;
 static unsigned fx_frame_delay,fx_frame_until,fx_last_page,fx_last_scroll,fx_last_list_scroll,fx_busy_checks;static bool fx_frame_pending;
 static uint32_t fx_frame_hash;
 static uint32_t fx_raster_hash(void){uint32_t h=2166136261u;for(size_t i=0;i<sizeof(fx_raster.pixels);i++)h=(h^fx_raster.pixels[i])*16777619u;return h;}
@@ -114,6 +121,7 @@ static long long fx_value(const char*k){
  V("resident_polls",fx_resident_polls);V("resident_policies",fx_resident_policies);V("retry",capture_retries);V("retry_delay",capture_retry_delay);V("capture_requested",capture_requested);V("capture_active",portable_radio_capture_active());V("ticks",fx_ticks);V("polls",fx_polls);
 #endif
  V("last_list_scroll",fx_last_list_scroll);V("list_scroll",list_scroll);V("lab_edit",lab_edit);V("edit_slot",edit_slot);V("undo_slot",undo_slot);V("label6",labels[6].present);V("label7",labels[7].present);
+ V("keyboard_frames",fx_keyboard_frames);V("history_next",history_next);
  V("frame_pending",fx_frame_pending);V("busy_checks",fx_busy_checks);V("last_page",fx_last_page);V("last_scroll",fx_last_scroll);V("page",page);V("radio_acquires",fx_radio_acquires);V("sleep",fx_sleeps);V("diag_total",fx_diag_total);V("diag_steady",fx_diag_total-fx_diag_startup);V("diag_startup",fx_diag_startup);V("diag_captures",fx_diag_captures);V("diag_stages",fx_diag_stages);V("diag_details",fx_diag_details);V("diag_dumps",fx_diag_dumps);V("view",view);V("running",running);V("frozen",frozen);V("history",history_count);V("captures",fx_captures);V("transforms",spectrum.transforms);V("canonical",signature_audio.transforms);V("fft",prefs.fft_size);V("peak_hz",rf_dsp_bin_hz(&spectrum.config,spectrum.peak_bin));V("cursor",cursor_visible);V("label_active",label_active[0]);V("label_level_valid",level_valid[0]);V("cursor_hz",cursor_hz);V("labels",saved_count());V("color",labels[0].color);V("pending",pending_save);V("load_errors",load_errors);V("key_page",key_page);V("key_choice",key_choice);V("name_length",strlen(editing.name));V("char",(unsigned char)editing.name[0]);V("neural_updates",event_neural.updates);V("neural_epoch",event_neural.epoch);V("scroll",controls_scroll);V("receiver_scroll",receiver_scroll);V("gain",prefs.gain_db);V("threshold",prefs.threshold_db);V("palette",prefs.palette);V("window",prefs.window);V("log_frequency",prefs.log_frequency);V("log_amplitude",prefs.log_amplitude);V("show_labels",prefs.show_labels);V("low",prefs.low_hz);V("high",prefs.high_hz);V("lo",prefs.identity.lo_hz);V("rate",prefs.identity.sample_rate_hz);V("width",prefs.identity.width_hz);V("raw_gain",prefs.identity.raw_gain);V("rf_gain",prefs.identity.rf_gain);V("bb_gain",prefs.identity.bb_gain);V("filter",prefs.identity.filter);V("dc0",prefs.identity.dc[0]);V("dc1",prefs.identity.dc[1]);V("dc2",prefs.identity.dc[2]);V("dc3",prefs.identity.dc[3]);V("iq",prefs.identity.iq_correction);V("signature_goal",signature_goal);V("signature_frames",signature_capture.frames);V("room_frames",signatures[0].frames);V("room_kind",signatures[0].kind);V("signature_pending",signature_pending);V("signature_mode",signature_mode);V("manual_room",manual_room);V("room_selected",room_tracker.selected);V("ambient_ready",ambient.ready);V("ambient_frames",ambient.frames);V("foreground",ambient.foreground);V("event_armed",event_armed);V("event_ready",event_training.ready);V("event_wait_quiet",event_wait_quiet);V("event_flags",event_training.event.flags);V("event_count",event_training.event.count);V("event_labels",event_library.labels[0].present);V("examples",rt_example_count(&event_library.labels[0],0));V("positive",rt_example_count(&event_library.labels[0],RT_POSITIVE));V("negative",rt_example_count(&event_library.labels[0],RT_NEGATIVE));V("event_pending",event_files.pending);V("event_files_ready",event_files.ready);V("neural_state",event_neural.state);V("neural_active",event_neural.has_active);V("launches",fx_launches);V("suspends",fx_suspend);V("capture_error",capture_error);V("last_count",fx_count);V("writes",fx_writes);V("app_writes",fx_app_writes);V("presents",fx_presents);
 #undef V
  fprintf(stderr,"Unknown check: %s\n",k);abort();
@@ -179,6 +187,14 @@ static void fx_script(void){
   }
 #endif
   else if(!strcmp(op,"name")){char expected[100];assert(sscanf(fx_line,"%*s %99s",expected)==1);if(strcmp(editing.name,expected)){fprintf(stderr,"line %u expected name [%s], got [%s]; page=%u polls=%u\n",fx_lineno,expected,editing.name,page,fx_polls);abort();}fx_checks++;}
+  else if(!strcmp(op,"history_order")){
+   assert(history_count==228);
+   for(unsigned i=1;i<228;i++){
+    unsigned previous=(history_next+i-1)%228,current=(history_next+i)%228;
+    assert((int32_t)(history_times[current]-history_times[previous])>0);
+   }
+   fx_checks++;
+  }
   else if(!strcmp(op,"snapshot")){assert(sscanf(fx_line,"%*s %63s",key)==1);fx_snapshot(key);}
   else if(!strcmp(op,"times"))fx_verify_times();
   else if(!strcmp(op,"finish")){assert(!signature_goal&&!signature_pending&&!temporal_exit_blocked());fx_done=true;return;}
@@ -217,7 +233,7 @@ static bool fx_launch(const char*s){fx_io();assert(!owned&&!running&&!strcmp(s,g
 static bool fx_info(void*c,risc_display_info_v1*s){(void)c;fx_io();*s=(risc_display_info_v1){.width=FX_W,.height=FX_H,.nominal_refresh_millihz=FX_FORMAT==RISC_DISPLAY_FORMAT_MONO1?1000:60000,.typical_present_latency_us=FX_FORMAT==RISC_DISPLAY_FORMAT_MONO1?900000:16000,.supported_formats=RISC_DISPLAY_FORMAT_BIT(FX_FORMAT),.flags=(getenv("RF_RENDER_ASYNC")?RISC_DISPLAY_INFO_ASYNC_PRESENT:0)|(FX_FORMAT==RISC_DISPLAY_FORMAT_MONO1?RISC_DISPLAY_INFO_RETAINS_IMAGE|RISC_DISPLAY_INFO_PARTIAL_DAMAGE:0)};return true;}
 static bool fx_frame(void*c,uint32_t f,risc_display_surface_v1*s){(void)c;fx_io();assert(!fx_frames&&!fx_frame_pending&&f==FX_FORMAT);fx_frames=1;*s=(risc_display_surface_v1){.frame=1,.pixels=fx_raster.pixels,.width=FX_W,.height=FX_H,.stride_bytes=FX_STRIDE,.size_bytes=sizeof(fx_raster.pixels),.pixel_format=f};return true;}
 static void fx_frame_release(void*c,risc_display_frame_v1 f){(void)c;fx_io();assert(fx_frames&&f==1);fx_frames=0;fx_guards();}
-static bool fx_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){(void)c;(void)o;fx_io();assert(fx_frames&&f==1);for(size_t i=0;i<n;i++)assert(r[i].x+r[i].width<=FX_W&&r[i].y+r[i].height<=FX_H);fx_frames=0;*t=++fx_presents;fx_guards();fx_ticks+=(unsigned)fx_slow;if(getenv("RF_RENDER_ASYNC")){fx_frame_pending=true;fx_frame_until=fx_polls+fx_frame_delay;fx_last_page=page;fx_last_scroll=(unsigned)controls_scroll;fx_last_list_scroll=list_scroll;fx_frame_hash=fx_raster_hash();}return true;}
+static bool fx_submit(void*c,risc_display_frame_v1 f,const risc_display_rect_v1*r,size_t n,const risc_display_present_options_v1*o,risc_display_present_token_v1*t){(void)c;(void)o;fx_io();assert(fx_frames&&f==1);for(size_t i=0;i<n;i++)assert(r[i].x+r[i].width<=FX_W&&r[i].y+r[i].height<=FX_H);fx_frames=0;*t=++fx_presents;if(page==PAGE_KEYBOARD)fx_keyboard_frames++;fx_guards();fx_ticks+=(unsigned)fx_slow;if(getenv("RF_RENDER_ASYNC")){fx_frame_pending=true;fx_frame_until=fx_polls+fx_frame_delay;fx_last_page=page;fx_last_scroll=(unsigned)controls_scroll;fx_last_list_scroll=list_scroll;fx_frame_hash=fx_raster_hash();}return true;}
 static bool fx_present(void*c,risc_display_present_token_v1 t,risc_display_present_status_v1*s){(void)c;fx_io();assert(t);if(fx_frame_pending){assert(fx_frame_hash==fx_raster_hash());if(fx_polls<fx_frame_until){fx_busy_checks++;s->state=RISC_DISPLAY_PRESENT_ACTIVE;return true;}fx_frame_pending=false;}s->state=RISC_DISPLAY_PRESENT_COMPLETE;return true;}
 static const risc_display_output_api_v1 fx_display_api={.api_version=1,.struct_size=sizeof(fx_display_api),.get_info=fx_info,.acquire=fx_frame,.release=fx_frame_release,.submit=fx_submit,.present_status=fx_present};
 static void fx_touch_report(risc_touch_snapshot_v1*s){*s=(risc_touch_snapshot_v1){
@@ -351,7 +367,11 @@ static int32_t fx_stat(void*c,const char*n,uint32_t*s,uint64_t*r){(void)c;fx_io(
 static int32_t fx_read(void*c,const char*n,uint64_t expected,void*out,uint32_t cap,uint32_t*s,uint64_t*r){(void)c;fx_io();unsigned b=fx_file(n);*s=0;*r=0;if(expected!=fx_files[b].revision)return RISC_APP_DATA_STALE;assert(cap>=fx_files[b].size);memcpy(out,fx_files[b].bytes,fx_files[b].size);*s=fx_files[b].size;*r=expected;return 0;}
 static int32_t fx_replace(void*c,const char*n,uint64_t expected,const void*in,uint32_t size){(void)c;fx_io();assert(!owned&&!running);unsigned b=fx_file(n);assert(expected==(fx_files[b].size?fx_files[b].revision:0)&&size<=sizeof(fx_files[b].bytes));if(strcmp(n,"context-fingerprints.cfp"))fx_app_writes++;if(fx_storage_failure==1||(fx_storage_failure==4&&!strcmp(n,"context-fingerprints.cfp")))return RISC_APP_DATA_NO_SPACE;if(fx_storage_failure==2){fx_storage_retained=true;return RISC_APP_DATA_RETAINED;}memcpy(fx_files[b].bytes,in,size);fx_files[b].size=size;fx_files[b].revision=++fx_revision;if(fx_storage_failure==3){fx_storage_failure=0;return RISC_APP_DATA_COMMIT_UNKNOWN;}return 0;}
 static const risc_app_data_v1 fx_data={1,sizeof(fx_data),NULL,fx_stat,fx_read,fx_replace};
-static bool fx_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){fx_io();assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&fx_display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&fx_touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&fx_battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&fx_rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&fx_legacy_kv;else if(!strcmp(n,"storage.key-value")&&v==2&&id==RF_STORAGE_INSTANCE)g->api=&fx_kv;else if(!strcmp(n,"storage.app-data")&&v==1&&id==RF_APP_DATA_INSTANCE){if(getenv("RF_RENDER_NO_STORAGE"))return false;g->api=&fx_data;}else if(!strcmp(n,"radio.iq")&&v==1){fx_radio_acquires++;if(fx_no_radio)return false;if(getenv("RF_RENDER_MALFORMED"))g->api=&fx_malformed;else if(getenv("RF_RENDER_DIAGNOSTICS"))g->api=&fx_diagnostic_radio;else g->api=fx_legacy?(const void*)&fx_legacy_radio:(const void*)&fx_radio;}else if(!strcmp(n,"alarm.service")&&v==1)g->api=&fx_alarm_api;else return false;fx_grants++;return true;}
+static bool fx_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){
+#ifdef RF_RENDER_OPT_OUT_CONTRACT
+ assert(strcmp(n,RISC_TEXT_ENTRY_CAPABILITY));
+#endif
+ fx_io();assert(g->struct_size==sizeof(*g));if(!strcmp(n,"display.output")&&v==1)g->api=&fx_display_api;else if(!strcmp(n,"input.touch.raw")&&v==1)g->api=&fx_touch_api;else if(!strcmp(n,"board.battery")&&v==1)g->api=&fx_battery_api;else if(!strcmp(n,"rtc.clock")&&v==2)g->api=&fx_rtc_api;else if(!strcmp(n,"storage.key-value")&&v==1)g->api=&fx_legacy_kv;else if(!strcmp(n,"storage.key-value")&&v==2&&id==RF_STORAGE_INSTANCE)g->api=&fx_kv;else if(!strcmp(n,"storage.app-data")&&v==1&&id==RF_APP_DATA_INSTANCE){if(getenv("RF_RENDER_NO_STORAGE"))return false;g->api=&fx_data;}else if(!strcmp(n,"radio.iq")&&v==1){fx_radio_acquires++;if(fx_no_radio)return false;if(getenv("RF_RENDER_MALFORMED"))g->api=&fx_malformed;else if(getenv("RF_RENDER_DIAGNOSTICS"))g->api=&fx_diagnostic_radio;else g->api=fx_legacy?(const void*)&fx_legacy_radio:(const void*)&fx_radio;}else if(!strcmp(n,"alarm.service")&&v==1)g->api=&fx_alarm_api;else return false;fx_grants++;return true;}
 static bool fx_release(risc_runtime_capability_v1*g){fx_io();assert(g->api&&fx_grants);if(getenv("RF_RENDER_RELEASE_RETRY")&&!fx_release_failures&&(g->api==&fx_radio||g->api==&fx_legacy_radio)){fx_release_failures++;return false;}*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};fx_grants--;return true;}
 #ifdef RF_RENDER_RESIDENT
 #include "rf_resident_fixture.inc"
