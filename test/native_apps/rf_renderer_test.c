@@ -3,7 +3,14 @@
  * RF/display/storage transports are explicit host peripherals, never hardware MMIO.
  * The separate runtime fixture exercises the real AppDataFiles implementation. */
 #include <string.h>
+/* Fixtures without a Contexts adapter retain the optional neutral fence. */
+#ifdef PORTABLE_CONTEXTS_CLIENT
 #include "PortableContextsClient.h"
+#else
+#define PORTABLE_CONTEXTS_LIVE() true
+#define PORTABLE_CONTEXTS_CHECK_LIVE() do{}while(0)
+#define portable_contexts_callback(value) (value)
+#endif
 #include "../../Apps/waterfall.c"
 #include "PortableApps.h"
 #include "RiscDisplayOutputV1.h"

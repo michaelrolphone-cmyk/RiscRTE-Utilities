@@ -116,5 +116,8 @@
       "capability": "alarm.service.facade",
       "api": 2
     }
-  ]
+  ],
+  "display_name": "Waterfall",
+  "icon": "solid:f0ec",
+  "runtime_lifecycle": "foreground"
 }

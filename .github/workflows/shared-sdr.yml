@@ -67,8 +67,9 @@ jobs:
           if-no-files-found: error
 
   full-controller:
+    needs: baseline
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -98,6 +99,14 @@ jobs:
           ref: 6e82fdcaec0b73ed700d2104cfb4d94f011c19d4
           path: Watch
           persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: ab9ff33975680c5bb8d9a2e7ed346d0300732a4e
+          path: Bootfs
+          persist-credentials: false
+      - name: Shared SDR preservation regressions
+        run: python3 scripts/test_shared_sdr_products.py
       - name: Compile lifecycle contracts normally and sanitized
         run: |
           set -euo pipefail
@@ -117,6 +126,23 @@ jobs:
           tar -xf compiler.tar.xz
       - name: Build full installed RF controller through shared canvas
         run: python3 scripts/build_shared_sdr.py --system InstalledSystem --canvas-system System --runtime Runtime --watch Watch --compiler xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc --output out/shared
+      - uses: actions/download-artifact@v4
+        with:
+          name: shared-sdr-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/baseline
+      - name: Assemble preserving shared SDR candidates
+        run: >-
+          python3 scripts/assemble_shared_sdr_products.py
+          --system System --bootfs Bootfs --baseline out/baseline
+          --baseline-lock docs/shared-sdr/baseline.json
+          --shared out/shared --output out/candidate
+      - name: Qualify product packs and selected Runtime normally and sanitized
+        run: >-
+          python3 scripts/qualify_shared_sdr_products.py
+          --runtime Runtime --system System --bootfs Bootfs
+          --baseline out/baseline --baseline-lock docs/shared-sdr/baseline.json
+          --candidate out/candidate --shared out/shared
+          --output out/qualification
       - uses: actions/upload-artifact@v4
         if: always()
         with:
