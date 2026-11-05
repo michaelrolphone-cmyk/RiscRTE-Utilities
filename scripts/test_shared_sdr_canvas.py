@@ -260,10 +260,25 @@ def main():
             source = src if original == ROOT / "Apps/waterfall.c" else original
             if original == shared / "adapter/adapter.c":
                 source = out / "adapter-observed.c"
-                source.write_text(original.read_text() + "\n"
+                source.write_text(
+                    "#define portable_sdr_canvas_refresh_geometry rf_host_canvas_refresh_impl\n"
+                    + original.read_text() + "\n"
+                    "#undef portable_sdr_canvas_refresh_geometry\n"
+                    "static unsigned rf_host_refresh_count;\n"
+                    "bool portable_sdr_canvas_refresh_geometry(void){rf_host_refresh_count++;"
+                    "return rf_host_canvas_refresh_impl();}\n"
+                    "unsigned rf_host_canvas_refresh_count(void){return rf_host_refresh_count;}\n"
+                    "unsigned rf_host_canvas_pending(void){unsigned b=0;"
+                    "b|=surface.frame?1u:0u;b|=paper_token?2u:0u;"
+                    "b|=rf_canvas.surface.lease?4u:0u;b|=rf_canvas.surface.receipt?8u:0u;\n"
+                    "#ifdef PORTABLE_QUICK_ACTIONS\n"
+                    "b|=quick_modal?16u:0u;b|=quick_replay_pending?32u:0u;"
+                    "b|=quick_replay_delivery?64u:0u;b|=quick_launch_pending?128u:0u;\n"
+                    "#endif\n#ifdef PORTABLE_ALARM_CLIENT\n"
+                    "b|=alarm_modal?256u:0u;\n#endif\nreturn b;}\n"
                     "unsigned rf_host_canvas_contract(void){return "
                     "(rf_canvas.input_active?1u:0u)|"
-                    "((info.flags&RISC_DISPLAY_INFO_BRIGHTNESS)?2u:0u);}\n")
+                    "((info.flags&RISC_DISPLAY_INFO_BRIGHTNESS)?2u:0u); }\n")
             # Keep the exact shipping preprocessor configuration and include order.
             common = []
             it = iter(shipping[1:])

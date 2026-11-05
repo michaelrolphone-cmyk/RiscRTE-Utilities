@@ -13,7 +13,7 @@ Host-only substitutions are explicit:
 - Physical display/input are accessed by the real canvas provider, not directly by the app. The app binds the canvas and its input companion.
 - The native sleep implementation is replaced by the fixture's sleep hook. These scenarios do not qualify native sleep.
 - The target-only SingleFloatDivisionCompat shim and Xtensa compiler/linker flags are omitted.
-- One read-only observation function is appended to a copy of the shipping adapter to inspect input/brightness availability. No production adapter operation is replaced.
+- A host-only copy of the shipping adapter adds read-only availability/pending-state observations. Its geometry refresh function is wrapped only to count calls, delegating every call unchanged to the shipping implementation. Failure diagnostics report dimensions and refresh opportunities without forcing refresh or changing its result.
 
 The matrix includes the nine existing native dimensions, seeded odd/asymmetric resolutions and insets across all four raster rotations and all four independent touch rotations in RGB565 and MONO1, a conservative rectangular safe area inside a circular panel, button-only and input-absent providers, and optional brightness absence/presence. Admission boundaries are logical safe-viewport 159/160 and 1024/1025 on both axes. Production admission is unchanged.
 

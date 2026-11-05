@@ -203,6 +203,8 @@ static void sc_corners(void) {
  unsigned px,py;sc_physical(0,0,&px,&py);assert(sc_pixel(px,py)==0);
  sc_physical(w-1,h-1,&px,&py);assert(sc_pixel(px,py)==0);fx_checks++;
 }
+static unsigned sc_before_resize_refresh;
+extern unsigned rf_host_canvas_refresh_count(void),rf_host_canvas_pending(void);
 static bool sc_command(const char*op) {
  if(!strcmp(op,"sc_rejection_begin")) {
   assert(!contact_down);sc_before_rejection_contacts=sc_contacts;return true;
@@ -214,6 +216,12 @@ static bool sc_command(const char*op) {
  if(!strcmp(op,"sc_geometry")) {
   unsigned w,h;sc_dimensions(&w,&h);
   const t5_app_api_v1 *a=t5_app_get_api(1);
+  if((unsigned)a->screen_width()!=w||(unsigned)a->screen_height()!=h)
+   fprintf(stderr,"geometry mismatch line=%u polls=%u expected=%ux%u screen=%dx%d view=%dx%d plot=%dx%d mapping=%ux%u revision=%llu events=%u refresh=%u->%u pending=0x%x\n",
+    fx_lineno,fx_polls,w,h,a->screen_width(),a->screen_height(),rf_view_width,rf_view_height,
+    PLOT_W,PLOT_H,sc_provider.frames.mapping.width,sc_provider.frames.mapping.height,
+    (unsigned long long)sc_provider.frames.revision,sc_geometries,sc_before_resize_refresh,
+    rf_host_canvas_refresh_count(),rf_host_canvas_pending());
   assert((unsigned)a->screen_width()==w&&(unsigned)a->screen_height()==h);
   assert(PLOT_W==(int)w-12&&PLOT_H==(int)h-110);
   assert(rf_host_canvas_contract()==((sc_input_mode?1u:0u)|(sc_brightness?2u:0u)));
@@ -224,6 +232,7 @@ static bool sc_command(const char*op) {
  if(!strcmp(op,"sc_resize")) {
   assert(!fx_frames&&!fx_frame_pending&&!sc_provider.frames.lease&&!sc_provider.frames.receipts);
   unsigned w,h;assert(sscanf(fx_line,"%*s %u %u",&w,&h)==2&&w<=FX_W&&h<=FX_H);
+  sc_before_resize_refresh=rf_host_canvas_refresh_count();
   sc_before_resize_gaps=sc_gaps;sc_before_resize_geometry=sc_geometries;
   sc_w=w;sc_h=h;memset(&fx_raster,0xa5,sizeof(fx_raster));return true;
  }
