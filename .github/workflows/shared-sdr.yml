@@ -3,7 +3,7 @@ on:
   push:
     branches: ['work/shared-sdr-20261103']
   pull_request:
-    paths: ['Apps/**', 'scripts/*sdr*', 'docs/shared-sdr/**', '.github/workflows/shared-sdr.yml']
+    paths: ['Apps/**', 'scripts/*sdr*', 'test/native_apps/rf_shared_canvas_*.inc', 'test/native_apps/rf_renderer_test.c', 'docs/shared-sdr/**', '.github/workflows/shared-sdr.yml']
 permissions:
   contents: read
 jobs:
@@ -143,6 +143,11 @@ jobs:
           --baseline out/baseline --baseline-lock docs/shared-sdr/baseline.json
           --candidate out/candidate --shared out/shared
           --output out/qualification
+      - name: Full controller through shared canvas across geometry and modality
+        run: >-
+          python3 scripts/test_shared_sdr_canvas.py
+          --shared out/shared --canvas-system System
+          --output out/shared-native-host
       - uses: actions/upload-artifact@v4
         if: always()
         with:
