@@ -140,7 +140,7 @@ static void cfa_restore(void){
     if(!portable_fingerprint_clock(runtime,&cfa_utc)){event_files.retained=true;return;}
     cfa_learning_kind=cfa_learning_samples=0;cfa_learning_saved=false;cfa_manual_name[0]=0;cfa_filter_load();
 #ifdef PORTABLE_CONTEXTS_CLIENT
-    if(!portable_contexts_models_save()){cfa_failed=true;notify("SHARED MODELS / RETRY SAVE");return;}
+    if(!portable_contexts_models_save()){cfa_failed=true;if(!temporal_retained())notify("SHARED MODELS / RETRY SAVE");return;}
 #endif
     cfa_begin();cfa_load();
 }

@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+from shared_input_parity_reference import Reference, compare_tokens, tokenize, source_snapshot, verify_stable
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -40,16 +41,7 @@ def preprocess(tree, system, source, defines):
     command += ['-I' + str(system / 'lib/PortableApps/include'),
                 '-I' + str(system / 'lib/NativeApps/include'), 'Apps/' + source]
     data = run(command, cwd=tree).stdout
-    # Preserve all literal contents. Formatting around #if/#else branches is
-    # irrelevant; string/character literal tokens and numeric tokens are not.
-    # Maximal-munch preprocessing numbers and punctuators matter: for example,
-    # 1.0 differs from 1 . 0 and ++ differs from + + even after whitespace removal.
-    tokens = re.findall(
-        r'(?:u8|u|U|L)?"(?:\\.|[^"\\])*"|(?:u|U|L)?\'(?:\\.|[^\'\\])*\'|'
-        r'(?:[0-9]|\.[0-9])(?:[eEpP][+-]|[A-Za-z_0-9.])*|[A-Za-z_$][A-Za-z_0-9$]*|'
-        r'%:%:|>>=|<<=|\.\.\.|->|\+\+|--|<<|>>|<=|>=|==|!=|&&|\|\||'
-        r'\*=|/=|%=|\+=|-=|&=|\^=|\|=|##|<:|:>|<%|%>|%:|[^\s]', data)
-    return '\n'.join(tokens).encode()
+    return tokenize(data)
 
 
 def main():
@@ -62,6 +54,7 @@ def main():
     system = args.system_apps.resolve()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    stability = source_snapshot(ROOT)
     fixture = ROOT / 'test/native_apps/rf_shared_input_safety_test.c'
     source_names = ('Apps/rf_application.inc', 'Apps/context_signal_library.inc',
                     'Apps/audio_spectrum.c', 'Apps/waterfall.c')
@@ -92,13 +85,21 @@ def main():
             (output / (target.name + '.log')).write_text(result.stdout + result.stderr)
             report['tests'].append({'mode': mode, 'profile': profile, 'passed': True,
                                     'command': command, 'stdout': result.stdout})
+    local = preprocess(ROOT, system, 'waterfall.c', [])
+    assert b'draw_keyboard' in local and b'keyboard_activate' in local
+    assert b'portable_text_client_begin' not in local
+    report['opt_out_local_keyboard_present'] = True
     shared = preprocess(ROOT, system, 'waterfall.c', ['PORTABLE_RF_SHARED_TEXT_INPUT'])
     assert b'draw_keyboard' not in shared and b'keyboard_activate' not in shared and b'keyboard_before' not in shared
     assert b'portable_text_client_begin' in shared
     report['shared_local_keyboard_absent'] = True
     if args.baseline_utilities:
-        baseline = args.baseline_utilities.resolve()
-        report['baseline_revision'] = revision(baseline)
+        historical = args.baseline_utilities.resolve()
+        reference = Reference(historical, 'rf')
+        baseline = reference.path
+        report['baseline_revision'] = revision(historical)
+        report['reviewed_evolution'] = reference.evidence
+        (output / 'evidence.json').write_text(json.dumps(report, indent=2) + '\n')
         profiles = [[], ['PORTABLE_NOVA_UI', 'PORTABLE_ALARM_CLIENT'],
                     ['PORTABLE_RADIO_CONTINUOUS_CAPTURE', 'PORTABLE_RESIDENT_POLICY',
                      'PORTABLE_CONTEXTS_CLIENT', 'PORTABLE_BLE_BROADCAST',
@@ -107,7 +108,7 @@ def main():
             for profile in profiles:
                 before = preprocess(baseline, system, source, profile)
                 after = preprocess(ROOT, system, source, profile)
-                assert before == after, f'{source} opt-out preprocessor token mismatch: {profile}'
+                compare_tokens(before, after, output, f'{source} opt-out token mismatch: {profile}')
                 report['parity'].append({'source': source, 'defines': profile,
                                         'token_identical': True, 'sha256': digest(after)})
                 print(f'{source} opt-out preprocessing token-identical: {profile or ["plain"]}')
@@ -115,7 +116,7 @@ def main():
             defines = profile + ['PORTABLE_SPECTRUM_SHARED_TEXT_INPUT']
             before = preprocess(baseline, system, 'audio_spectrum.c', defines)
             after = preprocess(ROOT, system, 'audio_spectrum.c', defines)
-            assert before == after, f'Audio shared opt-in token mismatch: {defines}'
+            compare_tokens(before, after, output, f'Audio shared opt-in token mismatch: {defines}')
             report['parity'].append({'source': 'audio_spectrum.c', 'defines': defines,
                                     'token_identical': True, 'sha256': digest(after)})
             print(f'Audio shared opt-in preprocessing token-identical: {profile or ["plain"]}')
@@ -129,6 +130,7 @@ def main():
     assert report['fixture_sha256'] == digest(fixture.read_bytes()), 'Fixture changed during the test run'
     report['production_sources'] = source_hashes
     (output / 'evidence.json').write_text(json.dumps(report, indent=2) + '\n')
+    verify_stable(ROOT, stability)
     print('Focused RF shared-input safety passed; evidence:', output / 'evidence.json')
 
 

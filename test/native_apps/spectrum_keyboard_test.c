@@ -1,6 +1,15 @@
 /* Regression contract for the current Points/Watch Wi-Fi 8x4 keyboard.
  * Run the production Spectrum controller with the established provider fixture.
  * The expected ASCII pages and pixel geometry are independent test literals. */
+/* This controller-only fixture has no Contexts adapter. Newer fingerprint
+ * clock headers expose optional liveness hooks; no live service is modeled. */
+#ifdef PORTABLE_CONTEXTS_CLIENT
+#include "PortableContextsClient.h"
+#else
+#define PORTABLE_CONTEXTS_LIVE() true
+#define PORTABLE_CONTEXTS_CHECK_LIVE() do{}while(0)
+#define portable_contexts_callback(value) (value)
+#endif
 #define main original_controller_main
 #include "audio_spectrum_test.c"
 #undef main

@@ -11,6 +11,7 @@ The shared QuickActions variants intentionally omit radio toggle grants. Paper
 Wi-Fi remains unavailable; RGB565 retains its supported Wi-Fi app handoff.
 """
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -26,6 +27,9 @@ p.add_argument('--watch', type=Path)
 p.add_argument('--runtime', type=Path, required=True)
 p.add_argument('--scene', action='append')
 p.add_argument('--normal-only', action='store_true')
+p.add_argument('--opt-out-contract', action='store_true', help='Reject shared-text acquisition and require local keyboard compilation')
+p.add_argument('--keep-going', action='store_true', help='Record every scene failure, then exit nonzero if any failed')
+p.add_argument('--native-canvas', action='store_true', help='Opt-in shared native RF plot canvas')
 a = p.parse_args()
 OUT = ROOT / 'build/rf-application'
 
@@ -115,6 +119,14 @@ def target_scenes(target):
         label.append(key_tap(32));current=(current+1)%3
     label += type_name('private-label')+[check('page',2),tap(194,154),tap(166,185),check('labels',1),check('color',7),check('pending',0),tap(140,26),tap(190,62),tap(70,105),check('page',2),tap(120,119),*type_name('x'),tap(176,185),check('labels',1),tap(200,103),check('labels',0),tap(193,211),check('labels',1),'snapshot labels','finish']
     result['labels-keyboard']=(scene(*label),{})
+    result['local-opt-out-contract']=(scene('wait 3','remember writes','remember app_writes',
+        tap(120,120),tap(120,61),tap(120,119),'wait 3',check('page',3),check('keyboard_frames',1,'ge'),
+        *type_name('Optout'),'same writes','same app_writes',check('page',2),
+        tap(120,119),key_tap(1),'raw 20 20',check('page',2),'name Optout',
+        'same writes','same app_writes',tap(166,185),check('labels',1),'different writes',
+        'same app_writes','wait 240',check('history',228),'history_order','nav 32',
+        'remember history','remember captures','wait 3','same history','same captures','finish'),{})
+
     room=['wait 3']+samples()+[tap(75,207),check('page',5),tap(110,89),*type_name('Room'),tap(60,165),check('signature_goal',64),'wait 8',tap(55,125),check('running',0),'remember signature_frames','remember captures','wait 5','same signature_frames','same captures',tap(55,125),check('running',1),'wait 70',check('signature_goal',0),check('room_frames',64),check('room_kind',1),check('signature_pending',0),tap(195,122),check('signature_mode',2),check('manual_room',0),tap(120,62),check('signature_mode',1),'wait 80',check('room_selected',0),tap(50,62),check('signature_mode',0),tap(70,118),check('page',5),tap(60,165),'wait 70',check('room_frames',128),tap(70,118),tap(60,165),'wait 6',tap(175,125),check('signature_goal',0),check('room_frames',128),'snapshot rooms','finish']
     result['rooms']=(scene(*room),{})
     result['nested-exit']=(scene('wait 3',tap(225,26),tap(120,30),check('page',10),'nav 1',check('page',1),'nav 1',check('page',0),'nav 1','wait 1',check('launches',1),check('running',0),'nav 1'),{'RF_RENDER_LAUNCH_REFUSE':'1','RF_RENDER_EXPECT_LAUNCH':'2'})
@@ -223,6 +235,7 @@ if a.scene:
     if unknown:
         p.error('Unknown scenes: '+', '.join(sorted(unknown)))
 completed_runs=0
+failed_runs=[]
 storage_runs=0
 targets=[('watch',a.system_apps)]
 if a.x4_system:
@@ -241,6 +254,8 @@ for sanitized in (False, True):
         out = OUT / target / ('sanitized' if sanitized else 'normal')
         out.mkdir(parents=True, exist_ok=True)
         flags = ['-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
+        if a.opt_out_contract: flags += ['-DRF_RENDER_OPT_OUT_CONTRACT', '-DRF_RENDER_ORDERED_INPUT']
+        if a.native_canvas: flags += ['-DPORTABLE_RF_NATIVE_CANVAS','-DRF_RENDER_ORDERED_INPUT']
         san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitized else []
         if target == 'x4':
             flags += ['-DRF_RENDER_PAPER', '-DPORTABLE_DISPLAY_ROTATION=90', '-DPORTABLE_HOME_APP="default.elf"']
@@ -274,12 +289,22 @@ for sanitized in (False, True):
             for stale in folder.glob('*.ppm'):
                 stale.unlink()
             command_file=folder/'commands.txt'
+            if a.native_canvas or a.opt_out_contract:
+                # Ordered edges advance independently of raster polling. Give
+                # release/dispatch two polls; preserve all assertions and allow
+                # two polls per capture for long room/event training waits.
+                commands='\n'.join(('wait '+str(int(line.split()[1])*2) if line.startswith('wait ') and int(line.split()[1])>=64 else line)+('\nwait 2' if line.startswith(('tap ','nav ')) or (a.opt_out_contract and line.startswith('raw ')) else '') for line in commands.splitlines())+'\n'
             command_file.write_text(commands)
             env=dict(os.environ, ASAN_OPTIONS='detect_leaks=0', **extra_env)
             if sanitized:
                 env['RF_RENDER_NO_IMAGES']='1'
-            run([exe,folder,command_file],env=env,timeout=120)
-            completed_runs+=1
+            try:
+                run([exe,folder,command_file],env=env,timeout=120)
+            except subprocess.CalledProcessError as error:
+                if not a.keep_going: raise
+                failed_runs.append({'target':target,'sanitized':sanitized,'scene':name,'returncode':error.returncode,'commands':str(command_file),'environment':extra_env})
+            else:
+                completed_runs+=1
     if not a.scene or 'runtime-storage' in a.scene:
         runtime=a.runtime.resolve()
         out=OUT/'runtime'/('sanitized' if sanitized else 'normal')
@@ -290,4 +315,8 @@ for sanitized in (False, True):
         with tempfile.TemporaryDirectory(prefix='volume-',dir=out) as volume:
             run([exe,volume],env=dict(os.environ,ASAN_OPTIONS='detect_leaks=0'),timeout=120)
             storage_runs+=1
-print(f'RF actual controller/adapter regression passed: {completed_runs} scene runs and {storage_runs} Runtime storage runs; host simulation only.')
+print(f'RF actual controller/adapter scene passes: {completed_runs} scene runs and {storage_runs} Runtime storage runs; host simulation only.')
+
+if a.keep_going:
+    (OUT/"scene-failures.json").write_text(json.dumps(failed_runs,indent=2)+"\n")
+    if failed_runs: raise SystemExit(f"{len(failed_runs)} scene runs failed; see {OUT}/scene-failures.json")

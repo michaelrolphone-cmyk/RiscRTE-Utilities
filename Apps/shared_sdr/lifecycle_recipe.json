@@ -1,0 +1,167 @@
+{
+  "rules": {
+    "adapter.c": [
+      {
+        "old": "#if defined(PORTABLE_RESIDENT_SHELL_CLIENT) && defined(PORTABLE_QUICK_ACTIONS)\n#error \"Converted foreground ELFs must not contain Quick Actions\"\n#endif",
+        "replacement": "/* Shared foreground links both paths. Only the negotiated lifecycle owns controls. */\nstatic bool sdr_resident_active, sdr_lifecycle_started;\nbool portable_sdr_lifecycle_start(void);"
+      },
+      {
+        "old": "  if(rt->struct_size<RISC_RUNTIME_RESIDENT_SHELL_V1_SIZE || !rt->resident_shell)return -1;",
+        "replacement": "  /* Optional resident role is resolved only at app_main, never during init. */"
+      },
+      {
+        "old": " if(!alarm_modal) {\n  int quick_x=next.x,quick_y=next.y;bool quick_native=false;",
+        "replacement": " if(!sdr_resident_active && !alarm_modal) {\n  int quick_x=next.x,quick_y=next.y;bool quick_native=false;"
+      },
+      {
+        "old": " resident_input(&next);",
+        "replacement": " if(sdr_resident_active)resident_input(&next);"
+      },
+      {
+        "old": "  bool resident_display_ready=!surface.frame && !paper_token && display_settled && !alarm_modal;",
+        "replacement": "  bool resident_display_ready=sdr_resident_active && !surface.frame && !paper_token && display_settled && !alarm_modal;"
+      },
+      {
+        "old": "#ifdef PORTABLE_RESIDENT_SHELL_CLIENT\n int status=resident_checkpoint(RISC_RESIDENT_CHECKPOINT_SLEEP);",
+        "replacement": "#ifdef PORTABLE_RESIDENT_SHELL_CLIENT\n if(sdr_resident_active) {\n int status=resident_checkpoint(RISC_RESIDENT_CHECKPOINT_SLEEP);"
+      },
+      {
+        "old": " return status==RISC_RESIDENT_OK || status==RISC_RESIDENT_BUSY || status==RISC_RESIDENT_EXIT;\n#else\n#ifdef PORTABLE_DESK_CLOCK_SPARSE_START",
+        "replacement": " return status==RISC_RESIDENT_OK || status==RISC_RESIDENT_BUSY || status==RISC_RESIDENT_EXIT;\n }\n#endif\n#ifdef PORTABLE_DESK_CLOCK_SPARSE_START"
+      },
+      {
+        "old": "#endif /* resident foreground never sleeps with a native child stack */",
+        "replacement": "/* Active resident foreground returns above and never enters local native sleep. */"
+      },
+      {
+        "old": "  if(!failed && (uint32_t)(millis_now()-last_activity)>=portable_idle_ms() &&",
+        "replacement": "  if(!sdr_resident_active && !failed && (uint32_t)(millis_now()-last_activity)>=portable_idle_ms() &&"
+      },
+      {
+        "old": "    bool requested=!strcmp(destination,\"default.elf\") || rt->request_launch(destination);",
+        "replacement": "    bool requested=(sdr_resident_active && !strcmp(destination,\"default.elf\")) || rt->request_launch(destination);"
+      },
+      {
+        "old": "static bool idle_sleep(void) {",
+        "replacement": "static bool idle_sleep(void) {\n /* Without a callable alarm facade, no local sleep can claim safe deadlines. */\n if(!sdr_resident_active && !sdr_alarm_available()) {last_activity=millis_now();return true;}"
+      },
+      {
+        "old": "static bool alarm_foreground(bool *consumed);",
+        "replacement": "static bool alarm_foreground(bool *consumed);\nstatic bool sdr_alarm_available(void);"
+      },
+      {
+        "old": "static bool quick_interrupt(void);",
+        "replacement": "static bool quick_interrupt(void);\nstatic void sdr_quick_alarm_capabilities(void);"
+      },
+      {
+        "old": "#include \"resident_adapter.inc\"\n#include \"resident_shell.inc\"",
+        "replacement": "#include \"resident_adapter.inc\"\n#include \"sdr_controls_dispatch.inc\"\n#include \"resident_shell.inc\""
+      },
+      {
+        "old": "#ifdef PORTABLE_RESIDENT_SHELL_CLIENT\n  /* A recognized pull-down is model state.",
+        "replacement": "  sdr_controls_dispatch();\n#ifdef PORTABLE_RESIDENT_SHELL_CLIENT\n  /* A recognized pull-down is model state."
+      },
+      {
+        "old": "    app_contact=(t5_app_contact_t){true,(int16_t)x,(int16_t)y};\n#endif\n#if defined(PORTABLE_NOVA_UI) && !defined(PORTABLE_APP_OWNS_TOUCH_CHROME)",
+        "replacement": "    app_contact=(t5_app_contact_t){true,(int16_t)x,(int16_t)y};\n#if defined(PORTABLE_RF_SHARED_CANVAS) && defined(PORTABLE_QUICK_ACTIONS)\n  /* input_take consumed the replay sample. RF owns touch chrome and does not\n   * enter the legacy Nova replay-clear branch below. */\n  quick_replay_pending=false;\n#endif\n#endif\n#if defined(PORTABLE_NOVA_UI) && !defined(PORTABLE_APP_OWNS_TOUCH_CHROME)"
+      }
+    ],
+    "quick_adapter.inc": [
+      {
+        "old": "static bool quick_foreground(bool *consumed) {\n *consumed=false;",
+        "replacement": "static bool quick_foreground(bool *consumed) {\n *consumed=false;\n if(sdr_resident_active)return true;"
+      },
+      {
+        "old": "static bool quick_apply(uint32_t actions) {",
+        "replacement": "static bool quick_apply(uint32_t actions) {\n if(!sdr_alarm_available())actions&=~(PQA_VOLUME_COMMIT|PQA_SILENT|PQA_DND);"
+      },
+      {
+        "old": " if(!pqa_session_load(&quick,rt))return false;\n quick_paper_capabilities();",
+        "replacement": " if(!pqa_session_load(&quick,rt))return false;\n quick_paper_capabilities();\n sdr_quick_alarm_capabilities();"
+      }
+    ],
+    "foreground_adapter_open.inc": [
+      {
+        "old": "#ifdef PORTABLE_QUICK_ACTIONS\n  quick.ui.paper=pp_enabled();\n  if(!pqa_session_load(&quick,rt))return -1;\n  initial_brightness_pending=surface_format==RISC_DISPLAY_FORMAT_RGB565 &&\n    (info.flags&RISC_DISPLAY_INFO_BRIGHTNESS)!=0;\n  quick_paper_capabilities();\n#ifdef PORTABLE_FRONTLIGHT_TONE\n  if(quick.ui.paper && !pqa_session_sync_tone(&quick,display)){\n#ifdef PORTABLE_ALARM_TERMINAL_RETENTION\n   /* A refused provider operation may already own terminal custody. */\n   portable_adapter_retain_silent();\n#else\n   portable_adapter_retain();\n#endif\n   return -1;}\n#endif\n#ifdef PORTABLE_QUICK_RADIOS\n#ifdef PORTABLE_DESK_CLOCK\n  desk_radios_loaded=false;\n#else\n  if(!pqa_radios_load(&quick_radios,&quick.ui,rt))return -1;\n#endif\n#endif\n#endif\n#if defined(PORTABLE_CONTEXTS_CLIENT) && defined(PORTABLE_RESIDENT_SHELL_CLIENT)\n  if(!contexts_controls_load())return -1;\n#endif\n",
+        "replacement": "  /* Controls load at explicit app_main start after resident negotiation. */\n"
+      }
+    ],
+    "resident_adapter.inc": [
+      {
+        "old": "static bool resident_ready;",
+        "replacement": "static bool resident_ready;\n#include \"sdr_resident_select.inc\""
+      },
+      {
+        "old": "#ifdef PORTABLE_RESIDENT_POLICY\n  if(policy && !portable_touch_close(&touch,rt)){portable_adapter_retain();return RISC_RESIDENT_RETAINED;}\n#endif",
+        "replacement": "  if(!portable_touch_close(&touch,rt)){portable_adapter_retain();return RISC_RESIDENT_RETAINED;}\n  int canvas_pause=rf_canvas_pause(&rf_canvas);\n  if(canvas_pause!=RF_CANVAS_READY) {\n   if(canvas_pause==RF_CANVAS_RETAINED || native_custody_retained)return RISC_RESIDENT_RETAINED;\n   /* Clean pause refusal commits no host dispatch. Restore before returning\n    * BUSY; an unresolved rollback cannot release invocation-owned resources. */\n   if(rf_canvas_resume(&rf_canvas)!=RF_CANVAS_READY ||\n      !portable_touch_open(&touch,rt) || !resident_focus(true)) {\n    portable_adapter_retain_silent();return RISC_RESIDENT_RETAINED;\n   }\n   resident_neutral();resident_neutral_gate=true;return RISC_RESIDENT_BUSY;\n  }"
+      },
+      {
+        "old": "#ifdef PORTABLE_RESIDENT_POLICY\n  if(policy && status!=RISC_RESIDENT_EXIT && !portable_touch_open(&touch,rt)) {\n   portable_adapter_retain();return RISC_RESIDENT_RETAINED;\n  }\n#endif",
+        "replacement": "  if(status!=RISC_RESIDENT_EXIT) {\n   if(rf_canvas_resume(&rf_canvas)!=RF_CANVAS_READY || !portable_touch_open(&touch,rt)) {\n    portable_adapter_retain_silent();return RISC_RESIDENT_RETAINED;\n   }\n  }"
+      },
+      {
+        "old": " if(status==RISC_RESIDENT_RETAINED) {resident_terminal();return status;}\n if(native_custody_retained)return RISC_RESIDENT_RETAINED;",
+        "replacement": " if(status==RISC_RESIDENT_RETAINED) {resident_terminal();return status;}\n if(native_custody_retained)return RISC_RESIDENT_RETAINED;\n if(status!=RISC_RESIDENT_OK && status!=RISC_RESIDENT_BUSY && status!=RISC_RESIDENT_EXIT &&\n    status!=RISC_RESIDENT_DENIED && status!=RISC_RESIDENT_INVALID &&\n    status!=RISC_RESIDENT_INCOMPATIBLE && status!=RISC_RESIDENT_FAILED) {\n  portable_adapter_retain_silent();return RISC_RESIDENT_RETAINED;\n }"
+      }
+    ],
+    "contexts_policy.inc": [
+      {
+        "old": "static bool contexts_controls_load(void) {\n  if(failed||native_custody_retained)return false;",
+        "replacement": "static bool contexts_controls_load(void) {\n  if(failed||native_custody_retained)return false;\n  if(!sdr_resident_active)return true;"
+      },
+      {
+        "old": "  if(contexts_dnd_valid)mask|=PORTABLE_CONTEXT_DND;\n  if(contexts_brightness_valid&&(info.flags&RISC_DISPLAY_INFO_BRIGHTNESS)&&display->set_brightness)",
+        "replacement": "  if(sdr_resident_active?contexts_dnd_valid:quick.ui.dnd_valid)mask|=PORTABLE_CONTEXT_DND;\n  if((sdr_resident_active?contexts_brightness_valid:quick.ui.brightness_valid)&&(info.flags&RISC_DISPLAY_INFO_BRIGHTNESS)&&display->set_brightness)"
+      },
+      {
+        "old": "  if(contexts_volume_valid&&(modes&ALARM_MODE_SOUND))mask|=PORTABLE_CONTEXT_VOLUME;",
+        "replacement": "  if((sdr_resident_active?contexts_volume_valid:quick.ui.volume_valid)&&(modes&ALARM_MODE_SOUND))mask|=PORTABLE_CONTEXT_VOLUME;"
+      },
+      {
+        "old": "  if(alarm_modal)return portable_contexts_stop();\n  if(!contexts_client.loaded&&!contexts_controls_load())return false;",
+        "replacement": "  if(alarm_modal || (!sdr_resident_active && (!quick_storage_safe() || quick_modal)))return portable_contexts_stop();\n  if(sdr_resident_active && !contexts_client.loaded&&!contexts_controls_load())return false;"
+      }
+    ],
+    "alarm.inc": [
+      {
+        "old": "static portable_alarm_client alarms;",
+        "replacement": "static portable_alarm_client alarms;\nstatic bool sdr_alarm_available(void) {return alarms.api && !alarms.unavailable && !portable_alarm_retained(&alarms);}\n/* 0 is unavailable/refused, never a claim of absent or stopped outputs. */\nint portable_sdr_alarm_availability(void) {return portable_alarm_retained(&alarms)?-1:(sdr_alarm_available()?1:0);}\nstatic void sdr_quick_alarm_capabilities(void) {\n if(!sdr_alarm_available()){quick.ui.dnd_valid=false;quick.ui.volume_valid=false;}\n}"
+      },
+      {
+        "old": "static bool alarm_foreground(bool *consumed) {\n    *consumed=false;",
+        "replacement": "static bool alarm_foreground(bool *consumed) {\n    *consumed=false;\n    if(alarms.unavailable)return !failed && !native_custody_retained;"
+      }
+    ],
+    "native_custody_adapter.inc": [
+      {
+        "old": "static bool custody_acquire_for(",
+        "replacement": "#ifdef PORTABLE_RF_SHARED_CANVAS\n#include \"sdr_optional_acquire.h\"\n#endif\nstatic bool custody_acquire_for("
+      },
+      {
+        "old": "  bool ok=native_custody_runtime->acquire(name,version,instance,grant);",
+        "replacement": "#ifdef PORTABLE_RF_SHARED_CANVAS\n  risc_runtime_capability_v1 sdr_before=*grant;\n#endif\n  bool ok=native_custody_runtime->acquire(name,version,instance,grant);"
+      },
+      {
+        "old": "  if(!ok) {\n",
+        "replacement": "  if(!ok) {\n#ifdef PORTABLE_RF_SHARED_CANVAS\n    if(sdr_optional_acquire_request(name,version,instance)) {\n      if(!sdr_optional_acquire_clean(native_custody_runtime,&sdr_before,grant)||native_custody_retained)portable_adapter_retain();\n      return false;\n    }\n#endif\n"
+      }
+    ]
+  },
+  "blobs": {
+    "adapter.c": "49ff2abf2d06270aab5ec5b1e1ef79fb62f551a4",
+    "quick_adapter.inc": "89474304abdd65d7745ea44ae52f4aa03ac6ec72",
+    "foreground_adapter_open.inc": "b02c3b488ae12b4dcbb92c75b694021a47d34144",
+    "resident_adapter.inc": "d93609d9ddd97a54fe878b22508f66af614cd8bf",
+    "contexts_policy.inc": "a610ce246e9cf5e51c32fc5a3460cc928237f0db",
+    "alarm.inc": "215f521cae1a2bd4c0c931c7a6652968b384f189",
+    "native_custody_adapter.inc": "0f12f8a3413da64b26e2b4224958298c6d15e974"
+  },
+  "append_adapter": "\n/* Called once from RF app_main before any controller input or provider work. */\nbool portable_sdr_lifecycle_start(void) {\n if(sdr_lifecycle_started)return !failed && !native_custody_retained;\n if(failed || native_custody_retained || !sdr_resident_select())return false;\n if(!sdr_resident_active) {\n#ifdef PORTABLE_QUICK_ACTIONS\n  quick.ui.paper=pp_enabled();\n  if(!pqa_session_load(&quick,rt))return false;\n  initial_brightness_pending=surface_format==RISC_DISPLAY_FORMAT_RGB565 &&\n    (info.flags&RISC_DISPLAY_INFO_BRIGHTNESS)!=0;\n  quick_paper_capabilities();\n  sdr_quick_alarm_capabilities();\n#ifdef PORTABLE_FRONTLIGHT_TONE\n  if(quick.ui.paper && !pqa_session_sync_tone(&quick,display)){\n#ifdef PORTABLE_ALARM_TERMINAL_RETENTION\n   /* A refused provider operation may already own terminal custody. */\n   portable_adapter_retain_silent();\n#else\n   portable_adapter_retain();\n#endif\n   return false;}\n#endif\n#ifdef PORTABLE_QUICK_RADIOS\n#ifdef PORTABLE_DESK_CLOCK\n  desk_radios_loaded=false;\n#else\n  if(!pqa_radios_load(&quick_radios,&quick.ui,rt))return false;\n#endif\n#endif\n#endif\n\n } else {\n#if defined(PORTABLE_CONTEXTS_CLIENT)\n  if(!contexts_controls_load())return false;\n#endif\n }\n sdr_lifecycle_started=true;return !failed && !native_custody_retained;\n}\n",
+  "generated": [
+    "sdr_resident_select.inc",
+    "PortableAlarmClient.h",
+    "PortableAlarmTerminalClient.h",
+    "sdr_controls_dispatch.inc",
+    "sdr_optional_acquire.h"
+  ]
+}

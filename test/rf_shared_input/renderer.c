@@ -33,10 +33,8 @@ const risc_driver_v2 *rf_scene_driver_get(uint32_t),*rf_text_driver_get(uint32_t
 static const risc_driver_v2 *scene_driver,*text_driver,*profile_driver;
 #ifdef PORTABLE_TEXT_INPUT_POLICY
 #include "PortableResidentPolicyInput.h"
-static risc_text_entry_api_v1_checkpoint text_proxy;
-#else
-static risc_text_entry_api_v1_long text_proxy;
 #endif
+static risc_text_entry_api_v1_checkpoint text_proxy;
 #define TEXT_PROXY_BASE (*(risc_text_entry_api_v1 *)(void *)&text_proxy)
 static const risc_text_entry_api_v1 *real_text;
 static unsigned policy_battery,policy_sleep,policy_background,policy_contexts,policy_polls,policy_dispatches,policy_resumes;
@@ -64,12 +62,16 @@ static bool touch_down; static int touch_x,touch_y; static uint32_t navigation_p
 #define VIEW_WIDTH 480u
 #define VIEW_HEIGHT 800u
 #else
-#define WIDTH 240u
-#define HEIGHT 240u
-#define STRIDE 488u
+#ifndef RF_TEST_WIDTH
+#define RF_TEST_WIDTH 240u
+#define RF_TEST_HEIGHT 240u
+#endif
+#define WIDTH RF_TEST_WIDTH
+#define HEIGHT RF_TEST_HEIGHT
+#define STRIDE (2u*(WIDTH+4u))
 #define FORMAT RISC_DISPLAY_FORMAT_RGB565
-#define VIEW_WIDTH 240u
-#define VIEW_HEIGHT 240u
+#define VIEW_WIDTH WIDTH
+#define VIEW_HEIGHT HEIGHT
 #endif
 static struct {unsigned char before[32],pixels[HEIGHT*STRIDE],after[32];} raster;
 #define frame_pixels raster.pixels
@@ -93,7 +95,7 @@ static bool is_mode(const char*s){return !strcmp(mode,s);}
 #define IO() do{assert(!native_retained&&!runtime_lost);io_calls++;}while(0)
 static void check_guards(void){
  for(unsigned i=0;i<32;i++)assert(raster.before[i]==0xa5&&raster.after[i]==0xa5);
- for(unsigned y=0;y<HEIGHT;y++)for(unsigned x=(FORMAT==RISC_DISPLAY_FORMAT_MONO1?100u:480u);x<STRIDE;x++)assert(frame_pixels[y*STRIDE+x]==0xa5);
+ for(unsigned y=0;y<HEIGHT;y++)for(unsigned x=(FORMAT==RISC_DISPLAY_FORMAT_MONO1?WIDTH/8u:WIDTH*2u);x<STRIDE;x++)assert(frame_pixels[y*STRIDE+x]==0xa5);
 }
 static void save_frame(const char *name){
  check_guards();char path[1024];snprintf(path,sizeof(path),"%s/%s.ppm",directory,name);FILE*f=fopen(path,"wb");assert(f);fprintf(f,"P6\n%u %u\n255\n",VIEW_WIDTH,VIEW_HEIGHT);
@@ -133,7 +135,11 @@ static bool fake_touch_poll(void*c,size_t n){IO();(void)c;assert(n==1||n==2);pol
  else if(!strcmp(kind,"back")||!strcmp(kind,"home")){assert(!touch_down&&!navigation_pressed);navigation_pressed=!strcmp(kind,"back")?RISC_NAV_BACK:RISC_NAV_HOME;}
  else if(!strcmp(kind,"capture")){verify_capture(actions[action_cursor].x);char name[64];snprintf(name,sizeof(name),"capture-%02u",capture_serial++);save_frame(name);}
  else{unsigned event_kind;if(!strcmp(kind,"down")){assert(!touch_down);touch_down=true;event_kind=RISC_TOUCH_EVENT_DOWN;}else{assert(!strcmp(kind,"up")&&touch_down);touch_down=false;event_kind=RISC_TOUCH_EVENT_UP;}
- touch_x=actions[action_cursor].x;touch_y=actions[action_cursor].y;if(!strcmp(actions[action_cursor].gate,"app"))app_touch_position(&touch_x,&touch_y);assert(touch_x>=0&&touch_x<(int)VIEW_WIDTH&&touch_y>=0&&touch_y<(int)VIEW_HEIGHT&&subs==1&&touch_count<64);
+ touch_x=actions[action_cursor].x;touch_y=actions[action_cursor].y;if(!strcmp(actions[action_cursor].gate,"app"))app_touch_position(&touch_x,&touch_y);
+#ifdef RF_TEST_NATIVE_HEIGHT
+ else if(touch_y==20){touch_x=touch_x>120?VIEW_WIDTH-20:20;}else{touch_x=touch_x*VIEW_WIDTH/240;touch_y=touch_y*VIEW_HEIGHT/240;}
+#endif
+ assert(touch_x>=0&&touch_x<(int)VIEW_WIDTH&&touch_y>=0&&touch_y<(int)VIEW_HEIGHT&&subs==1&&touch_count<64);
  touch_events[(touch_head+touch_count++)%64]=(risc_touch_event_v1){.sequence=++touch_sequence,.timestamp_ms=ticks,.kind=event_kind,.id=1,.x=(uint16_t)touch_x,.y=(uint16_t)touch_y};touch_edges++;}
  fprintf(stderr,"input %u %s %s %d %d\n",ticks,actions[action_cursor].gate,kind,actions[action_cursor].x,actions[action_cursor].y);
  if(++action_cursor<action_count)next_action_at=ticks+actions[action_cursor].delay;else stop_at=ticks+900;return true;
@@ -249,7 +255,19 @@ static unsigned analysis_count(void){return rf_bulk?signature_audio.transforms:0
 static unsigned final_analysis;
 static void observe_analysis(void){if(rf_bulk)final_analysis=signature_audio.transforms;}
 static bool fixture_live(void){return rf_bulk&&running&&owned;}
-static void app_touch_position(int *x,int *y){*x=ui_x(*x);*y=ui_y(*y);}
+static void app_touch_position(int *x,int *y){
+#ifdef PORTABLE_RF_NATIVE_CANVAS
+ /* Existing scenario scripts describe semantic targets on the original240px
+  * page. Native pixel-edge input has a separate independent fixture. */
+ if(native_plot_page()){
+  if(*y<46){*x=header_x(*x);return;}
+  if(*y>=216){*x=*x*app->screen_width()/240;*y+=app->screen_height()-240;return;}
+  if(cursor_visible&&*y>=50&&*y<78){char caption[40];cursor_layout(caption);*x=pill_x+pill_w/2;*y=pill_y+pill_h/2;return;}
+  *x=PLOT_X+(*x-PLOT_X)*PLOT_W/228;*y=PLOT_Y+(*y-PLOT_Y)*PLOT_H/166;return;
+ }
+#endif
+ *x=ui_x(*x);*y=ui_y(*y);
+}
 static const char *draft_name(void){return editor==3?shared_name:editing.name;}
 static void verify_pending_draft(void){assert(!strcmp(editing.name,opened_text[text_opens-1]));assert(!strcmp(draft_name(),opened_text[text_opens-1]));}
 static void expect_num(const char *key,unsigned value){const char *s=getenv(key);if(s&&value!=(unsigned)strtoul(s,NULL,10)){fprintf(stderr,"%s expected %s actual %u\n",key,s,value);abort();}}
@@ -285,6 +303,10 @@ static void setup_scene(int which){
  else assert(!"unknown scene");
 }
 static void verify_capture(int check){
+ static unsigned stopped_captures;
+ if(check==13){assert(!running&&!radio_owned&&radio_captures>0);stopped_captures=radio_captures;}
+ if(check==14){assert(!running&&!radio_owned&&radio_captures==stopped_captures);}
+ if(check==15){assert(running&&radio_owned&&radio_captures>stopped_captures);}
  if(check==0){assert(!text_granted);expect_num("RF_EXPECT_EDITOR_PAGE",page);assert(!kv_writes&&!data_writes);const char *v=getenv("RF_EXPECT_DRAFT");if(v){fprintf(stderr,"draft='%s' expected='%s'\n",draft_name(),v);assert(!strcmp(draft_name(),v));}}
  if(check==1){assert(!text_granted);const char*v=getenv("RF_SAVED_CHECK_NAME");if(!v)v=getenv("RF_EXPECT_DRAFT");assert(v);if(editor==0){unsigned slot=getenv("RF_SAVED_SLOT")?(unsigned)atoi(getenv("RF_SAVED_SLOT")):0;assert(kv_writes==1&&labels[slot].present&&!strcmp(labels[slot].name,v));char key[16];label_key(slot,key);unsigned i=0;while(i<64&&strcmp(cells[i].key,key))i++;rf_label decoded;assert(i<64&&rf_label_decode(&decoded,cells[i].bytes,cells[i].size)&&!strcmp(decoded.name,v));}else if(editor==2){assert(data_writes&&event_library.labels[0].present&&!strcmp(event_library.labels[0].name,v));static rt_library decoded;assert(rt_bank_decode(&decoded,0,test_disk[0],test_sizes[0])&&!strcmp(decoded.labels[0].name,v));}else if(editor==1){assert(signature_goal&&running&&!strcmp(signature_capture.name,v));}else{assert(cfa_learning_kind&&running&&!strcmp(cfa_learning.name,v));}}
  if(check==11){assert(editor==0?pending_save!=0:editor==1?signature_pending!=0:editor==2?event_files.pending>=0:cfa_changed&&cfa_learning_saved);}

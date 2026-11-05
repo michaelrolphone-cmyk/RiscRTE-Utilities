@@ -14,6 +14,7 @@ import shutil
 import subprocess
 
 import build_native_spectrum_qualification as recipe
+import native_spectrum_target_reference as reviewed_reference
 from package_integrity import stamp_app_manifest
 
 ROOT = recipe.ROOT
@@ -43,7 +44,8 @@ HOST_INPUTS = {
 }
 EXTRA_SOURCE = (MANIFEST, 'scripts/prepare_native_spectrum_release.py',
     'scripts/publish_native_spectrum.py', 'tests/test_native_spectrum_release.py',
-    '.github/workflows/native-spectrum.yml')
+    '.github/workflows/native-spectrum.yml', 'scripts/native_spectrum_target_reference.py',
+    'scripts/shared_input_parity_reference.py', 'test/shared_input_parity/evolution-v1.json')
 CONTROL_SELECTIONS = ('Apps', 'lib', 'scripts', 'tests', 'test', 'profiles',
                       'docs/audio-spectrum-native', 'LICENSE', '.github/workflows/native-spectrum.yml')
 LEGACY_SYSTEM = 'fdc15395928a1fa8eee62a2823b3c8777dcf0fa0'
@@ -84,8 +86,8 @@ def expected_manifest():
 
 
 def native_module(target):
-    require(len(target['modules']) == 3 and {m['mode'] for m in target['modules']} ==
-            {'baseline','legacy','native'}, 'Incomplete target matrix')
+    require(len(target['modules']) == 4 and {m['mode'] for m in target['modules']} ==
+            {'baseline','reviewed','legacy','native'}, 'Incomplete target matrix')
     return next(m for m in target['modules'] if m['mode'] == 'native')
 
 
@@ -103,7 +105,7 @@ def source_identity(name, pins):
 
 def verify_source(root, identity, expected):
     owner, relative = identity.split(':', 1)
-    require(owner in {*recipe.PINS,'utilities','utilities-baseline','toolchain','legacy-system'}, 'Unknown source owner')
+    require(owner in {*recipe.PINS,'utilities','utilities-baseline','utilities-reviewed','toolchain','legacy-system'}, 'Unknown source owner')
     path = checked_path(root/'source',owner+'/'+relative)
     require(digest(path) == expected, 'Changed source evidence: '+identity)
 
@@ -113,7 +115,7 @@ def validate_target(root):
     require(target['utilities_base'] == recipe.BASE and target['exact_external_git_pins'] == recipe.PINS,
             'Wrong target source pins')
     require(target['native_opt_in'] and target['native_selectors'] == recipe.NATIVE and
-            target['selector_off_exact_baseline_bytes'] and target['legacy_manifest_exact_base'], 'Incomplete native/default contract')
+            target['selector_off_exact_reviewed_bytes'] is True and target['legacy_manifest_exact_base'], 'Incomplete native/default contract')
     require(target['native_manifest'] == expected_manifest() and
             target.get('capability_contract',target.get('required_capabilities')) == expected_manifest()['requires'],
             'Wrong twenty-one capability contract')
@@ -122,6 +124,13 @@ def validate_target(root):
     require(recipe.REQUIRED <= native['source_sha256'].keys(), 'Incomplete compiled source closure')
     require(set(native['exports']) == recipe.EXPORTS and set(native['imports']) <= recipe.IMPORTS,
             'Native import/export drift')
+    require(target['reviewed_evolution'] == reviewed_reference.evidence(), 'Wrong reviewed target evolution')
+    expected_inputs = ('scripts/native_spectrum_target_reference.py', 'scripts/shared_input_parity_reference.py',
+                       'test/shared_input_parity/evolution-v1.json')
+    require(set(target['reviewed_evolution_inputs']) == set(expected_inputs), 'Incomplete evolution source evidence')
+    for name, sha in target['reviewed_evolution_inputs'].items():
+        verify_source(root, 'utilities:'+name, sha)
+        require(sha == digest(ROOT/name), 'Changed reviewed evolution implementation')
     definitions = {}
     for module in target['modules']:
         folder = root/'target'/module['mode']; elf = folder/'audio_spectrum.elf'
@@ -142,11 +151,24 @@ def validate_target(root):
         for identity, sha in module['source_sha256'].items():
             if module['mode'] == 'baseline' and identity.startswith('utilities:'):
                 identity = identity.replace('utilities:','utilities-baseline:',1)
+            elif module['mode'] == 'reviewed' and identity.startswith('utilities:'):
+                relative = identity.split(':',1)[1]
+                before = checked_path(root/'source/utilities-baseline', relative).read_bytes()
+                expected = reviewed_reference.evolve(relative, before)
+                identity = identity.replace('utilities:','utilities-reviewed:',1)
+                require(recipe.sha(expected) == sha, 'Reviewed source differs from exact historical evolution: '+relative)
             verify_source(root,identity,sha)
-    require(definitions['baseline'] == definitions['legacy'] and
+        if module['mode'] == 'reviewed':
+            require({'utilities:'+p for p in reviewed_reference.PATHS} <= module['source_sha256'].keys(),
+                    'Incomplete reviewed target source closure')
+    require(definitions['baseline'] == definitions['reviewed'] == definitions['legacy'] and
             definitions['native'] == definitions['legacy']+recipe.NATIVE, 'Native recipe selector drift')
-    require((root/'target/baseline/audio_spectrum.elf').read_bytes() ==
-            (root/'target/legacy/audio_spectrum.elf').read_bytes(), 'Selector-off baseline bytes differ')
+    historical_equal = ((root/'target/baseline/audio_spectrum.elf').read_bytes() ==
+                        (root/'target/legacy/audio_spectrum.elf').read_bytes())
+    require(type(target['selector_off_exact_baseline_bytes']) is bool and
+            target['selector_off_exact_baseline_bytes'] == historical_equal, 'Dishonest historical byte comparison')
+    require((root/'target/reviewed/audio_spectrum.elf').read_bytes() ==
+            (root/'target/legacy/audio_spectrum.elf').read_bytes(), 'Selector-off reviewed reference bytes differ')
     verify_source(root,'utilities:scripts/build_native_spectrum_qualification.py',target['script_sha256'])
     verify_source(root,'wave:'+recipe.RECIPE,target['retained_recipe_sha256'])
     require(digest(root/'source/utilities'/MANIFEST) == target['native_manifest_sha256'] and
@@ -185,10 +207,11 @@ def validate_controls(root, target):
                     'Normal/sanitized pixels differ')
         proofs['host/'+profile] = digest(path)
     path = root/'contracts/qualification.json'; r = read(path)
-    tests = ('tests/spectrum_native_layout_test.c','test/native_apps/spectrum_native_subpages_test.c')
-    require(len(r['tests']) == 4 and {(x['source'],x['sanitized']) for x in r['tests']} ==
+    tests = ('tests/spectrum_native_layout_test.c','test/native_apps/spectrum_native_subpages_test.c',
+             'test/native_apps/spectrum_keyboard_test.c')
+    require(len(r['tests']) == 6 and {(x['source'],x['sanitized']) for x in r['tests']} ==
             {(s,m) for s in tests for m in (False,True)} and all(x['returncode'] == 0 for x in r['tests']),
-            'Incomplete geometry/subpage controls')
+            'Incomplete geometry/subpage/local-keyboard controls')
     require(len(r['parity']) == 3 and {tuple(x['defines']) for x in r['parity']} ==
             {(),('PORTABLE_NOVA_UI','PORTABLE_ALARM_CLIENT'),('PORTABLE_SPECTRUM_SHARED_TEXT_INPUT',)} and
             all(x['identical'] for x in r['parity']), 'Selector-off token parity failed')
@@ -393,7 +416,12 @@ def qualify(args):
         for identity, sha in module['source_sha256'].items():
             owner,relative = identity.split(':',1)
             if module['mode'] == 'baseline' and owner == 'utilities': owner = 'utilities-baseline'
-            if owner in ('utilities','utilities-baseline'):
+            if module['mode'] == 'reviewed' and owner == 'utilities': owner = 'utilities-reviewed'
+            if owner == 'utilities-reviewed':
+                before = recipe.git(ROOT,'show',recipe.BASE+':'+relative)
+                copy_source('utilities-baseline',relative,before)
+                content = reviewed_reference.evolve(relative,before)
+            elif owner in ('utilities','utilities-baseline'):
                 content = recipe.git(ROOT,'show',(source if owner == 'utilities' else recipe.BASE)+':'+relative)
             elif owner == 'toolchain':
                 staged = root/'target/inputs/toolchain'/relative

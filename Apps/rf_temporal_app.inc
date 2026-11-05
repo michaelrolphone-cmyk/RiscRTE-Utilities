@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #ifdef PORTABLE_BLE_BROADCAST
 #include "PortableBroadcastAppData.h"
 static portable_broadcast_app_data event_broadcast_data;
@@ -92,7 +93,15 @@ static void event_restore(void){
  memset(&event_library,0,sizeof(event_library));rt_files_init(&event_files,NULL);rt_segment_reset(&event_segment);rt_segment_reset(&event_training);memset(&event_match,0,sizeof(event_match));event_match.selected=-1;
  event_data_scope=(rf_app_data_scope){0};event_initialized=true;event_armed=event_wait_quiet=event_known_hold=event_previous_active=false;event_pair_count=event_quiet=event_wait_count=event_missed=event_list_scroll=event_example_scroll=0;event_pair_active=false;event_edit_slot=event_delete_slot=event_delete_example=-1;event_capture_kind=RT_POSITIVE;event_edit_shift=1;event_armed_at=event_result_at=0;event_message=NULL;event_keyboard=false;memset(event_pair_power,0,sizeof(event_pair_power));memset(event_previous_power,0,sizeof(event_previous_power));event_load();
 }
-static bool temporal_retained(void){return event_initialized&&event_files.retained;}
+#ifdef PORTABLE_NATIVE_CUSTODY_FENCE
+#include "PortableNativeCustody.h"
+#endif
+static bool temporal_retained(void){
+#ifdef PORTABLE_NATIVE_CUSTODY_FENCE
+ if(portable_adapter_retained())return true;
+#endif
+ return event_initialized&&(event_files.retained||event_data_scope.retained);
+}
 static bool temporal_exit_blocked(void){return event_initialized&&(event_files.pending>=0||event_armed||event_training.ready);}
 static void temporal_suspend(void){
  if(!event_initialized)return;
@@ -227,19 +236,19 @@ static void draw_event_label(void){
  text(0,12,7,216,"TEACH AN EVENT",NOVA_CYAN);round_rect(12,38,155,32,9,NOVA_DIM);text(1,21,46,139,editing.name[0]?editing.name:"TAP TO NAME",NOVA_WHITE);pill(174,38,54,32,"SAVE",false);
  const rt_label*l=&event_library.labels[event_edit_slot];char caption[64];if(running&&!ambient.ready)snprintf(caption,sizeof(caption),"WARMING %u / 64",ambient.frames);else snprintf(caption,sizeof(caption),"%u MATCH / %u OTHER / 6",rt_example_count(l,1),rt_example_count(l,2));text(1,12,80,154,caption,NOVA_CAP);pill(174,76,54,24,running?"STOP":"RF",false);
  pill(12,104,104,34,"RECORD",true);pill(124,104,104,34,"NONMATCH",false);text(1,12,151,60,"SHIFT",NOVA_CAP);pill(76,145,29,32,"-",false);snprintf(caption,sizeof(caption),event_edit_shift?"+/- %u.%u bands":"OFF",event_edit_shift,0u);center(1,108,152,84,caption,NOVA_WHITE);pill(199,145,29,32,"+",false);
- if(event_match.selected==event_edit_slot){int shift=event_match.shift[event_edit_slot];snprintf(caption,sizeof(caption),"SHIFT %+d bands %u / %u MHz",shift,rf_coord_hz(&event_library.identity,event_match.observed_coord)/1000000u,rf_coord_hz(&event_library.identity,event_match.reference_coord[event_edit_slot])/1000000u);text(1,12,180,216,caption,NOVA_CAP);}
+ if(event_match.selected==event_edit_slot){int shift=event_match.shift[event_edit_slot];snprintf(caption,sizeof(caption),"SHIFT %+d bands %" PRIu32 " / %" PRIu32 " MHz",shift,rf_coord_hz(&event_library.identity,event_match.observed_coord)/1000000u,rf_coord_hz(&event_library.identity,event_match.reference_coord[event_edit_slot])/1000000u);text(1,12,180,216,caption,NOVA_CAP);}
  else text(1,12,180,216,"NEURAL: TEACH AT LEAST 2 LABELS",NOVA_CAP);
  pill(12,205,104,29,"EXAMPLES",false);pill(124,205,104,29,"BACK",false);
 }
 static void draw_event_capture(void){
  text(0,12,7,216,event_capture_kind==RT_NEGATIVE?"EVENT TO EXCLUDE":"RECORD RF EVENT",NOVA_CYAN);center(1,12,35,216,event_library.labels[event_edit_slot].name,NOVA_WHITE);char caption[64];
  if(!event_armed&&!event_training.ready){center(1,12,85,216,"CAPTURE STOPPED",NOVA_CAP);center(1,12,117,216,"NO EXAMPLE SAVED",NOVA_CAP);pill(68,183,104,36,"BACK",false);return;}
- if(event_training.ready){const rt_example*e=&event_training.event;center(1,12,63,216,e->flags&RT_CONFIRMED_END?"WHOLE EVENT / END CONFIRMED":e->flags&RT_CLIPPED?"END NOT VERIFIED / REVIEW":"READY TO SAVE",e->flags&RT_CLIPPED?0xffd24au:NOVA_CYAN);snprintf(caption,sizeof(caption),"SPAN %u ms / %u ONSETS",e->duration_ms,e->impacts);center(1,12,90,216,caption,NOVA_TEXT);snprintf(caption,sizeof(caption),"RISE %u / FALL %u ms",e->attack_ms,e->decay_ms);center(1,12,112,216,caption,NOVA_CAP);snprintf(caption,sizeof(caption),"PEAK %u MHz / %u BURSTS",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->count);center(1,12,134,216,caption,NOVA_CAP);if(e->flags&RT_CLIPPED)pill(12,151,216,25,e->flags&RT_CONFIRMED_END?"UNDO WHOLE EVENT":"USE AS WHOLE EVENT",!!(e->flags&RT_CONFIRMED_END));int buttons=e->flags&RT_CLIPPED?188:175;pill(12,buttons,104,36,rt_partial(e)?"SAVE WINDOW":"SAVE",true);pill(124,buttons,104,36,"CANCEL",false);}
+ if(event_training.ready){const rt_example*e=&event_training.event;center(1,12,63,216,e->flags&RT_CONFIRMED_END?"WHOLE EVENT / END CONFIRMED":e->flags&RT_CLIPPED?"END NOT VERIFIED / REVIEW":"READY TO SAVE",e->flags&RT_CLIPPED?0xffd24au:NOVA_CYAN);snprintf(caption,sizeof(caption),"SPAN %" PRIu32 " ms / %u ONSETS",e->duration_ms,e->impacts);center(1,12,90,216,caption,NOVA_TEXT);snprintf(caption,sizeof(caption),"RISE %" PRIu32 " / FALL %" PRIu32 " ms",e->attack_ms,e->decay_ms);center(1,12,112,216,caption,NOVA_CAP);snprintf(caption,sizeof(caption),"PEAK %" PRIu32 " MHz / %u BURSTS",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->count);center(1,12,134,216,caption,NOVA_CAP);if(e->flags&RT_CLIPPED)pill(12,151,216,25,e->flags&RT_CONFIRMED_END?"UNDO WHOLE EVENT":"USE AS WHOLE EVENT",!!(e->flags&RT_CONFIRMED_END));int buttons=e->flags&RT_CLIPPED?188:175;pill(12,buttons,104,36,rt_partial(e)?"SAVE WINDOW":"SAVE",true);pill(124,buttons,104,36,"CANCEL",false);}
  else{center(1,12,71,216,!ambient.ready?"KEEP QUIET / PREPARING":event_wait_quiet?"QUIET OBSERVATIONS":event_training.collecting?"RECORDING RF OBSERVATIONS":"TRIGGER THE EVENT NOW",NOVA_CYAN);if(!ambient.ready)snprintf(caption,sizeof(caption),"BACKGROUND %u%%",ambient.frames*100u/RF_BG_WARMUP);else snprintf(caption,sizeof(caption),"%u / 64 OBSERVATIONS",event_training.event.count);center(1,12,104,216,caption,NOVA_WHITE);center(1,12,129,216,event_capture_kind==RT_NEGATIVE?"TRIGGER A NONMATCH":"LET THE EVENT END",NOVA_CAP);center(1,12,151,216,"BURSTS / GAPS UNOBSERVED",NOVA_CAP);pill(12,185,104,36,"STOP",false);pill(124,185,104,36,"CANCEL",false);}
 }
 static void draw_event_examples(void){
  text(0,12,7,216,"SAVED EXAMPLES",NOVA_CYAN);text(1,12,32,216,event_library.labels[event_edit_slot].name,NOVA_WHITE);
- for(unsigned row=0;row<2;row++){unsigned ex=event_example_scroll+row;const rt_example*e=&event_library.labels[event_edit_slot].examples[ex];int y=62+(int)row*58;char caption[64];snprintf(caption,sizeof(caption),e->id?"%u %s / %u ms":"%u EMPTY",ex+1,e->kind==1?"POSITIVE":"NONMATCH",e->duration_ms);text(1,12,y,166,caption,NOVA_WHITE);if(e->id){snprintf(caption,sizeof(caption),"%s%u MHz / %u ONSETS",e->flags&RT_CONFIRMED_END?"END SET / ":e->flags&RT_CLIPPED?"CLIP / ":"",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->impacts);text(1,12,y+22,172,caption,NOVA_CAP);pill(184,y,44,34,event_delete_example==(int)ex?"SURE":"X",false);}}
+ for(unsigned row=0;row<2;row++){unsigned ex=event_example_scroll+row;const rt_example*e=&event_library.labels[event_edit_slot].examples[ex];int y=62+(int)row*58;char caption[64];snprintf(caption,sizeof(caption),e->id?"%u %s / %" PRIu32 " ms":"%u EMPTY",ex+1,e->kind==1?"POSITIVE":"NONMATCH",e->duration_ms);text(1,12,y,166,caption,NOVA_WHITE);if(e->id){snprintf(caption,sizeof(caption),"%s%" PRIu32 " MHz / %u ONSETS",e->flags&RT_CONFIRMED_END?"END SET / ":e->flags&RT_CLIPPED?"CLIP / ":"",rf_coord_hz(&event_library.identity,e->peak_coord)/1000000u,e->impacts);text(1,12,y+22,172,caption,NOVA_CAP);pill(184,y,44,34,event_delete_example==(int)ex?"SURE":"X",false);}}
  pill(12,189,40,33,"<",false);pill(68,189,104,33,"BACK",false);pill(188,189,40,33,">",false);
 }
 static void event_tap(int x,int y,bool *toggle_requested){

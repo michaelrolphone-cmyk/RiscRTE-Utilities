@@ -11,7 +11,9 @@
 #endif
 /* This controller-only fixture has no Contexts adapter. The common clock
  * helper's optional liveness boundary is neutral here, as in the predecessor. */
-#ifndef PORTABLE_CONTEXTS_CLIENT
+#ifdef PORTABLE_CONTEXTS_CLIENT
+#include "PortableContextsClient.h"
+#else
 #define PORTABLE_CONTEXTS_LIVE() true
 #define PORTABLE_CONTEXTS_CHECK_LIVE() do{}while(0)
 #define portable_contexts_callback(value) (value)

@@ -8,6 +8,11 @@ on:
       - 'Apps/context_signal_library.inc'
       - 'test/native_apps/spectrum_shared_input_safety_test.c'
       - 'scripts/test_spectrum_shared_input_safety.py'
+      - 'scripts/shared_input_parity_reference.py'
+      - 'test/shared_input_parity/**'
+      - 'tests/test_shared_input_parity_reference.py'
+      - 'test/native_apps/spectrum_keyboard_test.c'
+      - 'test/native_apps/audio_spectrum_test.c'
       - '.github/workflows/watch-spectrum-shared-input.yml'
 permissions:
   contents: read
@@ -47,3 +52,8 @@ jobs:
         run: python scripts/test_spectrum_shared_input_safety.py --system-apps .dependencies/system --baseline-utilities .dependencies/baseline
       - name: Existing complete Spectrum model and controller regressions
         run: python scripts/test_audio_spectrum.py --system-apps .dependencies/legacy-system
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spectrum-shared-input-safety-${{ github.sha }}
+          path: build/spectrum-shared-input-safety/

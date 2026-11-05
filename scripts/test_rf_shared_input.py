@@ -55,7 +55,7 @@ def key(ch, target, delay=80):
     raise ValueError(ch)
 
 
-def scenarios(target):
+def scenarios(target, controls_height=None):
     cases = {}
     name_taps = [(120, 120), (120, 90), (90, 54), (120, 84)]
     pages = [2, 5, 7, 12]
@@ -120,7 +120,8 @@ def scenarios(target):
         cases[name] = (base,{})
     # Discovery workflows reach every editor from normal live startup through UI.
     def settings(number):
-        offset=min((number-1)*48,624-((400 if target=='x4' else 240)-94))
+        height=controls_height or (400 if target=='x4' else 240)
+        offset=min((number-1)*48,max(0,624-(height-94)))
         return tap(225,26) + [(100,'app','nav',32,0)]*(number-1) + tap(180,48+(number-1)*48-offset+20)
     room=settings(12)
     events=settings(13)
@@ -183,6 +184,7 @@ def scenarios(target):
         else:env.update({k:str(v) for k,v in home_env.items()})
         cases[title+'-pending-home'+('-refused-back' if target=='watch' else '')]=(actions,env)
     a,e=cases['context-signal-done'];cases['contexts-unavailable']=(list(a),dict(e,RF_NO_CONTEXTS='1'))
+    cases['capture-stop-restart']=(tap(120,120)+[(500,'app','idle',0,0)]+tap(75,225)+check(13)+[(500,'app','idle',0,0)]+check(14)+tap(75,225)+[(500,'app','idle',0,0)]+check(15)+nav('home'),{})
     cases['non-keyboard-views']=(sum(([(100,'app','scene',i,0)]+check(9) for i in range(len(VIEWS))),[]),{'RF_EXPECT_OPENS':'0'})
     return cases
 
@@ -199,7 +201,7 @@ def pin(path):
 def run(args):
     system=args.system_apps.resolve(); runtime=args.runtime.resolve()
     output=(args.output or ROOT/'build/rf-shared-input').resolve();output.mkdir(parents=True,exist_ok=True)
-    evidence={'schema':'rf.shared-input.qualification.v1','source_pins':{'utilities':pin(ROOT),'system':pin(system),'runtime':pin(runtime),'baseline':pin(args.baseline_utilities.resolve())},
+    evidence={'schema':'rf.shared-input.qualification.v1','source_pins':{'utilities':pin(ROOT),'system':pin(system),'runtime':pin(runtime),'baseline':None if args.skip_baseline else pin(args.baseline_utilities.resolve())},
         'not_claimed':['physical hardware','RF/crown/touch/PMU hardware','Runtime ELF loader integration','Runtime storage implementation'],
         'physical_backends':['deterministic signed 10-bit coherent complex IQ','ordered raw touch','navigation','RGB565/mono1 display with stride guards','KV and app-data','bounded base Contexts','alarm','resident checkpoint','RTC/realtime','BLE/Wi-Fi'],
         'leak_sanitizer':'detect_leaks=0 for executor ptrace/runtime limit; explicit malloc/free, grants, subscriptions and display lease accounting',
@@ -215,6 +217,9 @@ def run(args):
         if target=='watch':
             added+=['-DPORTABLE_HOME_APP="springboard.elf"','-DPORTABLE_CHECKED_STORAGE_RUNTIME','-DPORTABLE_NATIVE_CUSTODY_FENCE','-DPORTABLE_ALARM_TERMINAL_RETENTION','-DPORTABLE_WATCH_COLOR_ONLY','-DPORTABLE_WATCH_FROZEN_ICONS']
         else: added+=['-DPORTABLE_CHECKED_STORAGE_RUNTIME','-DRF_TEST_PAPER']
+        if args.native_height and target=="watch":
+            added=[x for x in added if x!="-DPORTABLE_WATCH_FROZEN_ICONS"]
+            added += ["-DPORTABLE_WATCH_NATIVE_HEIGHT","-DRF_TEST_NATIVE_HEIGHT","-DRF_TEST_WIDTH=410u","-DRF_TEST_HEIGHT=502u"]
         added=[flag for flag in added if flag not in deployed]
         telemetry_include=None
         if target=='x4':
@@ -236,8 +241,10 @@ def run(args):
         for folder in [runtime/'sdk/app',runtime/'sdk/driver',system/'lib/PortableApps/include',system/'sdk/app',ROOT/'lib/Alarm/include',ROOT/'lib/Contexts/include']:
             for source in folder.glob('*.h'):
                 if folder in [ROOT/'lib/Alarm/include',ROOT/'lib/Contexts/include'] and (sdk/source.name).exists():continue
-                shutil.copyfile(source,sdk/source.name)
-        shutil.copytree(system/'lib/PortableApps/time',sdk.parent/'time',dirs_exist_ok=True)
+                dest=sdk/source.name
+                dest.unlink(missing_ok=True);dest.symlink_to(source.resolve())
+        time_alias=sdk.parent/'time'
+        if not time_alias.exists():time_alias.symlink_to(system/'lib/PortableApps/time',target_is_directory=True)
         extra=[]
         if target=='watch':
             defines=recipe['defines']; contexts=Path(defines[defines.index('-include')+1])
@@ -257,9 +264,9 @@ def run(args):
         flags=deployed+added+['-D'+d for d in args.extra_define]+extra
         includes=[sdk,ROOT/'Apps',system/'Apps',system/'lib/NativeApps/include',system/'Services/scene_profile',system/'Services/text_input']
         evidence['profiles'][target]={'receipt':str(receipt),'runtime':pin(runtime),'host_system':pin(host_system),'sha256':digest(receipt),'deployed_defines':deployed,'added_defines':added,'omitted_defines':[],
-            'omitted_target_options':['Xtensa machine/linker options','-flto; native tests use -O1 -g'],'raster':[480,800] if target=='x4' else [240,240],
+            'omitted_target_options':['Xtensa machine/linker options','-flto; native tests use -O1 -g'],'raster':[480,800] if target=='x4' else ([410,502] if args.native_height else [240,240]),
             'scene_profile':{'display_rotation':270 if target=='x4' else 0,'touch_rotation':0,'paper':target=='x4','source':str(host_system/'Services/scene_profile/profile.c')}}
-        selected=scenarios(target)
+        selected=scenarios(target, (502*240+409)//410 if target=='watch' and args.native_height and '-DPORTABLE_RF_NATIVE_CANVAS' in flags else None)
         if 'PORTABLE_TEXT_INPUT_POLICY' in args.extra_define:
             begin=setup(0)+tap(120,120)+key('Q',target)
             for suffix,end in [('done',key('\x03',target)+check()),('cancel',nav('back','text')+check())]:
@@ -281,7 +288,7 @@ def run(args):
             for provider,entry in [('scene_host','rf_scene_driver_get'),('text_input','rf_text_driver_get'),('scene_profile','rf_profile_driver_get')]:
                 obj=out/(provider+'.o');source=host_system/'Services'/provider/('profile.c' if provider=='scene_profile' else 'host.c')
                 host_flags=['-DSCENE_HOST_TELEMETRY=0'] if provider=='scene_host' and target=='watch' else []
-                if target=='watch' and provider=='scene_host':host_flags+=['-DSCENE_HOST_WATCH_240=1']
+                if target=='watch' and provider=='scene_host':host_flags+=['-DSCENE_HOST_WATCH_240='+('0' if args.native_height else '1')]
                 if target=='watch' and provider=='scene_profile':host_flags+=['-DSCENE_PROFILE_ID="scene-profile-compact-color"']
                 if target=='x4' and provider=='scene_profile':host_flags+=['-DSCENE_PROFILE_PAPER=1','-DSCENE_DISPLAY_ROTATION=270','-DSCENE_PROFILE_ID="scene-profile-portrait-monochrome"']
                 provider_command=[command[0],*(['-I'+str(telemetry_include)] if telemetry_include else []),'-I'+str(host_system/'lib/PortableApps/include'),'-I'+str(host_system/'Services/scene_profile'),*command[1:]]
@@ -297,19 +304,23 @@ def run(args):
                 folder=out/name;folder.mkdir(exist_ok=True)
                 for old in [*folder.glob('*.ppm'),*folder.glob('*.png')]:old.unlink()
                 action_file=folder/'actions.txt';action_file.write_text(''.join(' '.join(map(str,row))+'\n' for row in actions))
+                if args.native_height and 0<int(env.get('RF_TEST_DELAY_MS','0'))<3000:env={**env,'RF_TEST_DELAY_MS':'3000'}
                 environ={k:v for k,v in os.environ.items() if not k.startswith('RF_')};environ.update(env,ASAN_OPTIONS='detect_leaks=0',UBSAN_OPTIONS='halt_on_error=1')
                 result=subprocess.run([str(executable),str(folder),str(action_file),name],env=environ,capture_output=True,text=True,timeout=120)
                 (folder/'run.log').write_text(result.stdout+result.stderr)
                 evidence['results'].append({'target':target,'mode':name,'sanitized':sanitized,'returncode':result.returncode,'log':str(folder/'run.log')})
                 (output/'qualification.json').write_text(json.dumps(evidence,indent=2)+'\n')
-                if result.returncode:print(result.stdout+result.stderr,file=sys.stderr);result.check_returncode()
+                if result.returncode:
+                    print(result.stdout+result.stderr,file=sys.stderr)
+                    if not args.keep_going: result.check_returncode()
+                    continue
                 from PIL import Image
                 for ppm in folder.glob('*.ppm'):
                     with Image.open(ppm) as im:
                         assert im.size==tuple(evidence['profiles'][target]['raster']);im.save(ppm.with_suffix('.png'))
                     ppm.unlink()
                 print('RF shared input',target,'ASan/UBSan' if sanitized else 'normal',name,'PASS',flush=True)
-            if 'non-keyboard-views' in selected:
+            if 'non-keyboard-views' in selected and not args.skip_baseline:
                 for label,baseline_root in [('published',args.baseline_utilities),('packaged',args.watch_baseline if target=='watch' else args.x4_baseline)]:
                     baseline=out/(label+'-baseline-renderer');baseline_source=baseline_root.resolve()/'Apps/waterfall.c'
                     baseline_flags=[command[0],'-I'+str(baseline_root.resolve()/'Apps'),*[x for x in command[1:] if x not in ['-DPORTABLE_RF_SHARED_TEXT_INPUT','-DPORTABLE_APP_HOME_GUARD']]]
@@ -331,6 +342,7 @@ def run(args):
         if not args.normal_only:
             from PIL import Image
             for name in selected:
+                if any(r['target']==target and r['mode']==name and r['returncode'] for r in evidence['results']):continue
                 normal=output/target/'normal'/name;sanitized=output/target/'sanitized'/name
                 names={p.name for p in normal.glob('*.png')};assert names=={p.name for p in sanitized.glob('*.png')}
                 for filename in sorted(names):
@@ -339,6 +351,8 @@ def run(args):
     for source,expected in evidence['sources'].items():assert digest(source)==expected,('source changed during qualification',source)
     (output/'qualification.json').write_text(json.dumps(evidence,indent=2)+'\n')
     print('Evidence:',output/'qualification.json')
+    failed=[r for r in evidence['results'] if r['returncode']]
+    if failed: raise SystemExit(f'{len(failed)} shared-input scene runs failed; see qualification.json')
 
 
 if __name__=='__main__':
@@ -356,5 +370,8 @@ if __name__=='__main__':
     p.add_argument('--target',choices=['watch','x4'],action='append')
     p.add_argument('--scenario',action='append')
     p.add_argument('--extra-define',action='append',default=[])
+    p.add_argument('--native-height',action='store_true')
     p.add_argument('--normal-only',action='store_true')
+    p.add_argument('--keep-going',action='store_true',help='Record every failure and exit nonzero after completing other scenes')
+    p.add_argument('--skip-baseline',action='store_true',help='Intentional presentation changes; retain normal/sanitized pixel equality')
     run(p.parse_args())

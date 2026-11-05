@@ -14,6 +14,8 @@ sys.path.insert(0,str(ROOT/'scripts'))
 import build_native_spectrum_qualification as recipe
 import prepare_native_spectrum_release as prepare
 import publish_native_spectrum as publish
+import native_spectrum_target_reference as reference
+from shared_input_parity_reference import blob_hash
 
 
 def put(path, content=b'fixture\n'):
@@ -26,14 +28,38 @@ def fixture(root):
     manifest = prepare.expected_manifest()
     write = prepare.write
     files = {}
-    def staged(identity,content=b'fixture\n'):
+    def staged(identity,content=None):
         owner,name = identity.split(':',1)
         path = root/'source'/owner/name
+        if content is None:
+            content = path.read_bytes() if path.exists() else b'fixture\n'
         sha = put(path,content); files[path.relative_to(root).as_posix()] = sha
         return sha
     closure = {name:staged(name) for name in recipe.REQUIRED}
     for name in recipe.REQUIRED:
         if name.startswith('utilities:'):staged(name.replace('utilities:','utilities-baseline:',1))
+    # Synthetic ELFs, but the reviewed source delta uses real pinned pre/post blobs.
+    baseline_closure = dict(closure)
+    reviewed_closure = dict(closure)
+    for entry in reference.definition()[1]['files']:
+        name = entry['path']; after = (ROOT/name).read_bytes()
+        assert blob_hash(after) == entry['after_git_blob_sha1']
+        lines = after.decode().splitlines(keepends=True); offset = 0; positions = []
+        for hunk in entry['hunks']:
+            positions.append((hunk['start']+offset,hunk))
+            offset += len(hunk['new'])-len(hunk['old'])
+        for start,hunk in reversed(positions):
+            assert lines[start:start+len(hunk['new'])] == hunk['new']
+            lines[start:start+len(hunk['new'])] = hunk['old']
+        before = ''.join(lines).encode()
+        assert blob_hash(before) == entry['before_git_blob_sha1']
+        assert reference.evolve(name,before) == after
+        baseline_closure['utilities:'+name] = staged('utilities-baseline:'+name,before)
+        closure['utilities:'+name] = staged('utilities:'+name,after)
+        reviewed_closure['utilities:'+name] = staged('utilities-reviewed:'+name,after)
+    for identity in reviewed_closure:
+        if identity.startswith('utilities:') and identity.split(':',1)[1] not in reference.PATHS:
+            staged(identity.replace('utilities:','utilities-reviewed:',1))
     for name in prepare.EXTRA_SOURCE: staged('utilities:'+name,(ROOT/name).read_bytes())
     manifest_sha = prepare.digest(root/'source/utilities'/prepare.MANIFEST)
     legacy_sha = staged('utilities:Apps/audio_spectrum.json',b'legacy manifest\n')
@@ -42,18 +68,22 @@ def fixture(root):
     recipe_sha = staged('wave:'+recipe.RECIPE)
     shared_sha = staged('utilities:scripts/test_spectrum_shared_input.py')
     modules = []
-    for mode in ('baseline','legacy','native'):
+    for mode in ('baseline','reviewed','legacy','native'):
         elf = root/'target'/mode/'audio_spectrum.elf'
-        sha = put(elf,(b'native ELF' if mode == 'native' else b'baseline ELF')*8)
+        sha = put(elf,(b'native ELF' if mode == 'native' else b'historical ELF' if mode == 'baseline' else b'reviewed ELF')*8)
         command_sha = put(elf.parent/'command.json',json.dumps(['cc',*(recipe.NATIVE if mode=='native' else []),
                                                               'source.c','-lgcc','-o',str(elf)]).encode()+b'\n')
-        modules.append({'mode':mode,'sha256':sha,'size_bytes':elf.stat().st_size,'source_sha256':closure,
+        modules.append({'mode':mode,'sha256':sha,'size_bytes':elf.stat().st_size,'source_sha256':baseline_closure if mode=='baseline' else reviewed_closure if mode=='reviewed' else closure,
             'command_sha256':command_sha,'structural_loader_admission':'passed','target_instructions_executed':False,
             'native_ui':mode=='native','build_defines':recipe.NATIVE if mode=='native' else [],
             'exports':sorted(recipe.EXPORTS),'imports':['risc_runtime_get_api']})
     target = {'modules':modules,'utilities_base':recipe.BASE,'utilities_commit':'b'*40,
         'exact_external_git_pins':recipe.PINS,'native_opt_in':True,'native_selectors':recipe.NATIVE,
-        'selector_off_exact_baseline_bytes':True,'legacy_manifest_exact_base':True,'native_manifest':manifest,
+        'selector_off_exact_baseline_bytes':False,'selector_off_exact_reviewed_bytes':True,
+        'reviewed_evolution':reference.evidence(),
+        'reviewed_evolution_inputs':{name:prepare.digest(ROOT/name) for name in (
+            'scripts/native_spectrum_target_reference.py','scripts/shared_input_parity_reference.py',
+            'test/shared_input_parity/evolution-v1.json')},'legacy_manifest_exact_base':True,'native_manifest':manifest,
         'native_manifest_sha256':manifest_sha,'capability_contract':manifest['requires'],
         'legacy_manifest_sha256':legacy_sha,'hardware_qualified':False,'firmware_assembled':False,
         'retained_flags_removed':['-Wl,--undefined=__divsf3'],'script_sha256':script_sha,'retained_recipe_sha256':recipe_sha}
@@ -75,7 +105,8 @@ def fixture(root):
             'sources':sources,'test_script_sha256':shared_sha,
             'normal_sanitized_pixel_identical':[name+'/app.png' for name in sorted(prepare.SCENARIOS)],
             'non_keyboard_views':[str(i) for i in range(18)]})
-    tests = ('tests/spectrum_native_layout_test.c','test/native_apps/spectrum_native_subpages_test.c')
+    tests = ('tests/spectrum_native_layout_test.c','test/native_apps/spectrum_native_subpages_test.c',
+             'test/native_apps/spectrum_keyboard_test.c')
     write(root/'contracts/qualification.json',{'tests':[{'source':s,'sanitized':m,'returncode':0} for s in tests for m in (False,True)],
         'parity':[{'defines':d,'identical':True} for d in ([],['PORTABLE_NOVA_UI','PORTABLE_ALARM_CLIENT'],['PORTABLE_SPECTRUM_SHARED_TEXT_INPUT'])],
         'sources':{s:staged('utilities:'+s) for s in tests}})
@@ -129,6 +160,60 @@ class SpectrumReleaseTests(unittest.TestCase):
         self.assertEqual(len(record['required_capabilities']),21)
         self.assertEqual(len(prepare.SCENARIOS)*len(prepare.PROFILES)*2,610)
         self.assertNotEqual(record['target_original_source_commit'],record['source_commit'])
+
+
+    def test_all_four_target_modes_required(self):
+        path='target/qualification.json'; original=(self.root/path).read_bytes()
+        for mode in ('baseline','reviewed','legacy','native'):
+            self.change(path,lambda d:d.update(modules=[m for m in d['modules'] if m['mode'] != mode]))
+            with self.assertRaisesRegex(ValueError,'target matrix'): prepare.validate_target(self.root)
+            (self.root/path).write_bytes(original)
+        self.change(path,lambda d:d['modules'].__setitem__(1,d['modules'][0]))
+        with self.assertRaisesRegex(ValueError,'target matrix'): prepare.validate_target(self.root)
+
+    def test_all_six_contract_records_required(self):
+        path='contracts/qualification.json'; original=(self.root/path).read_bytes()
+        for index in range(6):
+            self.change(path,lambda d:d['tests'].pop(index))
+            with self.assertRaisesRegex(ValueError,'geometry/subpage/local-keyboard'): prepare.validate_controls(self.root,{})
+            (self.root/path).write_bytes(original)
+        for mutate in (lambda d:d['tests'].__setitem__(0,d['tests'][1]),
+                       lambda d:d['tests'][0].update(returncode=1),
+                       lambda d:d['tests'][-1].update(sanitized=False)):
+            self.change(path,mutate)
+            with self.assertRaisesRegex(ValueError,'geometry/subpage/local-keyboard'): prepare.validate_controls(self.root,{})
+            (self.root/path).write_bytes(original)
+
+    def test_historical_difference_is_reported_honestly(self):
+        target,_=prepare.validate_target(self.root)
+        self.assertFalse(target['selector_off_exact_baseline_bytes'])
+        self.assertTrue(target['selector_off_exact_reviewed_bytes'])
+        self.change('target/qualification.json',lambda d:d.update(selector_off_exact_baseline_bytes=True))
+        with self.assertRaisesRegex(ValueError,'Dishonest historical'): prepare.validate_target(self.root)
+
+    def test_reviewed_elf_mismatch_even_with_updated_digest_rejected(self):
+        path=self.root/'target/reviewed/audio_spectrum.elf'
+        data=path.read_bytes();path.write_bytes(data[:-1]+b'!')
+        self.change('target/qualification.json',lambda d:next(m for m in d['modules'] if m['mode']=='reviewed').update(sha256=prepare.digest(path)))
+        with self.assertRaisesRegex(ValueError,'reviewed reference bytes differ'): prepare.validate_target(self.root)
+
+    def test_reviewed_receipt_cannot_name_another_evolution(self):
+        self.change('target/qualification.json',lambda d:d['reviewed_evolution'].update(baseline_revision='0'*40))
+        with self.assertRaisesRegex(ValueError,'Wrong reviewed target evolution'): prepare.validate_target(self.root)
+
+    def test_changed_historical_evolution_input_rejected(self):
+        path=self.root/'source/utilities-baseline/Apps/context_fingerprint_app.inc'
+        path.write_bytes(path.read_bytes()+b' ')
+        self.change('target/qualification.json',lambda d:next(m for m in d['modules'] if m['mode']=='baseline')['source_sha256'].update(
+            {'utilities:Apps/context_fingerprint_app.inc':prepare.digest(path)}))
+        with self.assertRaisesRegex(ValueError,'Historical input hash mismatch'): prepare.validate_target(self.root)
+
+    def test_unreviewed_delta_even_with_updated_hash_rejected(self):
+        path=self.root/'source/utilities-reviewed/Apps/audio_spectrum.c'
+        path.write_bytes(b'unreviewed delta')
+        self.change('target/qualification.json',lambda d:next(m for m in d['modules'] if m['mode']=='reviewed')['source_sha256'].update(
+            {'utilities:Apps/audio_spectrum.c':prepare.digest(path)}))
+        with self.assertRaisesRegex(ValueError,'exact historical evolution'): prepare.validate_target(self.root)
 
     def test_native_manifest_unchanged_and_distinct(self):
         self.assertEqual(prepare.read(ROOT/prepare.MANIFEST),prepare.expected_manifest())

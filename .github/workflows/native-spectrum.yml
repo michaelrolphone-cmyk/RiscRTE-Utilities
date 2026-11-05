@@ -2,9 +2,9 @@ name: Native Audio Spectrum qualification
 on:
   push:
     branches: [main, work/audio-spectrum-native-20261018]
-    paths: ['Apps/audio_spectrum.c', 'Apps/spectrum_*', 'Apps/context_*', 'Apps/native/audio_spectrum.json', 'scripts/*spectrum*', 'test/native_apps/*spectrum*', 'tests/*spectrum*', 'docs/audio-spectrum-native/**', '.github/workflows/native-spectrum.yml']
+    paths: ['Apps/audio_spectrum.c', 'Apps/spectrum_*', 'Apps/context_*', 'Apps/native/audio_spectrum.json', 'scripts/*spectrum*', 'scripts/shared_input_parity_reference.py', 'test/shared_input_parity/**', 'tests/test_shared_input_parity_reference.py', 'test/native_apps/*spectrum*', 'tests/*spectrum*', 'docs/audio-spectrum-native/**', '.github/workflows/native-spectrum.yml']
   pull_request:
-    paths: ['Apps/audio_spectrum.c', 'Apps/spectrum_*', 'Apps/context_*', 'Apps/native/audio_spectrum.json', 'scripts/*spectrum*', 'test/native_apps/*spectrum*', 'tests/*spectrum*', 'docs/audio-spectrum-native/**', '.github/workflows/native-spectrum.yml']
+    paths: ['Apps/audio_spectrum.c', 'Apps/spectrum_*', 'Apps/context_*', 'Apps/native/audio_spectrum.json', 'scripts/*spectrum*', 'scripts/shared_input_parity_reference.py', 'test/shared_input_parity/**', 'tests/test_shared_input_parity_reference.py', 'test/native_apps/*spectrum*', 'tests/*spectrum*', 'docs/audio-spectrum-native/**', '.github/workflows/native-spectrum.yml']
   workflow_dispatch:
     inputs:
       publish_development:
@@ -90,6 +90,7 @@ jobs:
           set -euo pipefail
           mkdir -p .dependencies/baseline
           git archive 12c7440c4c2fd9b6b78e10f11a983947c145b346 Apps lib | tar -x -C .dependencies/baseline
+          printf '%s\n' 12c7440c4c2fd9b6b78e10f11a983947c145b346 > .dependencies/baseline/.historical-revision
           python scripts/test_spectrum_native_contract.py --legacy-system .dependencies/legacy-system --sdk-include dist/native-spectrum/host/240x240/sdk/include --baseline .dependencies/baseline --output dist/native-spectrum/contracts 2>&1 | tee dist/native-spectrum/contracts.log
       - name: Existing analysis and storage lifecycle controls
         run: |

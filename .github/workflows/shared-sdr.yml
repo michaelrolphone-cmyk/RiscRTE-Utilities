@@ -1,0 +1,180 @@
+name: Shared SDR convergence
+on:
+  push:
+    branches: ['work/shared-sdr-20261103']
+  pull_request:
+    paths: ['Apps/**', 'scripts/*sdr*', 'test/native_apps/rf_shared_canvas_*.inc', 'test/native_apps/rf_renderer_test.c', 'docs/shared-sdr/**', '.github/workflows/shared-sdr.yml']
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 710b200021b983ea55eb86a6fbddbbf5ce10a984
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: ab9ff33975680c5bb8d9a2e7ed346d0300732a4e
+          path: Bootfs
+          persist-credentials: false
+      - name: Inspect exact published Bringup cumulative SDR bytes
+        run: python3 scripts/inspect_shared_sdr_baseline.py --bootfs-tools Bootfs/scripts --output out/baseline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-sdr-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/baseline/
+          if-no-files-found: error
+
+  canvas-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 710b200021b983ea55eb86a6fbddbbf5ce10a984
+          path: System
+          persist-credentials: false
+      - name: Real canvas provider and owned session normal and sanitized
+        run: |
+          set -euo pipefail
+          mkdir -p out/canvas
+          for mode in normal sanitized; do
+            flags=(); if [ "$mode" = sanitized ]; then flags+=(-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -no-pie); fi
+            cc -std=c11 -O1 -g -Wall -Wextra -Werror "${flags[@]}" -IApps/shared_sdr -ISystem/Services/canvas_host -ISystem/sdk/app -ISystem/lib/PortableApps/include -ISystem/Services/scene_profile Apps/shared_sdr/rf_capability_canvas_adapter_test.c -o "out/canvas/$mode"
+            ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 "out/canvas/$mode" 2>&1 | tee "out/canvas/$mode.log"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-sdr-canvas-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/canvas/
+          if-no-files-found: error
+
+  full-controller:
+    needs: baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 96742a20af660808cae6cd3a36eadd12a83a460f
+          path: InstalledSystem
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 710b200021b983ea55eb86a6fbddbbf5ce10a984
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 712ecc3f894dba99d9c9638941778a82f5856b97
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-Watch
+          ref: 6e82fdcaec0b73ed700d2104cfb4d94f011c19d4
+          path: Watch
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: ab9ff33975680c5bb8d9a2e7ed346d0300732a4e
+          path: Bootfs
+          persist-credentials: false
+      - name: Shared SDR preservation regressions
+        run: python3 scripts/test_shared_sdr_products.py
+      - name: Compile lifecycle contracts normally and sanitized
+        run: |
+          set -euo pipefail
+          mkdir -p out/lifecycle
+          for mode in normal sanitized; do
+            flags=(); if [ "$mode" = sanitized ]; then flags+=(-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -no-pie); fi
+            for test in sdr_resident_select sdr_alarm_facade sdr_controls_dispatch; do
+              extra=(); if [ "$test" = sdr_controls_dispatch ]; then extra+=(InstalledSystem/lib/PortableApps/src/quick_actions.c); fi
+              cc -std=c11 -O1 -g -Wall -Wextra -Werror "${flags[@]}" -IApps/shared_sdr -IRuntime/sdk/app -ISystem/lib/NativeApps/include -ISystem/lib/PortableApps/include -Ilib/Alarm/include "Apps/shared_sdr/${test}_test.c" "${extra[@]}" -o "out/lifecycle/$test-$mode"
+              ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 "out/lifecycle/$test-$mode" 2>&1 | tee "out/lifecycle/$test-$mode.log"
+            done
+          done
+      - name: Pinned official Xtensa compiler
+        run: |
+          curl --fail --location --retry 3 -o compiler.tar.xz https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-x86_64-linux-gnu.tar.xz
+          echo '3d50f5cd5f173acfd524e07c1cd69bc99585731a415ca2e5bce879997fe602b8  compiler.tar.xz' | sha256sum -c -
+          tar -xf compiler.tar.xz
+      - name: Build full installed RF controller through shared canvas
+        run: python3 scripts/build_shared_sdr.py --system InstalledSystem --canvas-system System --runtime Runtime --watch Watch --compiler xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc --output out/shared
+      - uses: actions/download-artifact@v4
+        with:
+          name: shared-sdr-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/baseline
+      - name: Assemble preserving shared SDR candidates
+        run: >-
+          python3 scripts/assemble_shared_sdr_products.py
+          --system System --bootfs Bootfs --baseline out/baseline
+          --baseline-lock docs/shared-sdr/baseline.json
+          --shared out/shared --output out/candidate
+      - name: Qualify product packs and selected Runtime normally and sanitized
+        run: >-
+          python3 scripts/qualify_shared_sdr_products.py
+          --runtime Runtime --system System --bootfs Bootfs
+          --baseline out/baseline --baseline-lock docs/shared-sdr/baseline.json
+          --candidate out/candidate --shared out/shared
+          --output out/qualification
+      - name: Full controller through shared canvas across geometry and modality
+        run: >-
+          python3 scripts/test_shared_sdr_canvas.py
+          --shared out/shared --canvas-system System
+          --output out/shared-native-host
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-sdr-controller-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/
+          if-no-files-found: error
+
+
+  native-geometry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: 96742a20af660808cae6cd3a36eadd12a83a460f
+          path: InstalledSystem
+          persist-credentials: false
+      - name: Native RF pixels and input at representative square, portrait and landscape dimensions
+        run: python3 scripts/test_rf_native_canvas.py --system-apps InstalledSystem --output out/native-geometry
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-sdr-native-geometry-${{ github.event.pull_request.head.sha || github.sha }}
+          path: out/native-geometry/
+          if-no-files-found: error
