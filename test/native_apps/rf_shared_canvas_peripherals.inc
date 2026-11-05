@@ -115,8 +115,19 @@ static int32_t sc_get(void*c,const char*k,void*out,uint32_t cap,uint32_t*size) {
  *size=0;return RISC_KEY_VALUE_NOT_FOUND;
 }
 static const risc_key_value_v1 sc_preferences={1,sizeof(sc_preferences),NULL,sc_get,fx_put};
+static const char *sc_last_capability;
+static uint32_t sc_last_version;
+static uint64_t sc_last_instance;
+static unsigned sc_retention_count;
+static bool sc_retain(void) {
+ sc_retention_count++;
+ fprintf(stderr,"Host Runtime retained invocation after capability=%s version=%u instance=%llu\n",
+         sc_last_capability?sc_last_capability:"none",sc_last_version,
+         (unsigned long long)sc_last_instance);
+ return true;
+}
 static bool sc_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g,int *handled) {
- (void)id;*handled=1;
+ sc_last_capability=n;sc_last_version=v;sc_last_instance=id;*handled=1;
  if(v==1&&!strcmp(n,RISC_CANVAS_RASTER_CAPABILITY))g->api=&sc_canvas_api;
  else if(v==1&&!strcmp(n,RISC_CANVAS_INPUT_CAPABILITY)) {
   if(!sc_input_mode)return false;g->api=&sc_input;

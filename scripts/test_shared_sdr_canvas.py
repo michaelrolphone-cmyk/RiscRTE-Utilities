@@ -99,6 +99,9 @@ def fixture():
     s = once(s, " fx_io();assert(g->struct_size==sizeof(*g));",
              " fx_io();assert(g->struct_size==sizeof(*g));"
              "int handled=0;bool result=sc_acquire(n,v,id,g,&handled);if(handled)return result;")
+    s = once(s, ".request_launch=fx_launch,.acquire=fx_acquire,.release=fx_release};",
+             ".request_launch=fx_launch,.acquire=fx_acquire,.release=fx_release,"
+             ".retain_invocation=sc_retain};")
     s = once(s, "int main(int argc,char**argv){", "int rf_unused_fixture_main(int argc,char**argv){")
     s += '\n#include "rf_shared_canvas_main.inc"\n'
     return s

@@ -18,7 +18,9 @@ int main(int argc,char**argv) {
   if(initialized==0){app_main();assert(!fx_captures&&!fx_done);}
   assert(!fx_captures);
  }
+ assert(!sc_retention_count); /* Admission and geometry refusal must both be clean. */
  app_module_fini();
+ assert(!sc_retention_count);
  assert(!fx_grants&&!fx_frames&&!fx_subs&&!sc_provider.frames.session&&!sc_provider.frames.receipts);
  assert(!sc_provider.frames.lease&&!sc_provider.frames.writable&&!sc_provider.frames.seeded.frame);
  assert(!sc_provider.companion_bound&&!sc_provider.subscription&&!sc_provider.claimed);

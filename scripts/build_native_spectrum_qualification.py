@@ -128,6 +128,7 @@ def run(command, folder, name, timeout=240):
                           stderr=subprocess.STDOUT, timeout=timeout)
     (folder/(name+'.log')).write_text(proc.stdout)
     if proc.returncode:
+        print(proc.stdout, flush=True)
         raise RuntimeError(name+' failed ('+str(proc.returncode)+'); see '+str(folder/(name+'.log')))
     return proc.stdout
 
