@@ -26,3 +26,11 @@ This is host software integration evidence. It does not prove physical display v
 ## Review status
 
 The owning CI has compiled and linked the normal host controller. Scenario qualification is still failing during initialization; no full geometry/modality matrix or sanitized host success is claimed. Exact run evidence is retained in the shared-sdr-controller artifact. Treat coverage as verified only after the corresponding scenario has passed, not merely because it is present in the runner.
+
+## Optional acquisition integration
+
+The Utilities lifecycle materializer stages a hash-checked custody wrapper with one central contract for display.output v1/0, ui.canvas-input v1/0 and alarm.service.facade v2/0. Only an initially empty grant that remains empty, with the same live Runtime before and after health, can report clean unavailability. Dirty refusals, changed identity, failed health and retained custody remain terminal. The original release path is unchanged.
+
+The focused host test includes that actual generated wrapper and tests exact request identities, dirty/pre-dirty grants, health/identity changes and release failure/uncleared grants. The full controller separately compiles the same wrapper with shipping definitions.
+
+Remaining qualification gap: the manifest labels additional services optional even though current startup paths may require them. This matrix supplies telemetry broadcast, Wi-Fi and Bluetooth controls. It does not establish that every manifest-optional capability can be absent.

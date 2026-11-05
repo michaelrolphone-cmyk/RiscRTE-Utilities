@@ -127,6 +127,20 @@
         "old": "static bool alarm_foreground(bool *consumed) {\n    *consumed=false;",
         "replacement": "static bool alarm_foreground(bool *consumed) {\n    *consumed=false;\n    if(alarms.unavailable)return !failed && !native_custody_retained;"
       }
+    ],
+    "native_custody_adapter.inc": [
+      {
+        "old": "static bool custody_acquire_for(",
+        "replacement": "#ifdef PORTABLE_RF_SHARED_CANVAS\n#include \"sdr_optional_acquire.h\"\n#endif\nstatic bool custody_acquire_for("
+      },
+      {
+        "old": "  bool ok=native_custody_runtime->acquire(name,version,instance,grant);",
+        "replacement": "#ifdef PORTABLE_RF_SHARED_CANVAS\n  risc_runtime_capability_v1 sdr_before=*grant;\n#endif\n  bool ok=native_custody_runtime->acquire(name,version,instance,grant);"
+      },
+      {
+        "old": "  if(!ok) {\n",
+        "replacement": "  if(!ok) {\n#ifdef PORTABLE_RF_SHARED_CANVAS\n    if(sdr_optional_acquire_request(name,version,instance)) {\n      if(!sdr_optional_acquire_clean(native_custody_runtime,&sdr_before,grant)||native_custody_retained)portable_adapter_retain();\n      return false;\n    }\n#endif\n"
+      }
     ]
   },
   "blobs": {
@@ -135,13 +149,15 @@
     "foreground_adapter_open.inc": "b02c3b488ae12b4dcbb92c75b694021a47d34144",
     "resident_adapter.inc": "d93609d9ddd97a54fe878b22508f66af614cd8bf",
     "contexts_policy.inc": "a610ce246e9cf5e51c32fc5a3460cc928237f0db",
-    "alarm.inc": "215f521cae1a2bd4c0c931c7a6652968b384f189"
+    "alarm.inc": "215f521cae1a2bd4c0c931c7a6652968b384f189",
+    "native_custody_adapter.inc": "0f12f8a3413da64b26e2b4224958298c6d15e974"
   },
   "append_adapter": "\n/* Called once from RF app_main before any controller input or provider work. */\nbool portable_sdr_lifecycle_start(void) {\n if(sdr_lifecycle_started)return !failed && !native_custody_retained;\n if(failed || native_custody_retained || !sdr_resident_select())return false;\n if(!sdr_resident_active) {\n#ifdef PORTABLE_QUICK_ACTIONS\n  quick.ui.paper=pp_enabled();\n  if(!pqa_session_load(&quick,rt))return false;\n  initial_brightness_pending=surface_format==RISC_DISPLAY_FORMAT_RGB565 &&\n    (info.flags&RISC_DISPLAY_INFO_BRIGHTNESS)!=0;\n  quick_paper_capabilities();\n  sdr_quick_alarm_capabilities();\n#ifdef PORTABLE_FRONTLIGHT_TONE\n  if(quick.ui.paper && !pqa_session_sync_tone(&quick,display)){\n#ifdef PORTABLE_ALARM_TERMINAL_RETENTION\n   /* A refused provider operation may already own terminal custody. */\n   portable_adapter_retain_silent();\n#else\n   portable_adapter_retain();\n#endif\n   return false;}\n#endif\n#ifdef PORTABLE_QUICK_RADIOS\n#ifdef PORTABLE_DESK_CLOCK\n  desk_radios_loaded=false;\n#else\n  if(!pqa_radios_load(&quick_radios,&quick.ui,rt))return false;\n#endif\n#endif\n#endif\n\n } else {\n#if defined(PORTABLE_CONTEXTS_CLIENT)\n  if(!contexts_controls_load())return false;\n#endif\n }\n sdr_lifecycle_started=true;return !failed && !native_custody_retained;\n}\n",
   "generated": [
     "sdr_resident_select.inc",
     "PortableAlarmClient.h",
     "PortableAlarmTerminalClient.h",
-    "sdr_controls_dispatch.inc"
+    "sdr_controls_dispatch.inc",
+    "sdr_optional_acquire.h"
   ]
 }

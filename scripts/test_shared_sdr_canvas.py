@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -209,12 +210,41 @@ def main():
     src.write_text(fixture())
     fixture_dir = ROOT / "test/native_apps"
     records = []
+    custody_records = []
+    manifest = json.loads((ROOT / "Apps/shared_sdr/waterfall.json").read_text())
+    optional = {(r["capability"], r["api"]) for r in manifest["optional"]}
+    contract = re.findall(r'\{"([^"]+)",(\d+),(\d+)\}',
+                          (shared / "adapter/sdr_optional_acquire.h").read_text())
+    if not contract or len(set(contract)) != len(contract) or any(
+            (name, int(version)) not in optional for name, version, instance in contract):
+        raise ValueError("Central custody contract must name distinct manifest optional services")
     evidence = out / "evidence.json"
     evidence.write_text(json.dumps({"hardware_verified": False,
         "shipping_elf_sha256": build["sha256"], "runs": []}, indent=2)+"\n")
     for sanitized in (False, True):
         flags = ["-fsanitize=address,undefined", "-fno-sanitize-recover=all",
                  "-fno-omit-frame-pointer", "-no-pie"] if sanitized else []
+        # Exercise the actual generated custody include with a minimal Runtime,
+        # before the controller scenarios. Do not inherit unrelated app defines.
+        include_flags = []
+        for shipping in build["commands"]:
+            for arg in shipping[1:]:
+                if arg.startswith("-I") and arg not in include_flags:
+                    include_flags.append(arg)
+        custody = out / ("custody-san" if sanitized else "custody")
+        cmd = [a.cc, "-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror",
+               "-Wno-unused-function", *flags, *include_flags,
+               str(ROOT / "test/native_apps/sdr_optional_custody_test.c"), "-o", str(custody)]
+        run_logged(cmd, out / (custody.name+"-compile.log"), "custody-compile", evidence)
+        custody_result = run_logged([str(custody)], out / (custody.name+".log"), "custody-negative-controls",
+                   evidence, env={**os.environ, "ASAN_OPTIONS": "detect_leaks=0:halt_on_error=1",
+                                  "UBSAN_OPTIONS": "halt_on_error=1"})
+        custody_records.append({"sanitized": sanitized, "command": cmd,
+                                "stdout": custody_result.stdout, "returncode": custody_result.returncode})
+        prior = json.loads(evidence.read_text())
+        prior["custody_negative_controls"] = custody_records
+        evidence.write_text(json.dumps(prior, indent=2)+"\n")
+        print(custody_result.stdout.strip(), "sanitized="+str(sanitized), flush=True)
         objects = []
         commands = []
         excluded = []
@@ -276,6 +306,7 @@ def main():
                 "shipping_build": str(shared / "build.json"),
                 "host_substitutions": excluded,
                 "fixture_sha256": sha(src), "commands": commands, "runs": records,
+                "custody_negative_controls": custody_records,
             }, indent=2)+"\n")
             if run.returncode:
                 print(run.stdout+run.stderr, flush=True)
