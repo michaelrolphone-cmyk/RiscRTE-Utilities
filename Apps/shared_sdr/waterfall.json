@@ -29,10 +29,6 @@
       "api": 1
     },
     {
-      "capability": "alarm.service",
-      "api": 1
-    },
-    {
       "capability": "storage.key-value",
       "api": 1
     },
@@ -103,10 +99,6 @@
     {
       "capability": "runtime.realtime",
       "api": 1
-    },
-    {
-      "capability": "alarm.service",
-      "api": 2
     },
     {
       "capability": "ui.canvas-input",

@@ -12,6 +12,9 @@ def preservation(before,before_sd,after,sd,elf,manifest):
     check(oi==ni and old['manifest']==new['manifest'],'Selection identity changed')
     check(after[new['manifest']]==manifest,'Shared manifest differs')
     check(new['grants']==grants(before,old,json.loads(manifest)),'Existing grants changed')
+    check(not any(g['capability']=='alarm.service' for g in new['grants']),'Raw alarm authority survived migration')
+    retained=[g for g in old['grants'] if g['capability']!='alarm.service']
+    check(new['grants'][:len(retained)]==retained,'Non-alarm grant order or content changed')
     left=copy.deepcopy(old);right=copy.deepcopy(new)
     left.pop('grants');right.pop('grants')
     if 'image_source' in left and 'image_source' in right:
@@ -47,7 +50,7 @@ def main():
         packed,image,packing=pack(after,stored,changed,size,build,read_image,magic,decode,encode_image)
         out=a.output/lane;out.mkdir();write(out/'before',before);write(out/'stored',packed)
         (out/'store.bin').write_bytes(image);zip_roundtrip(out/'sd-apps.zip',sd)
-        receipt['products'][lane]={'packing':packing,'canonical_files':{n:sha(b) for n,b in after.items()},'stored_files':{n:sha(b) for n,b in packed.items()},'sd_files':{n:sha(b) for n,b in sd.items()},'encoded_images':sum(b.startswith(magic) for b in packed.values())}
+        receipt['products'][lane]={'alarm_migration':alarm_migration(before,selected(before)[2]),'before_selection':selected(before)[2],'after_selection':selected(after)[2],'packing':packing,'canonical_files':{n:sha(b) for n,b in after.items()},'stored_files':{n:sha(b) for n,b in packed.items()},'sd_files':{n:sha(b) for n,b in sd.items()},'encoded_images':sum(b.startswith(magic) for b in packed.values())}
     (a.output/'roundtrip.json').write_bytes(encode(receipt))
     fixtures=a.system/'test/files_products/native';templates=json.loads((fixtures/'commands.json').read_text())
     for mode in ('normal','sanitized'):

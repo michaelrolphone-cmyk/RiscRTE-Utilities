@@ -59,12 +59,45 @@ cmd=[a.compiler,'-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--ha
 sys.path.insert(0,str(ROOT/'scripts'))
 from normalize_xtensa_relocations import normalize
 normalize(elf)
+# Xtensa link-time properties, debug records and the static symbol table are not
+# consumed by the Runtime loader. Preserve the loaded bytes and program mapping
+# exactly while removing this packaging overhead with the pinned toolchain.
+def loaded_identity(path):
+ import struct
+ data=path.read_bytes()
+ header=struct.unpack_from('<16sHHIIIIIHHHHHH',data)
+ sections=[struct.unpack_from('<10I',data,header[6]+i*header[11]) for i in range(header[12])]
+ names_section=sections[header[13]]
+ names=data[names_section[4]:names_section[4]+names_section[5]]
+ loaded={}
+ for row in sections:
+  if not row[2]&2:continue
+  name=names[row[0]:].split(b'\0',1)[0].decode()
+  if name in loaded:raise ValueError('Duplicate loaded section '+name)
+  payload=data[row[4]:row[4]+row[5]] if row[1]!=8 else b''
+  loaded[name]={'type':row[1],'flags':row[2],'address':row[3],
+                'offset':row[4],'bytes':row[5],'sha256':hashlib.sha256(payload).hexdigest()}
+ programs=data[header[5]:header[5]+header[9]*header[10]]
+ return {'identity':header[0].hex(),'type':header[1],'machine':header[2],
+         'version':header[3],'entry':header[4],'flags':header[7],
+         'program_headers_sha256':hashlib.sha256(programs).hexdigest(),'sections':loaded}
+loaded_before=loaded_identity(elf)
+unstripped_bytes=elf.stat().st_size
+strip=Path(str(a.compiler).removesuffix('gcc')+'strip')
+cmd=[strip,'--strip-unneeded','--remove-section=.xt.prop','--remove-section=.xt.lit',
+     '--remove-section=.xtensa.info','--remove-section=.comment',elf]
+commands.append(list(map(str,cmd)));run(cmd)
+if loaded_identity(elf)!=loaded_before:raise ValueError('Stripping changed loaded ELF bytes or mapping')
+packaging={'unstripped_bytes':unstripped_bytes,'stripped_bytes':elf.stat().st_size,
+           'strip_sha256':sha(strip),'loaded_identity':loaded_before,
+           'loaded_identity_preserved':True}
+print('SHARED SDR PACKAGING '+json.dumps({'unstripped_bytes':unstripped_bytes,'stripped_bytes':elf.stat().st_size,'loaded_identity_preserved':True}),flush=True)
 symbols=subprocess.check_output([str(a.compiler).removesuffix('gcc')+'nm','-D',str(elf)],text=True)
 actual={r.split()[-1] for r in symbols.splitlines() if len(r.split())>=3 and r.split()[-2] in ('T','D','B','R')}
 imports={r.split()[-1] for r in symbols.splitlines() if ' U ' in ' '+r}
 allowed={'risc_runtime_get_api','memcpy','memset','memcmp','memmove','strcmp','strncmp','strlen','snprintf','malloc','calloc','free','strcpy','memchr','strrchr'}
 if actual!=set(exports) or not imports<=allowed:raise ValueError((actual,imports-allowed))
 manifest=ROOT/'Apps/shared_sdr/waterfall.json';shutil.copyfile(manifest,out/'waterfall.json')
-record={'schema':1,'source':head(ROOT),'source_pins':pins,'commands':commands,'dependencies':dependencies,'header_closure':closure,'sha256':sha(elf),'bytes':elf.stat().st_size,'manifest_sha256':sha(manifest),'exports':sorted(actual),'imports':sorted(imports),'compiler':subprocess.check_output([str(a.compiler),'--version'],text=True),'compiler_sha256':sha(a.compiler),'physical_testing':False}
+record={'schema':1,'source':head(ROOT),'source_pins':pins,'commands':commands,'dependencies':dependencies,'header_closure':closure,'sha256':sha(elf),'bytes':elf.stat().st_size,'manifest_sha256':sha(manifest),'exports':sorted(actual),'imports':sorted(imports),'compiler':subprocess.check_output([str(a.compiler),'--version'],text=True),'compiler_sha256':sha(a.compiler),'packaging':packaging,'physical_testing':False}
 (out/'build.json').write_text(json.dumps(record,indent=2)+'\n')
 print('SHARED SDR ELF '+json.dumps({k:record[k] for k in ('sha256','bytes','exports','imports')}),flush=True)

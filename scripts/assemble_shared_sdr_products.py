@@ -34,7 +34,7 @@ def main():
         after,new_sd,changed,changed_sd,oldrow,newrow=assemble(before,sd,elf,manifest)
         packed,image,packing=pack(after,stored,changed,size,build,read_image,magic,decode,encode_image)
         staged[lane]=(after,new_sd)
-        receipt['products'][lane]={'before_selection':oldrow,'after_selection':newrow,'changed_internal':sorted(changed),'changed_sd':sorted(changed_sd),'packing':packing}
+        receipt['products'][lane]={'alarm_migration':alarm_migration(before,oldrow),'before_selection':oldrow,'after_selection':newrow,'changed_internal':sorted(changed),'changed_sd':sorted(changed_sd),'packing':packing}
     a.output.mkdir(parents=True)
     for lane,(after,sd) in staged.items():write(a.output/lane/'after',after);write(a.output/lane/'after-sd',sd)
     (a.output/'assembly.json').write_bytes(encode(receipt))

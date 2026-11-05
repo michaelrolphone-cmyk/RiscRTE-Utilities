@@ -17,15 +17,15 @@ Bootfs ab9ff33975680c5bb8d9a2e7ed346d0300732a4e;
 Runtime 712ecc3f894dba99d9c9638941778a82f5856b97.
 All six published baseline asset lengths and SHA256s are checked.
 
-Existing grant rows remain unchanged and ordered. Only three uniquely verified
-instance-0 grants are appended: canvas raster API1, canvas input API1 and alarm
-facade API2. Installed providers, native policy, board, resident shell and peers
+Except for the audited raw-alarm-to-facade migration below, existing grant rows
+remain unchanged and ordered. Three uniquely verified instance-0 grants are
+appended: canvas raster API1, canvas input API1 and alarm facade API2. Installed providers, native policy, board, resident shell and peers
 are not changed. Existing peer storage envelopes and partition sizes remain exact.
 
 Wave's selected SD manifest and ELF are replaced together. X4's content-addressed
 successor directory contains the identical common manifest and ELF; both old
 members remain intact. Its boot catalog-authority reservation selects that same
-new directory and retains every existing grant. The native fixture invokes the
+new directory and retains every non-migrated grant. The native fixture invokes the
 actual selected Runtime installationAdmit with the real successor manifest,
 checks inherited authority, title/icon and foreground behavior, and rejects a
 wrong directory and an undeclared required capability. The host-only hook selects
@@ -42,3 +42,6 @@ It is not predecessor qualification. Fixture capacities are inherited assumption
 Watch/Wave provider rows 48, X4 requirement rows 32. Native linked capacity proof,
 physical memory fit, SD discovery/execution, application behavior, migration and
 deployment remain separate checks. No publication or device operation occurs.
+
+## Audited alarm facade migration
+The shared controller uses only `alarm.service.facade@2`, instance 0. Both unused raw `alarm.service` declarations are removed. For Waterfall alone, assembly removes exactly one legacy raw alarm grant (API1 or API2, instance0) and grants the existing facade. Its unchanged backend binding must exactly match the removed grant. All remaining grants retain order and content; every other app, provider binding, and stored peer stays unchanged. Assembly and independent qualification receipts record the removed grant, added facade, backend, provider and selections. Unexpected raw authority fails closed. The original callback/context, occurrence token, sleep ticket, resume, refusal and custody tests remain intact. Runtime stays pinned to 712ecc3; no duplicate-capability semantics are broadened.

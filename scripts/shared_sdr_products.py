@@ -67,10 +67,26 @@ def load(args):
         raw=(args.baseline/f'product-{lane}-store.bin').read_bytes();stored=read_image(raw,len(raw))
         lanes[lane]=(len(raw),stored,{n:decode(b) for n,b in stored.items()},unzip(args.baseline/f'product-{lane}-sd-apps.zip'))
     return elf,manifest,lanes,build,read_image,MAGIC,decode,encode_image
+def alarm_migration(before,row):
+    raw=[g for g in row['grants'] if g['capability']=='alarm.service']
+    check(len(raw)==1 and raw[0] in [
+        {'capability':'alarm.service','api':api,'instance_id':0} for api in (1,2)],
+        'Unexpected raw alarm authority')
+    facade={'capability':'alarm.service.facade','api':2,'instance_id':0}
+    owners=[d for d in json.loads(before['boot.json'])['drivers']
+            if any(p.get('capability')=='alarm.service.facade' and p.get('api')==2
+                   for p in json.loads(before[d['manifest']]).get('provides',[]))]
+    check(len(owners)==1 and owners[0].get('instance_id',0)==0,'Alarm facade owner missing or ambiguous')
+    check(raw[0] in owners[0].get('bindings',[]),'Alarm facade backend differs from migrated grant')
+    return {'reason':'shared-client-uses-facade-only','removed':raw,'added':facade,
+            'provider_manifest':owners[0]['manifest'],'backend_binding':raw[0]}
 def grants(before,row,manifest):
     declared={(r['capability'],r['api']) for r in manifest.get('requires',[])+manifest.get('optional',[])}
-    check(all((g['capability'],g['api']) in declared for g in row['grants']),'Legacy grant no longer declared')
-    result=list(row['grants']);providers={}
+    check(not any(cap=='alarm.service' for cap,api in declared),'Unused raw alarm declaration')
+    alarm_migration(before,row)
+    result=[g for g in row['grants'] if g['capability']!='alarm.service']
+    check(all((g['capability'],g['api']) in declared for g in result),'Legacy grant no longer declared')
+    providers={}
     for d in json.loads(before['boot.json'])['drivers']:
         for p in json.loads(before[d['manifest']]).get('provides',[]):
             providers.setdefault((p['capability'],p['api']),[]).append((d['manifest'],d.get('instance_id',0)))
