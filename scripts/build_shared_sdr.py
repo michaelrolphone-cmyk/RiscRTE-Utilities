@@ -20,7 +20,8 @@ expected={'system':'96742a20af660808cae6cd3a36eadd12a83a460f','canvas_system':'7
 pins={name:head(getattr(a,name)) for name in expected}
 if pins!=expected:raise ValueError('Exact installed/controller capability sources required')
 a.output.mkdir(parents=True,exist_ok=False);out=a.output
-sdk=out/'sdk';sdk.mkdir();source=out/'adapter'
+# Keep the installed include/time layout for verbatim relative includes.
+sdk=out/'include';sdk.mkdir();source=out/'adapter'
 # Materialize each header identity once, selected Runtime last.
 for base in (a.system/'lib/NativeApps/include',a.system/'lib/PortableApps/include',a.watch/'sdk/driver',a.watch/'sdk/app',ROOT/'lib/Alarm/include',ROOT/'lib/Contexts/include',a.runtime/'sdk/app'):
  for path in base.glob('*.h'):shutil.copyfile(path,sdk/path.name)

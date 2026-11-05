@@ -31,8 +31,12 @@ adapter="""#ifdef PORTABLE_RF_SHARED_CANVAS
 #define PORTABLE_DISPLAY_ROTATION 0
 #endif
 """+adapter
+# Geometry refresh uses the existing history buffers before navigation opens.
+# Move their declarations, preserving one state identity for all adapter paths.
+history_state="static uint16_t *previous_pixels;\nstatic uint8_t *paper_previous;\nstatic bool paper_previous_valid;\nstatic bool previous_valid;\n"
+adapter=once(adapter,history_state,"")
 adapter=once(adapter,'#ifdef PORTABLE_INPUT_NAVIGATION\n#include "PortableNavigation.h"',
-    '#include "rf_capability_canvas_adapter.inc"\n#ifdef PORTABLE_INPUT_NAVIGATION\n#include "PortableNavigation.h"')
+    history_state+'#include "rf_capability_canvas_adapter.inc"\n#ifdef PORTABLE_INPUT_NAVIGATION\n#include "PortableNavigation.h"')
 adapter=once(adapter,"static bool input_navigation_open(void) {\n#ifdef PORTABLE_INPUT_NAVIGATION_LOCAL",
     "static bool input_navigation_open(void) {\n#ifdef PORTABLE_RF_SHARED_CANVAS\n navigation=rf_adapter_navigation_open();\n#elif defined(PORTABLE_INPUT_NAVIGATION_LOCAL)")
 # Both finalization paths keep logical navigation reset, but own no local raw grant.
