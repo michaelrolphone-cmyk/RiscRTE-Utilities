@@ -3,7 +3,9 @@
 #include "RiscSceneComponentsV1.h"
 #include "RiscSceneResidentV1.h"
 #include "RiscCivilClockV1.h"
+#ifndef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
 #include "SceneKeyboardV1.h"
+#endif
 #include "RiscRuntimeV1.h"
 #include "RiscRuntimeHostControlV1.h"
 #if defined(PORTABLE_NOVA_UI) || defined(PORTABLE_CONTEXTS_PAPER)
@@ -16,6 +18,10 @@ static bool cs_terminal;
 #define CONTEXTS_ALARM_API 1u
 #endif
 static void cs_retain(void);
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+static bool cs_alive(void);
+#define PORTABLE_CONTEXTS_LIVE() cs_alive()
+#endif
 #define PORTABLE_CONTEXTS_CUSTODY_SAFE() (!cs_terminal)
 #define PORTABLE_CONTEXTS_CLEANUP_FAILURE() cs_retain()
 #include "PortableContextsClient.h"
@@ -43,7 +49,13 @@ static contexts_workflow_v1 cs_launch_report;
 /* Native exit is persistent and owned by the host. Normal cleanup may run,
  * but editor state, shared keyboard, or a queued launch cannot defer it. */
 static bool cs_host_exit(void){
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+ bool requested=risc_runtime_exit_requested_v1(ctx_runtime);
+ if(!cs_alive())return true;
+ if(!requested)return false;
+#else
  if(!risc_runtime_exit_requested_v1(ctx_runtime))return false;
+#endif
  ctx_exit=true;cs_launch[0]=0;return true;
 }
 static void ctx_note(const char*s){ctx_message=s;ctx_dirty=true;}
@@ -52,7 +64,15 @@ static bool cs_alive(void){if(cs_terminal)return false;if(!risc_runtime_get_api(
 static bool cs_release(risc_runtime_capability_v1*g){if(!cs_alive())return false;if(g->api&&!ctx_runtime->release(g)){cs_retain();return false;}memset(g,0,sizeof(*g));return cs_alive();}
 static bool cs_backend_open(void){
  if(cs_client.api)return true;
- if(!portable_contexts_open(&cs_client,ctx_runtime)){if(cs_client.grant.api&&!portable_contexts_close(&cs_client))cs_retain();ctx_service=NULL;return false;}
+ if(!portable_contexts_open(&cs_client,ctx_runtime)){
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+  /* Failed load may retain app-data custody while Runtime remains live.
+   * Never wipe that grant through ordinary backend-close failure cleanup. */
+  if(cs_client.fingerprint_store.api){cs_retain();ctx_service=NULL;return false;}
+#endif
+  if(cs_client.grant.api&&!portable_contexts_close(&cs_client))cs_retain();
+  ctx_service=NULL;return false;
+ }
  ctx_service=cs_client.api;if(!contexts_fingerprint_api(ctx_service)){ctx_note("TEMPORAL CONTEXTS SERVICE REQUIRED");return false;}
  return true;
 }
@@ -63,7 +83,55 @@ bool portable_contexts_training(bool on){
  if(on){risc_runtime_health_v1 h={.struct_size=sizeof(h)};if(!ctx_runtime->health(&h))return false;cs_learning_at=h.uptime_ms;cs_learning_draw_at=h.uptime_ms;}
  return true;
 }
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "utility_preference_atomic.h"
+#include "PortablePreferenceAutomatic.h"
+static utility_preference_atomic ctx_preference;
+static portable_preference_automatic ctx_automatic;
+static risc_runtime_capability_v1 ctx_automatic_grant;
+static bool ctx_automatic_guard(void *unused){(void)unused;return cs_alive()&&risc_runtime_get_api(1)==ctx_runtime;}
+static bool ctx_automatic_before(void *unused,bool write){(void)write;return ctx_automatic_guard(unused);}
+static bool ctx_automatic_wait(void *unused){(void)unused;ctx_runtime->yield_ms(5);return !ctx_automatic_guard(NULL)||cs_host_exit();}
+static bool ctx_automatic_open(void){
+ if(ctx_automatic_grant.api||ctx_automatic.operation.token||ctx_automatic.running||ctx_automatic.retained){cs_retain();return false;}
+ ctx_automatic_grant=(risc_runtime_capability_v1){.struct_size=sizeof(ctx_automatic_grant)};
+ bool opened=ctx_runtime->acquire(RISC_KEY_VALUE_ATOMIC_CAPABILITY,1,1,&ctx_automatic_grant);
+ if(!ctx_automatic_guard(NULL)){cs_retain();return false;}
+ if(!opened){if(ctx_automatic_grant.api||ctx_automatic_grant.slot||ctx_automatic_grant.generation)cs_retain();return false;}
+ if(ctx_automatic_grant.struct_size!=sizeof(ctx_automatic_grant)||!ctx_automatic_grant.api||!ctx_automatic_grant.slot||!ctx_automatic_grant.generation){cs_retain();return false;}
+ int rc=portable_preference_automatic_begin(&ctx_automatic,ctx_automatic_grant.api,PORTABLE_AUTOMATIC_CONTEXTS_EDITOR,ctx_automatic_guard,ctx_automatic_before,ctx_automatic_wait,NULL);
+ if(rc==RISC_ATOMIC_RETAINED||ctx_automatic.retained){cs_retain();return false;}
+ return rc==PORTABLE_PREFERENCE_READY;
+}
+static bool ctx_automatic_close(void){
+ if(!ctx_automatic_guard(NULL)||ctx_automatic.operation.token||ctx_automatic.running||ctx_automatic.retained){cs_retain();return false;}
+ if(ctx_automatic_grant.api){
+  risc_runtime_capability_v1 released=ctx_automatic_grant;bool closed=ctx_runtime->release(&released);
+  if(!ctx_automatic_guard(NULL)||!closed||released.struct_size!=sizeof(released)||released.api||released.slot||released.generation){cs_retain();return false;}
+ }
+ ctx_automatic_grant=(risc_runtime_capability_v1){0};return true;
+}
+static bool ctx_preference_alive(void *unused){(void)unused;return cs_alive();}
+static void ctx_preference_retain(void *unused){(void)unused;cs_retain();}
+static int ctx_preference_begin(const char *key){return utility_preference_begin(&ctx_preference,ctx_runtime,key,ctx_preference_alive,ctx_preference_retain,NULL);}
+static bool ctx_preference_save(const void *value,uint32_t size){
+ int rc=utility_preference_submit(&ctx_preference,value,size);
+ return utility_preference_finish(&ctx_preference,rc)==RISC_ATOMIC_OK;
+}
+bool portable_contexts_enable(bool on){
+ int rc=ctx_preference_begin("contexts_on");
+ if(rc!=PORTABLE_PREFERENCE_READY){(void)utility_preference_finish(&ctx_preference,rc);return false;}
+ if(!cs_backend_open()||!portable_contexts_pause(&cs_client)||!portable_contexts_release_storage(&cs_client)){
+  (void)utility_preference_finish(&ctx_preference,cs_alive()?RISC_ATOMIC_IO:RISC_ATOMIC_RETAINED);return false;
+ }
+ const uint8_t b[]={'C',1,on?1:0,(uint8_t)((on?1:0)^0xa5u)};
+ bool ok=ctx_preference_save(b,sizeof(b));
+ if(cs_alive()){cs_client.loaded=false;cs_client.save_failed=!ok;cs_client.settings_valid=false;}
+ return ok;
+}
+#else
 bool portable_contexts_enable(bool on){return cs_backend_open()&&portable_contexts_set_enabled(&cs_client,on);}
+#endif
 bool portable_contexts_rules_read(cr_store*out){return cs_backend_open()&&portable_context_rules_read(&cs_client,out);}
 bool portable_contexts_rules_save(const cr_store*in){return cs_backend_open()&&portable_context_rules_save(&cs_client,in);}
 bool portable_contexts_models_save(void){return cs_backend_open()&&portable_fp_checkpoint(&cs_client,false)&&!cs_client.fingerprint_error;}
@@ -97,12 +165,23 @@ static bool ctx_read_status(void){
 static void ctx_fingerprint_setting(bool timing){
  if(!ctx_fp_valid)return;
  if(!timing&&!(cs_source_mask&(1u<<ctx_model_source))){ctx_note("SOURCE UNAVAILABLE");return;}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ int rc=ctx_preference_begin(timing?"context_timing":"context_sources");
+ if(rc!=PORTABLE_PREFERENCE_READY){(void)utility_preference_finish(&ctx_preference,rc);ctx_note("SAVE UNCONFIRMED / RETRY");return;}
+ if(!portable_contexts_pause(&cs_client)){cs_retain();return;}
+ uint8_t value=timing?!ctx_fp.temporal_only:(uint8_t)(ctx_fp.sources^(1u<<ctx_model_source));
+ bool ok=ctx_preference_save(&value,1);
+#else
  if(!portable_contexts_pause(&cs_client)){cs_retain();return;}
  uint8_t value=timing?!ctx_fp.temporal_only:(uint8_t)(ctx_fp.sources^(1u<<ctx_model_source));risc_runtime_capability_v1 g={.struct_size=sizeof(g)};
  bool ok=ctx_runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);
  if(ok&&!pqa_preferences_valid(g.api))ok=false;
  if(ok){const risc_key_value_v1*kv=g.api;const char*key=timing?"context_timing":"context_sources";uint8_t got=255;uint32_t size=0;int32_t rc=kv->put(kv->context,key,&value,1);ok=(rc==0||rc==RISC_KEY_VALUE_IO)&&!kv->get(kv->context,key,&got,1,&size)&&size==1&&got==value;}
  if(!cs_release(&g))return;
+#endif
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(!cs_alive())return;
+#endif
  if(ok){cs_client.loaded=false;if(timing)ctx_fp.temporal_only=value;else ctx_fp.sources=value;contexts_fingerprint_config_v1 cfg={.struct_size=sizeof(cfg),.sources=ctx_fp.sources,.temporal_only=ctx_fp.temporal_only};const contexts_fingerprint_service_v1*f=contexts_fingerprint_api(ctx_service);ok=f->fingerprint(f->base.context,CONTEXTS_FP_CONFIG,&cfg);}
  ctx_note(ok?"SAVED / FRESH SAMPLES REQUIRED":"SAVE UNCONFIRMED / RETRY");
 }
@@ -160,14 +239,31 @@ static bool cs_rules_tick(void){
  if(cs_active!=q.result.active){cs_active=q.result.active;if(cu_page==CU_HOME)ctx_dirty=true;}
  if(q.result.changed){
   if(!portable_contexts_pause(&cs_client)){cs_retain();return false;}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  bool opened=ctx_automatic_open();const risc_key_value_v1 *settings=&ctx_automatic.view;uint16_t success=0;
+  if(!cs_alive())return false;
+  for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.changed&(1u<<field)){
+   if(opened&&pqa_preferences_valid(settings)&&cu_field_available(field)&&portable_context_setting(settings,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
+   if(ctx_automatic.retained||ctx_automatic.operation.token||ctx_automatic.running||!cs_alive()){cs_retain();return false;}
+  }
+  if(!ctx_automatic_close())return false;
+#else
   risc_runtime_capability_v1 g={.struct_size=sizeof(g)};bool opened=ctx_runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);uint16_t success=0;
   for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.changed&(1u<<field))if(opened&&pqa_preferences_valid(g.api)&&cu_field_available(field)&&portable_context_setting(g.api,field,q.result.settings[field],cs_client.low_battery,cs_face_save))success|=1u<<field;
   if(!cs_release(&g))return false;
+#endif
   for(unsigned i=0;i<CR_RULES;i++){bool changed=false,complete=true;for(unsigned field=0;field<CR_SETTINGS;field++)if(q.result.winners[field]==(int)i&&(q.result.changed&(1u<<field))){changed=true;complete&=!!(success&(1u<<field));}if(changed){contexts_workflow_v1 report={.struct_size=sizeof(report),.rule=i,.result=complete?CR_APPLIED:CR_PARTIAL};if(!f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&report))return false;}}
  }
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(cs_host_exit())return cs_alive();
+#endif
  /* Edits/training cannot be interrupted by a launch or modal workflow. The
   * service cursor remains pending until the foreground is ready to run it. */
- if(cu_unsaved()||cs_workflow_message[0]||cs_launch[0])return true;
+ if(cu_unsaved()
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+    ||cu_page==CU_NAME
+#endif
+    ||cs_workflow_message[0]||cs_launch[0])return true;
  contexts_workflow_v1 a={.struct_size=sizeof(a),.claim=true};if(!f->fingerprint(f->base.context,CONTEXTS_FP_WORKFLOW,&a))return false;
  if(a.available){bool ok=false;if(!portable_contexts_pause(&cs_client)){cs_retain();return false;}
   if(a.step.kind==CR_MESSAGE){cs_copy(cs_workflow_message,sizeof(cs_workflow_message),a.step.text);ok=true;ctx_dirty=true;}
@@ -187,6 +283,9 @@ static bool cs_open_scene(const risc_scene_navigation_v1*navigation){
  int rc=cs_components->open(cs_scene->context,&cs_document,navigation,&cs_session);if(!cs_alive()||rc)return false;cs_last_event=0;
  const risc_scene_lifecycle_api_v1*l=risc_scene_lifecycle_get_v1(cs_scene);if(l){rc=l->configure(cs_scene->context,cs_session,cs_resident.enabled?RISC_SCENE_FEATURE_SHARED_CONTROLS:0);if(!cs_alive()||rc)return false;}return true;
 }
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+#include "contexts_text_input.inc"
+#endif
 static bool cs_checkpoint(unsigned reason){
  risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())return false;
  bool training=cs_client.foreground_learning;if(!portable_contexts_pause(&cs_client)||!portable_contexts_close(&cs_client)){cs_retain();return false;}ctx_service=NULL;
@@ -195,8 +294,18 @@ static bool cs_checkpoint(unsigned reason){
  if(!cs_backend_open())return false;
  cs_client.foreground_learning=training;ctx_dirty=true;return cs_open_scene(&nav);
 }
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+static bool cs_resident_step(void){
+ if(cs_text_busy())return cs_text_resident_step();
+ if(cs_resident.enabled){risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())return false;if(flags&RISC_SCENE_ACTIVITY)cs_resident.activity=true;bool working=cs_client.foreground_learning||((cu_page==CU_LEARN||(cu_page==CU_CANCEL&&cu_return==CU_LEARN))&&(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning_saved));uint32_t work=working?RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY:0;int result=risc_scene_resident_poll_work_v1(&cs_resident,flags,work);if(!cs_alive())return false;if(result==RISC_RESIDENT_RETAINED){cs_retain();return false;}if(result==RISC_RESIDENT_EXIT)return false;if(cs_resident.policy&&!working&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!cs_checkpoint(RISC_RESIDENT_CHECKPOINT_POLICY))return false;}
+ return cs_alive();
+}
+#endif
 static void cs_cleanup(void){
  if(!cs_alive())return;
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+ if(!cs_text_cleanup())return;
+#endif
  if(cs_client.api&&(!portable_contexts_pause(&cs_client)||!portable_contexts_close(&cs_client))){cs_retain();return;}
  if(cs_close_scene()){if(!cs_release(&cs_alarm_grant)||!cs_release(&cs_battery_grant)||!cs_release(&cs_civil_grant))return;(void)cs_release(&cs_scene_grant);}
 }
@@ -204,6 +313,9 @@ __attribute__((visibility("default"))) const risc_resident_app_descriptor_v1_t r
 __attribute__((visibility("default"))) void app_main(void){
  ctx_runtime=risc_runtime_get_api(1);if(!ctx_runtime||ctx_runtime->struct_size<RISC_RUNTIME_RETAIN_INVOCATION_V1_SIZE||!ctx_runtime->retain_invocation||!ctx_runtime->acquire||!ctx_runtime->release||!ctx_runtime->yield_ms||!ctx_runtime->health)return;
  cs_terminal=ctx_exit=false;cs_training_stopped=true;cu_autosave=false;ctx_dirty=true;ctx_enabled=false;ctx_message="";cs_session=0;cs_revision=cs_toast_token=0;cs_last_event=0;cs_toast[0]=cs_launch[0]=cs_workflow_message[0]=0;cs_active=0;cs_client=(portable_contexts_client){0};
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+ cs_text_reset();
+#endif
  cs_scene_grant=(risc_runtime_capability_v1){.struct_size=sizeof(cs_scene_grant)};cs_civil_grant=(risc_runtime_capability_v1){.struct_size=sizeof(cs_civil_grant)};cs_battery_grant=(risc_runtime_capability_v1){.struct_size=sizeof(cs_battery_grant)};cs_alarm_grant=(risc_runtime_capability_v1){.struct_size=sizeof(cs_alarm_grant)};
  bool acquired=ctx_runtime->acquire(RISC_SCENE_CAPABILITY,1,0,&cs_scene_grant);if(!cs_alive())return;
  if(!acquired){(void)cs_release(&cs_scene_grant);return;}
@@ -220,6 +332,21 @@ __attribute__((visibility("default"))) void app_main(void){
  unsigned ticks=0;
  while(!ctx_exit&&cs_alive()){
   if(cs_host_exit())break;
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+  if(cs_text_busy()||(cu_page==CU_NAME&&!cs_text_retry)){
+   if(!cs_text_step()||ctx_exit)break;
+   /* The text host advances logical input even while its display is pending.
+    * Detection/capture keep their normal cadence without borrowing its scene. */
+   if(cs_client.api&&!cs_service_tick())break;
+   if(++ticks>=50){ticks=0;if(cs_client.api&&!cs_rules_tick())break;if(!cs_resident_step())break;}
+   if(!cs_text_busy()&&cs_session&&ctx_dirty){
+    cs_declare();int updated=cs_components->update(cs_scene->context,cs_session,&cs_document);
+    if(!cs_alive())return;
+    if(updated){if(updated==RISC_SCENE_RETAINED)cs_retain();break;}ctx_dirty=false;
+   }
+   ctx_runtime->yield_ms(10);continue;
+  }
+#endif
   risc_scene_event_v1 e={.struct_size=sizeof(e)};int rc=cs_scene->next(cs_scene->context,cs_session,&e);if(!cs_alive())return;
   if(cs_host_exit())break;
   if(rc!=RISC_SCENE_OK&&rc!=RISC_SCENE_IDLE){if(rc==RISC_SCENE_RETAINED)cs_retain();break;}
@@ -230,7 +357,11 @@ __attribute__((visibility("default"))) void app_main(void){
   if(cs_client.api){if(!cs_service_tick())break;}
   if(!cs_finish_learning())break;
   if(++ticks>=50){ticks=0;if(cs_client.api&&!cs_rules_tick())break;
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+   if(!cs_resident_step())break;
+#else
    if(cs_resident.enabled){risc_scene_navigation_v1 nav={.struct_size=sizeof(nav)};uint32_t flags=0;if(cs_scene->snapshot(cs_scene->context,cs_session,&nav,&flags)||!cs_alive())break;if(flags&RISC_SCENE_ACTIVITY)cs_resident.activity=true;bool working=cs_client.foreground_learning||((cu_page==CU_LEARN||(cu_page==CU_CANCEL&&cu_return==CU_LEARN))&&(cu_learning.state==CONTEXTS_LEARN_READY||cu_learning_saved));uint32_t work=working?RISC_RESIDENT_POLL_INHIBIT_IDLE|RISC_RESIDENT_POLL_INHIBIT_POLICY:0;int result=risc_scene_resident_poll_work_v1(&cs_resident,flags,work);if(!cs_alive())return;if(result==RISC_RESIDENT_RETAINED){cs_retain();break;}if(result==RISC_RESIDENT_EXIT)break;if(cs_resident.policy&&!working&&!(flags&(RISC_SCENE_PRESENTING|RISC_SCENE_INPUT_BUSY))&&!cs_checkpoint(RISC_RESIDENT_CHECKPOINT_POLICY))break;}
+#endif
   }
   if(ctx_dirty){cs_declare();rc=cs_components->update(cs_scene->context,cs_session,&cs_document);if(!cs_alive())return;if(rc){if(rc==RISC_SCENE_RETAINED)cs_retain();break;}ctx_dirty=false;}
   if(cs_launch[0])break;

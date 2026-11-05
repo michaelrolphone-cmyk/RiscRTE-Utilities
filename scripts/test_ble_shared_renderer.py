@@ -13,7 +13,7 @@ def tap(delay, x, y, gate='app'):
     return [(delay, gate, 'down', x, y), (40, gate, 'up', x, y)]
 
 
-def run(system, drivers, paper=False):
+def run(system, drivers, paper=False, native=False):
     system, drivers = system.resolve(), drivers.resolve()
     sys.dont_write_bytecode = True
     sys.path.insert(0, str(system / 'scripts'))
@@ -41,7 +41,7 @@ def run(system, drivers, paper=False):
     }
     if paper:
         scenes['enable-scan'] = scan + tap(250, 50, 730) + tap(250, 50, 730)
-    root = ROOT / ('build/ble-paper/shared' if paper else 'build/ble-renderer/shared')
+    root = ROOT / ('build/ble-scanner-native/shared-paper' if paper else 'build/ble-scanner-native/shared') if native else ROOT / ('build/ble-paper/shared' if paper else 'build/ble-renderer/shared')
     for sanitized in (False, True):
         out = root / str(int(sanitized))
         out.mkdir(parents=True, exist_ok=True)
@@ -53,6 +53,8 @@ def run(system, drivers, paper=False):
                  '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT',
                  '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL',
                  '-DPORTABLE_RETURN_APP="springboard.elf"']
+        if native:
+            flags += ['-DPORTABLE_BLE_SCANNER_NATIVE_UI', '-DPORTABLE_NATIVE_CANVAS']
         if paper:
             flags += ['-DBLE_PAPER_RENDER', '-DPORTABLE_DISPLAY_ROTATION=90']
         else:

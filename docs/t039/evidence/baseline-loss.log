@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/Utilities-t039/scripts/test_hid_buttons_watch_queue.py", line 23, in <module>
+    (out/(case+'.log')).write_text(r.stdout+r.stderr);print(r.stdout,end='');assert r.returncode==0,(case,r.returncode,r.stderr)
+                                                                                    ^^^^^^^^^^^^^^^
+AssertionError: ('burst', -6, "buttons: /tmp/Utilities-t039/tests/hid_buttons_watch_queue_test.c:45: main: Assertion `key_reports==2*taps' failed.\n")

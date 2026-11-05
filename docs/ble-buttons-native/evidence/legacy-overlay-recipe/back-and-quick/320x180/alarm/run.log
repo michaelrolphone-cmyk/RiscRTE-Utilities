@@ -1,0 +1,28 @@
+STATE at=0 polls=0 view=0 saves=0 opens=0 pending=0 first_visible=0
+NATIVE_ICON size=20 pixels=95 hash=7399122427287780393
+NATIVE_TITLE face=6 width=81 height=7 pixels=302 hash=9405566516203738731
+FRAME number=1 view=0 pairing=0 ticks=0 polls=0 text_calls=9 icon_calls=1
+VISIBLE frame=1 at=4 polls=1
+STATE at=203 polls=11 view=0 saves=0 opens=1 pending=0 first_visible=4
+NATIVE_ICON size=20 pixels=95 hash=7399122427287780393
+NATIVE_TITLE face=6 width=81 height=7 pixels=302 hash=9405566516203738731
+FRAME number=2 view=0 pairing=0 ticks=203 polls=11 text_calls=18 icon_calls=2
+VISIBLE frame=2 at=207 polls=11
+NATIVE_ICON size=20 pixels=95 hash=7399122427287780393
+NATIVE_TITLE face=6 width=81 height=7 pixels=302 hash=9405566516203738731
+FRAME number=3 view=0 pairing=0 ticks=745 polls=38 text_calls=27 icon_calls=3
+VISIBLE frame=3 at=749 polls=38
+FRAME number=4 view=0 pairing=0 ticks=786 polls=40 text_calls=27 icon_calls=3
+VISIBLE frame=4 at=789 polls=40
+FRAME number=5 view=0 pairing=0 ticks=1185 polls=60 text_calls=27 icon_calls=3
+VISIBLE frame=5 at=1188 polls=60
+NATIVE_ICON size=20 pixels=95 hash=7399122427287780393
+NATIVE_TITLE face=6 width=81 height=7 pixels=302 hash=9405566516203738731
+FRAME number=6 view=0 pairing=0 ticks=1188 polls=60 text_calls=36 icon_calls=4
+VISIBLE frame=6 at=1192 polls=60
+FULL bridges_sleep=0 denied=0 atomic_commits=0
+HID production app/adapter: 6 frames, 240 polls; 0 mouse/1 key reports; all grants released, neutral reports and stride guards verified
+HID state from=0 to=5 flags=31 error=0 generation=1
+HID suspend status=1 state=5 flags=31 error=0 generation=1
+HID closed status=1 state=0 flags=31 error=0 generation=1
+HID fixture end: grants=0 frames=0 subs=0 polls=240 time=4793 pending=0

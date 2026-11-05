@@ -1,10 +1,20 @@
-/* Read-only NOVA power screens. The PMIC owns charging; this app never changes
- * policy, clears IRQs, writes preferences or keeps the display awake. */
+/* NOVA power screens. The PMIC owns charging. The separate, explicit BLE
+ * broadcast control is the only preference writer in this app. */
 #include "T5AppApi.h"
 #include "utility_frame.h"
 #include "PortableNovaUi.h"
 #include "PortablePowerStatus.h"
 #include "RiscRuntimeV1.h"
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+#ifndef PORTABLE_NATIVE_CANVAS
+#error "Battery native UI requires explicit native canvas primitives"
+#endif
+#ifdef PORTABLE_PAPER_UTILITIES
+#error "Battery native color UI and legacy paper are separate profiles"
+#endif
+#include "battery_native_layout.h"
+#include "PortableBatteryNative.h"
+#endif
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
 #include "PortableNativeCustody.h"
 #endif
@@ -14,6 +24,27 @@
 #include "PortableBroadcastClient.h"
 static bool power_broadcast,power_broadcast_error,power_broadcast_requested;
 static telemetry_broadcast_status_v1 power_broadcast_state;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "utility_preference_atomic.h"
+static utility_preference_atomic power_preference;
+static bool power_preference_alive(void *unused){(void)unused;return !portable_adapter_retained();}
+static void power_preference_retain(void *unused){(void)unused;portable_adapter_retain();}
+static bool power_broadcast_save(bool enabled){
+ const risc_runtime_api_v1 *rt=risc_runtime_get_api(1);
+ int rc=utility_preference_begin(&power_preference,rt,"ble_broadcast",power_preference_alive,power_preference_retain,NULL);
+ if(rc==PORTABLE_PREFERENCE_READY){
+  if(!portable_broadcast_stop())rc=portable_adapter_retained()?RISC_ATOMIC_RETAINED:RISC_ATOMIC_IO;
+  else {uint8_t b[]={0x62,1,enabled?1:0,(uint8_t)((enabled?1:0)^0xa5u)};rc=utility_preference_submit(&power_preference,b,sizeof(b));}
+ }
+ rc=utility_preference_finish(&power_preference,rc);
+ if(rc==RISC_ATOMIC_RETAINED)return false;
+ /* Preserve the adapter's existing save_failed/paused policy after any
+  * checked terminal failure. The hook performs no key-value write. */
+ return portable_broadcast_preference_result(enabled,rc==RISC_ATOMIC_OK);
+}
+#else
+#define power_broadcast_save portable_broadcast_enable
+#endif
 #endif
 #ifdef PORTABLE_RETURN_APP
 #error Power details require nested Back via BATTERY_RETURN_APP
@@ -174,6 +205,7 @@ static const int8_t power_circle[101][2] = {
     {-6,-100},
     {0,-100},
 };
+#ifndef PORTABLE_BATTERY_NATIVE_UI
 static void power_ring(unsigned percent, bool known, uint32_t color) {
     const int cx=120,cy=111,r=65;
     /* Subtle full circular track with 100 unambiguous progress segments. */
@@ -203,9 +235,11 @@ static void power_overview(void) {
     portable_nova_button(124,192,104,44,power_read_ok?"Refresh":"Retry",false);
     power_app->present(false);
 }
+#endif
 static const char *power_yes_no(unsigned flag) {
     return !power_extended()?"Unknown":power_flag(flag)?"Yes":"No";
 }
+#ifndef PORTABLE_BATTERY_NATIVE_UI
 static void power_detail_view(void) {
     char value[40];portable_nova_begin();portable_nova_header("POWER DETAILS");
     if (power_detail_page==0) {
@@ -231,6 +265,7 @@ static void power_detail_view(void) {
     portable_nova_button(176,192,52,44,"Next",false);
     power_app->present(false);
 }
+#endif
 #ifdef PORTABLE_BLE_BROADCAST
 static const char *power_broadcast_label(void) {
     switch(power_broadcast_state.state) {
@@ -244,6 +279,7 @@ static const char *power_broadcast_label(void) {
       default:return "Settings unavailable";
     }
 }
+#ifndef PORTABLE_BATTERY_NATIVE_UI
 static void power_broadcast_view(void) {
     portable_nova_begin();portable_nova_header("BLE BROADCAST");
     portable_nova_row(12,52,216,50,"Sensor status",power_broadcast_label(),false);
@@ -255,10 +291,22 @@ static void power_broadcast_view(void) {
     power_app->present(false);
 }
 #endif
+#endif
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+#include "battery_native_view.inc"
+#endif
 #ifdef PORTABLE_PAPER_UTILITIES
 #include "battery_paper.inc"
 #endif
 static void power_render(void) {
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+ uint64_t page=power_details?2u+power_detail_page:1u;
+#ifdef PORTABLE_BLE_BROADCAST
+ if(power_broadcast)page=16u;
+#endif
+ /* Page identity includes geometry, before a pending frame can defer paint. */
+ portable_battery_native_layout((page<<32)|((uint64_t)power_app->screen_width()<<16)|power_app->screen_height());
+#endif
  if(!utility_frame_begin(power_app))return;
 #if defined(PORTABLE_NATIVE_TIME_TOOLBAR) && defined(PORTABLE_BLE_BROADCAST)
  if(portable_adapter_retained())return;
@@ -283,6 +331,14 @@ static bool power_refresh(void) {
 #endif
     return changed;
 }
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+static unsigned power_detail_count(void) {
+    battery_native_rect c=power_native_layout(3).content;
+    return c.w<200 || c.h<88 ? 6u : 4u;
+}
+#else
+#define power_detail_count() 4u
+#endif
 static bool power_back(void) {
 #ifdef PORTABLE_BLE_BROADCAST
     if(power_broadcast){power_broadcast=false;power_render();return false;}
@@ -301,12 +357,21 @@ void app_main(void) {
     power_app=t5_app_get_api(1);
     if(!power_app || !power_app->poll || !power_app->present || !power_app->millis ||
        !power_app->screen_width || !power_app->screen_height ||
+
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+       power_app->screen_width()<1 || power_app->screen_height()<1 ||
+       power_app->screen_width()>UINT16_MAX || power_app->screen_height()>UINT16_MAX)return;
+#else
        power_app->screen_width()<160 || power_app->screen_height()<240)return;
+#endif
 #ifdef PORTABLE_PAPER_UTILITIES
     up_open(power_app);
-    if(!utility_paper && (power_app->screen_width()!=240 || power_app->screen_height()!=240))return;
-#else
-    if(power_app->screen_width()!=240 || power_app->screen_height()!=240)return;
+    if(!utility_paper && !utility_color_dimensions(power_app))return;
+#elif !defined(PORTABLE_BATTERY_NATIVE_UI)
+    if(!utility_color_dimensions(power_app))return;
+#endif
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+    portable_battery_native_begin();
 #endif
     power_sample=(risc_battery_sample_v1){0,255,RISC_BATTERY_PROFILE_MISSING};
     power_read_ok=power_details=power_navigation_failed=false;power_detail_page=0;
@@ -322,40 +387,67 @@ void app_main(void) {
         #ifdef PORTABLE_PAPER_UTILITIES
         if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,200,88))input.buttons|=T5_APP_BUTTON_BACK;}
 #endif
+#ifdef PORTABLE_PAPER_UTILITIES
+        if(!utility_paper)
+#endif
+#ifndef PORTABLE_BATTERY_NATIVE_UI
+        utility_color_input(power_app,&input);
+#endif
         if(input.buttons&T5_APP_BUTTON_BACK) {if(power_back())return;continue;}
         bool render=false;
         if((uint32_t)(power_app->millis()-power_sample_at)>=1000)render=power_refresh();
-        if(power_details && (input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))) {power_detail_page=(power_detail_page+3)%4;render=true;}
-        if(power_details && (input.buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))) {power_detail_page=(power_detail_page+1)%4;render=true;}
+        if(power_details && (input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))) {power_detail_page=(power_detail_page+power_detail_count()-1)%power_detail_count();render=true;}
+        if(power_details && (input.buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))) {power_detail_page=(power_detail_page+1)%power_detail_count();render=true;}
         bool refresh=(input.buttons&T5_APP_BUTTON_CONFIRM)!=0;
 #ifdef PORTABLE_BLE_BROADCAST
         if(power_broadcast && (refresh || (input.tapped &&
 #ifdef PORTABLE_PAPER_UTILITIES
           (utility_paper ? up_hit(input.touch_x,input.touch_y,32,584,416,88) :
 #endif
+
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+          power_native_hit(input.touch_x,input.touch_y,1,0)
+#else
           portable_nova_hit(input.touch_x,input.touch_y,36,192,168,44)
+#endif
 #ifdef PORTABLE_PAPER_UTILITIES
           )
 #endif
           ))) {
             if(!power_broadcast_error)power_broadcast_requested=!power_broadcast_state.enabled;
-            power_broadcast_error=!portable_broadcast_enable(power_broadcast_requested);
+            power_broadcast_error=!power_broadcast_save(power_broadcast_requested);
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
             if(portable_adapter_retained())return;
 #endif
-            (void)power_refresh();power_render();continue;
+            (void)power_refresh();
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+            /* The advertiser reloads policy on the next adapter tick. Keep the
+             * toggle aligned with this collected receipt in the meantime, so
+             * a second fast tap reverses the first rather than repeating it. */
+            if(!power_broadcast_error)power_broadcast_state.enabled=power_broadcast_requested;
+#endif
+            power_render();continue;
         }
 #endif
         if(input.tapped) {
+#ifdef PORTABLE_BATTERY_NATIVE_UI
+            if(power_native_back_hit(input.touch_x,input.touch_y)){if(power_back())return;continue;}
+            if(!power_details && power_native_hit(input.touch_x,input.touch_y,2,0)){power_details=true;power_detail_page=0;render=true;}
+            else if(!power_details && power_native_hit(input.touch_x,input.touch_y,2,1))refresh=true;
+            else if(power_details && power_native_hit(input.touch_x,input.touch_y,3,0)){power_detail_page=(power_detail_page+power_detail_count()-1)%power_detail_count();render=true;}
+            else if(power_details && power_native_hit(input.touch_x,input.touch_y,3,2)){power_detail_page=(power_detail_page+1)%power_detail_count();render=true;}
+            else if(power_details && power_native_hit(input.touch_x,input.touch_y,3,1))refresh=true;
+#else
 #ifdef PORTABLE_PAPER_UTILITIES
             if(utility_paper){battery_paper_tap(input.touch_x,input.touch_y,&refresh);render=true;}else
 #endif
             if(portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44)) {if(power_back())return;continue;}
             if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,12,192,104,44)) {power_details=true;power_detail_page=0;render=true;}
             else if(!power_details && portable_nova_hit(input.touch_x,input.touch_y,124,192,104,44)) refresh=true;
-            else if(power_details && portable_nova_hit(input.touch_x,input.touch_y,12,192,52,44)) {power_detail_page=(power_detail_page+3)%4;render=true;}
-            else if(power_details && portable_nova_hit(input.touch_x,input.touch_y,176,192,52,44)) {power_detail_page=(power_detail_page+1)%4;render=true;}
+            else if(power_details && portable_nova_hit(input.touch_x,input.touch_y,12,192,52,44)) {power_detail_page=(power_detail_page+power_detail_count()-1)%power_detail_count();render=true;}
+            else if(power_details && portable_nova_hit(input.touch_x,input.touch_y,176,192,52,44)) {power_detail_page=(power_detail_page+1)%power_detail_count();render=true;}
             else if(power_details && portable_nova_hit(input.touch_x,input.touch_y,72,192,96,44)) refresh=true;
+#endif
         }
         if(refresh) {(void)power_refresh();render=true;}
         if(render || utility_frame_pending)power_render();

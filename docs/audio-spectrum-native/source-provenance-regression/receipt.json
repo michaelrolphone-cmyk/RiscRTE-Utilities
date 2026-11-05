@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "baseline_source": "70118d617d3277a8ca5416236204f04839125b60",
+  "ci_failure_run": 39123527071,
+  "ci_failure_source": "47b56ee1df099902203f0485b71d57731f4f6ec5",
+  "ci_failure": "Outer Utilities checkout matched nested System files before their exact dependency root; Git show failed closed.",
+  "baseline": {
+    "tests": 28,
+    "failures": 1,
+    "log_sha256": "bab15efc3806b6ef5f6acf9675f58f13139f97c3b1ee98fc85ea6832711fed85",
+    "fixture_sha256": "187c1548fbb570eaebbf2da16afb15c0542f5c810dcad4fd2eeb9a0966ad423d"
+  },
+  "fixed": {
+    "tests": 28,
+    "failures": 0,
+    "log_sha256": "f13b3ba520d73719169ce5fd3bd4ad7bbddc61c052ca5eb8b2fb0f51784b07c3",
+    "source_sha256": {
+      "scripts/prepare_native_spectrum_release.py": "d3145fbb10d7e680b2a253f7337222d11899767796dd174027dfa0c1c0a5dd16",
+      "tests/test_native_spectrum_release.py": "187c1548fbb570eaebbf2da16afb15c0542f5c810dcad4fd2eeb9a0966ad423d"
+    }
+  },
+  "command": "python3 -m unittest discover -s tests -p test_native_spectrum_release.py -v",
+  "change": "Select the most-specific recorded source root, preserving path-boundary checks and downstream exact Git-byte comparisons.",
+  "scope": "Packaging provenance only; app, target ELF and provider source unchanged."
+}

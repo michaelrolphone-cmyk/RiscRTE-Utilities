@@ -5,7 +5,13 @@
 #define CONTROLS_ROW_HEIGHT 48
 #define CONTROLS_COUNT 13
 #define CONTROLS_MAX_SCROLL (CONTROLS_COUNT*CONTROLS_ROW_HEIGHT-(CONTROLS_BOTTOM-CONTROLS_TOP))
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+static void controls_move(int offset){
+ int maximum=spectrum_native_controls_max();
+ int next=clamp_int(offset,0,maximum);if(next!=controls_scroll){controls_scroll=next;dirty=true;}}
+#else
 static void controls_move(int offset){int next=clamp_int(offset,0,CONTROLS_MAX_SCROLL);if(next!=controls_scroll){controls_scroll=next;dirty=true;}}
+#endif
 static bool controls_segment(unsigned setting){return setting==3||setting==4||setting==5;}
 static void draw_setting(unsigned setting,int y){
  static const char *captions[]={"","LOW","HIGH","X SCALE","Y SCALE","LABELS","COLORS","GAIN","WINDOW","FFT SIZE","FLOOR","STORAGE","SAMPLES","EVENTS"};

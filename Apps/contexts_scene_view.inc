@@ -1,6 +1,10 @@
 /* Declarative Contexts presentation. All geometry, fonts, scrolling and hit
  * targets belong to the shared NOVA presenter used by Lists. */
 enum { CS_TAB=800,CS_KEY,CS_FINISH,CS_RETRY,CS_DISMISS_MESSAGE };
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+enum { CS_TEXT_RETRY=CS_DISMISS_MESSAGE+1 };
+static bool cs_text_retry;
+#endif
 static risc_components_document_v1 cs_document;
 static uint32_t cs_revision,cs_toast_token;
 static uint64_t cs_last_event;
@@ -107,7 +111,14 @@ static void cs_declare(void){
  case CU_DELETE:case CU_CANCEL:
   cs_header("CONFIRM","",false);cs_document.flags=RISC_COMPONENTS_CONFIRM;cs_document.cancel_action=CU_ROW_CANCEL;cs_say(cu_page==CU_DELETE?"DELETE THIS ITEM?":"DISCARD CHANGES?",cu_page==CU_DELETE?"Contexts using this item will stop matching.":"Unsaved changes will be discarded.");cs_button(cu_page==CU_DELETE?"KEEP":"KEEP EDITING",CU_ROW_CANCEL,0);cs_button(cu_page==CU_DELETE?"DELETE":"DISCARD",CU_ROW_CONFIRM,RISC_SCENE_DESTRUCTIVE);break;
  case CU_NAME:
-  cs_header("NAME",cu_name_reason==4?"MESSAGE":"",true);n=cs_node(RISC_SCENE_KEYBOARD_NODE,"NAME",cu_name,CS_KEY);cs_bounds(n,cu_key_page,0,3);n->target=cu_name_reason==4?32:16;break;
+  cs_header("NAME",cu_name_reason==4?"MESSAGE":"",true);
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+  cs_say(cu_name_reason==4?"MESSAGE":"NAME",cu_name);
+  cs_button("RETRY EDITING",CS_TEXT_RETRY,RISC_SCENE_PRIMARY);
+  cs_button("CANCEL",CU_ROW_BACK,0);break;
+#else
+  n=cs_node(RISC_SCENE_KEYBOARD_NODE,"NAME",cu_name,CS_KEY);cs_bounds(n,cu_key_page,0,3);n->target=cu_name_reason==4?32:16;break;
+#endif
  default:
   cs_header(cu_page==CU_APPS?"LAUNCH...":cu_page==CU_TIMER?"TIMER":"ACTIVITY",cu_page==CU_APPS?"CHOOSE AN APP":cu_page==CU_TIMER?"HOW LONG?":"RECENT",true);cu_build();for(unsigned i=0;i<cu_count;i++)cs_row(cu_rows[i].title,cu_rows[i].detail,"",cu_rows[i].action,0);break;
  }
@@ -117,18 +128,33 @@ static void cs_event(const risc_scene_event_v1*e){
  if(e->kind!=RISC_SCENE_ACTION_EVENT&&e->kind!=RISC_SCENE_VALUE_EVENT)return;
  unsigned a=e->action;if(a!=CU_ROW_BACK&&a!=CU_ROW_CANCEL&&a!=CS_DISMISS_MESSAGE){if(!e->node||e->node>cs_document.node_count||cs_document.nodes[e->node-1].action!=a)return;}
  if(e->node){const risc_scene_node_v1*n=&cs_document.nodes[e->node-1];if(n->flags&(RISC_SCENE_DISABLED|RISC_SCENE_HIDDEN))return;
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+  bool value=n->kind==RISC_COMPONENT_SWITCH||n->kind==RISC_COMPONENT_STEPPER||n->kind==RISC_COMPONENT_SEGMENTS;
+  if(value!=(e->kind==RISC_SCENE_VALUE_EVENT))return;
+  if(value&&(e->value<n->minimum||e->value>n->maximum))return;
+#else
   bool value=n->kind==RISC_COMPONENT_SWITCH||n->kind==RISC_COMPONENT_STEPPER||n->kind==RISC_COMPONENT_SEGMENTS||n->kind==RISC_SCENE_KEYBOARD_NODE;
   if(value!=(e->kind==RISC_SCENE_VALUE_EVENT))return;
   if(value&&n->kind!=RISC_SCENE_KEYBOARD_NODE&&(e->value<n->minimum||e->value>n->maximum))return;
+#endif
  }
  cs_last_event=e->sequence;ctx_dirty=true;
  if(a==CS_DISMISS_MESSAGE){cs_workflow_message[0]=0;return;}
  if(a==CS_RETRY){cu_loaded=portable_contexts_rules_read(&cu_store);if(cu_loaded){cu_sync_profiles();cu_saved=cu_store;cu_page_set(CU_HOME);}return;}
  if(!cu_loaded)return;
- if(a==CU_ROW_BACK){cu_back();return;}
+ if(a==CU_ROW_BACK){
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+  cs_text_retry=false;
+#endif
+  cu_back();return;}
+#ifdef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
+ if(a==CS_TEXT_RETRY){if(cu_page==CU_NAME)cs_text_retry=false;return;}
+#endif
  if(a==CS_TAB){if(e->value<0||e->value>2)return;cu_kind=e->value==0?CR_PLACE:e->value==1?CR_EVENT:CR_BATTERY;cu_page_set(CU_ITEMS);return;}
  if(a==CS_FINISH){cu_page_set(CU_ITEMS);return;}
+#ifndef PORTABLE_CONTEXTS_SHARED_TEXT_INPUT
  if(a==CS_KEY){unsigned key=(unsigned)e->value;size_t n=strlen(cu_name);if(key==RISC_SCENE_KEY_CANCEL){cu_back();return;}if(key==RISC_SCENE_KEY_DONE){cu_name_done();return;}if(key==RISC_SCENE_KEY_LAYER)cu_key_page=(cu_key_page+1)%4;else if(key==RISC_SCENE_KEY_BACKSPACE){if(n)cu_name[n-1]=0;}else if(key==RISC_SCENE_KEY_CLEAR)cu_name[0]=0;else {if(key==RISC_SCENE_KEY_SPACE)key=' ';if(key>=32&&key<=126&&n<(cu_name_reason==4?32u:16u)){cu_name[n]=(char)key;cu_name[n+1]=0;}}return;}
+#endif
  if(cu_pending&&a!=CU_ROW_SAVE&&a!=CU_ROW_CANCEL&&a!=CU_ROW_CONFIRM){cu_note("RETRY SAVE OR DISCARD");return;}
  if(e->kind==RISC_SCENE_VALUE_EVENT){cr_rule*r=&cu_store.rules[cu_rule];cr_item*t=&cu_store.items[cu_item];int v=e->value;const risc_scene_node_v1*n=&cs_document.nodes[e->node-1];if(v<n->minimum||v>n->maximum||n->flags&RISC_SCENE_DISABLED)return;
   if(a>=CU_ROW_FIELD&&a<CU_ROW_FIELD+CR_SETTINGS){unsigned f=a-CU_ROW_FIELD;r->settings[f]=cs_field_value(f,v);cu_edit=true;return;}

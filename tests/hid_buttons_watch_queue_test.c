@@ -29,16 +29,36 @@ static bool reject_neutral(void*c,uint64_t t,uint8_t m,const uint8_t*k){return h
 #ifdef HID_REPORT_SEAM
 /* The Python central owns the real HID connection; this bridge only supplies
  * its capability to the production app pump during a real touch transaction. */
-void hid_buttons_watch_report_seam(const risc_bluetooth_hid_v1 *provider,uint64_t connection){
+void hid_buttons_watch_burst_seam(const risc_bluetooth_hid_v1 *provider,uint64_t connection,unsigned taps){
+ assert(taps>0&&taps<16);
  physical_start();hid=provider;token=connection;status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(status)};
  tick=21;pump();assert(status.state==RISC_HID_READY&&assignment_ready(assignments)&&!button_gate);
- point(25,1,1,30,100);point(45,0,1,30,100);tick=60;pump();
+ for(unsigned i=0;i<taps;i++){point(25+i*2,1,1,30,100);point(26+i*2,0,1,30,100);}
+ tick=25+taps*2;for(unsigned i=0;i<taps;i++){pump();tick+=20;}
  assert(!closing&&token==connection&&held_button==-1);
  hid=&fake_hid;token=7;finish();
 }
+void hid_buttons_watch_report_seam(const risc_bluetooth_hid_v1*p,uint64_t t){hid_buttons_watch_burst_seam(p,t,1);}
 #else
 int main(int argc,char**argv){
  assert(argc==2);const char*name=argv[1];physical_start();bool accepted=true,mouse=false;
+ if(!strncmp(name,"pending-",8)){
+  for(unsigned i=0;i<3;i++){point(25+i*2,1,1,30,100);point(26+i*2,0,1,30,100);}tick=40;pump();assert(key_reports==2&&button_pending_count==2);
+  if(!strcmp(name,"pending-generation"))fake_status.connection_generation++;
+  else if(!strcmp(name,"pending-disconnect"))fake_status.state=RISC_HID_ADVERTISING;
+  else if(!strcmp(name,"pending-cancel"))assert(release_input());
+  else if(!strcmp(name,"pending-settings"))view=HID_VIEW_SETTINGS;
+  else if(!strcmp(name,"pending-subscription"))fake_status.flags&=~RISC_HID_KEYBOARD_READY;
+  else assert(0);
+  for(unsigned i=0;i<4;i++){tick+=20;pump();}assert(key_reports==2&&!button_pending_count);finish();puts("Pending shortcut fence PASS");return 0;
+ }
+ if(!strcmp(name,"burst")||!strcmp(name,"burst-full")){
+  unsigned taps=!strcmp(name,"burst")?2u:(RISC_TOUCH_QUEUE_LENGTH-1u)/2u;
+  for(unsigned i=0;i<taps;i++){point(25+i*2,1,1,30,100);point(26+i*2,0,1,30,100);}
+  tick=25+taps*2;for(unsigned i=0;i<taps;i++){pump();tick+=20;}assert(key_reports==2*taps);
+  for(unsigned i=0;i<2*taps;i++)assert(reports[i].mod==(i%2?0:5)&&reports[i].key==(i%2?0:76));
+  puts("Queued repeated shortcut press/neutral FIFO PASS");finish();return 0;
+ }
  if(!strcmp(name,"mouse")){assignments[0]=(hid_assignment){.kind=HID_ACTION_MOUSE,.buttons=2};mouse=true;}
  if(!strcmp(name,"wheel")){assignments[0]=(hid_assignment){.kind=HID_ACTION_WHEEL,.wheel=-3};mouse=true;}
  if(!strcmp(name,"motion")){assignments[0]=(hid_assignment){.kind=HID_ACTION_MOVE,.dx=-15,.dy=7};mouse=true;}
@@ -50,7 +70,7 @@ int main(int argc,char**argv){
  if(!strcmp(name,"move-outside")){point(30,1,1,120,100);point(35,1,1,30,100);accepted=false;}
  if(!strcmp(name,"multi-contact")){point(30,2,1,30,100);accepted=false;}
  if(!strcmp(name,"changed-id")){point(30,1,2,30,100);accepted=false;}
- if(!strcmp(name,"second-tap")){point(30,0,1,30,100);point(35,1,1,30,100);accepted=false;}
+ if(!strcmp(name,"second-tap")){point(30,0,1,30,100);point(35,1,1,30,100);}
  if(!strcmp(name,"queue-overflow")){for(unsigned i=0;i<RISC_TOUCH_QUEUE_LENGTH+2u;i++)point(26+i,1,1,30,100);accepted=false;}
  unsigned end=!strcmp(name,"deadline100")?120:!strcmp(name,"deadline101")?121:!strcmp(name,"clock-rollback")?20:!strcmp(name,"queue-overflow")?90:45;
  point(end,0,1,30,100);tick=end>60?end:60;
@@ -65,6 +85,7 @@ int main(int argc,char**argv){
  if(!strcmp(name,"press-fail"))report_bad=true;
  if(!strcmp(name,"release-fail"))fake_hid.keyboard=reject_neutral;
  pump();
+ if(!strcmp(name,"second-tap")){tick+=20;pump();assert(key_reports==4);finish();return 0;}
  if(!strcmp(name,"press-fail")){assert(key_reports==1&&!token&&!grants);}
  else if(!strcmp(name,"release-fail")){assert(key_reports==2&&!token&&!grants);}
  else if(mouse){

@@ -1,4 +1,4 @@
-# OBD Dashboard 0.1.0 — X4
+# OBD Dashboard 0.1.1 — X4
 
 A native foreground ELF with an intent-driven NOVA scene interface. The app uses
 only `ui.scene@1` and `bluetooth.serial@1`; panel/touch/HCI details belong to
@@ -91,3 +91,11 @@ performed; hardware and owned-adapter compatibility remain pending.
 
 Perform initial connection and setup while parked. Use proper engine ventilation;
 this display is informational, not a replacement for vehicle instruments/alerts.
+
+## 0.1.1 native integration correction
+
+The first component-only JSON used catalog fields that the native loader rejects.
+The delivered manifest now contains the required architecture/entry, native
+supported_file_types, and explicit foreground lifecycle. Vehicle protocol and
+GUI behavior are unchanged. Build metadata reads the declared manifest version;
+full-image qualification independently runs the real Runtime manifest parser.

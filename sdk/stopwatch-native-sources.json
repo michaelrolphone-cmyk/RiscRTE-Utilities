@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "system_apps": "ff6151285ee41bdbeff75ebd31ee2621d524e899",
+  "runtime": "13eca114cb58469cf6004fafc3da84fbd9d29beb",
+  "utilities_base": "1e5108f2c1da2d2bb2e98c75258e40919a17c8e1",
+  "purpose": "Independent native Stopwatch source qualification; no catalog or product recipe updates"
+}

@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "kind": "exact-delivered-x4-alarm-reproduction",
+  "pins": {
+    "utilities": "80efb298c9ca8d0f62f9a31840c9e51d380b40f6",
+    "runtime": "1c1ed8661ea30d47e7e9707c41d492ce3a2b4d70",
+    "system": "0cae9c90b74982e784f5e59c655f246dfbc69178"
+  },
+  "compiler": "xtensa-esp32s3-elf-gcc (crosstool-NG esp-2021r2-patch5) 8.4.0",
+  "module": {
+    "name": "x4-startup-busy",
+    "defines": [
+      "POINTS_IN_TIME_SERVICE",
+      "ALARM_DND_CONTROL",
+      "ALARM_NATIVE_UTC",
+      "ALARM_VISUAL_ONLY",
+      "ALARM_SERVICE_TAGGED_V2",
+      "POINTS_CATALOG_SERVICE",
+      "ALARM_STORAGE_BUSY_RETRY"
+    ],
+    "size": 78024,
+    "sha256": "f3e0fdd29bcd103b811f020acf53972006bb6bd295c2fe372d2a6ae05e6496af"
+  },
+  "compaction": {
+    "profile": "loader-metadata-v3",
+    "before_bytes": 78024,
+    "after_bytes": 56516,
+    "before_sha256": "f3e0fdd29bcd103b811f020acf53972006bb6bd295c2fe372d2a6ae05e6496af",
+    "after_sha256": "f4b68c8aaa61d7518593fb70e5bac99f5c5185689440440b7ea103cd9d015ac8",
+    "removed_sections": [
+      ".xt.lit",
+      ".xt.prop"
+    ],
+    "retained_loader_sections_symbols_relocations_unchanged": true,
+    "original_elf_retained": true,
+    "tool": "GNU objcopy (crosstool-NG esp-2021r2-patch5) 2.35.1.20201223",
+    "options": [
+      "--remove-section=.xt.lit",
+      "--remove-section=.xt.prop",
+      "--discard-all"
+    ],
+    "compactor_sha256": "07936b7ccbc53809ef8d907b19d434b047e4b7e4a2a8501bd32bd9465f691d55"
+  },
+  "matches_delivered_x4_0_1_122": true,
+  "hardware_tested": false
+}

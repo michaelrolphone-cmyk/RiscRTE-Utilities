@@ -47,9 +47,31 @@ static uint32_t copied_at;
 static bool naming,name_save_failed;
 static char aliases[BLE_MAX_DEVICES][BLE_ALIAS_MAX+1],editing[BLE_ALIAS_MAX+1];
 static int8_t alias_state[BLE_MAX_DEVICES]; /* 0 unloaded, 1 valid, -1 failed */
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "utility_preference_atomic.h"
+static utility_preference_atomic name_preference,radio_preference;
+static uint8_t name_draft_type,name_draft_address[6];
+static bool ble_preference_alive(void *unused){(void)unused;return !uncertain&&!name_client.retained;}
+static void ble_preference_retain(void *unused){(void)unused;uncertain=true;name_client.retained=true;(void)portable_text_client_retain(&name_client);}
+static bool name_preference_close(void){return utility_preference_cancel(&name_preference)!=RISC_ATOMIC_RETAINED;}
+#endif
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+#include "PortableBleScannerNative.h"
+#include "ble_scanner_native_layout.h"
+static uint64_t scan_native_epoch;
+static bool scan_native_enabled(void){return !paper;}
+static scan_native_layout scan_native_geometry(void){scan_native_layout l={0};(void)scan_native_layout_make(&l,app->screen_width(),app->screen_height());return l;}
+static void scan_native_select(void);
+#else
+#define scan_native_enabled() false
+#endif
 static unsigned indexes(unsigned out[BLE_MAX_DEVICES]);
 static void normalize_results(void);
-static unsigned visible_rows(void){return paper?(unsigned)(app->screen_height()-256)/88u:3u;}
+static unsigned visible_rows(void){
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+ if(scan_native_enabled())return scan_native_geometry().rows;
+#endif
+ return paper?(unsigned)(app->screen_height()-256)/88u:3u;}
 static void load_alias(unsigned i){
  risc_runtime_capability_v1 g={.struct_size=sizeof(g)};
  if(!runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g)){alias_state[i]=-1;return;}
@@ -66,7 +88,11 @@ static void name_retain(void){uncertain=true;name_client.retained=true;}
 bool portable_radio_services_safe(void){return !uncertain;}
 bool portable_app_before_launch(const char *destination){
  (void)destination;
- return !uncertain&&!naming&&!name_home_return&&!name_client.active&&!name_client.acquired&&!name_client.suspended&&!name_client.retained;
+ return !uncertain
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  &&!name_preference.grant.api&&!radio_preference.grant.api
+#endif
+  &&!naming&&!name_home_return&&!name_client.active&&!name_client.acquired&&!name_client.suspended&&!name_client.retained;
 }
 bool portable_radio_suspend(void){
  if(uncertain||name_client.retained)return false;
@@ -108,6 +134,10 @@ static void start_scan(void){
  acquired=true;host=grant.api;
  if(!host||host->api_version!=1||host->struct_size<sizeof(*host)||!host->open||!host->close||!host->poll||!host->status||!host->device){message="Scanner driver update needed";stop();return;}
  if(!host->open(host->context,&token)||!token){message="Bluetooth busy - retry";stop();return;}
+
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+ ++scan_native_epoch;
+#endif
  scan=(ble_scan){.phase=BLE_STARTING};memset(aliases,0,sizeof(aliases));memset(alias_state,0,sizeof(alias_state));selected=scroll=detail_scroll=0;detail=naming=name_save_failed=false;message="Starting scan";dirty=true;
 }
 static bool navigate_back(void){
@@ -147,19 +177,40 @@ static unsigned indexes(unsigned out[BLE_MAX_DEVICES]){
 }
 static void begin_name(void){
  if(detail_index>=scan.count||naming)return;
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+ if(scan_native_enabled()){++scan_native_epoch;scan_native_select();}
+#endif
  stop();
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ char key[16];ble_device *d=&scan.devices[detail_index];ble_alias_key(d->address_type,d->address,key);
+ int opened=utility_preference_begin(&name_preference,runtime,key,ble_preference_alive,ble_preference_retain,NULL);
+ if(opened!=PORTABLE_PREFERENCE_READY){(void)utility_preference_finish(&name_preference,opened);message="Name settings unavailable";dirty=true;return;}
+ name_draft_type=d->address_type;memcpy(name_draft_address,d->address,6);
+ char prior[BLE_ALIAS_MAX+1]={0};
+ /* Preserve the existing explicit repair action for unreadable aliases.
+  * The editor starts blank, but the intent still binds the exact captured raw
+  * prior bytes, rather than pretending corrupt data was absent. */
+ if(name_preference.edit.present&&!ble_alias_decode(d->address_type,d->address,name_preference.edit.expected,name_preference.edit.expected_size,prior))prior[0]=0;
+ if(!name_save_failed||name_draft_index!=detail_index)memcpy(editing,prior,sizeof(editing));
+#else
  if(!name_save_failed||name_draft_index!=detail_index)memcpy(editing,aliases[detail_index],sizeof(editing));
+#endif
  name_draft_index=detail_index;name_closing=false;
  name_state=(risc_text_entry_state_v1){.struct_size=sizeof(name_state)};
  int32_t rc=portable_text_client_begin(&name_client,runtime,"Sensor name",editing,sizeof(editing));
  if(rc==RISC_TEXT_ENTRY_RETAINED||name_client.retained){name_retain();return;}
- if(rc!=RISC_TEXT_ENTRY_OK){message="Text input unavailable";detail_scroll=0;dirty=true;return;}
+ if(rc!=RISC_TEXT_ENTRY_OK){
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  (void)name_preference_close();
+#endif
+  message="Text input unavailable";detail_scroll=0;dirty=true;return;}
  naming=true;
 }
 static bool name_storage_live(void){
  if(portable_text_client_live(&name_client))return true;
  name_retain();return false;
 }
+#ifndef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
 static int32_t name_storage_get(void *context,const char *key,void *data,uint32_t capacity,uint32_t *size){
  if(!name_storage_live())return RISC_KEY_VALUE_CONTEXT;
  const risc_key_value_v1 *source=context;
@@ -175,6 +226,7 @@ static int32_t name_storage_put(void *context,const char *key,const void *data,u
 static void name_storage_retain(void){
  (void)portable_text_client_retain(&name_client);name_retain();
 }
+#endif
 static void save_name(void){
  /* The service token and grant have closed and the app presenter is restored
   * before any domain storage access. Guard every KV boundary independently:
@@ -183,6 +235,13 @@ static void save_name(void){
  unsigned start=0,end=(unsigned)strlen(editing);while(start<end&&editing[start]==' ')start++;while(end>start&&editing[end-1]==' ')end--;
  for(unsigned i=0;i<end-start;i++)editing[i]=editing[start+i];
  editing[end-start]=0;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ uint8_t bytes[40];
+ bool encoded=ble_alias_encode(name_draft_type,name_draft_address,editing,bytes);
+ int rc=encoded?utility_preference_submit(&name_preference,bytes,sizeof(bytes)):RISC_ATOMIC_INVALID;
+ rc=utility_preference_finish(&name_preference,rc);bool ok=rc==RISC_ATOMIC_OK;
+ if(rc==RISC_ATOMIC_RETAINED)return;
+#else
  risc_runtime_capability_v1 g={.struct_size=sizeof(g)};bool ok=false;
  bool got=runtime->acquire(RISC_KEY_VALUE_CAPABILITY,1,1,&g);
  if(!name_storage_live())return;
@@ -199,6 +258,7 @@ static void save_name(void){
   if(!name_storage_live())return;
   if(!closed||released.struct_size!=sizeof(released)||released.api||released.slot||released.generation){name_storage_retain();return;}
  }else if(g.api||g.slot||g.generation){name_storage_retain();return;}
+#endif
  if(!ok){message="Name save unconfirmed";name_save_failed=true;detail_scroll=0;dirty=true;return;}
  memcpy(aliases[detail_index],editing,sizeof(editing));alias_state[detail_index]=1;name_save_failed=false;message=editing[0]?"Sensor name saved":"Sensor name cleared";
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);for(unsigned i=0;i<n;i++)if(list[i]==detail_index){selected=i;break;}
@@ -223,14 +283,28 @@ static void name_step(void){
   unsigned n=0;while(n<sizeof(name_state.text)&&name_state.text[n]){
    unsigned char c=(unsigned char)name_state.text[n];if(c<32||c>126)break;n++;
   }
-  if(n>=sizeof(editing)||name_state.text[n]){message="Invalid sensor name";return;}
+  if(n>=sizeof(editing)||name_state.text[n]){
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+   (void)name_preference_close();
+#endif
+   message="Invalid sensor name";return;}
   memset(editing,0,sizeof(editing));memcpy(editing,name_state.text,n);save_name();
- }else{name_save_failed=false;message="Name cancelled";}
+ }else{
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  if(!name_preference_close())return;
+#endif
+  name_save_failed=false;message="Name cancelled";}
 }
 static void address(const ble_device*d,char out[32]){snprintf(out,32,"%02X:%02X:%02X:%02X:%02X:%02X",d->address[5],d->address[4],d->address[3],d->address[2],d->address[1],d->address[0]);}
 static unsigned detail_count(void);
+static unsigned detail_visible_rows(void){
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+ if(scan_native_enabled())return scan_native_geometry().lines;
+#endif
+ return paper?11u:6u;
+}
 static void move(int delta){
- if(detail){int n=(int)detail_scroll+delta;unsigned count=detail_count(),rows=paper?11u:6u;int max=count>rows?(int)(count-rows):0;detail_scroll=(unsigned)(n<0?0:n>max?max:n);dirty=true;return;}
+ if(detail){int n=(int)detail_scroll+delta;unsigned count=detail_count(),rows=detail_visible_rows();int max=count>rows?(int)(count-rows):0;detail_scroll=(unsigned)(n<0?0:n>max?max:n);dirty=true;return;}
  unsigned list[BLE_MAX_DEVICES],n=indexes(list);if(!n)return;
  int next=(int)selected+delta;selected=(unsigned)(next<0?0:next>=(int)n?(int)n-1:next);
  if(selected<scroll)scroll=selected;
@@ -239,8 +313,13 @@ static void move(int delta){
 }
 static bool drag(void){
  t5_app_contact_t sample={0};if(!app->touch_contact(&sample))return false;
+ if(!scan_native_enabled()){sample.x=(uint16_t)utility_color_x(app,sample.x);sample.y=(uint16_t)utility_color_y(app,sample.y);}
  if(sample.down){
-  if(!contact_down){contact_down=true;contact_list=sample.y>=60&&sample.y<196;contact_moved=false;contact_y=sample.y;}
+  if(!contact_down){contact_down=true;contact_list=sample.y>=60&&sample.y<196;
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+   if(scan_native_enabled()){scan_native_layout l=scan_native_geometry();contact_list=scan_native_hit(detail?l.details:l.list,sample.x,sample.y);}
+#endif
+   contact_moved=false;contact_y=sample.y;}
   else if(contact_list){int dy=sample.y-contact_y;if(dy>=20||dy<=-20){move(dy<0?1:-1);contact_y=sample.y;contact_moved=true;}}
   return contact_list&&contact_moved;
  }
@@ -304,15 +383,27 @@ static void normalize_results(void){
   if(selected>=scroll+rows)scroll=selected-rows+1;
  }
  if(detail&&detail_index>=scan.count){detail=name_save_failed=false;detail_scroll=0;}
- unsigned lines=detail_count(),detail_rows=paper?11u:6u;
+ unsigned lines=detail_count(),detail_rows=detail_visible_rows();
  if(detail&&detail_scroll>=lines)detail_scroll=lines>detail_rows?lines-detail_rows:0;
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+ if(scan_native_enabled()&&detail){unsigned last=lines>detail_rows?lines-detail_rows:0;if(detail_scroll>last)detail_scroll=last;}
+#endif
  if(selected!=old_selected||scroll!=old_scroll||detail_scroll!=old_detail_scroll||detail!=old_detail)dirty=true;
 }
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+#include "ble_scanner_native_view.inc"
+#endif
 static void paper_draw(void);
 static void draw(void){
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+ scan_native_select();
+#endif
  if(!utility_frame_begin(app))return;
  if(naming||name_client.retained)return;
  if(paper){paper_draw();return;}
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+ if(scan_native_enabled()){scan_native_draw();return;}
+#endif
  portable_nova_begin();portable_nova_header(detail?"SENSOR DETAILS":"BLE SCANNER");
  char text[80];unsigned list[BLE_MAX_DEVICES],n=indexes(list);
  if(detail&&detail_index<scan.count){
@@ -344,7 +435,12 @@ void app_main(void){
 #ifndef BLE_SCANNER_COMPACT_COLOR_ONLY
  paper=paper_presentation_get();
 #endif
- if((!paper&&(app->screen_width()!=240||app->screen_height()!=240))||(paper&&(!app->fill_rect||!app->draw_icon)))return;
+ if((!paper&&!scan_native_enabled()&&!utility_color_dimensions(app))||(paper&&(!app->fill_rect||!app->draw_icon)))return;
+ #ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+ if(scan_native_enabled()){scan_native_layout l;if(!scan_native_layout_make(&l,app->screen_width(),app->screen_height()))return;}
+ if(scan_native_enabled())portable_ble_scanner_native_begin();
+ scan_native_epoch=0;
+#endif
  paper_enable_needed=false;bp_down=false;
 #ifdef PORTABLE_NATIVE_TIME_TOOLBAR
  bp_release_seen=false;
@@ -359,7 +455,10 @@ void app_main(void){
    * A clean app return lets Runtime restore its configured default. */
   if(name_home_return)break;
   if(naming){name_step();if(name_client.retained)return;if(naming)runtime->yield_ms(20);continue;}
-  normalize_results();
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+  if(scan_native_enabled())normalize_results();
+  scan_native_select();
+#endif
   /* Retry the latest owed frame without waiting for another scan refresh. */
   if(utility_frame_pending||(paper?(dirty&&scan.phase!=BLE_STARTING&&(!active()||(uint32_t)(app->millis()-rendered)>=3000)):
      ((dirty&&(!active()||(uint32_t)(app->millis()-rendered)>=100))||(active()&&(uint32_t)(app->millis()-rendered)>=250)))){draw();if(!utility_frame_pending)rendered=app->millis();}
@@ -367,7 +466,18 @@ void app_main(void){
   if(input.exit_requested)break;
   normalize_results();
   if(paper){if(!paper_input(&input))break;if(name_client.retained)return;if(!naming)pump();continue;}
-  if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44))){if(!navigate_back())break;continue;}
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+  uint64_t before_layout=0,after_layout=0;
+  if(scan_native_enabled())portable_ble_scanner_native_ready(&before_layout,NULL);
+  scan_native_select();
+  if(scan_native_enabled()){portable_ble_scanner_native_ready(&after_layout,NULL);if(before_layout!=after_layout)input.tapped=false;}
+#endif
+  if(!scan_native_enabled())utility_color_input(app,&input);
+  bool back_hit=input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,8,4,44,44);
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+  if(scan_native_enabled())back_hit=input.tapped&&scan_native_hit(scan_native_geometry().back,input.touch_x,input.touch_y);
+#endif
+  if((input.buttons&T5_APP_BUTTON_BACK)||back_hit){if(!navigate_back())break;continue;}
   bool swiped=drag();
   if(input.buttons&T5_APP_BUTTON_UP)move(-1);
   if(input.buttons&T5_APP_BUTTON_DOWN)move(1);
@@ -375,7 +485,10 @@ void app_main(void){
   if(input.buttons&T5_APP_BUTTON_CONFIRM){if(detail)begin_name();else{unsigned list[BLE_MAX_DEVICES];if(indexes(list)){detail_index=list[selected];detail=true;detail_scroll=0;dirty=true;}else action=true;}}
   if(name_client.retained)return;
   if(naming)continue;
-  if(input.tapped&&!swiped){int x=input.touch_x,y=input.touch_y;
+#ifdef PORTABLE_BLE_SCANNER_NATIVE_UI
+  if(scan_native_enabled()&&input.tapped&&!swiped)scan_native_tap(input.touch_x,input.touch_y,&action);
+#endif
+  if(!scan_native_enabled()&&input.tapped&&!swiped){int x=input.touch_x,y=input.touch_y;
    if(portable_nova_hit(x,y,8,196,108,44)){if(detail){detail=name_save_failed=false;dirty=true;}else action=true;}
    else if(portable_nova_hit(x,y,124,196,108,44)){if(detail)begin_name();else{sensors=!sensors;scroll=selected=0;dirty=true;}}
    else if(!detail&&portable_nova_hit(x,y,8,64,224,132)){unsigned list[BLE_MAX_DEVICES],n=indexes(list),i=scroll+(unsigned)(y-64)/44;if(i<n){selected=i;detail_index=list[i];detail=true;detail_scroll=0;dirty=true;}}

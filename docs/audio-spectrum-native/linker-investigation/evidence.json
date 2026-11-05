@@ -1,0 +1,54 @@
+{
+  "scope": "Read-only analysis; target recipes unchanged except path rebasing for replay; no source, CI, release, or device changes.",
+  "archives": {
+    "1bf90238": {
+      "path": "/workspace/shared/native-audio-spectrum-20261018/receipts/ci-failed-1bf90238.zip",
+      "sha256": "b3ed0de8cf03a21b31668466d1fb7f0c5bb98ad514dabd93be35ceff84b48a3b"
+    },
+    "47b56ee1": {
+      "path": "/workspace/shared/native-audio-spectrum-20261018/receipts/ci-failed-47b56ee1.zip",
+      "sha256": "91ee4ac09a4b5e6017f3083118bb1f6b03ba304c102b1eeb9136b0516b67ac81"
+    }
+  },
+  "input_file_count": 1555,
+  "input_files_same_between_failed_archives": true,
+  "input_files_match_local_staging": true,
+  "source_identity_limit": "Parent supplied source5f854d74; it is not an available local Git commit prefix. This diagnosis verifies all target input/SDK bytes directly against both failed CI ZIPs, without relying on the current checkout HEAD.",
+  "current_checkout_head": "26ddbfaa3b3c3e21f1bcd007b055b4de6662db0d",
+  "baseline_command_equal_between_failed_archives": true,
+  "failed_attempt_artifact_hashes": {
+    "1bf90238": {
+      "mode": "baseline",
+      "bytes": 403900,
+      "sha256": "4a7be2c6ccf122d1f73f43094c598144431bfb60f03f2bfbbac5383136c1355b",
+      "matches_fresh_success": true
+    },
+    "47b56ee1": {
+      "mode": "native",
+      "bytes": 417216,
+      "sha256": "ce95cf81f59f6d256f80ef632531f8ef1fbbfc60046e56d173bae3793e4fb262",
+      "matches_fresh_success": true
+    }
+  },
+  "linker_failure_text": "collect2: fatal error: ld terminated with signal 6 [Aborted], core dumped\ncompilation terminated.\ndouble free or corruption (out)\n",
+  "fresh_attempts": [
+    {
+      "mode": "baseline",
+      "attempt": 1,
+      "returncode": 0,
+      "elapsed_seconds": 4.93,
+      "command_sha256": "dde79050a72ddcf5012fbbb61189bfd6e93d15815198eee6a96ec2af3a1edbe0",
+      "elf_sha256": "4a7be2c6ccf122d1f73f43094c598144431bfb60f03f2bfbbac5383136c1355b",
+      "structural_loader_exit": 0
+    },
+    {
+      "mode": "native",
+      "attempt": 1,
+      "returncode": 0,
+      "elapsed_seconds": 4.973,
+      "command_sha256": "f08d58523f387bd4a904c4be626d7b11d325ab33f9712d520c0cce87a5312727",
+      "elf_sha256": "ce95cf81f59f6d256f80ef632531f8ef1fbbfc60046e56d173bae3793e4fb262",
+      "structural_loader_exit": 0
+    }
+  ]
+}

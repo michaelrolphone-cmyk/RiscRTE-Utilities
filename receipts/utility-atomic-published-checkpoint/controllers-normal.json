@@ -1,0 +1,272 @@
+{
+  "hardware_tested": false,
+  "repository_sha": "418be3ec3732c2d7e5d46c1d4c8b0ec084d1c113",
+  "working_tree_dirty": false,
+  "sanitized": false,
+  "results": [
+    {
+      "app": "battery",
+      "case": "toggle",
+      "result": "Actual Battery broadcast controller toggle PASS"
+    },
+    {
+      "app": "battery",
+      "case": "same",
+      "result": "Actual Battery broadcast controller same PASS"
+    },
+    {
+      "app": "battery",
+      "case": "pause-failed",
+      "result": "Actual Battery broadcast controller pause-failed PASS"
+    },
+    {
+      "app": "battery",
+      "case": "busy",
+      "result": "Actual Battery broadcast controller busy PASS"
+    },
+    {
+      "app": "battery",
+      "case": "delayed",
+      "result": "Actual Battery broadcast controller delayed PASS"
+    },
+    {
+      "app": "battery",
+      "case": "exit",
+      "result": "Actual Battery broadcast controller exit PASS"
+    },
+    {
+      "app": "battery",
+      "case": "cancel-pending",
+      "result": "Actual Battery broadcast controller cancel-pending PASS"
+    },
+    {
+      "app": "battery",
+      "case": "cancel-race",
+      "result": "Actual Battery broadcast controller cancel-race PASS"
+    },
+    {
+      "app": "battery",
+      "case": "collect-error",
+      "result": "Actual Battery broadcast controller collect-error PASS"
+    },
+    {
+      "app": "battery",
+      "case": "release-error",
+      "result": "Actual Battery broadcast controller release-error PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-cancel",
+      "result": "Actual BLE controller name-cancel PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-repair",
+      "result": "Actual BLE controller name-repair PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-stale",
+      "result": "Actual BLE controller name-stale PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-busy",
+      "result": "Actual BLE controller name-busy PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-copy",
+      "result": "Actual BLE controller name-copy PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-tombstone",
+      "result": "Actual BLE controller name-tombstone PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-delayed",
+      "result": "Actual BLE controller name-delayed PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-collect-error",
+      "result": "Actual BLE controller name-collect-error PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-dirty-submit",
+      "result": "Actual BLE controller name-dirty-submit PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-release-error",
+      "result": "Actual BLE controller name-release-error PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-bad-receipt",
+      "result": "Actual BLE controller name-bad-receipt PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-exit",
+      "result": "Actual BLE controller name-exit PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-cancel-pending",
+      "result": "Actual BLE controller name-cancel-pending PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-cancel-race",
+      "result": "Actual BLE controller name-cancel-race PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-cancel-error",
+      "result": "Actual BLE controller name-cancel-error PASS"
+    },
+    {
+      "app": "ble",
+      "case": "name-same",
+      "result": "Actual BLE controller name-same PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-success",
+      "result": "Actual BLE controller radio-success PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-airplane",
+      "result": "Actual BLE controller radio-airplane PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-rollback",
+      "result": "Actual BLE controller radio-rollback PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-missing-rollback",
+      "result": "Actual BLE controller radio-missing-rollback PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-submit-fail",
+      "result": "Actual BLE controller radio-submit-fail PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-uncertain",
+      "result": "Actual BLE controller radio-uncertain PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-revoked-before-hardware",
+      "result": "Actual BLE controller radio-revoked-before-hardware PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-stale-rollback",
+      "result": "Actual BLE controller radio-stale-rollback PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-cancel-race",
+      "result": "Actual BLE controller radio-cancel-race PASS"
+    },
+    {
+      "app": "ble",
+      "case": "radio-restore-fail",
+      "result": "Actual BLE controller radio-restore-fail PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "enable",
+      "result": "Actual Contexts controller enable PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "sources",
+      "result": "Actual Contexts controller sources PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "timing",
+      "result": "Actual Contexts controller timing PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "busy",
+      "result": "Actual Contexts controller busy PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "delayed",
+      "result": "Actual Contexts controller delayed PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "exit",
+      "result": "Actual Contexts controller exit PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "retained",
+      "result": "Actual Contexts controller retained PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "automatic-noop",
+      "result": "Actual Contexts controller automatic-noop PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "automatic-order",
+      "result": "Actual Contexts controller automatic-order PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "automatic-low",
+      "result": "Actual Contexts controller automatic-low PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "automatic-mask",
+      "result": "Actual Contexts controller automatic-mask PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "automatic-partial",
+      "result": "Actual Contexts controller automatic-partial PASS"
+    },
+    {
+      "app": "contexts",
+      "case": "automatic-retained",
+      "result": "Actual Contexts controller automatic-retained PASS"
+    }
+  ],
+  "system_public_sha": "8ab9d51ccff827eae3763b4ea1e0fe97cfb5cd8f",
+  "system_tree": "703ef2b88097df9401bbeda0f23550f7292586b6",
+  "system_actual_sha": "1e721cc10327691ddf76907f48866a71a2eb02b6",
+  "source_sha256": {
+    "Apps/contexts-scene.json": "21f2d7293db01940f5ef387a963c40da156061f868c24c60f9a6adc1d6176cc0",
+    "Apps/ble_scanner_paper.inc": "e449b3873343a197291899160d31e15f091297c0b18f06f477924be7bc72872a",
+    "Apps/ble_scanner.c": "dbe128290204ec6d750d90d15029f61cb37ab8a4b6049bf8f99f9148c62ea236",
+    "Apps/contexts.json": "56aa338ca5d2f668671863e24ed1a06708b49b57feaf336e1bcabb86fb5337b2",
+    "Apps/contexts_controller.inc": "60a6537ae7d9ea8866a2f45d57ac85211e09a3b126a7baa10e4459c7fc77368f",
+    "Apps/contexts-paper.json": "bee52ec089411c36c9db3217db1ab957aa1b745ed270108820eb03c6d5eaff35",
+    "Apps/utility_preference_atomic.h": "1c5ad3fc96c2b0a10687ccf38bb726c2882dcd3be0f8093c93395a825fd08cbf",
+    "Apps/contexts_owner_export.h": "acddb40e5d90a45db6f84e7c2c2c412c0d1e9f6d1e01c95fb3113b7ec4fa3bd5",
+    "Apps/contexts.c": "c6a7b784f2de11a21d111a13f71f33fb506fe50fdfd935188067b84d90958cdd",
+    "Apps/contexts_paper.inc": "3850c302c7a944b11d5b94fe758fb808d41b3b95e187b4a69ea56b4020637cf1",
+    "Apps/battery_power.inc": "02383e7a4e344970f7a228789cfaec9c2b65427743491f3ef6701a96bd52055e",
+    "Apps/ble_scanner.json": "3760456adfac38074ad68a1c1ab94cd0f9838eb5f9ba4e57d4e53a65012201d4",
+    "Apps/contexts_ui.inc": "d8e1f7cacb508b4696fd607f4dd895a051214721f479e08f5bdd344be18c4018",
+    "Apps/contexts_scene_view.inc": "6a640ba3988376668b7da3ce6e8ac18fb23fd3f24aa0f8b019785aaac47087c0"
+  }
+}

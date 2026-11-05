@@ -1,0 +1,15 @@
+{
+  "baseline": "12c7440c4c2fd9b6b78e10f11a983947c145b346",
+  "tests": [
+    "cc -std=c11 -O2 -Wall -Wextra -Werror tests/spectrum_native_layout_test.c",
+    "cc -std=c11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -no-pie tests/spectrum_native_layout_test.c"
+  ],
+  "asan_options": "detect_leaks=0",
+  "sha256": {
+    "Apps/spectrum_native_layout.h": "21d2e9411ae1b2274cea8961d006d431167b0fe7f2a7c5d261702ccc401ff910",
+    "tests/spectrum_native_layout_test.c": "2518ce796397ad21834b4fc8eb8cc76420670e141776f3595e031a4ed3c9f6ca",
+    "docs/audio-spectrum-native/layout-normal.log": "acdb7d6dff7cfa369b21d083d660cb91e16647b3de184ebd06001a4da92fca94",
+    "docs/audio-spectrum-native/layout-sanitized.log": "acdb7d6dff7cfa369b21d083d660cb91e16647b3de184ebd06001a4da92fca94",
+    "docs/audio-spectrum-native/baseline-models.log": "17e612f7426689b0ca683cbceecb1b0bf45fd3bca3979a87b68505ac7c5547b0"
+  }
+}

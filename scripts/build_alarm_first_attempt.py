@@ -12,6 +12,7 @@ def main():
     parser.add_argument('--runtime', type=Path, required=True)
     parser.add_argument('--system-apps', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=ROOT/'dist/alarm-first-attempt')
+    parser.add_argument('--target-only',action='store_true',help='Defer host loader check to a supported Linux host; receipt marks it pending')
     args = parser.parse_args()
     runtime, system, out = args.runtime.resolve(), args.system_apps.resolve(), args.output.resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -30,6 +31,7 @@ def main():
     includes = [ROOT/'lib/Alarm/include', runtime/'sdk/driver', runtime/'sdk/app', system/'lib/PortableApps/include']
     profiles = {
         'watch-clock-change': ['POINTS_IN_TIME_SERVICE', 'PORTABLE_RTC_UTC8_DENVER', 'ALARM_VOLUME_CONTROL', 'ALARM_DND_CONTROL', 'ALARM_CLOCK_CHANGE_CONTROL'],
+        'wave-startup-busy': ['POINTS_IN_TIME_SERVICE', 'PORTABLE_RTC_UTC8_DENVER', 'ALARM_VOLUME_CONTROL', 'ALARM_DND_CONTROL', 'ALARM_CLOCK_CHANGE_CONTROL', 'ALARM_STARTUP_BUSY_RETRY'],
         'x4-startup-busy': ['POINTS_IN_TIME_SERVICE', 'ALARM_DND_CONTROL', 'ALARM_NATIVE_UTC', 'ALARM_VISUAL_ONLY', 'ALARM_SERVICE_TAGGED_V2', 'POINTS_CATALOG_SERVICE', 'ALARM_STORAGE_BUSY_RETRY']}
     rows = []
     for name, defines in profiles.items():
@@ -39,22 +41,27 @@ def main():
             sources += [system/'lib/PortableApps/src'/n for n in ('PortableTimeZone.c', 'PortableTimeZoneCatalog.c')]
         command = [*common, *['-D'+x for x in defines], *['-I'+str(x) for x in includes], *sources, '-lgcc', '-o', elf]
         run(command)
+        if name=='wave-startup-busy':shutil.copyfile(ROOT/'Services/alarm_service/wave-startup-busy-manifest.json',out/'wave-startup-busy-manifest.json')
         (out/(name+'-command.json')).write_text(json.dumps(list(map(str, command)), indent=2)+'\n')
         symbols = subprocess.check_output([cc.removesuffix('gcc')+'nm', '-D', str(elf)], text=True)
+        if name=='wave-startup-busy':
+            all_symbols=subprocess.check_output([cc.removesuffix('gcc')+'nm',str(elf)],text=True)
+            if 'startup_storage_busy' not in all_symbols:raise RuntimeError('Target omits startup BUSY state')
         exports = {s.split()[-1] for s in symbols.splitlines() if len(s.split())>=3 and s.split()[-2] in ('T', 'D', 'B', 'R')}
         if exports != {'t5_driver_get'}:
             raise RuntimeError('Unexpected exports: '+str(exports))
         rows.append({'name': name, 'defines': defines, 'size': elf.stat().st_size, 'sha256': digest(elf)})
-    loader = out/'target-loader'
-    run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O1', '-g', '-I'+str(ROOT/'test/alarm-loader-stubs'),
-         '-I'+str(runtime/'lib/elf_loader/include'), ROOT/'test/alarm_target_loader.c',
-         runtime/'lib/elf_loader/src/esp_elf.c', runtime/'lib/elf_loader/src/arch/esp_elf_xtensa.c',
-         runtime/'lib/elf_loader/src/esp_elf_validate.c', '-o', loader])
-    run([loader, *[out/(n+'.elf') for n in profiles]])
+    if not args.target_only:
+        loader = out/'target-loader'
+        run([os.environ.get('CC', 'cc'), '-std=gnu11', '-O1', '-g', '-I'+str(ROOT/'test/alarm-loader-stubs'),
+             '-I'+str(runtime/'lib/elf_loader/include'), ROOT/'test/alarm_target_loader.c',
+             runtime/'lib/elf_loader/src/esp_elf.c', runtime/'lib/elf_loader/src/arch/esp_elf_xtensa.c',
+             runtime/'lib/elf_loader/src/esp_elf_validate.c', '-o', loader])
+        run([loader, *[out/(n+'.elf') for n in profiles]])
     pins = {name: subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=path, text=True).strip()
             for name, path in [('utilities', ROOT), ('runtime', runtime), ('system', system)]}
     sources = {str(p.relative_to(ROOT)): digest(p) for p in [ROOT/'Services/alarm_service/service.c', ROOT/'Services/alarm_service/catalog.inc', *sorted((ROOT/'lib/Alarm/include').glob('*.h'))]}
     (out/'build-receipt.json').write_text(json.dumps({'compiler': version, 'pins': pins, 'modules': rows,
-        'sources': sources, 'loader': '8 alignments, exact relocated sections and redzones', 'hardware_verified': False}, indent=2)+'\n')
+        'sources': sources, 'loader': 'pending separate host check' if args.target_only else '8 alignments, exact relocated sections and redzones', 'hardware_verified': False}, indent=2)+'\n')
 if __name__ == '__main__':
     main()

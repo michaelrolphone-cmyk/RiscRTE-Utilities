@@ -67,6 +67,8 @@ def check(kind=0, gate='app', delay=220):
 
 def scenarios():
     cases = {}
+    cases["deployed-policy-retained"] = ([], {"SPECTRUM_FULL_CONTEXTS":"1"})
+    cases["full-contexts-startup"] = (nav("home"), {"SPECTRUM_FULL_CONTEXTS":"1"})
     name_taps = [(120, 120), (120, 90), (90, 54), (120, 84)]
     pages = [2, 5, 7, 11]
     done = key('\x03', 220)
@@ -147,6 +149,7 @@ def scenarios():
     a,e=cases['shared-done'];cases['contexts-unavailable']=(list(a),dict(e,SPECTRUM_NO_CONTEXTS='1'))
     cases['missing-once']=(setup(3)+tap(120,84)+check(2)+setup(0)+tap(120,120)+key('Q')+done+check(),
         {'SPECTRUM_EXPECT_DRAFT':'Q','SPECTRUM_EXPECT_OPENS':'1','SPECTRUM_EXPECT_EDITOR_PAGE':'2'})
+    cases['capture-stop-restart']=(tap(120,120)+[(500,'app','idle',0,0)]+tap(75,225)+check(6)+[(500,'app','idle',0,0)]+check(7)+tap(75,225)+[(500,'app','idle',0,0)]+check(8)+nav('home'),{})
     cases['non-keyboard-views']=(sum(([(100,'app','scene',i,0)]+check(9) for i in range(18)),[]),{'SPECTRUM_EXPECT_OPENS':'0'})
     return cases
 
@@ -159,6 +162,9 @@ def run(args):
             return {'path':str(path),'commit':commit,'status':status}
         except subprocess.CalledProcessError:
             return {'path':str(path),'commit':None}
+    native_ui = getattr(args, "native_ui", False)
+    width = getattr(args, "width", 410 if args.native_height else 240)
+    height = getattr(args, "height", 502 if args.native_height else 240)
     system = args.system_apps.resolve()
     output = (args.output or ROOT / 'build/spectrum-shared-input').resolve()
     recipe_path = args.recipe.resolve()
@@ -167,6 +173,11 @@ def run(args):
     safety_flags = ['-DPORTABLE_SPECTRUM_SHARED_TEXT_INPUT', '-DPORTABLE_TEXT_INPUT_CLIENT',
                     '-DPORTABLE_APP_LAUNCH_GUARD', '-DPORTABLE_CHECKED_STORAGE_RUNTIME',
                     '-DPORTABLE_NATIVE_CUSTODY_FENCE', '-DPORTABLE_ALARM_TERMINAL_RETENTION', '-DPORTABLE_WATCH_COLOR_ONLY', '-DPORTABLE_WATCH_FROZEN_ICONS']
+    if args.native_height or native_ui:
+        safety_flags=[x for x in safety_flags if x!='-DPORTABLE_WATCH_FROZEN_ICONS']
+        safety_flags+=['-DPORTABLE_WATCH_NATIVE_HEIGHT',f'-DSPECTRUM_TEST_WIDTH={width}',f'-DSPECTRUM_TEST_HEIGHT={height}']
+    if native_ui:
+        safety_flags+=['-DPORTABLE_SPECTRUM_NATIVE_UI','-DPORTABLE_NATIVE_CANVAS']
     output.mkdir(parents=True, exist_ok=True)
     sdk = output / 'sdk/include'
     sdk.mkdir(parents=True, exist_ok=True)
@@ -193,15 +204,25 @@ def run(args):
                 'native_toolchain': os.environ.get('CC', 'cc'),
                 'omitted_target_options': ['Xtensa architecture/linker options', '-flto (native qualification uses -O1 -g)'],
                 'physical_backends': ['display/delayed present', 'ordered raw touch', 'navigation/PMU', 'RTC', 'battery', 'KV', 'synthetic microphone PCM', 'alarm', 'BLE control/broadcast', 'Wi-Fi control', 'bounded base Contexts service (no background sensors/presets/exports)'],
-                'unavailable_optional_backends': ['Contexts fingerprint suffix; app-local shared fingerprint storage remains exercised'],
+                'unavailable_optional_backends': ['Full Contexts suffix is deterministic in full-contexts-startup/deployed-policy-retained; background sensor and persistent model behavior are not simulated'],
                 'leak_sanitizer': 'Unavailable in this executor: fatal ptrace/runtime error even for clean idle; ASan/UBSan run with detect_leaks=0. Fixture asserts zero live grants, frames, subscriptions and allocations on clean exit.',
                 'not_claimed': ['hardware deployment', 'actual microphone/crown hardware', 'PMU/sleep hardware', 'Runtime ELF-loader integration'],
                 'catalog_sha256': hashlib.sha256(catalog.read_bytes()).hexdigest(), 'source_pins': {'system':source_pin(system),'runtime':source_pin(args.runtime.resolve()),'legacy_utilities':source_pin(args.baseline_utilities.resolve())},
                 'test_script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-                'source_commit': subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(), 'sources': {}, 'results': [], 'setup_note': 'ui-* scenarios navigate entirely via touch. Boundary/fault scenarios seed editor preconditions with production entrypoints. Non-keyboard raster cases seed deterministic display state.'}
-    for path in [ROOT / 'Apps/audio_spectrum.c', ROOT / 'Apps/context_signal_library.inc', ROOT / 'Apps/spectrum_signature_app.inc', ROOT / 'Apps/spectrum_temporal_app.inc', ROOT / 'Apps/context_fingerprint_app.inc', ROOT / 'test/native_apps/spectrum_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', system / 'Services/scene_host/host.c', system / 'Services/text_input/host.c', system / 'lib/PortableApps/include/PortableTextInputClient.h']:
+                'source_commit': source_pin(ROOT)['commit'], 'sources': {}, 'results': [], 'setup_note': 'ui-* scenarios navigate entirely via touch. Boundary/fault scenarios seed editor preconditions with production entrypoints. Non-keyboard raster cases seed deterministic display state.'}
+    native_sources = [ROOT / 'Apps'/name for name in ('spectrum_native_layout.h','spectrum_native_view.inc','spectrum_native_subpages.inc')] if native_ui else []
+    for path in native_sources + [ROOT / 'Apps/audio_spectrum.c', ROOT / 'Apps/context_signal_library.inc', ROOT / 'Apps/spectrum_signature_app.inc', ROOT / 'Apps/spectrum_temporal_app.inc', ROOT / 'Apps/context_fingerprint_app.inc', ROOT / 'test/native_apps/spectrum_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', system / 'Services/scene_host/host.c', system / 'Services/text_input/host.c', system / 'lib/PortableApps/include/PortableTextInputClient.h']:
         evidence['sources'][str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
     selected = scenarios()
+    if 'PORTABLE_TEXT_INPUT_POLICY' in args.extra_define and not native_ui:
+        begin=setup(0)+tap(120,120)+key('Q')
+        for suffix,end in [('done',key('\x03')+check()),('cancel',nav('back','text')+check()),('home',nav('home','text'))]:
+            selected['policy-stopped-'+suffix]=(begin+[(65000,'text','idle',0,0)]+end,{'SPECTRUM_POLICY_PROBE':'1','SPECTRUM_POLICY_STOPPED':'1','SPECTRUM_EXPECT_DRAFT':'Q' if suffix=='done' else '','SPECTRUM_EXPECT_KV_WRITES':'0','SPECTRUM_EXPECT_DATA_WRITES':'0'})
+        selected['policy-active']=(tap(120,120)+begin+[(65000,'text','idle',0,0)]+key('\x03')+check(),{'SPECTRUM_POLICY_PROBE':'1','SPECTRUM_EXPECT_DRAFT':'Q','SPECTRUM_EXPECT_PROGRESS':'1'})
+        selected['policy-unavailable']=(setup(0,1)+tap(120,120)+check(2),{'SPECTRUM_POLICY_UNAVAILABLE':'1','SPECTRUM_EXPECT_DRAFT':'Seed','SPECTRUM_EXPECT_OPENS':'1'})
+        selected['policy-retained']=(begin,{})
+        selected['policy-missing-suffix']=(setup(0,1)+tap(120,120)+check(2),{'SPECTRUM_POLICY_MISSING_SUFFIX':'1','SPECTRUM_EXPECT_DRAFT':'Seed','SPECTRUM_EXPECT_OPENS':'1'})
+        selected['policy-paused-home']=(begin,{'SPECTRUM_POLICY_PAUSED_HOME':'1','SPECTRUM_EXPECT_DRAFT':''})
     if args.scenario:
         selected = {k: v for k, v in selected.items() if k in args.scenario}
     for sanitized in ([False] if args.normal_only else [False, True]):
@@ -215,7 +236,7 @@ def run(args):
         for provider, entry in [('scene_host', 'spectrum_scene_driver_get'), ('text_input', 'spectrum_text_driver_get'), ('scene_profile', 'spectrum_profile_driver_get')]:
             obj = out / (provider + '.o')
             source = system / 'Services' / provider / ('profile.c' if provider == 'scene_profile' else 'host.c')
-            host_flags = ['-DSCENE_HOST_TELEMETRY=0', '-DSCENE_HOST_WATCH_240=1'] if provider == 'scene_host' else []
+            host_flags = ['-DSCENE_HOST_TELEMETRY=0', '-DSCENE_HOST_WATCH_240='+('1' if width == 240 and height == 240 else '0')] if provider == 'scene_host' else []
             subprocess.run([*command, *host_flags, '-Dt5_driver_get=' + entry, '-c', str(source), '-o', str(obj)], check=True)
             objects.append(obj)
         sources = [ROOT / 'test/native_apps/spectrum_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', catalog]
@@ -230,6 +251,8 @@ def run(args):
             action_file = folder / 'actions.txt'
             action_file.write_text(''.join(' '.join(map(str, row)) + '\n' for row in actions))
             env = {k: v for k, v in os.environ.items() if not k.startswith('SPECTRUM_')}
+            if args.native_height and 0<int(extra_env.get('SPECTRUM_TEST_DELAY_MS','0'))<3000:
+                extra_env={**extra_env,'SPECTRUM_TEST_DELAY_MS':'3000'}
             env.update(extra_env, ASAN_OPTIONS='detect_leaks=0', UBSAN_OPTIONS='halt_on_error=1')
             result = subprocess.run([str(executable), str(folder), str(action_file), name], env=env, capture_output=True, text=True, timeout=90)
             (folder / 'run.log').write_text(result.stdout + result.stderr)
@@ -241,11 +264,11 @@ def run(args):
             from PIL import Image
             for ppm in folder.glob('*.ppm'):
                 with Image.open(ppm) as im:
-                    assert im.size == (240, 240)
+                    assert im.size == (width,height)
                     im.save(ppm.with_suffix('.png'))
                 ppm.unlink()
             print('Spectrum production shared input', 'ASan/UBSan' if sanitized else 'normal', name, 'PASS', flush=True)
-        if not args.scenario or 'non-keyboard-views' in args.scenario:
+        if not native_ui and (not args.scenario or 'non-keyboard-views' in args.scenario):
             baseline = out / 'baseline-renderer'
             baseline_flags = [command[0], '-I'+str(args.baseline_utilities.resolve()/'Apps'), *[x for x in command[1:] if x != '-DPORTABLE_SPECTRUM_SHARED_TEXT_INPUT']]
             baseline_source = args.baseline_utilities.resolve() / 'Apps/audio_spectrum.c'
@@ -307,6 +330,7 @@ if __name__ == '__main__':
     p.add_argument('--output', type=Path)
     p.add_argument('--scenario', action='append')
     p.add_argument('--baseline-utilities', type=Path, default=Path('/workspace/shared/lora-shared-input-utilities-published-20261012'))
+    p.add_argument('--native-height',action='store_true')
     p.add_argument('--normal-only', action='store_true')
     p.add_argument('--extra-define', action='append', default=[], type=define_argument, metavar='NAME[=VALUE]',
                    help='Additional production selector; repeat once for each define (without -D)')

@@ -1,0 +1,62 @@
+name: Native Viewer qualification
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: d66687f7e008ec324e0b5f8f020572c6f3f70968
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 13eca114cb58469cf6004fafc3da84fbd9d29beb
+          path: .dependencies/runtime
+          persist-credentials: false
+      - name: Exercise actual Viewer and Canvas native integration
+        run: >-
+          python3 scripts/test_viewer_native.py
+          --runtime .dependencies/runtime --system-apps .dependencies/system
+          --output "$RUNNER_TEMP/viewer-native-host" --jobs 2 --leak-sanitizer
+      - name: Check strict qualifier rejection contracts
+        run: python3 scripts/test_native_viewer_qualification.py
+      - name: Install pinned target compiler
+        run: |
+          python3 -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Qualify the exact Utilities source commit
+        run: |
+          CC=$(find "$HOME/.platformio/packages" -path '*/bin/xtensa-esp32s3-elf-gcc' -print -quit)
+          test -n "$CC"
+          python3 scripts/build_native_viewer_qualification.py \
+            --runtime .dependencies/runtime --system .dependencies/system \
+            --xtensa-cc "$CC" --utilities-commit "$GITHUB_SHA" \
+            --output-dir "$RUNNER_TEMP/viewer-native-target"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: viewer-native-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/viewer-native-host/results.json
+            ${{ runner.temp }}/viewer-native-host/*.log
+            ${{ runner.temp }}/viewer-native-host/samples/*/*.pgm
+            ${{ runner.temp }}/viewer-native-target/qualification.json
+            ${{ runner.temp }}/viewer-native-target/failure.json
+            ${{ runner.temp }}/viewer-native-target/*/*.elf
+            ${{ runner.temp }}/viewer-native-target/*/*.json
+            ${{ runner.temp }}/viewer-native-target/*/*.log
+          if-no-files-found: error

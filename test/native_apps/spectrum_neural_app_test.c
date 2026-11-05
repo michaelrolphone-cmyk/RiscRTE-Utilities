@@ -87,6 +87,6 @@ int main(void){
  neural_fresh();neural_size=SN_RECORD_SIZE;memset(neural_disk,0xff,sizeof(neural_disk));check(check_corrupt_cache);back();run();assert(!files_live&&!live);
  neural_fresh();neural_read_error=true;check(check_read_failure);back();run();assert(!files_live&&!live);
  neural_fresh();start();advance(164);check(check_live_guard);back();run();assert(!files_live&&!store_live&&!live);
- neural_fresh();check(check_retained_cache);run();assert(files_live&&file_retained&&!file_releases&&!store_releases&&!live);
+ neural_fresh();check(check_retained_cache);run();assert(files_live&&file_retained&&file_releases+1==file_acquires&&!store_releases&&!live);
  puts("Neural app: idle-only learning, temporal fallback, actual Monitor selection, one checkpoint, exact reload/edit invalidation, full/unknown/corrupt/read failures, unchanged source banks, capture resume and retained cleanup PASS");return 0;
 }

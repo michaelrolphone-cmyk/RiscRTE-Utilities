@@ -34,7 +34,7 @@ def build(runtime,system,drivers,out):
    f,n,k=l.split('\t');stack[f]=int(n)
  assert max(stack.values())<=1536,stack
  sources={n:{'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=p,text=True).strip(),'dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=p,text=True).strip())} for n,p in [('utilities',ROOT),('runtime',runtime),('system',system),('drivers',drivers)]}
- result={'schema':1,'id':'obd-dashboard','version':'0.1.0','bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'imports':sorted(imports),'exports':sorted(exports),'stack_frames':stack,'sources':sources,'hardware_tested':False}
+ result={'schema':1,'id':'obd-dashboard','version':json.loads((ROOT/'Apps/obd_dashboard.json').read_text())['version'],'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'imports':sorted(imports),'exports':sorted(exports),'stack_frames':stack,'sources':sources,'hardware_tested':False}
  (out/'build.json').write_text(json.dumps(result,indent=2)+'\n');shutil.copyfile(ROOT/'Apps/obd_dashboard.json',out/'obd_dashboard.json');print(json.dumps(result))
 if __name__=='__main__':
  p=argparse.ArgumentParser()

@@ -6,6 +6,12 @@ const risc_runtime_api_v1 *safety_runtime_get_api(uint32_t);
 #include "PortableTextInputClient.h"
 #undef risc_runtime_get_api
 #define PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
+#ifndef PORTABLE_CONTEXTS_CLIENT
+/* Controller-only fixture has no Contexts grant or custody callbacks. */
+#define PORTABLE_CONTEXTS_LIVE() true
+#define PORTABLE_CONTEXTS_CHECK_LIVE() do{}while(0)
+#define portable_contexts_callback(value) (value)
+#endif
 #define main original_spectrum_fixture_main
 #include "audio_spectrum_test.c"
 #undef main

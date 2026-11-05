@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "source_sha": "418be3ec3732c2d7e5d46c1d4c8b0ec084d1c113",
+  "system_published_sha": "8ab9d51ccff827eae3763b4ea1e0fe97cfb5cd8f",
+  "system_local_equivalent": "1e721cc10327691ddf76907f48866a71a2eb02b6",
+  "controller_cases_per_mode": 49,
+  "controller_modes": [
+    "normal",
+    "address+undefined sanitizers"
+  ],
+  "contexts_full_paper_app_modes": 12,
+  "contexts_full_modes": [
+    "normal",
+    "address+undefined sanitizers"
+  ],
+  "battery_full_cases": 32,
+  "target_elf_count": 9,
+  "default_elves_identical_to_frozen_base": true,
+  "hardware_tested": false,
+  "published_by_this_worker": false,
+  "remaining_issue": "Post-qualification review: preserve the legacy Battery adapter save_failed latch after failed Disable before final acceptance."
+}

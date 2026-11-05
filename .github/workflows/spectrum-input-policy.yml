@@ -1,0 +1,51 @@
+name: Spectrum modal policy
+on:
+  push:
+    branches: [work/spectrum-input-policy-20261012]
+  pull_request:
+    paths: ['Apps/audio_spectrum.c', 'test/spectrum_shared_input/**', 'test/native_apps/spectrum_shared_renderer_test.c', 'scripts/test_spectrum_policy.py', 'scripts/test_spectrum_shared_input.py', '.github/workflows/spectrum-input-policy.yml']
+permissions:
+  contents: read
+jobs:
+  real-host-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: fd4b1e52fe2a49c3c4c22f9ccd4c98a91f88afa0
+          path: .dependencies/system
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 64c8e52e46fd91e8fdafd636db04eed88f0c51a9
+          path: .dependencies/watch-runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-T-Watch-S3
+          ref: 089868395268b696c05651c33816345bfe0425df
+          path: .dependencies/watch-profile
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install Pillow fonttools
+      - run: >-
+          python scripts/test_spectrum_policy.py
+          --system-apps .dependencies/system
+          --watch-runtime .dependencies/watch-runtime
+          --watch-profile .dependencies/watch-profile
+          --output build/spectrum-policy
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spectrum-policy-evidence
+          path: |
+            build/spectrum-policy/**/qualification.json
+            build/spectrum-policy/**/run.log

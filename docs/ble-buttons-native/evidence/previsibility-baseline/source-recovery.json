@@ -1,0 +1,455 @@
+{
+  "schema": 1,
+  "baseline_receipt_sha256": "b0806bdd2396f77ca31f7e3095cb6fec438bccdeec0311c00d7578489a7bc00f",
+  "baseline_receipt_unchanged": true,
+  "recovery_method": "All recovered bytes matched hashes already recorded by the baseline run. Modified precursor layout and fixture were reconstructed from retained generator plus exact substitutions and accepted only after full SHA256 equality. App and view were retained staged inputs.",
+  "recovered": {
+    "generated:catalog.c": {
+      "sha256": "b777404301a5286ce19a95f4099bac47d93a46d3f86190b51b6c78665bbce23c",
+      "path": "recovered-source/generated/catalog.c",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/evidence/native-previsibility-counterexamples-baseline/catalog.c"
+    },
+    "system:Apps/PaperPresentation.h": {
+      "sha256": "8d13a8c73187d1e35f67c3208f861b95ceac143b6401e6572c2b4356ef409747",
+      "path": "recovered-source/system/Apps/PaperPresentation.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:Apps/PaperPresentation.h"
+    },
+    "system:Apps/SpringboardPresentation.h": {
+      "sha256": "af80cd3f66de0ca0ca7077a926e196a14de2c79263d449f90e501090aa55031b",
+      "path": "recovered-source/system/Apps/SpringboardPresentation.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:Apps/SpringboardPresentation.h"
+    },
+    "system:lib/NativeApps/include/T5AppApi.h": {
+      "sha256": "23ec6910005343055e71d0a364458824734f52c91a28364e419a85e94aa4ff42",
+      "path": "recovered-source/system/lib/NativeApps/include/T5AppApi.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/NativeApps/include/T5AppApi.h"
+    },
+    "system:lib/NativeApps/include/T5AppFrame.h": {
+      "sha256": "2a8fd35c485045294a2f9dceaf1b8474226e1475e63849080711601f6b60c8f9",
+      "path": "recovered-source/system/lib/NativeApps/include/T5AppFrame.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/NativeApps/include/T5AppFrame.h"
+    },
+    "system:lib/NativeApps/include/T5StorageApi.h": {
+      "sha256": "be0d63a89943a75a58723b703284992e8c6e95956c7cb39a9b3523af2c5d23ba",
+      "path": "recovered-source/system/lib/NativeApps/include/T5StorageApi.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/NativeApps/include/T5StorageApi.h"
+    },
+    "system:lib/NativeApps/include/T5UiApi.h": {
+      "sha256": "88dbfde2a45ab385c69ee0b8192e8025446c9872711e4810f799251479b1057a",
+      "path": "recovered-source/system/lib/NativeApps/include/T5UiApi.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/NativeApps/include/T5UiApi.h"
+    },
+    "system:lib/NativeApps/include/T5VideoApi.h": {
+      "sha256": "af3f2318e53e20efb4e8e9e98d93abae11f1788fe14640c7b02392c22d08c6a4",
+      "path": "recovered-source/system/lib/NativeApps/include/T5VideoApi.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/NativeApps/include/T5VideoApi.h"
+    },
+    "system:lib/PortableApps/fonts/icons.inc": {
+      "sha256": "fbfee54e9dd3fd331bdfc6babf60427ccffa93c4e8956ceb0129d2b6111d411d",
+      "path": "recovered-source/system/lib/PortableApps/fonts/icons.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/fonts/icons.inc"
+    },
+    "system:lib/PortableApps/fonts/text.inc": {
+      "sha256": "88aad3c3002381190ba5fc584fb2177b623cbeb30bc6cf7bfde10b0399d20c42",
+      "path": "recovered-source/system/lib/PortableApps/fonts/text.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/fonts/text.inc"
+    },
+    "system:lib/PortableApps/include/AlarmServiceV1.h": {
+      "sha256": "19984058bf5ec47f2772cf56acf0d3c41a389b7edc5bd4e41aaddab5a32a017b",
+      "path": "recovered-source/system/lib/PortableApps/include/AlarmServiceV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/AlarmServiceV1.h"
+    },
+    "system:lib/PortableApps/include/PortableAlarmClient.h": {
+      "sha256": "2e16dcb9d4b7b27615756b6781a9354fb61c3c6ea4d33eba448062d783dd7c36",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableAlarmClient.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableAlarmClient.h"
+    },
+    "system:lib/PortableApps/include/PortableAlarmSettings.h": {
+      "sha256": "cf4fb88bfeabb99282b02a871963858a9d20c8985e7da80d57341c33c5250284",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableAlarmSettings.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableAlarmSettings.h"
+    },
+    "system:lib/PortableApps/include/PortableAppSleep.h": {
+      "sha256": "027f70965663bc86e7f3bbf2733002870e2254ec92d39037def5f42c52fedc62",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableAppSleep.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableAppSleep.h"
+    },
+    "system:lib/PortableApps/include/PortableApps.h": {
+      "sha256": "a8f530ca55f9c55849c30b8c201444fbd58b012ef457e8c6f00f3ec75cae893e",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableApps.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableApps.h"
+    },
+    "system:lib/PortableApps/include/PortableBackgroundServices.h": {
+      "sha256": "f1291afed98c321a81550e7648234d478652f81299cbad9c44814218a384e5b8",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableBackgroundServices.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableBackgroundServices.h"
+    },
+    "system:lib/PortableApps/include/PortableBluetoothControl.h": {
+      "sha256": "777f0c7f92092d05a428c04255b6df1b3e9510a36c7425fc95092b3321e67a2c",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableBluetoothControl.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableBluetoothControl.h"
+    },
+    "system:lib/PortableApps/include/PortableContextPreferences.h": {
+      "sha256": "1fb5e6d3cc796892f15c15162bd38b64d4b4508756de5f0c77b2015fbe388826",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableContextPreferences.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableContextPreferences.h"
+    },
+    "system:lib/PortableApps/include/PortableDisplayGeometry.h": {
+      "sha256": "a90c2163797097dcfe93798c78593236c7f2eb43fbd391704f3880b43abab6e8",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableDisplayGeometry.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableDisplayGeometry.h"
+    },
+    "system:lib/PortableApps/include/PortableLowBattery.h": {
+      "sha256": "c83b663b1d5676c7eb7a8ec59157f0efc561802cfe2a3b6eb63937e28b0acca3",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableLowBattery.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableLowBattery.h"
+    },
+    "system:lib/PortableApps/include/PortableNativeCanvas.h": {
+      "sha256": "dee12acb1ef5f3144f3b9b12a9193bcd98153844a22e3534ff5e46ebbe7980fe",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableNativeCanvas.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableNativeCanvas.h"
+    },
+    "system:lib/PortableApps/include/PortableNavigation.h": {
+      "sha256": "f3b9623d1e97d6a18df565aef0d9c934f18a1b97b701fbbc208de3bf0a344e6d",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableNavigation.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableNavigation.h"
+    },
+    "system:lib/PortableApps/include/PortableNovaUi.h": {
+      "sha256": "2158221bc22187c8a642016e2984ae97ed6653dd607ea9c0b4616d965f63883d",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableNovaUi.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableNovaUi.h"
+    },
+    "system:lib/PortableApps/include/PortablePaperGeometry.h": {
+      "sha256": "09090f544f6f84ca701742285039cb4a0e7b59ba5446ba225281f80be42c2c55",
+      "path": "recovered-source/system/lib/PortableApps/include/PortablePaperGeometry.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortablePaperGeometry.h"
+    },
+    "system:lib/PortableApps/include/PortablePerformance.h": {
+      "sha256": "4242d93019235138f6d0a80cd1edc58e55b9c591157d5f90b0d6c2992ce0672e",
+      "path": "recovered-source/system/lib/PortableApps/include/PortablePerformance.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortablePerformance.h"
+    },
+    "system:lib/PortableApps/include/PortablePowerStatus.h": {
+      "sha256": "957925504f2032963d1f2411bc676f2f6b493b41db3f9317182c2cca1a3067e4",
+      "path": "recovered-source/system/lib/PortableApps/include/PortablePowerStatus.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortablePowerStatus.h"
+    },
+    "system:lib/PortableApps/include/PortableQuickActions.h": {
+      "sha256": "9ff285cb8b2e11cc37a7999857bae25c12ed67aec096af1917e46b0ad59d20d7",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableQuickActions.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableQuickActions.h"
+    },
+    "system:lib/PortableApps/include/PortableQuickLayout.h": {
+      "sha256": "c0bd8c54cffa361d33b1a11246217ef9a6749d95901c59558867f74d9f30f1c8",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableQuickLayout.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableQuickLayout.h"
+    },
+    "system:lib/PortableApps/include/PortableQuickPreferences.h": {
+      "sha256": "bc0de08849d553da4049cee1608d765db1f48d89aa27524094088ea31d8b1b91",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableQuickPreferences.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableQuickPreferences.h"
+    },
+    "system:lib/PortableApps/include/PortableQuickRadios.h": {
+      "sha256": "32fa2d45a164507d975acb7cd2f1eb41100b01020d7fa91537d0923e244763f5",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableQuickRadios.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableQuickRadios.h"
+    },
+    "system:lib/PortableApps/include/PortableQuickRender.h": {
+      "sha256": "4813385509b3752ab25cc3d9ae2b2e3d0e4792b62e3b6f99852282cf38c27774",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableQuickRender.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableQuickRender.h"
+    },
+    "system:lib/PortableApps/include/PortableQuickSession.h": {
+      "sha256": "039d8034f819ea6b494bcd9179408f57546f834a347b844c1f29c37b7c428ce8",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableQuickSession.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableQuickSession.h"
+    },
+    "system:lib/PortableApps/include/PortableRadioPolicy.h": {
+      "sha256": "560cf6d492bcf3453b2ee260e6e4dfa102afece7fb1d406a77f2fa32465d1ae3",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableRadioPolicy.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableRadioPolicy.h"
+    },
+    "system:lib/PortableApps/include/PortableRadioSession.h": {
+      "sha256": "8b09b402a8235dbf48826b890a04dbcabe2f7ac6c600b90b42f71ac5997356b2",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableRadioSession.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableRadioSession.h"
+    },
+    "system:lib/PortableApps/include/PortableRtcClock.h": {
+      "sha256": "43508db1cd392606cf37a7e55ad15e3770de1284af13a431876fd5d7785b838c",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableRtcClock.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableRtcClock.h"
+    },
+    "system:lib/PortableApps/include/PortableSleepPolicy.h": {
+      "sha256": "70fa8ff8f63270b2a04d591bdbc61cd7e16d6483421121a96fe22f2855966d9d",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableSleepPolicy.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableSleepPolicy.h"
+    },
+    "system:lib/PortableApps/include/PortableStageLog.h": {
+      "sha256": "b347496d8bbb70cbbc19bd85d4a4a214f57b660d90cfb1ccaab9138fac787f02",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableStageLog.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableStageLog.h"
+    },
+    "system:lib/PortableApps/include/PortableTime.h": {
+      "sha256": "350b8c5255dafa9e25c4a20cfb458cdcda3439da929dab05e0de0c82e981ff6e",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableTime.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableTime.h"
+    },
+    "system:lib/PortableApps/include/PortableTimeFormat.h": {
+      "sha256": "8eb4d0f850c974da910a516c0f13ed9302ad3928849aa85d7641bdbcf3bd1867",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableTimeFormat.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableTimeFormat.h"
+    },
+    "system:lib/PortableApps/include/PortableTouch.h": {
+      "sha256": "ac620d1725beec57df1eeb31474644180099305ee132b605d264af6ce98a01c6",
+      "path": "recovered-source/system/lib/PortableApps/include/PortableTouch.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/PortableTouch.h"
+    },
+    "system:lib/PortableApps/include/RiscBatteryGaugeV1.h": {
+      "sha256": "03d2f2b78e8f261cfb10f5c44bcabc1495bfecb17d7953586a58c27dce151b86",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscBatteryGaugeV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscBatteryGaugeV1.h"
+    },
+    "system:lib/PortableApps/include/RiscDisplayOutputV1.h": {
+      "sha256": "8111c8fb6d28542f3d2f5ae7ce7497891b1c89bd2488735c817542b955bdd726",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscDisplayOutputV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscDisplayOutputV1.h"
+    },
+    "system:lib/PortableApps/include/RiscInputNavigationV1.h": {
+      "sha256": "2644754feb7238d066908658ac9d4fe25537d4d5e424a6aef1365fabea600a26",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscInputNavigationV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscInputNavigationV1.h"
+    },
+    "system:lib/PortableApps/include/RiscKeyValueV1.h": {
+      "sha256": "0e73bf29c402be030baf52f5b2b324f5b872549cdf58aa31f45b72bd70977179",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscKeyValueV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscKeyValueV1.h"
+    },
+    "system:lib/PortableApps/include/RiscProviderV2.h": {
+      "sha256": "2935d83493a411e19ee98b8c7e805b86f4adf98c6bde66fd031df7cc379bdc17",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscProviderV2.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscProviderV2.h"
+    },
+    "system:lib/PortableApps/include/RiscRadioAsyncV1.h": {
+      "sha256": "2b5a916cfe9e1fb6520043c2b8f3e8c13ea8e022166fcbdfa6b50ce691ebfe48",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscRadioAsyncV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscRadioAsyncV1.h"
+    },
+    "system:lib/PortableApps/include/RiscRadioScanV1.h": {
+      "sha256": "696227eecfd124f941023673680e0a15917d5b03c8f769756ed12ec34f7ccc9b",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscRadioScanV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscRadioScanV1.h"
+    },
+    "system:lib/PortableApps/include/RiscRuntimeHostControlV1.h": {
+      "sha256": "697f710f7512dc724c2986bac0abc86756c9ae0739577b4f4ab20583a2743815",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscRuntimeHostControlV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscRuntimeHostControlV1.h"
+    },
+    "system:lib/PortableApps/include/RiscRuntimeV1.h": {
+      "sha256": "6e114c69b4de04a8faa254d89e92143b11549824f53d63b8e75d7e09cd216387",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscRuntimeV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscRuntimeV1.h"
+    },
+    "system:lib/PortableApps/include/RiscStreamProviderV1.h": {
+      "sha256": "0fe306e060321387c816bb70ec4370a501a423f4fe19a20c9be80aa1b98f3432",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscStreamProviderV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscStreamProviderV1.h"
+    },
+    "system:lib/PortableApps/include/RiscTouchV1.h": {
+      "sha256": "fe18fab3ac20fda95747388f1428408b7795e5da3511c7a9fff07c16ddfd2c7d",
+      "path": "recovered-source/system/lib/PortableApps/include/RiscTouchV1.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/RiscTouchV1.h"
+    },
+    "system:lib/PortableApps/include/T5BatteryApi.h": {
+      "sha256": "f939c924102099de4ed746519791ce2b68eb2bac79bc212caeaad1366dc8c9a5",
+      "path": "recovered-source/system/lib/PortableApps/include/T5BatteryApi.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/T5BatteryApi.h"
+    },
+    "system:lib/PortableApps/include/WatchLayout.h": {
+      "sha256": "8a1a62346320a0dc76d0976d84e589ffbc5b0cdc064acf32a2d8057da0637aab",
+      "path": "recovered-source/system/lib/PortableApps/include/WatchLayout.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/WatchLayout.h"
+    },
+    "system:lib/PortableApps/include/WifiApi.h": {
+      "sha256": "eddb48c2e4284a592f32a540e10e02572bf251e3145783e9083278afd1aa0159",
+      "path": "recovered-source/system/lib/PortableApps/include/WifiApi.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/include/WifiApi.h"
+    },
+    "system:lib/PortableApps/paper_fonts/text.inc": {
+      "sha256": "9ee273df1c27df92d8ab2a985fb474d15b715770984894da4fee40b8cd9f2e4a",
+      "path": "recovered-source/system/lib/PortableApps/paper_fonts/text.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/paper_fonts/text.inc"
+    },
+    "system:lib/PortableApps/settings_fonts/text.inc": {
+      "sha256": "8453a3f7c123799354a0ff4246dba420de2a612f421d6d9de9bf4c976073b449",
+      "path": "recovered-source/system/lib/PortableApps/settings_fonts/text.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/settings_fonts/text.inc"
+    },
+    "system:lib/PortableApps/src/adapter.c": {
+      "sha256": "178a6f64b36e9fb2939186c9f2c85a09595f665949fc91891b637e7081103c14",
+      "path": "recovered-source/system/lib/PortableApps/src/adapter.c",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/adapter.c"
+    },
+    "system:lib/PortableApps/src/alarm.inc": {
+      "sha256": "f97a91ec22bf85d1d5312cf9a738dd8c22e5c99e752aff26bfb72c810e2f272a",
+      "path": "recovered-source/system/lib/PortableApps/src/alarm.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/alarm.inc"
+    },
+    "system:lib/PortableApps/src/foreground_adapter_open.inc": {
+      "sha256": "85d276cfb2dc6fb6b105e0676b81d636f8198e4ba8d421a527dc2f5341e432c4",
+      "path": "recovered-source/system/lib/PortableApps/src/foreground_adapter_open.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/foreground_adapter_open.inc"
+    },
+    "system:lib/PortableApps/src/installed_catalog_adapter.inc": {
+      "sha256": "eb073209f594b38f5123a7f936d3b923517b34a978426de8611de9acba37eb82",
+      "path": "recovered-source/system/lib/PortableApps/src/installed_catalog_adapter.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/installed_catalog_adapter.inc"
+    },
+    "system:lib/PortableApps/src/nova.inc": {
+      "sha256": "fdf01a3d48083dd13365065cc324d6e4fc1b3b021170da9b0f44b31e00afe497",
+      "path": "recovered-source/system/lib/PortableApps/src/nova.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/nova.inc"
+    },
+    "system:lib/PortableApps/src/nova_native.inc": {
+      "sha256": "c272c67433de5c78ddf4a7f7a015d965b6767ef160831b9714ab2c4f2848f391",
+      "path": "recovered-source/system/lib/PortableApps/src/nova_native.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/nova_native.inc"
+    },
+    "system:lib/PortableApps/src/nova_ui.inc": {
+      "sha256": "2dad2cfc71d09c364630c80e886ce014529294f49f9da9f5f56739b962f7858e",
+      "path": "recovered-source/system/lib/PortableApps/src/nova_ui.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/nova_ui.inc"
+    },
+    "system:lib/PortableApps/src/paper.inc": {
+      "sha256": "506b858f0d5d39dd9e37a8f219636d90a15c8710c7c0117cb1e8c505717faceb",
+      "path": "recovered-source/system/lib/PortableApps/src/paper.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/paper.inc"
+    },
+    "system:lib/PortableApps/src/performance.inc": {
+      "sha256": "547a1f1902f60b816b8dc25a28821fb0a4c84c21e219c460a6dbb760a8c71db9",
+      "path": "recovered-source/system/lib/PortableApps/src/performance.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/performance.inc"
+    },
+    "system:lib/PortableApps/src/quick_actions.c": {
+      "sha256": "77048fbf21dca3f7b0772c74944ee4b8fefb3613ed48411280294600acaecc66",
+      "path": "recovered-source/system/lib/PortableApps/src/quick_actions.c",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/quick_actions.c"
+    },
+    "system:lib/PortableApps/src/quick_actions_assets.inc": {
+      "sha256": "6e0eadad1387eee501f4524d3b21d86fac61e9051822c368070468b9c41d896c",
+      "path": "recovered-source/system/lib/PortableApps/src/quick_actions_assets.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/quick_actions_assets.inc"
+    },
+    "system:lib/PortableApps/src/quick_adapter.inc": {
+      "sha256": "c4a8c550bc506e50c03f491a4c570620d001c1ad3d520405d48e8ba9629606e6",
+      "path": "recovered-source/system/lib/PortableApps/src/quick_adapter.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/quick_adapter.inc"
+    },
+    "system:lib/PortableApps/src/quick_paper.inc": {
+      "sha256": "d2a64288cada731dee28e9289eecaac84465fba516709c858f56aa275cc62cbd",
+      "path": "recovered-source/system/lib/PortableApps/src/quick_paper.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/quick_paper.inc"
+    },
+    "system:lib/PortableApps/src/quick_radios.c": {
+      "sha256": "a666bb9aea4907607552b8e52f354b5307b96fcdaa61f7146fdfbe6b435d3d28",
+      "path": "recovered-source/system/lib/PortableApps/src/quick_radios.c",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/quick_radios.c"
+    },
+    "system:lib/PortableApps/src/quick_render.c": {
+      "sha256": "dd627c99c2cf89db07532490fb5e67aac23245a8e3f80bd445cd65d9b849b4ac",
+      "path": "recovered-source/system/lib/PortableApps/src/quick_render.c",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/quick_render.c"
+    },
+    "system:lib/PortableApps/src/quick_session.c": {
+      "sha256": "7b2313c4f1a67f1c3ba2398c65851aad3c5c92b59f69534b5900d1362dc92c96",
+      "path": "recovered-source/system/lib/PortableApps/src/quick_session.c",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/quick_session.c"
+    },
+    "system:lib/PortableApps/src/resident_adapter.inc": {
+      "sha256": "db0c5d2b2423a7cd0f948af816234b51db489ea73cf43ca050e7ef1b7ec5a514",
+      "path": "recovered-source/system/lib/PortableApps/src/resident_adapter.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/resident_adapter.inc"
+    },
+    "system:lib/PortableApps/src/resident_shell.inc": {
+      "sha256": "8ae9ae7483ee06dce74983cad92ee3199050b4045ad732c25d4dbd211fda3fad",
+      "path": "recovered-source/system/lib/PortableApps/src/resident_shell.inc",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/src/resident_shell.inc"
+    },
+    "system:lib/PortableApps/time/denver/display_time.h": {
+      "sha256": "9460e26e1d6faf574a212cdec86d9477de7a0e5d50168d5e7e76613be2868a03",
+      "path": "recovered-source/system/lib/PortableApps/time/denver/display_time.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/time/denver/display_time.h"
+    },
+    "system:lib/PortableApps/time/denver/twatch_calendar.h": {
+      "sha256": "67e4a670e4ee8a485843e99be0d198d0b60d84a0bc8d84fc77a3d0e4bde39733",
+      "path": "recovered-source/system/lib/PortableApps/time/denver/twatch_calendar.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/time/denver/twatch_calendar.h"
+    },
+    "system:lib/PortableApps/time/denver/twatch_caps.h": {
+      "sha256": "b8b3003c77c72eb251227329c94fda7244389fb45c7a7e92aa01a5ddce50600e",
+      "path": "recovered-source/system/lib/PortableApps/time/denver/twatch_caps.h",
+      "recovered_from": "git:947895afdb2ecef59654402cf08fe7ecdf92362f:lib/PortableApps/time/denver/twatch_caps.h"
+    },
+    "utilities:Apps/ble_buttons.c": {
+      "sha256": "8ec2eb9c3c45f88472de8eb81ed559dd82a1d4500e952d271fc5b67a148bc009",
+      "path": "recovered-source/utilities/Apps/ble_buttons.c",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/utilities/Apps/ble_buttons.c"
+    },
+    "utilities:Apps/ble_buttons_native_layout.h": {
+      "sha256": "3af785cd10657ec6bf644f1a4afa89fbca0826eef3501dea75684546dfc6d9de",
+      "path": "recovered-source/utilities/Apps/ble_buttons_native_layout.h",
+      "recovered_from": "/tmp/ble-native-baseline-reconstruct/Apps/ble_buttons_native_layout.h"
+    },
+    "utilities:Apps/ble_buttons_native_view.inc": {
+      "sha256": "0d326dc5fa4e2f19d0d04d233d9c955e59adbca4b9ed8d2d9d7a245a1ebf919d",
+      "path": "recovered-source/utilities/Apps/ble_buttons_native_view.inc",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/evidence/target-second/inputs/utilities/Apps/ble_buttons_native_view.inc"
+    },
+    "utilities:Apps/ble_hid_app.inc": {
+      "sha256": "d5731c28084e39333aeae2b0c0f28ed24907237ba62fd8251fe09640baadd144",
+      "path": "recovered-source/utilities/Apps/ble_hid_app.inc",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/evidence/target-second/inputs/utilities/Apps/ble_hid_app.inc"
+    },
+    "utilities:Apps/ble_hid_model.h": {
+      "sha256": "f106d4cdd9f4301c4e20646f4015d646b9e00590b6b1b1978472ac230371fae6",
+      "path": "recovered-source/utilities/Apps/ble_hid_model.h",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/utilities/Apps/ble_hid_model.h"
+    },
+    "utilities:Apps/ble_hid_paper.inc": {
+      "sha256": "9d5552799841b98efa2f56d82f8816f1b11bc55c44e1eb87b2b53e1e101a2bc0",
+      "path": "recovered-source/utilities/Apps/ble_hid_paper.inc",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/utilities/Apps/ble_hid_paper.inc"
+    },
+    "utilities:Apps/ble_touchpad_gesture.h": {
+      "sha256": "9a69a37ee4b1c9db96d3ba43ad775eefb297d129652e4f43f6e07bc73542ee73",
+      "path": "recovered-source/utilities/Apps/ble_touchpad_gesture.h",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/utilities/Apps/ble_touchpad_gesture.h"
+    },
+    "utilities:Apps/utility_frame.h": {
+      "sha256": "14ecb24a5b999024d247decbd3e78499b1fa1c36749bd9bfa8b4b8a087cecbc7",
+      "path": "recovered-source/utilities/Apps/utility_frame.h",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/utilities/Apps/utility_frame.h"
+    },
+    "utilities:lib/Bluetooth/include/PortableBluetoothHost.h": {
+      "sha256": "78fa8d54f5973b7712532af34dca48b8aabba5cbac9c50d4ba9e131dcda798b4",
+      "path": "recovered-source/utilities/lib/Bluetooth/include/PortableBluetoothHost.h",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/utilities/lib/Bluetooth/include/PortableBluetoothHost.h"
+    },
+    "utilities:lib/Bluetooth/include/RiscBluetoothHidV1.h": {
+      "sha256": "24cabbace06d6817eea9f67e1ade21b06a4cece2a265fc730f246fb6cb485cb9",
+      "path": "recovered-source/utilities/lib/Bluetooth/include/RiscBluetoothHidV1.h",
+      "recovered_from": "/workspace/shared/ble-buttons-native-20261019/utilities/lib/Bluetooth/include/RiscBluetoothHidV1.h"
+    },
+    "utilities:test/native_apps/ble_buttons_native_test.c": {
+      "sha256": "ae6bfce27758c08111e4332d98d2899038ea83d3629e074e0af886a0f3367cdd",
+      "path": "recovered-source/utilities/test/native_apps/ble_buttons_native_test.c",
+      "recovered_from": "/tmp/ble-native-baseline-reconstruct/test/native_apps/ble_buttons_native_test.c"
+    }
+  },
+  "missing": {
+    "utilities:scripts/test_ble_buttons_native.py": "c5d5c834d30265a477f911923349b8bf236389f8648c9c677999af2ff97284e8"
+  },
+  "limitation": "Original Python runner bytes were not frozen and remain unavailable. Original receipt, command, binary, traces and captures remain unchanged. All compiler dependency bytes are recovered if compiled_dependency_missing is empty; this is not a claim that the original runner is reproducible.",
+  "compiled_dependency_missing": [
+    "utilities:scripts/test_ble_buttons_native.py"
+  ]
+}

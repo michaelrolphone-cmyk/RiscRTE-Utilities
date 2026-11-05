@@ -15,6 +15,9 @@ typedef struct {alarm_service_v1 service;uint32_t output_modes;} alarm_service_o
 #include "RiscRealtimeV1.h"
 #include "AlarmServiceV2.h"
 #include "PortableNativeCustody.h"
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+#include "../../tests/utility_atomic_transport.h"
+#endif
 static bool fail_store_release,zone_change,fail_pause;
 #include "TelemetryBroadcastV1.h"
 #include "RiscBluetoothTelemetryV1.h"
@@ -38,13 +41,20 @@ static bool test_retain(void){assert(!retained_flag);retained_flag=true;retain_c
 void __real_free(void *p);void __wrap_free(void *p){assert(!retained_flag);__real_free(p);}
 static int32_t test_read(void*c,risc_realtime_snapshot_v1*s){assert(c&&!retained_flag&&reader_live);native_reads++;if(zone_change&&polls>=50){unsigned before=puts_count;zone("Asia/Kathmandu");puts_count=before;zone_change=false;}if(native_read_error)return native_read_error;if(changed_at&&polls>=changed_at&&lose_time)return RISC_REALTIME_IO;*s=(risc_realtime_snapshot_v1){.struct_size=sizeof(*s),.validity=native_validity,.epoch_seconds=native_validity==RISC_REALTIME_VALID?native_epoch+ticks/1000+((changed_at&&polls>=changed_at)?clock_shift:0):0,.monotonic_before_us=(uint64_t)ticks*1000,.monotonic_after_us=(uint64_t)ticks*1000,.reserved=native_reserved};return RISC_REALTIME_OK;}
 static const risc_realtime_api_v1 reader_api={1,sizeof(reader_api),&reader_live,test_read};
-static int32_t test_get(void*c,const char*k,void*b,uint32_t n,uint32_t*s){assert(!retained_flag);if(!strcmp(k,"stopwatch_utc")){if(kv_context)return RISC_KEY_VALUE_CONTEXT;if(kv_unknown)return -88;}return fake_get(c,k,b,n,s);}
+static int32_t test_get(void*c,const char*k,void*b,uint32_t n,uint32_t*s){assert(!retained_flag);
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(!strcmp(k,"ble_broadcast")||!strcmp(k,"quick_radio"))return uat_read(c,k,b,n,s);
+#endif
+ if(!strcmp(k,"stopwatch_utc")){if(kv_context)return RISC_KEY_VALUE_CONTEXT;if(kv_unknown)return -88;}return fake_get(c,k,b,n,s);}
 static int32_t test_put(void*c,const char*k,const void*b,uint32_t n){assert(!retained_flag);if(kv_context)return RISC_KEY_VALUE_CONTEXT;if(kv_unknown)return -88;if(fail_pause&&polls>=80&&polls<140){puts_count++;return RISC_KEY_VALUE_IO;}if(kv_io&&(!kv_commits?polls<100:true)){if(kv_commits)(void)fake_put(c,k,b,n);else puts_count++;return RISC_KEY_VALUE_IO;}return fake_put(c,k,b,n);}
 static const risc_key_value_v1 test_kv={1,sizeof(test_kv),NULL,test_get,test_put};
 static int32_t test_status(void*c,alarm_status_v1*s){assert(!retained_flag);service_calls++;if(service_retained){*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_BLOCKED,.error=-9,.output_uncertain=1};return ALARM_OK;}return fake_alarm_status(c,s);}
 static int32_t test_step(void*c){assert(!retained_flag);service_calls++;return service_retained?-9:fake_alarm_step(c);}
 static alarm_service_descriptor_v2 test_alarm={.base={2,sizeof(test_alarm),NULL,test_status,test_step,test_step,fake_alarm_ack,fake_alarm_prepare,test_step},.tag=ALARM_SERVICE_DESCRIPTOR_TAG,.descriptor_version=1,.output_modes=ALARM_MODE_VISUAL};
 static bool test_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capability_v1*g){assert(!retained_flag);if(!strcmp(n,"rtc.clock")){assert(!"Native app/toolbar must never acquire RTC");return false;}if(!strcmp(n,"runtime.realtime.control")){assert(!"No native control authority");return false;}
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(!strcmp(n,RISC_KEY_VALUE_ATOMIC_CAPABILITY)){assert(v==1&&id==1);g->api=&uat_api;g->slot=1;g->generation=1;fixture_grants++;return true;}
+#endif
  if(!strcmp(n,TELEMETRY_BROADCAST_CAPABILITY)){assert(v==1&&!id);if(deny_broadcast)return false;g->api=broadcast;fixture_grants++;broadcast_acquires++;}
  else if(!strcmp(n,RISC_KEY_VALUE_CAPABILITY)&&deny_store)return false;
  else if(!strcmp(n,RISC_REALTIME_CAPABILITY)){assert(v==1&&!id&&!reader_live);if(deny_reader)return false;reader_live=true;fixture_grants++;g->api=&reader_api;}
@@ -53,7 +63,11 @@ static bool test_acquire(const char*n,uint32_t v,uint64_t id,risc_runtime_capabi
  assert(high_water<=16);
  g->slot=(!strcmp(n,"storage.key-value")&&id==2)?2:1;g->generation=1;return true;
 }
-static bool test_release(risc_runtime_capability_v1*g){assert(!retained_flag);if(g->api==broadcast){if(release_broadcast_fails)return false;broadcast_releases++;fixture_grants--;}
+static bool test_release(risc_runtime_capability_v1*g){assert(!retained_flag);
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ if(g->api==&uat_api){fixture_grants--;*g=(risc_runtime_capability_v1){.struct_size=sizeof(*g)};return true;}
+#endif
+ if(g->api==broadcast){if(release_broadcast_fails)return false;broadcast_releases++;fixture_grants--;}
  else if(g->api==&reader_api){native_release_count++;if(release_reader_failure)return false;assert(reader_live);reader_live=false;fixture_grants--;}
  else if(fail_store_release&&g->api==&test_kv&&g->slot==2)return false;
  else if(g->api==&battery_api){battery_releases++;fixture_grants--;}
@@ -75,8 +89,15 @@ static const risc_platform_clock_api_v1 clock_api={1,sizeof(clock_api),NULL,cloc
 extern const risc_driver_v2 *t5_driver_get(uint32_t);
 #include NOVA_APP_SOURCE
 static void click(unsigned at,int x,int y){actions[action_count].at=at;actions[action_count].x=x;actions[action_count++].y=y;}
-static void record(const char *key,uint8_t marker,uint8_t value){uint8_t b[]={marker,1,value,value^0xa5u};assert(fake_put(NULL,key,b,4)==0);}
+static void record(const char *key,uint8_t marker,uint8_t value){uint8_t b[]={marker,1,value,value^0xa5u};assert(fake_put(NULL,key,b,4)==0);
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ uat_store(key,b,4);
+#endif
+}
 int main(int argc,char**argv){
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ uat_reset();
+#endif
  assert(argc==3);unsigned scenario=(unsigned)atoi(argv[1]);directory=argv[2];paper_profile=true;memset(pixels,0xa5,sizeof(pixels));stop_poll=300;home_at=250;
  const risc_driver_v2 *driver=t5_driver_get(2);risc_provider_dependency_v1 deps[]={{"platform.clock",1,&clock_api},{"bluetooth.telemetry",1,&radio_api}};assert(driver->start(deps,2));broadcast=driver->capability;
  bool retained=false;
@@ -93,18 +114,33 @@ int main(int argc,char**argv){
  case 7:release_broadcast_fails=true;retained=true;break;
  case 8:record("ble_broadcast",0x62,2);puts_count=0;click(20,330,620);break;
  case 9:record("ble_broadcast",0x62,0);puts_count=0;click(20,330,620);break;
- case 10:fail_put_once=true;click(20,330,620);click(50,240,620);click(100,240,620);break;
+ case 10:
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ uat.fail_on_submit=1;
+#else
+ fail_put_once=true;
+#endif
+ click(20,330,620);click(50,240,620);click(100,240,620);break;
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+ case 11:uat.fail_on_submit=1;click(20,330,620);click(50,240,620);break;
+ case 12:record("ble_broadcast",0x62,0);puts_count=0;uat.fail_on_submit=1;click(20,330,620);click(50,240,620);break;
+#endif
  default:assert(0);
  }
  int init=app_module_init();if(!init)app_main();
  if(retained){if(scenario==4)app_module_fini();assert(retained_flag&&retain_count==1);unsigned old=fixture_grants;app_module_fini();assert(fixture_grants==old);}
  else {
   assert(!retained_flag&&launches==1);app_module_fini();assert(!fixture_grants&&!frames&&!subs&&!live&&broadcast_acquires==broadcast_releases);
+#ifdef PORTABLE_UTILITIES_ATOMIC_PREFERENCES
+  assert(!puts_count);if(scenario==0)assert(uat.commits==2&&publishes&&closes);if(scenario==1||scenario==2)assert(uat.commits==1);if(scenario==10)assert(uat.commits==1&&uat.submits==2);if(scenario==11)assert(uat.submits==1&&!uat.commits&&publishes==1&&closes==1);if(scenario==12)assert(uat.submits==1&&!uat.commits&&!publishes&&!closes);
+  if(scenario==0){bool on=true;uint8_t b[4];uint32_t n=0;assert(!uat_read(NULL,"ble_broadcast",b,4,&n)&&n==4);on=b[2]!=0;assert(!on);}
+#else
   if(scenario==0){assert(puts_count==2&&publishes&&closes);bool enabled=true;assert(portable_broadcast_control_load(&kv_api,&enabled)&&!enabled);}
   if(scenario==1||scenario==2){assert(!publishes&&puts_count==1);bool enabled=false;assert(portable_broadcast_control_load(&kv_api,&enabled)&&enabled);}
   if(scenario==3)assert(publishes);
   if(scenario==8||scenario==9)assert(!publishes&&!puts_count);
   if(scenario==10)assert(puts_count==2);
+#endif
   assert(driver->quiesce());driver->stop();
  }
  printf("Battery paper broadcast case=%u peak-live=%u publish=%u close=%u retained=%u PASS\n",scenario,high_water,publishes,closes,retained_flag);

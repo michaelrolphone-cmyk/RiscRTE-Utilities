@@ -11,6 +11,9 @@
 #include "spectrum_speech.h"
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
 #include "PortableTextInputClient.h"
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+#include "PortableTextInputPolicy.h"
+#endif
 #else
 #include "PortableWatchKeyboard.h"
 #endif
@@ -36,6 +39,19 @@
 #define PLOT_Y 46
 #define PLOT_W 228
 #define PLOT_H 166
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+#if !defined(PORTABLE_NATIVE_CANVAS) || !defined(PORTABLE_NOVA_UI) || !defined(PORTABLE_SPECTRUM_SHARED_TEXT_INPUT)
+#error "Native Spectrum requires native canvas, Nova and shared text input"
+#endif
+#include "spectrum_native_layout.h"
+static spectrum_native_layout native_layout;
+static bool spectrum_native_draw(void);
+static bool spectrum_native_contact(void);
+static bool spectrum_native_tap(int,int,bool*,bool*);
+static void spectrum_native_cursor(char[40]);
+static unsigned spectrum_native_monitor_rows(void);
+static int spectrum_native_controls_max(void);
+#endif
 #define FRAME_MS 33u
 #define PREFERRED_RATE 16000u
 static const t5_app_api_v1 *app;
@@ -65,6 +81,10 @@ static bool contact_controls;
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
 static unsigned view,page,list_scroll;
 static portable_text_client text_client;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static portable_text_checkpoint_client text_checkpoint;
+static bool text_policy_continuity;
+#endif
 static risc_text_entry_state_v1 text_state;
 static bool text_active,text_closing,text_home;
 static unsigned text_return_page;
@@ -86,7 +106,9 @@ static bool hit(int x,int y,int l,int t,int w,int h){return x>=l && y>=t && x<l+
 static uint32_t fade(uint32_t c,unsigned a){return (((((c>>16)&255)*a/255)<<16)|((((c>>8)&255)*a/255)<<8)|((c&255)*a/255));}
 static void fill(int x,int y,int w,int h,uint32_t c){
  if(w<=0||h<=0)return;
-#ifdef PORTABLE_NOVA_UI
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+ portable_nova_native_fill(x,y,w,h,c);
+#elif defined(PORTABLE_NOVA_UI)
  portable_nova_fill(x,y,w,h,c);
 #else
  x+=(app->screen_width()-240)/2;y+=(app->screen_height()-240)/2;
@@ -95,7 +117,9 @@ static void fill(int x,int y,int w,int h,uint32_t c){
 #endif
 }
 static void round_rect(int x,int y,int w,int h,int r,uint32_t c){
-#ifdef PORTABLE_NOVA_UI
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+ portable_nova_native_round(x,y,w,h,r,c);
+#elif defined(PORTABLE_NOVA_UI)
  portable_nova_round(x,y,w,h,r,c);
 #else
  (void)r;fill(x,y,w,h,c);
@@ -109,7 +133,9 @@ static int text_width(unsigned face,const char *s){
 #endif
 }
 static void text(unsigned face,int x,int y,int w,const char *s,uint32_t c){
-#ifdef PORTABLE_NOVA_UI
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+ portable_nova_native_text(face,x,y,w,s,c);
+#elif defined(PORTABLE_NOVA_UI)
  portable_nova_text(face,x,y,w,s,c);
 #else
  (void)face;(void)c;char clipped[40];unsigned n=(unsigned)(w/6);if(n>=sizeof(clipped))n=sizeof(clipped)-1;unsigned k=0;for(;k<n&&s[k];k++)clipped[k]=s[k];clipped[k]=0;daily_draw_text(app,x+(app->screen_width()-240)/2,y+(app->screen_height()-240)/2,clipped,1);
@@ -346,6 +372,9 @@ static void draw_axes(bool waterfall,bool foreground){
 /* Hit geometry derives from the current cursor/model, even when the last
  * submitted image is still busy. No pixels or frame completion are consulted. */
 static void cursor_layout(char caption[40]){
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+ spectrum_native_cursor(caption);return;
+#endif
  pill_w=pill_h=0;caption[0]=0;
  if(!cursor_visible||page!=PAGE_MAIN||!started||view>=2)return;
  int p=(int)spectrum_dsp_column_at(&dsp_config,cursor_hz,view==1?PLOT_H:PLOT_W);
@@ -420,6 +449,9 @@ static unsigned monitor_items(monitor_item items[17]){
 static void normalize_monitor(void){
  if(page!=PAGE_MAIN||view!=2)return;
  unsigned n,rows=lab_edit?2u:3u;
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+ rows=spectrum_native_monitor_rows();
+#endif
  if(lab_edit)n=saved_count();else{monitor_item items[17];n=monitor_items(items);}
  if(list_scroll>=n){unsigned next=n>rows?n-rows:0;if(list_scroll!=next){list_scroll=next;dirty=true;}}
 }
@@ -490,12 +522,18 @@ static void draw(void){
 #else
  app->clear();
 #endif
+ #ifdef PORTABLE_SPECTRUM_NATIVE_UI
+ if(spectrum_native_draw())goto presented;
+ #endif
  if(page>=PAGE_SHARED)draw_shared();else if(page==PAGE_EVENTS)draw_events();else if(page==PAGE_EVENT_LABEL)draw_event_label();else if(page==PAGE_EVENT_CAPTURE)draw_event_capture();else if(page==PAGE_EVENT_EXAMPLES)draw_event_examples();else if(page==PAGE_SIGNATURES)draw_signatures();else if(page==PAGE_SIGNATURE_EDIT)draw_signature_edit();else if(page==PAGE_CONTROLS)draw_controls();else if(page==PAGE_LABEL)draw_popup();
 #ifndef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
  else if(page==PAGE_KEYBOARD)draw_keyboard();
 #endif
  else if(!started)draw_start();else{draw_tabs();if(view==2)draw_monitor();else draw_plot();draw_footer();if(capture_error||input_waiting){round_rect(25,166,190,29,10,NOVA_DIM);round_rect(26,167,188,27,9,0);center(1,30,172,180,message,0xff6a5f);}}
  if(toast_message&&page!=PAGE_KEYBOARD){int y=toast_top();round_rect(14,y,212,28,14,NOVA_DIM);round_rect(15,y+1,210,26,13,0);text(1,23,y+5,undo_slot>=0?145:194,toast_message,NOVA_TEXT);if(undo_slot>=0)text(1,174,y+5,45,"UNDO",NOVA_CYAN);}
+ #ifdef PORTABLE_SPECTRUM_NATIVE_UI
+presented:
+ #endif
  app->present(false);painted=app->millis();dirty=false;
 }
 
@@ -525,22 +563,68 @@ static void keyboard_begin(void){
  text_return_page=page;shared_keyboard=page==PAGE_SHARED_EDIT;
  text_state=(risc_text_entry_state_v1){.struct_size=sizeof(text_state)};
  text_closing=text_home=false;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ text_checkpoint=(portable_text_checkpoint_client){0};text_policy_continuity=false;
+#endif
  const char *caption=shared_keyboard?"SIGNAL NAME":page==PAGE_EVENT_LABEL?"EVENT NAME":page==PAGE_SIGNATURE_EDIT?"SIGNATURE NAME":"LABEL NAME";
  int rc=portable_text_client_begin(&text_client,runtime,caption,editing.name,sizeof(editing.name));
  if(rc!=RISC_TEXT_ENTRY_OK){shared_keyboard=false;if(!text_client.retained)notify("TEXT INPUT UNAVAILABLE / RETRY");return;}
  text_active=true;toast_message=NULL;set_page(PAGE_KEYBOARD);
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ rc=portable_text_checkpoint_enable(&text_client,&text_checkpoint);
+ if(rc!=RISC_TEXT_ENTRY_OK&&!text_client.retained){text_closing=true;text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify("TEXT INPUT UNAVAILABLE / RETRY");}
+#endif
 }
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+static void text_policy(void){
+ if(!text_checkpoint.pausing&&!text_checkpoint.paused){
+  risc_text_entry_checkpoint_state_v1 snapshot={.struct_size=sizeof(snapshot)};
+  int rc=portable_text_checkpoint_snapshot(&text_client,&text_checkpoint,&snapshot);
+  if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+  rc=portable_text_adapter_policy_prepare(snapshot.flags,&text_policy_continuity);
+  if(rc<0){(void)portable_text_client_retain(&text_client);return;}
+  if(!rc)return;
+ }
+ int rc=portable_text_checkpoint_pause_mode(&text_client,&text_checkpoint,text_policy_continuity);
+ if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+ uint32_t flags=0;int policy=portable_text_adapter_policy_apply(text_policy_continuity,&flags);
+ if(policy<0){(void)portable_text_client_retain(&text_client);return;}
+ if(text_client.retained)return;
+ if(policy>0){text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;return;}
+ (void)portable_text_checkpoint_resume(&text_client,&text_checkpoint,flags);
+}
+#endif
 static void text_step(void){
  if(!text_active||text_client.retained)return;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}
+ if(!text_closing&&(text_checkpoint.pausing||text_checkpoint.paused)){
+  int attention=portable_text_adapter_attention();
+  if(attention<0){(void)portable_text_client_retain(&text_client);return;}
+  if(!attention){text_policy();return;}
+  text_state.state=RISC_TEXT_ENTRY_CANCELLED;text_closing=true;
+ }
+#endif
  if(!text_closing){
   int rc=portable_text_client_poll(&text_client,&text_state);
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+  if(text_client.retained)return;
+  if(portable_text_adapter_policy_capture()<0){(void)portable_text_client_retain(&text_client);return;}
+#endif
   if(rc==RISC_TEXT_ENTRY_AGAIN||rc==RISC_TEXT_ENTRY_RETAINED||text_client.retained)return;
   if(rc!=RISC_TEXT_ENTRY_OK){text_state.state=RISC_TEXT_ENTRY_CANCELLED;notify("TEXT INPUT UNAVAILABLE / RETRY");}
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+  else if(text_state.state==RISC_TEXT_ENTRY_EDITING){text_policy();return;}
+#else
   else if(text_state.state==RISC_TEXT_ENTRY_EDITING)return;
+#endif
   text_closing=true;
  }
  int rc=portable_text_client_close(&text_client);
  if(rc!=RISC_TEXT_ENTRY_OK||text_client.retained)return;
+#ifdef PORTABLE_TEXT_INPUT_POLICY
+ text_checkpoint=(portable_text_checkpoint_client){0};
+#endif
  text_active=text_closing=false;text_home=(text_state.flags&RISC_TEXT_ENTRY_HOME_CANCEL)!=0;
  if(text_state.state==RISC_TEXT_ENTRY_ACCEPTED){
   memset(editing.name,0,sizeof(editing.name));
@@ -587,10 +671,13 @@ static void settings_change(unsigned setting,int direction,int segment){
  configure_dsp();pending_save|=1;persist();dirty=true;
 }
 static bool process_contact(void){
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+ return spectrum_native_contact();
+#endif
  char caption[40];cursor_layout(caption);
  if(!optional_contact())return false;
  t5_app_contact_t contact={0};if(!app->touch_contact(&contact))return false;
- int x=contact.x-(app->screen_width()-240)/2,y=contact.y-(app->screen_height()-240)/2;
+ int x=utility_color_x(app,contact.x),y=utility_color_y(app,contact.y);
  bool consumed=false;
  if(contact.down){
   if(!contact_down){contact_down=true;contact_controls=page==PAGE_CONTROLS&&hit(x,y,0,CONTROLS_TOP,240,CONTROLS_BOTTOM-CONTROLS_TOP);controls_touch_y=y;controls_touch_scroll=controls_scroll;contact_plot=page==PAGE_MAIN&&started&&view<2&&hit(x,y,PLOT_X,PLOT_Y,PLOT_W,PLOT_H)&&!(cursor_visible&&hit(x,y,pill_x,pill_y,pill_w,pill_h));contact_moved=false;
@@ -611,6 +698,9 @@ static bool request_root_exit(void){
 #endif
  return true;
 }
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+#define tap_action tap_action_legacy
+#endif
 static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested){
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
  /* A crown confirm may open the host before a coalesced touch is handled. */
@@ -618,7 +708,9 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
 #endif
  char caption[40];cursor_layout(caption);
  if(x<0||y<0||x>=240||y>=240)return false;
+ #ifndef PORTABLE_SPECTRUM_NATIVE_UI
  if(page!=PAGE_KEYBOARD&&toast_message&&hit(x,y,14,toast_top(),212,28)){if(undo_slot>=0&&x>=167)undo_delete();else{toast_message=NULL;dirty=true;}return false;}
+ #endif
  if(page>=PAGE_SHARED){shared_tap(x,y);return false;}
  if(page==PAGE_EVENTS||page==PAGE_EVENT_LABEL||page==PAGE_EVENT_CAPTURE||page==PAGE_EVENT_EXAMPLES){event_tap(x,y,toggle_requested);return false;}
  if(page==PAGE_SIGNATURES||page==PAGE_SIGNATURE_EDIT){signature_tap(x,y,toggle_requested);return false;}
@@ -635,12 +727,23 @@ static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested
  if(y>=216&&y<240){if(x>=6&&x<150)*toggle_requested=true;else if(x>=154&&x<240){if(running)*freeze_requested=true;else return request_root_exit();}}return false;
 }
 #include "context_signal_library.inc"
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+#undef tap_action
+#include "spectrum_native_view.inc"
+static bool tap_action(int x,int y,bool *toggle_requested,bool *freeze_requested){
+ return spectrum_native_tap(x,y,toggle_requested,freeze_requested);
+}
+#endif
 
 void app_main(void){
  utility_frame_reset();
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,millis)+sizeof(app->millis)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->fill_rect||!app->present||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->diagnostic||!runtime->yield_ms)return;
+#ifdef PORTABLE_SPECTRUM_NATIVE_UI
+ if(!spectrum_native_layout_make(&native_layout,app->screen_width(),app->screen_height()))return;
+#else
  if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
+#endif
  microphone=NULL;storage=NULL;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};memset(&spectrum,0,sizeof(spectrum));
  capture_requested=input_gap=input_waiting=capture_error=acquired=owned=uncertain=running=frozen=store_acquired=lab_edit=cursor_visible=contact_down=contact_plot=contact_drag=contact_moved=started=false;dirty=true;
  pending_save=load_errors=0;page=PAGE_MAIN;
@@ -654,7 +757,7 @@ void app_main(void){
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
  text_client=(portable_text_client){0};text_state=(risc_text_entry_state_v1){0};text_active=text_closing=text_home=shared_keyboard=false;text_return_page=PAGE_MAIN;
 #endif
- restore();signature_restore();event_restore();cfa_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
+ restore();signature_restore();event_restore();if(temporal_retained())return;cfa_restore();if(temporal_retained())return;configure_dsp();build_palette();set_page(PAGE_MAIN);if(store_message)notify(store_message);
  for(;;){
   if(temporal_retained())return;
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
@@ -703,7 +806,11 @@ void app_main(void){
 #ifndef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
   else if(page==PAGE_KEYBOARD){if(input.buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_UP))key_choice=key_choice?key_choice-1:PWK_COUNT-1;else if(input.buttons&(T5_APP_BUTTON_RIGHT|T5_APP_BUTTON_DOWN))key_choice=(key_choice+1)%PWK_COUNT;else if(input.buttons&T5_APP_BUTTON_CONFIRM)keyboard_activate(key_choice);if(input.buttons)dirty=true;}
 #endif
-  if(input.tapped&&!consumed&&tap_action(input.touch_x-(app->screen_width()-240)/2,input.touch_y-(app->screen_height()-240)/2,&toggle_requested,&freeze_requested))break;
+  #ifdef PORTABLE_SPECTRUM_NATIVE_UI
+  if(input.tapped&&!consumed&&tap_action(input.touch_x,input.touch_y,&toggle_requested,&freeze_requested))break;
+#else
+  if(input.tapped&&!consumed&&tap_action(utility_color_x(app,input.touch_x),utility_color_y(app,input.touch_y),&toggle_requested,&freeze_requested))break;
+#endif
   if(temporal_retained())return;
 #ifdef PORTABLE_SPECTRUM_SHARED_TEXT_INPUT
   if(text_client.retained)return;
@@ -713,5 +820,5 @@ void app_main(void){
   if(!input.buttons&&!input.tapped&&!contact_down&&!consumed)event_neural_tick();
  }
  if(temporal_retained())return;
- stop();if(event_data_acquired&&!runtime->release(&event_data_grant))retain();event_data_acquired=false;event_files.api=NULL;if(acquired&&!runtime->release(&grant))retain();if(store_acquired&&!runtime->release(&store_grant))retain();acquired=store_acquired=false;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};microphone=NULL;storage=NULL;
+ stop();if(temporal_retained())return;event_files.api=NULL;if(acquired&&!runtime->release(&grant))retain();if(store_acquired&&!runtime->release(&store_grant))retain();acquired=store_acquired=false;grant=(risc_runtime_capability_v1){0};store_grant=(risc_runtime_capability_v1){0};microphone=NULL;storage=NULL;
 }
