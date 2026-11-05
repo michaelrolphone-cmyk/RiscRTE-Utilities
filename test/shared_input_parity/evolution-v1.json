@@ -2232,6 +2232,52 @@
           ]
         }
       ]
+    },
+    "native-target": {
+      "baseline_revision": "12c7440c4c2fd9b6b78e10f11a983947c145b346",
+      "files": [
+        {
+          "path": "Apps/context_signal_library.inc",
+          "rationale": "Use PRIu32 for uint32 window counts on every ABI.",
+          "before_git_blob_sha1": "6742e30c13f5a13326327e0174548232afe018e6",
+          "after_git_blob_sha1": "9d3c0a6beecfb3eaa9c74493d369c18277bc6d9e",
+          "hunks": [
+            {
+              "start": 0,
+              "old": [],
+              "new": [
+                "#include <inttypes.h>\n"
+              ]
+            },
+            {
+              "start": 78,
+              "old": [
+                "   else snprintf(b,sizeof(b),\"%u WINDOWS / %s\",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?\"SETTINGS DIFFER\":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?\"BG READY\":\"TRAINED\");\n"
+              ],
+              "new": [
+                "   else snprintf(b,sizeof(b),\"%\" PRIu32 \" WINDOWS / %s\",p->feature[CFA_SOURCE].windows,(p->feature[CFA_SOURCE].identity!=cfa_identity())?\"SETTINGS DIFFER\":(shared_kind==CF_ROOM&&(p->feature[CFA_SOURCE].flags&CF_BACKGROUND))?\"BG READY\":\"TRAINED\");\n"
+              ]
+            }
+          ]
+        },
+        {
+          "path": "Apps/context_fingerprint_app.inc",
+          "rationale": "Preserve retained-custody safety: do not issue a notification after model-save failure if temporal custody is retained. This full-feature target branch is absent from the simpler host token profiles.",
+          "before_git_blob_sha1": "8305abbecf7855cf084debae8d9a98df8d2f95d3",
+          "after_git_blob_sha1": "1872c35cb6c4a536756f2f8ffe09f5805b8d2314",
+          "hunks": [
+            {
+              "start": 142,
+              "old": [
+                "    if(!portable_contexts_models_save()){cfa_failed=true;notify(\"SHARED MODELS / RETRY SAVE\");return;}\n"
+              ],
+              "new": [
+                "    if(!portable_contexts_models_save()){cfa_failed=true;if(!temporal_retained())notify(\"SHARED MODELS / RETRY SAVE\");return;}\n"
+              ]
+            }
+          ]
+        }
+      ]
     }
   }
 }

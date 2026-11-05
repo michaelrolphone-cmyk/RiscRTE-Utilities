@@ -17,6 +17,8 @@ import subprocess
 import sys
 import zipfile
 
+import native_spectrum_target_reference as reviewed_reference
+
 ROOT = Path(__file__).resolve().parents[1]
 BASE = '12c7440c4c2fd9b6b78e10f11a983947c145b346'
 PINS = {
@@ -166,6 +168,20 @@ def main(args):
     baseline = out/'inputs/utilities-baseline'
     stage(ROOT, BASE, baseline, ['Apps', 'lib/Alarm/include', 'lib/Contexts/include',
           'lib/NativeApps/src', 'lib/ContextFingerprint', 'lib/VoiceActivity', 'test/native_apps/stubs', 'test/native_apps/validate_test.c'], ids, 'utilities-baseline')
+    reviewed = out/'inputs/utilities-reviewed'
+    stage(ROOT, BASE, reviewed, ['Apps', 'lib/Alarm/include', 'lib/Contexts/include',
+          'lib/NativeApps/src', 'lib/ContextFingerprint', 'lib/VoiceActivity',
+          'test/native_apps/stubs', 'test/native_apps/validate_test.c'], ids, 'utilities-reviewed')
+    evolution = reviewed_reference.evidence()
+    reference_sources = {}
+    for path in sorted(reviewed.rglob('*')):
+        if path.is_file():
+            relative = path.relative_to(reviewed).as_posix()
+            path.write_bytes(reviewed_reference.evolve(relative, path.read_bytes()))
+            reference_sources[relative] = sha(path.read_bytes())
+    evidence_inputs = {name: sha((ROOT/name).read_bytes()) for name in (
+        'scripts/native_spectrum_target_reference.py', 'scripts/shared_input_parity_reference.py',
+        'test/shared_input_parity/evolution-v1.json')}
     current = out/'inputs/utilities'
     snapshots = {}
     for selection in ('Apps', 'lib/Alarm/include', 'lib/Contexts/include', 'lib/NativeApps/src', 'lib/ContextFingerprint', 'lib/VoiceActivity'):
@@ -264,11 +280,14 @@ def main(args):
          '-I'+str(baseline/'test/native_apps/stubs'),'-I'+str(roots['runtime']/'lib/elf_loader/include'),
          str(roots['runtime']/'lib/elf_loader/src/esp_elf_validate.c'),
          str(baseline/'test/native_apps/validate_test.c'),'-o',str(validator)],out,'build-validator')
+    staged_sources = {str(path): sha(path.read_bytes())
+                      for root in (baseline, reviewed, current)
+                      for path in sorted(root.rglob('*')) if path.is_file()}
     records = []
     consumed_current = set()
-    for mode in ['baseline','legacy']+(['native'] if args.native_ui else []):
+    for mode in ['baseline','reviewed','legacy']+(['native'] if args.native_ui else []):
         dest = out/mode;dest.mkdir()
-        app = baseline if mode=='baseline' else current
+        app = baseline if mode=='baseline' else reviewed if mode=='reviewed' else current
         mode_roots = {**roots,'utilities':app}
         sources = [mode_roots[key]/rel for key,rel in (item.split(':',1) for item in UNITS)]
         includes = [sdk, roots['system']/'lib/PortableApps/include', roots['system']/'lib/NativeApps/include',
@@ -317,6 +336,8 @@ def main(args):
                         raise ValueError('Unowned target input: '+str(path))
                 if identity.startswith('utilities-baseline:'):
                     identity = identity.replace('utilities-baseline:','utilities:',1)
+                elif identity.startswith('utilities-reviewed:'):
+                    identity = identity.replace('utilities-reviewed:','utilities:',1)
                 elif identity.startswith('utilities:'):
                     consumed_current.add(identity.split(':',1)[1])
                 closure[identity] = sha(path.read_bytes())
@@ -341,6 +362,13 @@ def main(args):
                         'structural_loader_admission':'passed','target_instructions_executed':False})
         print(mode+': target ELF, imports, exports and pinned Runtime loader admission passed',flush=True)
     exact_legacy = (out/'baseline/audio_spectrum.elf').read_bytes()==(out/'legacy/audio_spectrum.elf').read_bytes()
+    exact_reviewed = (out/'reviewed/audio_spectrum.elf').read_bytes()==(out/'legacy/audio_spectrum.elf').read_bytes()
+    for relative, expected in reference_sources.items():
+        if sha((reviewed/relative).read_bytes()) != expected:
+            raise ValueError('Reviewed target source changed during qualification: '+relative)
+    for name, expected in evidence_inputs.items():
+        if sha((ROOT/name).read_bytes()) != expected:
+            raise ValueError('Reviewed target definition changed during qualification: '+name)
     retained = None
     if args.retained_archive:
         archive = args.retained_archive.resolve()
@@ -367,6 +395,14 @@ def main(args):
         raise ValueError('Qualification script or Utilities HEAD changed during build')
     if args.native_manifest and args.native_manifest.read_bytes()!=native_manifest_bytes:
         raise ValueError('Native manifest changed during qualification')
+    observed_sources = {str(path): sha(path.read_bytes())
+                        for root in (baseline, reviewed, current)
+                        for path in sorted(root.rglob('*')) if path.is_file()}
+    if observed_sources != staged_sources:
+        raise ValueError('Historical, reviewed or candidate staged sources changed during qualification')
+    for name, expected in evidence_inputs.items():
+        if sha((ROOT/name).read_bytes()) != expected:
+            raise ValueError('Reviewed target definition changed during qualification: '+name)
     receipt = {'schema':1,'utilities_base':BASE,'utilities_commit':source_commit,'utilities_head_tree':source_tree,
         'utilities_status':source_status,'exact_external_git_pins':PINS,'external_working_trees_used':False,
         'script_sha256':metadata_hash,'tools':tools,'toolchain_inputs':toolchain_inputs,'retained_recipe_path':RECIPE,
@@ -377,16 +413,19 @@ def main(args):
         'native_manifest':native_manifest,'native_manifest_sha256':sha(native_manifest_bytes) if native_manifest_bytes else None,
         'legacy_manifest_sha256':sha(legacy_manifest.read_bytes()),'legacy_manifest_exact_base':True,
         'native_opt_in':args.native_ui,'native_selectors':NATIVE,'modules':records,
-        'selector_off_exact_baseline_bytes':exact_legacy,'retained_dot63':retained,
+        'selector_off_exact_baseline_bytes':exact_legacy,
+        'selector_off_exact_reviewed_bytes':exact_reviewed,'reviewed_evolution':evolution,
+        'reviewed_evolution_inputs':evidence_inputs,'retained_dot63':retained,
         'capability_contract':[{'capability':c,'api':v} for c,v in CAPABILITIES],
         'capability_contract_scope':'Frozen .63 deployment requirements retained as comparison; no new manifest or binding is published.',
         'native_display_contract':{'width':410,'height':502,'selection':'PORTABLE_NATIVE_CANVAS + PORTABLE_WATCH_NATIVE_HEIGHT; runtime-provided dimensions, no new fixed-resolution compile define',
             'hardware_exercised':False,'behavioral_host_tests':'Separate qualification required; target admission does not execute application behavior.'},
         'historical_reproduction':False,'hardware_qualified':False,'firmware_assembled':False,'published':False}
     write_json(out/'qualification.json',receipt)
-    if not exact_legacy:
-        raise ValueError('Selector-off ELF differs from exact Utilities baseline; inspect retained receipt')
-    print('Selector-off exact baseline bytes passed; target qualification receipt written',flush=True)
+    print('Historical selector-off byte equality: '+str(exact_legacy),flush=True)
+    if not exact_reviewed:
+        raise ValueError('Selector-off ELF differs from exact reviewed target reference; inspect retained receipt')
+    print('Selector-off exact reviewed reference bytes passed; historical comparison retained separately',flush=True)
 
 
 if __name__=='__main__':

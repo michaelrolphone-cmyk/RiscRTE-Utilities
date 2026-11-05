@@ -32,3 +32,28 @@ Host qualification does not establish physical-device qualification.
 Coverage: RF local-opt-out-contract explicitly rejects text-entry acquisition, counts submitted local-keyboard frames, checks unchanged KV/app-data writes after Done and Cancel, requires a KV write after Save, fills the228-burst ring and checks strictly chronological timestamps after wrap, then confirms stopped capture/history remain unchanged. It does not prove pixel-by-pixel waterfall equivalence or physical hardware behavior. Default Spectrum uses its existing independent keyboard fixture.
 
 References are extracted from exact Git objects, never copied from a mutable working tree. The archive-only native baseline is resolved from the candidate checkout's full Git history. All three comparators use one maximal-munch token lexer, with lexer-level operator, numeric and literal mutation tests. Source/fixture/helper snapshots are checked for stability before a successful result.
+
+## Native full-feature target reference
+
+The separate `native-target` entry retains historical commit
+`12c7440c4c2fd9b6b78e10f11a983947c145b346` and applies only two reviewed
+source evolutions: portable PRIu32 formatting and the retained-custody guard
+around the model-save failure notification. The latter is enabled by the
+full-feature target recipe but absent from the three simpler host token profiles.
+Both file transformations require exact historical and resulting Git blob hashes.
+
+Target qualification now builds four modes: untouched historical baseline,
+historical sources plus the reviewed evolution, current selector-off, and current
+native. Every ELF still receives structural loader admission. Historical versus
+current byte equality remains an explicit, truthful Boolean in the receipt.
+Current selector-off must equal the reviewed reference ELF byte-for-byte; a
+different historical ELF is not labeled identical. No compiler, feature flag,
+application logic, baseline pin, or existing host assertion is removed.
+
+Packaging requires all four modes, the exact reviewed definition and source
+transformation, truthful historical equality, exact reviewed ELF equality, and
+all six geometry/subpage/local-keyboard normal/sanitized records. Synthetic
+negative controls exercise missing/duplicate modes and records, failed records,
+dishonest historical equality, mutated historical inputs, unreviewed source
+changes, and reviewed ELF mismatch even when its digest is updated. Synthetic
+packaging controls do not replace execution of the target build.

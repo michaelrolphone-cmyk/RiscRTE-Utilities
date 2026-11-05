@@ -63,9 +63,12 @@ def run_logged(cmd, log, stage, evidence, timeout=180, env=None):
 
 def fixture():
     original = ROOT / "test/native_apps/rf_renderer_test.c"
-    s = original.read_text()
+    s = '#include "canvas_provider.h"\n' + original.read_text()
     s = once(s, '#include "../../Apps/waterfall.c"',
              '#include "' + str(ROOT / "Apps/waterfall.c") + '"')
+    s = once(s, 'V("key_page",key_page);V("key_choice",key_choice);',
+             '\n#ifndef PORTABLE_RF_SHARED_TEXT_INPUT\n'
+             'V("key_page",key_page);V("key_choice",key_choice);\n#endif\n')
     s = once(s, "static jmp_buf fx_retained_jump;",
              'static jmp_buf fx_retained_jump;\n#include "rf_shared_canvas_declarations.inc"')
     s = function(s, "static void fx_guards(void)", "static unsigned fx_pixel(",
