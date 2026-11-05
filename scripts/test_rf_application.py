@@ -254,7 +254,7 @@ for sanitized in (False, True):
         out = OUT / target / ('sanitized' if sanitized else 'normal')
         out.mkdir(parents=True, exist_ok=True)
         flags = ['-DPORTABLE_NOVA_UI', '-DPORTABLE_APP_OWNS_TOUCH_CHROME', '-DPORTABLE_RADIO_SESSION', '-DPORTABLE_ALARM_CLIENT', '-DPORTABLE_APP_SLEEP_LOCAL', '-DPORTABLE_FORCE_FULL_FRAMES', '-DPORTABLE_INPUT_NAVIGATION', '-DPORTABLE_INPUT_NAVIGATION_LOCAL', '-DRF_RETURN_APP="springboard.elf"', '-DRF_RENDER_RUNTIME_DIAGNOSTICS']
-        if a.opt_out_contract: flags += ['-DRF_RENDER_OPT_OUT_CONTRACT']
+        if a.opt_out_contract: flags += ['-DRF_RENDER_OPT_OUT_CONTRACT', '-DRF_RENDER_ORDERED_INPUT']
         if a.native_canvas: flags += ['-DPORTABLE_RF_NATIVE_CANVAS','-DRF_RENDER_ORDERED_INPUT']
         san = ['-fsanitize=address,undefined', '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie'] if sanitized else []
         if target == 'x4':
@@ -289,11 +289,11 @@ for sanitized in (False, True):
             for stale in folder.glob('*.ppm'):
                 stale.unlink()
             command_file=folder/'commands.txt'
-            if a.native_canvas:
+            if a.native_canvas or a.opt_out_contract:
                 # Ordered edges advance independently of raster polling. Give
                 # release/dispatch two polls; preserve all assertions and allow
                 # two polls per capture for long room/event training waits.
-                commands='\n'.join(('wait '+str(int(line.split()[1])*2) if line.startswith('wait ') and int(line.split()[1])>=64 else line)+('\nwait 2' if line.startswith(('tap ','nav ')) else '') for line in commands.splitlines())+'\n'
+                commands='\n'.join(('wait '+str(int(line.split()[1])*2) if line.startswith('wait ') and int(line.split()[1])>=64 else line)+('\nwait 2' if line.startswith(('tap ','nav ')) or (a.opt_out_contract and line.startswith('raw ')) else '') for line in commands.splitlines())+'\n'
             command_file.write_text(commands)
             env=dict(os.environ, ASAN_OPTIONS='detect_leaks=0', **extra_env)
             if sanitized:
