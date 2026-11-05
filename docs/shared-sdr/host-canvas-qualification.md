@@ -34,3 +34,8 @@ The Utilities lifecycle materializer stages a hash-checked custody wrapper with 
 The focused host test includes that actual generated wrapper and tests exact request identities, dirty/pre-dirty grants, health/identity changes and release failure/uncleared grants. The full controller separately compiles the same wrapper with shipping definitions.
 
 Remaining qualification gap: the manifest labels additional services optional even though current startup paths may require them. This matrix supplies telemetry broadcast, Wi-Fi and Bluetooth controls. It does not establish that every manifest-optional capability can be absent.
+
+## Replay and resize regression
+
+A real top-controls tap must reach the RF controls page and leave no consumed replay pending. Normal controller iterations must then adopt the new geometry with unchanged pixel/input assertions. The first resize is natural and unprobed. At a separate subsequent resize boundary, an explicit guard probe temporarily sets only the adapter replay-pending flag, calls the real refresh implementation, verifies old logical dimensions remain, and restores the original flag. It requires every other adapter deferral flag to be clear. Its preliminary real display get_info call refreshes provider mapping/revision and geometry/gap state while leaving the adapter's cached dimensions unchanged; the probe is not purely observational. This injected guard test is distinct from physical-input replay coverage; it does not claim a simultaneous touch/navigation race has been exercised.
+The replay regression does not newly qualify every existing cancellation, idle-loop discard, modal or handoff path, and does not establish global replay persistence across those paths.

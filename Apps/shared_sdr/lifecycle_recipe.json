@@ -60,6 +60,10 @@
       {
         "old": "#ifdef PORTABLE_RESIDENT_SHELL_CLIENT\n  /* A recognized pull-down is model state.",
         "replacement": "  sdr_controls_dispatch();\n#ifdef PORTABLE_RESIDENT_SHELL_CLIENT\n  /* A recognized pull-down is model state."
+      },
+      {
+        "old": "    app_contact=(t5_app_contact_t){true,(int16_t)x,(int16_t)y};\n#endif\n#if defined(PORTABLE_NOVA_UI) && !defined(PORTABLE_APP_OWNS_TOUCH_CHROME)",
+        "replacement": "    app_contact=(t5_app_contact_t){true,(int16_t)x,(int16_t)y};\n#if defined(PORTABLE_RF_SHARED_CANVAS) && defined(PORTABLE_QUICK_ACTIONS)\n  /* input_take consumed the replay sample. RF owns touch chrome and does not\n   * enter the legacy Nova replay-clear branch below. */\n  quick_replay_pending=false;\n#endif\n#endif\n#if defined(PORTABLE_NOVA_UI) && !defined(PORTABLE_APP_OWNS_TOUCH_CHROME)"
       }
     ],
     "quick_adapter.inc": [

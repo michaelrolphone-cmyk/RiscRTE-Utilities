@@ -205,7 +205,11 @@ static void sc_corners(void) {
 }
 static unsigned sc_before_resize_refresh;
 extern unsigned rf_host_canvas_refresh_count(void),rf_host_canvas_pending(void);
+extern bool rf_host_probe_replay_defer(void);
 static bool sc_command(const char*op) {
+ if(!strcmp(op,"sc_replay_consumed")) {
+  assert(!(rf_host_canvas_pending()&32u));fx_checks++;return true;
+ }
  if(!strcmp(op,"sc_rejection_begin")) {
   assert(!contact_down);sc_before_rejection_contacts=sc_contacts;return true;
  }
@@ -229,12 +233,15 @@ static bool sc_command(const char*op) {
   assert((sc_provider.touch!=NULL)==(sc_input_mode==2));
   assert(fx_subs==(sc_input_mode==2?1u:0u));fx_checks++;return true;
  }
- if(!strcmp(op,"sc_resize")) {
+ if(!strcmp(op,"sc_resize")||!strcmp(op,"sc_guard_resize")) {
   assert(!fx_frames&&!fx_frame_pending&&!sc_provider.frames.lease&&!sc_provider.frames.receipts);
   unsigned w,h;assert(sscanf(fx_line,"%*s %u %u",&w,&h)==2&&w<=FX_W&&h<=FX_H);
   sc_before_resize_refresh=rf_host_canvas_refresh_count();
   sc_before_resize_gaps=sc_gaps;sc_before_resize_geometry=sc_geometries;
-  sc_w=w;sc_h=h;memset(&fx_raster,0xa5,sizeof(fx_raster));return true;
+  assert(w!=sc_w||h!=sc_h);
+  sc_w=w;sc_h=h;memset(&fx_raster,0xa5,sizeof(fx_raster));
+  if(!strcmp(op,"sc_guard_resize")){assert(rf_host_probe_replay_defer());fx_checks++;}
+  return true;
  }
  if(!strcmp(op,"sc_gap")) {
   assert(sc_geometries>sc_before_resize_geometry);

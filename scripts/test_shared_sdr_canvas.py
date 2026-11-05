@@ -170,7 +170,7 @@ def scene(case):
                       "check cursor_hz eq 2400000000",
                       "remember cursor_hz", "sc_rejection_begin", f"tap {w} {h//2}",
                       "wait 3", "same cursor_hz", "sc_rejection_end"]
-        lines += [f"tap {w-15} 26", "wait 3", "check page eq 1",
+        lines += [f"tap {w-15} 26", "wait 3", "check page eq 1", "sc_replay_consumed",
                   "nav 32", "wait 3",
                   f"check scroll eq {min(48, max(0, 624-(max(240, (h*240+w-1)//w)-94)))}", "nav 1",
                   "wait 3", "check page eq 0"]
@@ -184,6 +184,12 @@ def scene(case):
             nh += 7
         lines += ["wait 8", f"sc_resize {nw} {nh}", "wait 8",
                   "sc_geometry", "sc_gap"]
+        # Keep natural discovery above separate from injected guard coverage.
+        if case[3] % 2:
+            nw += 7
+        else:
+            nh += 7
+        lines += [f"sc_guard_resize {nw} {nh}", "wait 8", "sc_geometry", "sc_gap"]
     lines += ["finish"]
     return "\n".join(lines) + "\n"
 
@@ -276,6 +282,15 @@ def main():
                     "b|=quick_replay_delivery?64u:0u;b|=quick_launch_pending?128u:0u;\n"
                     "#endif\n#ifdef PORTABLE_ALARM_CLIENT\n"
                     "b|=alarm_modal?256u:0u;\n#endif\nreturn b;}\n"
+                    "bool rf_host_probe_replay_defer(void){"
+                    "if(rf_host_canvas_pending())return false;"
+                    "unsigned w=info.width,h=info.height;bool prior=quick_replay_pending;"
+                    "risc_display_info_v1 next={0};"
+                    "if(!display->get_info(display->context,&next)||"
+                    "(next.width==w&&next.height==h))return false;"
+                    "quick_replay_pending=true;bool ok=rf_host_canvas_refresh_impl();"
+                    "bool unchanged=info.width==w&&info.height==h&&quick_replay_pending;"
+                    "quick_replay_pending=prior;return ok&&unchanged;}\n"
                     "unsigned rf_host_canvas_contract(void){return "
                     "(rf_canvas.input_active?1u:0u)|"
                     "((info.flags&RISC_DISPLAY_INFO_BRIGHTNESS)?2u:0u); }\n")
