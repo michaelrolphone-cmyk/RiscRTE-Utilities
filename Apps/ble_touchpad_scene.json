@@ -1,0 +1,88 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "file_name": "ble_touchpad.elf",
+  "id": "ble_touchpad",
+  "requires": [],
+  "type": "application",
+  "version": "0.2.0",
+  "display_name": "BLE Touchpad",
+  "optional": [
+    {
+      "api": 1,
+      "capability": "ui.scene"
+    },
+    {
+      "api": 1,
+      "capability": "bluetooth.hid"
+    },
+    {
+      "api": 1,
+      "capability": "storage.key-value"
+    },
+    {
+      "api": 1,
+      "capability": "board.battery"
+    },
+    {
+      "api": 1,
+      "capability": "input.power-key"
+    },
+    {
+      "api": 1,
+      "capability": "contexts.service"
+    },
+    {
+      "api": 1,
+      "capability": "storage.app-data"
+    },
+    {
+      "api": 1,
+      "capability": "telemetry.broadcast"
+    },
+    {
+      "api": 1,
+      "capability": "storage.preferences"
+    },
+    {
+      "api": 1,
+      "capability": "storage.key-value.atomic"
+    },
+    {
+      "api": 1,
+      "capability": "runtime.realtime"
+    },
+    {
+      "api": 2,
+      "capability": "rtc.clock"
+    },
+    {
+      "capability": "net.wifi",
+      "api": 1
+    },
+    {
+      "capability": "bluetooth.hci",
+      "api": 1
+    },
+    {
+      "capability": "motion.accel",
+      "api": 1
+    },
+    {
+      "capability": "power.sleep",
+      "api": 1
+    },
+    {
+      "capability": "display.power",
+      "api": 1
+    },
+    {
+      "api": 1,
+      "capability": "alarm.service"
+    },
+    {
+      "api": 2,
+      "capability": "alarm.service.facade"
+    }
+  ]
+}
