@@ -162,9 +162,6 @@ def run(args):
             return {'path':str(path),'commit':commit,'status':status}
         except subprocess.CalledProcessError:
             return {'path':str(path),'commit':None}
-    native_ui = getattr(args, "native_ui", False)
-    width = getattr(args, "width", 410 if args.native_height else 240)
-    height = getattr(args, "height", 502 if args.native_height else 240)
     system = args.system_apps.resolve()
     output = (args.output or ROOT / 'build/spectrum-shared-input').resolve()
     recipe_path = args.recipe.resolve()
@@ -173,11 +170,9 @@ def run(args):
     safety_flags = ['-DPORTABLE_SPECTRUM_SHARED_TEXT_INPUT', '-DPORTABLE_TEXT_INPUT_CLIENT',
                     '-DPORTABLE_APP_LAUNCH_GUARD', '-DPORTABLE_CHECKED_STORAGE_RUNTIME',
                     '-DPORTABLE_NATIVE_CUSTODY_FENCE', '-DPORTABLE_ALARM_TERMINAL_RETENTION', '-DPORTABLE_WATCH_COLOR_ONLY', '-DPORTABLE_WATCH_FROZEN_ICONS']
-    if args.native_height or native_ui:
+    if args.native_height:
         safety_flags=[x for x in safety_flags if x!='-DPORTABLE_WATCH_FROZEN_ICONS']
-        safety_flags+=['-DPORTABLE_WATCH_NATIVE_HEIGHT',f'-DSPECTRUM_TEST_WIDTH={width}',f'-DSPECTRUM_TEST_HEIGHT={height}']
-    if native_ui:
-        safety_flags+=['-DPORTABLE_SPECTRUM_NATIVE_UI','-DPORTABLE_NATIVE_CANVAS']
+        safety_flags+=['-DPORTABLE_WATCH_NATIVE_HEIGHT','-DSPECTRUM_TEST_WIDTH=410','-DSPECTRUM_TEST_HEIGHT=502']
     output.mkdir(parents=True, exist_ok=True)
     sdk = output / 'sdk/include'
     sdk.mkdir(parents=True, exist_ok=True)
@@ -210,11 +205,10 @@ def run(args):
                 'catalog_sha256': hashlib.sha256(catalog.read_bytes()).hexdigest(), 'source_pins': {'system':source_pin(system),'runtime':source_pin(args.runtime.resolve()),'legacy_utilities':source_pin(args.baseline_utilities.resolve())},
                 'test_script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                 'source_commit': source_pin(ROOT)['commit'], 'sources': {}, 'results': [], 'setup_note': 'ui-* scenarios navigate entirely via touch. Boundary/fault scenarios seed editor preconditions with production entrypoints. Non-keyboard raster cases seed deterministic display state.'}
-    native_sources = [ROOT / 'Apps'/name for name in ('spectrum_native_layout.h','spectrum_native_view.inc','spectrum_native_subpages.inc')] if native_ui else []
-    for path in native_sources + [ROOT / 'Apps/audio_spectrum.c', ROOT / 'Apps/context_signal_library.inc', ROOT / 'Apps/spectrum_signature_app.inc', ROOT / 'Apps/spectrum_temporal_app.inc', ROOT / 'Apps/context_fingerprint_app.inc', ROOT / 'test/native_apps/spectrum_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', system / 'Services/scene_host/host.c', system / 'Services/text_input/host.c', system / 'lib/PortableApps/include/PortableTextInputClient.h']:
+    for path in [ROOT / 'Apps/audio_spectrum.c', ROOT / 'Apps/context_signal_library.inc', ROOT / 'Apps/spectrum_signature_app.inc', ROOT / 'Apps/spectrum_temporal_app.inc', ROOT / 'Apps/context_fingerprint_app.inc', ROOT / 'test/native_apps/spectrum_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', system / 'Services/scene_host/host.c', system / 'Services/text_input/host.c', system / 'lib/PortableApps/include/PortableTextInputClient.h']:
         evidence['sources'][str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
     selected = scenarios()
-    if 'PORTABLE_TEXT_INPUT_POLICY' in args.extra_define and not native_ui:
+    if 'PORTABLE_TEXT_INPUT_POLICY' in args.extra_define:
         begin=setup(0)+tap(120,120)+key('Q')
         for suffix,end in [('done',key('\x03')+check()),('cancel',nav('back','text')+check()),('home',nav('home','text'))]:
             selected['policy-stopped-'+suffix]=(begin+[(65000,'text','idle',0,0)]+end,{'SPECTRUM_POLICY_PROBE':'1','SPECTRUM_POLICY_STOPPED':'1','SPECTRUM_EXPECT_DRAFT':'Q' if suffix=='done' else '','SPECTRUM_EXPECT_KV_WRITES':'0','SPECTRUM_EXPECT_DATA_WRITES':'0'})
@@ -236,7 +230,7 @@ def run(args):
         for provider, entry in [('scene_host', 'spectrum_scene_driver_get'), ('text_input', 'spectrum_text_driver_get'), ('scene_profile', 'spectrum_profile_driver_get')]:
             obj = out / (provider + '.o')
             source = system / 'Services' / provider / ('profile.c' if provider == 'scene_profile' else 'host.c')
-            host_flags = ['-DSCENE_HOST_TELEMETRY=0', '-DSCENE_HOST_WATCH_240='+('1' if width == 240 and height == 240 else '0')] if provider == 'scene_host' else []
+            host_flags = ['-DSCENE_HOST_TELEMETRY=0', '-DSCENE_HOST_WATCH_240='+('0' if args.native_height else '1')] if provider == 'scene_host' else []
             subprocess.run([*command, *host_flags, '-Dt5_driver_get=' + entry, '-c', str(source), '-o', str(obj)], check=True)
             objects.append(obj)
         sources = [ROOT / 'test/native_apps/spectrum_shared_renderer_test.c', system / 'lib/PortableApps/src/adapter.c', catalog]
@@ -264,11 +258,11 @@ def run(args):
             from PIL import Image
             for ppm in folder.glob('*.ppm'):
                 with Image.open(ppm) as im:
-                    assert im.size == (width,height)
+                    assert im.size == ((410,502) if args.native_height else (240,240))
                     im.save(ppm.with_suffix('.png'))
                 ppm.unlink()
             print('Spectrum production shared input', 'ASan/UBSan' if sanitized else 'normal', name, 'PASS', flush=True)
-        if not native_ui and (not args.scenario or 'non-keyboard-views' in args.scenario):
+        if not args.scenario or 'non-keyboard-views' in args.scenario:
             baseline = out / 'baseline-renderer'
             baseline_flags = [command[0], '-I'+str(args.baseline_utilities.resolve()/'Apps'), *[x for x in command[1:] if x != '-DPORTABLE_SPECTRUM_SHARED_TEXT_INPUT']]
             baseline_source = args.baseline_utilities.resolve() / 'Apps/audio_spectrum.c'

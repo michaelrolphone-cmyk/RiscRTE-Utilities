@@ -1,0 +1,169 @@
+{
+  "scope": "Host Runtime qualification with physical device doubles; target Xtensa build and actual device/deployment remain pending",
+  "runtime_revision": "13eca114cb58469cf6004fafc3da84fbd9d29beb",
+  "system_revision": "734f3171a743bbcefc90fb8d843981b77965bc12",
+  "system_source_closure_comparison": {
+    "dependencies_and_generated_origins": 47,
+    "mismatches": []
+  },
+  "calculator_source_sha256": "fbec11f984eca5e339d2e3d0766ae249d191c07da00d022735c0dd5b15cec963",
+  "cases": [
+    {
+      "mode": "normal",
+      "results": {
+        "cases": [
+          {
+            "profile": "paper",
+            "width": 800,
+            "height": 480,
+            "format": 1,
+            "activation": "demand",
+            "app_sha256": "b8b0325eab131b8b032d5e346f90becf5c4491683755349765a0392e672114c2",
+            "passed": true
+          },
+          {
+            "profile": "paper",
+            "width": 800,
+            "height": 480,
+            "format": 1,
+            "activation": "retained-providers",
+            "app_sha256": "b8b0325eab131b8b032d5e346f90becf5c4491683755349765a0392e672114c2",
+            "passed": true
+          },
+          {
+            "profile": "watch",
+            "width": 240,
+            "height": 240,
+            "format": 5,
+            "activation": "demand",
+            "app_sha256": "b8b0325eab131b8b032d5e346f90becf5c4491683755349765a0392e672114c2",
+            "passed": true
+          },
+          {
+            "profile": "watch",
+            "width": 240,
+            "height": 240,
+            "format": 5,
+            "activation": "retained-providers",
+            "app_sha256": "b8b0325eab131b8b032d5e346f90becf5c4491683755349765a0392e672114c2",
+            "passed": true
+          },
+          {
+            "profile": "watch",
+            "width": 240,
+            "height": 240,
+            "format": 5,
+            "activation": "no-ui",
+            "app_sha256": "b8b0325eab131b8b032d5e346f90becf5c4491683755349765a0392e672114c2",
+            "passed": true
+          },
+          {
+            "profile": "amoled",
+            "width": 410,
+            "height": 502,
+            "format": 5,
+            "activation": "demand",
+            "app_sha256": "b8b0325eab131b8b032d5e346f90becf5c4491683755349765a0392e672114c2",
+            "passed": true
+          },
+          {
+            "profile": "amoled",
+            "width": 410,
+            "height": 502,
+            "format": 5,
+            "activation": "retained-providers",
+            "app_sha256": "b8b0325eab131b8b032d5e346f90becf5c4491683755349765a0392e672114c2",
+            "passed": true
+          }
+        ],
+        "scope": "host Runtime, ELF loader, real scene provider and app; physical doubles",
+        "sanitize": false,
+        "hardware": "not tested"
+      },
+      "results_sha256": "5f4b9e8cb7f6f3fa14d4483f5fefb1529e8bfb76c67cb40ca595872c52f07609",
+      "dependencies_sha256": "4386d19fa16ca6fc7a1d4f46e295ee432a170d0766af3a73f4aae171e2ba85f2"
+    },
+    {
+      "mode": "sanitized",
+      "results": {
+        "cases": [
+          {
+            "profile": "paper",
+            "width": 800,
+            "height": 480,
+            "format": 1,
+            "activation": "demand",
+            "app_sha256": "e2293684b29433780ec7b265d731589d25a19ea61cefc9af89b57dbea81bd5b6",
+            "passed": true
+          },
+          {
+            "profile": "paper",
+            "width": 800,
+            "height": 480,
+            "format": 1,
+            "activation": "retained-providers",
+            "app_sha256": "e2293684b29433780ec7b265d731589d25a19ea61cefc9af89b57dbea81bd5b6",
+            "passed": true
+          },
+          {
+            "profile": "watch",
+            "width": 240,
+            "height": 240,
+            "format": 5,
+            "activation": "demand",
+            "app_sha256": "e2293684b29433780ec7b265d731589d25a19ea61cefc9af89b57dbea81bd5b6",
+            "passed": true
+          },
+          {
+            "profile": "watch",
+            "width": 240,
+            "height": 240,
+            "format": 5,
+            "activation": "retained-providers",
+            "app_sha256": "e2293684b29433780ec7b265d731589d25a19ea61cefc9af89b57dbea81bd5b6",
+            "passed": true
+          },
+          {
+            "profile": "watch",
+            "width": 240,
+            "height": 240,
+            "format": 5,
+            "activation": "no-ui",
+            "app_sha256": "e2293684b29433780ec7b265d731589d25a19ea61cefc9af89b57dbea81bd5b6",
+            "passed": true
+          },
+          {
+            "profile": "amoled",
+            "width": 410,
+            "height": 502,
+            "format": 5,
+            "activation": "demand",
+            "app_sha256": "e2293684b29433780ec7b265d731589d25a19ea61cefc9af89b57dbea81bd5b6",
+            "passed": true
+          },
+          {
+            "profile": "amoled",
+            "width": 410,
+            "height": 502,
+            "format": 5,
+            "activation": "retained-providers",
+            "app_sha256": "e2293684b29433780ec7b265d731589d25a19ea61cefc9af89b57dbea81bd5b6",
+            "passed": true
+          }
+        ],
+        "scope": "host Runtime, ELF loader, real scene provider and app; physical doubles",
+        "sanitize": true,
+        "hardware": "not tested"
+      },
+      "results_sha256": "cc9e56782b94d096ca0492c35d1818f569c6e7ddb2345f36fd26056fc7dadc61",
+      "dependencies_sha256": "62d237ab7d2fc2e0db8ef994a08ba3472cad1b313452df6ee3e2307292a46396"
+    }
+  ],
+  "semantic_witness": "7 + 8 = 15, clean unload/reopen resets ephemeral calculator then 7; unavailable UI clean return without frames",
+  "prior_failed_attempts": [
+    "Missing required empty fixture arrays corrected",
+    "Real production navigation struct_size initialization defect repaired by owner; strict stub now checks it",
+    "Initial full-debug sanitizer compilation killed cc1plus; -g1 preserves ASan/UBSan and final seven cases pass",
+    "One output directory named sanitized was actually invoked without flag; its results.json has sanitize=false and is not sanitizer evidence"
+  ]
+}

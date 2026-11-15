@@ -163,35 +163,3 @@ Build and qualification: the Watch product's `build_watch_keyboard_lora.py`
 preserves the hash-bound predecessor flags and all grants, adding the shared
 client/custody-fence selectors. Normal and sanitizer tests are software evidence;
 no physical radio, display, button, touch or flashing result is implied.
-
-## Opt-in native color qualification
-
-`PORTABLE_LORA_NATIVE_UI` together with `PORTABLE_NATIVE_CANVAS` selects an
-app-owned physical-pixel layout on an admitted RGB565 surface. The layout is
-computed from the capability dimensions, including 160×160, 240×240, 320×180,
-410×502 and 502×410. It does not enlarge a fixed 240-pixel image or invert a
-legacy coordinate transform. Monochrome admission leaves the existing path
-untouched; both new selectors are absent from existing product recipes.
-
-The same rectangles drive rasterization and hit testing. History shows as many
-rows as fit. Draft review and message detail page by a conservative printable
-font width and the available rows, so every stored byte remains reviewable.
-Incoming metadata separates RSSI and quarter-dB SNR; outgoing status continues
-to state that there is no delivery receipt. The existing radio state machine,
-profile encoding, namespace9 storage, session history, ASCII capacities and
-explicit RF/Send policy remain unchanged. Both the existing 35-key local
-keyboard and the separate shared text-input service retain their original
-characters and semantic actions.
-
-A private, statically linked presentation owner11 rejects contacts that began
-before the matching image was visible, crossed an action boundary, or survived
-a page/history mapping change. Quick's reserved top-edge replay must carry the
-original physical DOWN and its visible generation. Same-map repaint preserves
-eligible held input. Physical buttons are edge-triggered; Confirm is disabled
-until the page is ready. Root Back settles any outstanding native frame before
-requesting the caller, and a retained failure performs no later app cleanup.
-
-The [native qualification profile](../NATIVE_LORA_QUALIFICATION.md) separates
-host software evidence, strict standalone target checks and unchanged
-selector-off comparisons from full product assembly and installed-card/hardware
-acceptance. It creates no live package manifest, release or deployment change.

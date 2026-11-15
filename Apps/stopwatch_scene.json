@@ -1,0 +1,16 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "file_name": "stopwatch.elf",
+  "id": "stopwatch",
+  "display_name": "Stopwatch",
+  "type": "application",
+  "version": "0.2.0",
+  "requires": [],
+  "optional": [
+    {"api": 1, "capability": "ui.scene"},
+    {"api": 1, "capability": "storage.key-value"},
+    {"api": 1, "capability": "runtime.realtime"},
+    {"api": 2, "capability": "rtc.clock"}
+  ]
+}

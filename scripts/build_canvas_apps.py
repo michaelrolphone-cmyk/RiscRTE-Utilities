@@ -9,6 +9,9 @@ def stage(runtime,system,out):
  for source in (ROOT/'lib/CanvasApp/include').glob('*.h'):
   if not source.name.startswith('Risc') or not (include/source.name).exists():shutil.copyfile(source,include/source.name)
  for name in ['RiscStorageVolumeV1.h','RiscAppDataV1.h','T5FileOpenApi.h']:shutil.copyfile(runtime/'sdk/app'/name,include/name)
+ # Additive canonical helper; do not repin the staged Runtime ABI.
+ from runtime_clock_sdk import stage_runtime_clock
+ stage_runtime_clock(include)
  return include
 
 def build(runtime,system,output,target):

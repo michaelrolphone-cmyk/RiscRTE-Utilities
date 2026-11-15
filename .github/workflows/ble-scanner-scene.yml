@@ -1,0 +1,94 @@
+name: Shared BLE Scanner qualification
+on:
+  pull_request:
+    paths:
+      - 'Apps/ble_scanner_scene*'
+      - 'Apps/scanner*'
+      - 'Apps/ble_sensor_names.h'
+      - 'Apps/battery_broadcast.h'
+      - 'Apps/battery_preference_adapter.h'
+      - 'lib/Bluetooth/include/**'
+      - 'scripts/*scanner*'
+      - 'scripts/build_shared_scene_apps.py'
+      - 'utilities-manifest.json'
+      - 'test/scanner*/**'
+      - '.github/workflows/ble-scanner-scene.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qualification:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: eb4dd5306906d57e65f24f911d325bc87370666b
+          path: System
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 0052d1fc42e9cfc82d626c5a247d460919c87935
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: bb0cadf3cec3445a64e11513b47b2676f3fdd92d
+          path: RetainedSystem
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Retain exact source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qualification/source qualification/logs
+          test "$(git -C System rev-parse HEAD)" = eb4dd5306906d57e65f24f911d325bc87370666b
+          test "$(git -C Runtime rev-parse HEAD)" = 0052d1fc42e9cfc82d626c5a247d460919c87935
+          for source in Utilities System Runtime RetainedSystem; do
+            git -C "$source" archive --format=tar HEAD | gzip -n > "qualification/source/$source.tar.gz"
+            git -C "$source" rev-parse HEAD > "qualification/source/$source.head"
+          done
+          sha256sum qualification/source/*.tar.gz > qualification/source/archives.sha256
+      - name: Fresh focused and actual Runtime qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s Utilities/test/scanner_projection -p 'test_*.py' -v 2>&1 | tee qualification/logs/projection.log
+          for mode in normal sanitized; do
+            san=(); if [ "$mode" = sanitized ]; then san=(--sanitize); fi
+            for suite in preferences scene alarm; do
+              python "Utilities/scripts/test_scanner_$suite.py" --runtime Runtime --system System --output "qualification/$suite-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/$suite-$mode.log"
+            done
+            python Utilities/scripts/test_scanner_presenter.py --system System --output "qualification/presenter-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/presenter-$mode.log"
+            python Utilities/scripts/test_scanner_session.py --runtime Runtime --output "qualification/session-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/session-$mode.log"
+            python Utilities/scripts/test_scanner_background.py --runtime Runtime --system System --utilities Utilities --output "qualification/background-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/background-$mode.log"
+            python Utilities/scripts/test_scanner_publish_provider.py --runtime Runtime --system System --output "qualification/publish-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/publish-$mode.log"
+            python Utilities/scripts/test_scanner_publish_provider.py --runtime Runtime --system System --provider-system RetainedSystem --output "qualification/publish-retained-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/publish-retained-$mode.log"
+            python Utilities/scripts/test_scanner_runtime.py --runtime Runtime --system-apps System --output "qualification/runtime-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/runtime-$mode.log"
+            python Utilities/scripts/test_scanner_runtime.py --runtime Runtime --system-apps System --provider-system RetainedSystem --output "qualification/runtime-retained-$mode" "${san[@]}" 2>&1 | tee "qualification/logs/runtime-retained-$mode.log"
+          done
+      - name: Canonical one-ELF target and repeat
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/scanner-toolchain" 2>&1 | tee qualification/logs/compiler.log
+          export NATIVE_APP_CC="$RUNNER_TEMP/scanner-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc"
+          python Utilities/scripts/build_shared_scene_apps.py --runtime Runtime --system-apps System --app ble_scanner --output qualification/target 2>&1 | tee qualification/logs/target.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ble-scanner-${{ github.sha }}
+          path: qualification/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

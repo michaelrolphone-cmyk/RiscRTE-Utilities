@@ -23,9 +23,6 @@ static const unsigned steps[]={10,100,1000};
 static bool playing,owned,uncertain,dirty;
 static uint32_t started;
 static const char *message;
-#ifdef PORTABLE_FREQUENCY_NATIVE_UI
-#include "frequency_native.inc"
-#endif
 
 /* Shared adapter hooks. Own only streams opened by this app. Once suspended
  * for an alarm/sleep, cleanup must never touch the alarm's subsequent stream. */
@@ -65,13 +62,7 @@ static void toggle(void) {
     playing=true;started=app->millis();message="Sine - stops after 60 s";dirty=true;
 }
 static void draw(void) {
-#ifdef PORTABLE_FREQUENCY_NATIVE_UI
- if(frequency_native_active)frequency_native_mapping();
-#endif
  if(!utility_frame_begin(app))return;
-#ifdef PORTABLE_FREQUENCY_NATIVE_UI
- if(frequency_native_active){frequency_native_render();dirty=false;return;}
-#endif
     char text[40];
 #ifdef PORTABLE_NOVA_UI
     portable_nova_begin();portable_nova_header("FREQUENCY");
@@ -131,15 +122,6 @@ void app_main(void) {
        !app->draw_text||!app->draw_label||!app->fill_rect||!app->present||
        !runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||
        !runtime->acquire||!runtime->release||!runtime->diagnostic||!runtime->yield_ms)return;
-#ifdef PORTABLE_FREQUENCY_NATIVE_UI
-    frequency_native_active=portable_frequency_native_available();
-    frequency_native_contact=false;frequency_native_pressed=-1;frequency_native_input_generation=0;
-    if(frequency_native_active){
-        if(app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->touch_contact||
-           !frequency_native_open(app->screen_width(),app->screen_height()))return;
-        portable_frequency_native_begin();
-    } else
-#endif
     if(app->screen_width()<240||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
     output=NULL;grant=(risc_runtime_capability_v1){0};tone=(tone_state){0};
     frequency=440;volume=100;step_index=1;playing=owned=uncertain=false;dirty=true;
@@ -149,11 +131,7 @@ void app_main(void) {
     message="100% level - tap Start";
 #endif
     for(;;) {
-        if(dirty
-#ifdef PORTABLE_FREQUENCY_NATIVE_UI
-           ||(frequency_native_active&&portable_frequency_native_repaint())
-#endif
-          )draw();
+        if(dirty)draw();
         t5_app_input_t input={0};
         if(!app->poll(&input,playing?0:30)) {
 #ifdef PORTABLE_ALARM_CLIENT
@@ -161,27 +139,12 @@ void app_main(void) {
 #endif
             break;
         }
-#ifdef PORTABLE_FREQUENCY_NATIVE_UI
-        if(frequency_native_active)frequency_native_input(&input);
-#endif
         if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK))break;
         bool toggle_requested=!!(input.buttons&T5_APP_BUTTON_CONFIRM);
         if(input.buttons&T5_APP_BUTTON_LEFT)adjust_frequency(-(int)steps[step_index]);
         if(input.buttons&T5_APP_BUTTON_RIGHT)adjust_frequency((int)steps[step_index]);
         if(input.tapped) {
             int x=input.touch_x,y=input.touch_y;
-#ifdef PORTABLE_FREQUENCY_NATIVE_UI
-            if(frequency_native_active) {
-                int target=frequency_native_target(x,y);
-                if(target==FREQUENCY_TOGGLE)toggle_requested=true;
-                else if(target==FREQUENCY_LEVEL_LESS||target==FREQUENCY_LEVEL_MORE) {
-                    volume=tone_adjust(volume,target==FREQUENCY_LEVEL_LESS?-1:1,0,TONE_MAX_PERCENT);
-                    (void)tone_configure(&tone,frequency,volume);dirty=true;
-                } else if(target==FREQUENCY_LESS||target==FREQUENCY_MORE)
-                    adjust_frequency((target==FREQUENCY_LESS?-1:1)*(int)steps[step_index]);
-                else if(target>=FREQUENCY_STEP_10&&target<=FREQUENCY_STEP_1000){step_index=(unsigned)(target-FREQUENCY_STEP_10);dirty=true;}
-            } else {
-#endif
 #ifdef PORTABLE_NOVA_UI
             x=utility_color_x(app,x);y=utility_color_y(app,y);
             if(portable_nova_hit(x,y,72,196,96,44))toggle_requested=true;
@@ -197,9 +160,6 @@ void app_main(void) {
             else if(x>=8&&x<w-8&&y>=94&&y<128)adjust_frequency((x<w/2?-1:1)*(int)steps[step_index]);
             else if(x>=8&&x<w-8&&y>=130&&y<155){step_index=(unsigned)((x-8)*3/(w-16));dirty=true;}
             else if(x>=8&&x<w-8&&y>=157&&y<180){volume=tone_adjust(volume,x<w/2?-1:1,0,TONE_MAX_PERCENT);(void)tone_configure(&tone,frequency,volume);dirty=true;}
-#endif
-#ifdef PORTABLE_FREQUENCY_NATIVE_UI
-            }
 #endif
         }
         /* Touch and navigation may arrive in one frame. Coalesce a paired

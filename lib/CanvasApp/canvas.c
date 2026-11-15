@@ -1,5 +1,6 @@
 #include "CanvasApp.h"
 #include "RiscRuntimeV1.h"
+#include "RiscRuntimeClockV1.h"
 #include "RiscDisplayOutputV1.h"
 #include "RiscInputNavigationV1.h"
 #include "RiscStorageVolumeV1.h"
@@ -44,8 +45,7 @@ static uint32_t clock_last;
 static uint32_t now(void){
  uint32_t ms=clock_last;
  if(rt && !retained){
-  if(rt->struct_size>=RISC_RUNTIME_MONOTONIC_V1_SIZE && rt->monotonic_ms){if(!rt->monotonic_ms(&ms))exiting=true;}
-  else{risc_runtime_health_v1 h={.struct_size=sizeof(h)};if(rt->health(&h))ms=h.uptime_ms;else exiting=true;}
+  if(!risc_runtime_monotonic_ms_v1(rt,&ms))exiting=true;
  }
  clock_last=ms;return ms;
 }
@@ -65,8 +65,7 @@ static bool acquire(const char *name,uint32_t version,uint32_t *lease,const void
  }return false;
 }
 static bool release(uint32_t lease){
- if(!lease)return true;
- if(retained||!rt||lease>MAX_GRANTS)return false;
+ if(!lease)return true;if(retained||!rt||lease>MAX_GRANTS)return false;
  if(!rt->release(&grants[lease-1])){canvas_retain("Canvas: capability release retained");return false;}
  memset(&grants[lease-1],0,sizeof(grants[0]));return true;
 }
@@ -103,8 +102,7 @@ static void put_output(unsigned x,unsigned y,bool black){
 typedef struct{unsigned x,y,w,h;uint32_t action;const char *label;} control;
 static control control_at(unsigned i){
  unsigned w=logical_out_w/10,h=logical_out_h/7;
- if(w<44)w=44;
- if(h<44)h=44;
+ if(w<44)w=44;if(h<44)h=44;
  const uint32_t acts[]={1,2,512,1024,4,32,8,128};
  const char *names[]={"<",">","^","v","JUMP","USE","PAUSE","NOTES"};
  unsigned x=0,y=logical_out_h-h-4;
@@ -173,8 +171,7 @@ static void touch_poll(void){
  for(unsigned i=0;i<RISC_TOUCH_QUEUE_LENGTH;i++){
   risc_touch_event_v1 e={0};int32_t rc=touch->next(touch->context,subscription,&e);
   if(!rc){drained=true;break;}if(rc!=1){ok=false;break;}
-  if(last_sequence&&e.sequence!=last_sequence+1)ok=false;
-  last_sequence=e.sequence;events[count++]=e;
+  if(last_sequence&&e.sequence!=last_sequence+1)ok=false;last_sequence=e.sequence;events[count++]=e;
  }
  risc_touch_snapshot_v1 s={0};if(!touch->snapshot(touch->context,&s)||!s.width||!s.height||s.contact_count>RISC_TOUCH_MAX_CONTACTS)ok=false;
  if(s.buttons&RISC_TOUCH_BUTTON_PRIMARY)exiting=true;
@@ -200,8 +197,7 @@ bool canvas_contacts(risc_touch_snapshot_v1 *out){
  if(!out)return false;
  if(blocked||retained){memset(out,0,sizeof(*out));return false;}
  if(touch_count){*out=touch_queue[touch_head];touch_head=(touch_head+1)%64;touch_count--;}
- else *out=contacts;
- return true;
+ else *out=contacts;return true;
 }
 uint32_t canvas_game_buttons(void){return game_buttons;}
 void canvas_set_controls(bool on){controls=on;}
@@ -235,8 +231,7 @@ const char *canvas_model_name(unsigned i){return i<3?model_names[i]:"";}
 void canvas_model_select(unsigned i){selected=i<3?i:0;selected_path[0]=0;}
 bool canvas_model_source(char *out,size_t cap){
  if(selected_path[0])snprintf(out,cap,"%s",selected_path);
- else snprintf(out,cap,"%s",selected==0?"builtin.obj":selected==1?"model.obj":"model.stl");
- return true;
+ else snprintf(out,cap,"%s",selected==0?"builtin.obj":selected==1?"model.obj":"model.stl");return true;
 }
 static bool source_path_get(char *out,size_t cap){return canvas_model_source(out,cap);}
 const t5_file_open_api_v1 *t5_file_open_get_api(uint32_t v){static const t5_file_open_api_v1 a={.api_version=1,.struct_size=sizeof(a),.source_path_get=source_path_get};return v==1?&a:NULL;}
@@ -266,13 +261,10 @@ static uint32_t stream_open(const char *path,size_t *size){
 static size_t stream_read(uint32_t h,void *out,size_t n){
  if(!h||retained||exiting)return 0;
  if(model_bytes){if(n>model_size-model_offset)n=model_size-model_offset;memcpy(out,model_bytes+model_offset,n);model_offset+=(unsigned)n;return n;}
- if(!stream)return 0;
- if(n>RISC_STORAGE_VOLUME_IO_MAX)n=RISC_STORAGE_VOLUME_IO_MAX;
- size_t got=volume->file_read(volume->context,stream,out,n);if(got>n){exiting=true;return 0;}stream_offset+=got;return got;
+ if(!stream)return 0;if(n>RISC_STORAGE_VOLUME_IO_MAX)n=RISC_STORAGE_VOLUME_IO_MAX;size_t got=volume->file_read(volume->context,stream,out,n);if(got>n){exiting=true;return 0;}stream_offset+=got;return got;
 }
 static bool stream_seek(uint32_t h,size_t offset){
- if(!h||retained)return false;
- if(model_bytes){if(offset>model_size)return false;model_offset=(unsigned)offset;return true;}
+ if(!h||retained)return false;if(model_bytes){if(offset>model_size)return false;model_offset=(unsigned)offset;return true;}
  if(!stream||offset>stream_size||exiting)return false;
  if(volume->struct_size>=sizeof(risc_storage_volume_api_v1_ext)){
   const risc_storage_volume_api_v1_ext *e=(const void*)volume;if(e->file_seek){bool ok=e->file_seek(volume->context,stream,offset);if(ok)stream_offset=offset;return ok;}

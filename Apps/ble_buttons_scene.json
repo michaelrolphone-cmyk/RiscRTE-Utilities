@@ -1,0 +1,84 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "file_name": "ble_buttons.elf",
+  "id": "ble_buttons",
+  "requires": [],
+  "type": "application",
+  "version": "0.2.0",
+  "display_name": "BLE Buttons",
+  "optional": [
+    {
+      "api": 1,
+      "capability": "ui.scene"
+    },
+    {
+      "api": 1,
+      "capability": "bluetooth.hid"
+    },
+    {
+      "api": 1,
+      "capability": "storage.key-value"
+    },
+    {
+      "api": 1,
+      "capability": "board.battery"
+    },
+    {
+      "api": 2,
+      "capability": "alarm.service"
+    },
+    {
+      "api": 1,
+      "capability": "input.power-key"
+    },
+    {
+      "api": 1,
+      "capability": "contexts.service"
+    },
+    {
+      "api": 1,
+      "capability": "storage.app-data"
+    },
+    {
+      "api": 1,
+      "capability": "telemetry.broadcast"
+    },
+    {
+      "api": 1,
+      "capability": "storage.preferences"
+    },
+    {
+      "api": 1,
+      "capability": "storage.key-value.atomic"
+    },
+    {
+      "api": 1,
+      "capability": "runtime.realtime"
+    },
+    {
+      "api": 2,
+      "capability": "rtc.clock"
+    },
+    {
+      "capability": "net.wifi",
+      "api": 1
+    },
+    {
+      "capability": "bluetooth.hci",
+      "api": 1
+    },
+    {
+      "capability": "motion.accel",
+      "api": 1
+    },
+    {
+      "capability": "power.sleep",
+      "api": 1
+    },
+    {
+      "capability": "display.power",
+      "api": 1
+    }
+  ]
+}

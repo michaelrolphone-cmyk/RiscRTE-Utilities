@@ -1,0 +1,16 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "file_name": "calculator.elf",
+  "id": "calculator",
+  "requires": [],
+  "type": "application",
+  "version": "0.2.0",
+  "optional": [
+    {
+      "api": 1,
+      "capability": "ui.scene"
+    }
+  ],
+  "display_name": "Calculator"
+}

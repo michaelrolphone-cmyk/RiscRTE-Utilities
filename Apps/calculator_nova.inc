@@ -15,22 +15,13 @@ static const char *const calculator_labels[]={"7","8","9","/","4","5","6","x","1
 static const char *calculator_display(void) {
     return calculator_state.error==CALC_DIV_ZERO?"Divide by zero":calculator_state.error==CALC_OVERFLOW?"Overflow":calculator_state.text;
 }
-#ifdef PORTABLE_CALCULATOR_NATIVE_UI
-#include "calculator_native.inc"
-#endif
 #ifdef PORTABLE_PAPER_UTILITIES
 #include "calculator_paper.inc"
 #endif
 static void calculator_render(void) {
-#ifdef PORTABLE_CALCULATOR_NATIVE_UI
- if(calculator_native_active)calculator_native_mapping();
-#endif
  if(!utility_frame_begin(calculator_api))return;
 #ifdef PORTABLE_PAPER_UTILITIES
     if(utility_paper){calculator_paper_render();return;}
-#endif
-#ifdef PORTABLE_CALCULATOR_NATIVE_UI
-    if(calculator_native_active){calculator_native_render();return;}
 #endif
     portable_nova_begin();
     if(calculator_menu) {
@@ -50,9 +41,6 @@ static void calculator_render(void) {
     calculator_api->present(false);
 }
 static int calculator_hit(int x,int y) {
-#ifdef PORTABLE_CALCULATOR_NATIVE_UI
-    if(calculator_native_active){int key=calculator_native_target(x,y);return key<16?key:-1;}
-#endif
 #ifdef PORTABLE_PAPER_UTILITIES
     if(utility_paper)return calculator_paper_hit(x,y);
 #endif
@@ -66,28 +54,9 @@ void app_main(void) {
     if(!calculator_api || !calculator_api->poll || !calculator_api->present || !calculator_api->screen_width || !calculator_api->screen_height)return;
 #ifdef PORTABLE_PAPER_UTILITIES
     up_open(calculator_api);
-#ifdef PORTABLE_CALCULATOR_NATIVE_UI
-    if(!utility_paper&&!calculator_native_open(calculator_api->screen_width(),calculator_api->screen_height()))return;
-#else
     if(!utility_paper && !utility_color_dimensions(calculator_api))return;
-#endif
-#else
-#ifdef PORTABLE_CALCULATOR_NATIVE_UI
-    if(!calculator_native_open(calculator_api->screen_width(),calculator_api->screen_height()))return;
 #else
     if(!utility_color_dimensions(calculator_api))return;
-#endif
-#endif
-#ifdef PORTABLE_CALCULATOR_NATIVE_UI
-    calculator_native_active=true;
-#ifdef PORTABLE_PAPER_UTILITIES
-    calculator_native_active=!utility_paper;
-#endif
-    calculator_native_contact=false;calculator_native_pressed=-1;calculator_native_input_generation=0;
-    if(calculator_native_active){
-      if(calculator_api->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(calculator_api->touch_contact)||!calculator_api->touch_contact)return;
-      portable_calculator_native_begin();
-    }
 #endif
     calc_reset(&calculator_state);calculator_menu=false;calculator_selected=0;calculator_render();
     for(;;) {
@@ -100,11 +69,7 @@ void app_main(void) {
 #ifdef PORTABLE_PAPER_UTILITIES
         if(!utility_paper)
 #endif
-#ifdef PORTABLE_CALCULATOR_NATIVE_UI
-        {if(calculator_native_active)calculator_native_input(&input);else utility_color_input(calculator_api,&input);}
-#else
         utility_color_input(calculator_api,&input);
-#endif
         if(input.exit_requested || (input.buttons&T5_APP_BUTTON_BACK)) {
             if(calculator_menu){calculator_menu=false;calculator_selected=0;calculator_render();continue;}
 #ifdef CALCULATOR_RETURN_APP
@@ -116,9 +81,6 @@ void app_main(void) {
         if(input.tapped && !calculator_menu && (
 #ifdef PORTABLE_PAPER_UTILITIES
             utility_paper?up_hit(input.touch_x,input.touch_y,248,688,200,88):
-#endif
-#ifdef PORTABLE_CALCULATOR_NATIVE_UI
-            calculator_native_active?calculator_native_target(input.touch_x,input.touch_y)==17:
 #endif
             portable_nova_hit(input.touch_x,input.touch_y,188,4,44,44))) {
             calculator_menu=true;calculator_selected=0;calculator_render();continue;

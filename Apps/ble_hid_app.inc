@@ -55,52 +55,6 @@ static uint32_t pair_began,ui_block_until;
 static const char *message;
 enum { HID_VIEW_MAIN, HID_VIEW_SETTINGS, HID_VIEW_EDIT, HID_VIEW_MODIFIERS, HID_VIEW_FORGET };
 static bool close_session(void);
-#if (defined(PORTABLE_BLE_BUTTONS_NATIVE_UI) && !HID_TOUCHPAD) || (defined(PORTABLE_BLE_TOUCHPAD_NATIVE_UI) && HID_TOUCHPAD)
-#define HID_NATIVE_UI 1
-#endif
-#ifdef HID_NATIVE_UI
-#ifndef PORTABLE_NATIVE_CANVAS
-#error Native BLE HID requires PORTABLE_NATIVE_CANVAS
-#endif
-#if HID_TOUCHPAD
-#include "ble_touchpad_native_layout.h"
-#include "PortableBleTouchpadNative.h"
-#define portable_ble_buttons_native_begin portable_ble_touchpad_native_begin
-#define portable_ble_buttons_native_layout portable_ble_touchpad_native_layout
-#define portable_ble_buttons_native_present portable_ble_touchpad_native_present
-#define portable_ble_buttons_native_ready portable_ble_touchpad_native_ready
-static uint8_t hid_native_ids[2],hid_native_count;
-static uint64_t hid_native_session_epoch;
-static bool hid_native_owns(uint8_t id){for(unsigned i=0;i<hid_native_count;i++)if(hid_native_ids[i]==id)return true;return false;}
-#else
-#include "ble_buttons_native_layout.h"
-#include "PortableBleButtonsNative.h"
-#endif
-static uint64_t hid_native_raw_generation;
-static bool hid_native_contact_owned;
-#if !HID_TOUCHPAD
-static uint8_t hid_native_contact_id;
-#endif
-static bool hid_native_enabled(void){return !paper;}
-static hid_native_layout hid_native_geometry(void){
- hid_native_layout l={0};(void)hid_native_layout_make(&l,app->screen_width(),app->screen_height());return l;
-}
-static uint64_t hid_native_layout_identity(void){
-#if HID_TOUCHPAD
- uint64_t id=UINT64_C(1469598103934665603);
- const uint64_t values[]={app->screen_width(),app->screen_height(),view,status.state,status.flags,status.connection_generation,status.pairing_number,token!=0,hid_native_session_epoch};
- for(unsigned i=0;i<sizeof(values)/sizeof(values[0]);i++){id^=values[i];id*=UINT64_C(1099511628211);}return id;
-#else
- unsigned page=status.state==RISC_HID_PAIR_CONFIRM&&token?8u:view;
- unsigned field=view==HID_VIEW_EDIT?draft.kind:0u;
- return ((uint64_t)(uint16_t)app->screen_width()<<48)|((uint64_t)(uint16_t)app->screen_height()<<32)|((uint64_t)page<<16)|((uint64_t)selected<<8)|field;
-#endif
-}
-static void hid_native_layout_select(void){if(hid_native_enabled())portable_ble_buttons_native_layout(hid_native_layout_identity());}
-static bool hid_native_back_hit(int x,int y){return hid_native_inside(hid_native_geometry().back,x,y);}
-#else
-#define hid_native_enabled() false
-#endif
 static int hid_width(void){return paper?480:240;}
 static int hid_height(void){return paper?800:240;}
 static void session_diagnostic(const char *stage){
@@ -124,12 +78,6 @@ static void cleanup_wait(void){
 }
 static void retain_grant(risc_runtime_capability_v1*g){held_grant=*g;held_acquired=true;closing=true;cleanup_wait();}
 static bool release_input(void){
-#ifdef HID_NATIVE_UI
- hid_native_contact_owned=false;
-#if HID_TOUCHPAD
- hid_native_count=0;
-#endif
-#endif
 #if !HID_TOUCHPAD
  reset_button_queue();
 #endif
@@ -140,12 +88,6 @@ static bool release_input(void){
 /* Failed close keeps both the token and provider grant alive. This is retryable
  * cleanup only; no reports, status reads or unrelated provider I/O may follow. */
 static bool close_session(void){
-#ifdef HID_NATIVE_UI
- hid_native_contact_owned=false;
-#if HID_TOUCHPAD
- hid_native_count=0;
-#endif
-#endif
 #if !HID_TOUCHPAD
  reset_button_queue();
 #endif
@@ -226,9 +168,6 @@ static void start_session(bool pair){
  if(!acquire_hid()||!open_raw()){const char*s=message;stop_session(s);return;}
  token=0;bool ok=hid->open(hid->context,paper?(HID_TOUCHPAD?"Paper Touchpad":"Paper Buttons"):(HID_TOUCHPAD?"Watch Touchpad":"Watch Buttons"),pair,&token);
  if(!ok||!token){session_diagnostic("open-failed");stop_session(pair?"Pair start failed - retry":"Reconnect failed / no bond");return;}
-#if defined(HID_NATIVE_UI) && HID_TOUCHPAD
- ++hid_native_session_epoch;
-#endif
  had_ready=false;status=(risc_bluetooth_hid_status_v1){.struct_size=sizeof(status)};
  message=pair?(paper?"Find Paper in host Bluetooth":"Find Watch in host Bluetooth"):"Waiting for saved host";refreshed=reported=app->millis();battery_at=refreshed-30000u;update_battery();
 }
@@ -242,13 +181,7 @@ static bool send_assignment(const hid_assignment*a,bool pressed){
  if(a->kind==HID_ACTION_KEY){uint8_t keys[6]={0};if(pressed)keys[0]=a->key;return hid->keyboard(hid->context,token,pressed?a->modifiers:0,keys);}
  return hid->mouse(hid->context,token,pressed?a->buttons:0,pressed?a->dx:0,pressed?a->dy:0,pressed?a->wheel:0);
 }
-static int button_at(int x,int y){
-#ifdef HID_NATIVE_UI
- if(hid_native_enabled()){hid_native_layout l=hid_native_geometry();for(unsigned i=0;i<4;i++)if(hid_native_inside(l.buttons[i],x,y))return (int)i;return -1;}
-#endif
- if(paper){if(x<32||x>=448||y<224||y>=624||(x>=232&&x<248)||(y>=416&&y<432))return -1;return (y>=432?2:0)+(x>=248?1:0);}
- if(x<8||x>=232||y<80||y>=190|| (x>=116&&x<124)||(y>=131&&y<139))return -1;
- return (y>=139?2:0)+(x>=124?1:0);}
+static int button_at(int x,int y){if(paper){if(x<32||x>=448||y<224||y>=624||(x>=232&&x<248)||(y>=416&&y<432))return -1;return (y>=432?2:0)+(x>=248?1:0);}if(x<8||x>=232||y<80||y>=190|| (x>=116&&x<124)||(y>=131&&y<139))return -1;return (y>=139?2:0)+(x>=124?1:0);}
 #if !HID_TOUCHPAD
 /* Capture validated contacts independently of display completion. A snapshot
  * can be neutral after several complete contacts; preserve each ordered pair.
@@ -289,13 +222,7 @@ static const risc_bluetooth_hid_scroll_api_v1 *scroll_api(void){
  const risc_bluetooth_hid_scroll_api_v1 *v=(const void*)hid;return v->mouse_scroll?v:NULL;
 }
 static bool touch_pad(const risc_touch_snapshot_v1*s,uint32_t now){
-#if defined(HID_NATIVE_UI) && HID_TOUCHPAD
- hid_gesture_output o;
- if(hid_native_enabled()){hid_native_rect r=hid_touchpad_native_pad(hid_native_geometry());o=hid_gesture_sample_bounds(&gesture,s,now,r.x,r.y,r.x+r.w,r.y+r.h);}
- else o=paper?hid_gesture_sample_bounds(&gesture,s,now,32,224,448,624):hid_gesture_sample(&gesture,s,now);
-#else
  hid_gesture_output o=paper?hid_gesture_sample_bounds(&gesture,s,now,32,224,448,624):hid_gesture_sample(&gesture,s,now);
-#endif
  const risc_bluetooth_hid_scroll_api_v1 *scroll=scroll_api();
  /* Refresh a stationary drag well inside the provider's release watchdog. */
  bool report=o.dx||o.dy||o.button_changed||(o.buttons&&(uint32_t)(now-reported)>=400);
@@ -312,12 +239,7 @@ static bool touch_pad(const risc_touch_snapshot_v1*s,uint32_t now){
  * neutral pairing screen. A legacy pointer tap carried across a modal/start
  * can never approve pairing. Motion, extra contacts and event gaps cancel it. */
 static const char *pair_target_name(int target){return target==1?"accept":target==0?"reject":"outside";}
-static int pairing_target(int x,int y){
-#ifdef HID_NATIVE_UI
- if(hid_native_enabled()){hid_native_layout l=hid_native_geometry();return hid_native_inside(l.footer[0],x,y)?0:hid_native_inside(l.footer[1],x,y)?1:-1;}
-#endif
- if(paper)return portable_nova_hit(x,y,32,688,200,88)?0:portable_nova_hit(x,y,248,688,200,88)?1:-1;
- return portable_nova_hit(x,y,8,196,108,44)?0:portable_nova_hit(x,y,124,196,108,44)?1:-1;}
+static int pairing_target(int x,int y){if(paper)return portable_nova_hit(x,y,32,688,200,88)?0:portable_nova_hit(x,y,248,688,200,88)?1:-1;return portable_nova_hit(x,y,8,196,108,44)?0:portable_nova_hit(x,y,124,196,108,44)?1:-1;}
 static void pairing_ignored(const char *reason){
  if(pair_trace_cancelled)return;
  char text[96];snprintf(text,sizeof(text),"HID pairing touch ignored reason=%s",reason);
@@ -377,47 +299,14 @@ static void pump(void){
 #if !HID_TOUCHPAD
  hid_button_tap queued_tap=button_trace;uint8_t completed[HID_BUTTON_PENDING];unsigned completed_count=0;
 #endif
-#ifdef HID_NATIVE_UI
- uint64_t native_generation=0,native_watermark=0;bool native_ready=true,native_rejected=false;
- if(hid_native_enabled()){
-  hid_native_layout_select();
-  native_ready=portable_ble_buttons_native_ready(&native_generation,&native_watermark);
-  if(native_generation!=hid_native_raw_generation){
-   if(!release_input()){stop_session("Layout release failed - reconnect");return;}
-   hid_native_raw_generation=native_generation;
-#if !HID_TOUCHPAD
-   queued_tap=button_trace;
-#endif
-  }
- }
-#endif
  bool polled=raw->poll(raw->context,1),gap=false,saw_up=false;int32_t rc=0;risc_touch_event_v1 e;
  for(unsigned n=0;n<RISC_TOUCH_QUEUE_LENGTH+1;n++){
   rc=raw->next(raw->context,subscription,&e);if(rc<=0)break;
   if(e.sequence!=sequence+1)gap=true;
   sequence=e.sequence;
 #if !HID_TOUCHPAD
-#ifdef HID_NATIVE_UI
-  if(hid_native_enabled()){
-   if(e.kind==RISC_TOUCH_EVENT_DOWN){
-    if(!native_ready||e.sequence<=native_watermark||hid_native_contact_owned){queued_tap.valid=false;hid_native_contact_owned=false;native_rejected=true;}
-    else {hid_native_contact_owned=true;hid_native_contact_id=e.id;}
-   }else if(hid_native_contact_owned&&e.id!=hid_native_contact_id){queued_tap.valid=false;hid_native_contact_owned=false;native_rejected=true;}
-   else if(e.kind==RISC_TOUCH_EVENT_UP)hid_native_contact_owned=false;
-  }else
-#endif
   if(!paper){e.x=utility_color_x(app,e.x);e.y=utility_color_y(app,e.y);}
   button_tap_event(&queued_tap,&e,completed,&completed_count);
-#endif
-#if defined(HID_NATIVE_UI) && HID_TOUCHPAD
-  if(hid_native_enabled()){
-   if(e.kind==RISC_TOUCH_EVENT_DOWN){
-    if(!native_ready||e.sequence<=native_watermark||hid_native_count>=2||hid_native_owns(e.id))native_rejected=true;
-    else hid_native_ids[hid_native_count++]=e.id;
-   }else if(!hid_native_owns(e.id))native_rejected=true;
-   else if(e.kind==RISC_TOUCH_EVENT_UP){for(unsigned i=0;i<hid_native_count;i++)if(hid_native_ids[i]==e.id){hid_native_ids[i]=hid_native_ids[--hid_native_count];break;}}
-   else if(e.kind!=RISC_TOUCH_EVENT_MOVE)native_rejected=true;
-  }
 #endif
   if(e.kind==RISC_TOUCH_EVENT_UP)saw_up=true;
 #if HID_TOUCHPAD
@@ -427,14 +316,6 @@ static void pump(void){
 #endif
   if(n==RISC_TOUCH_QUEUE_LENGTH)gap=true;
  }
-#ifdef HID_NATIVE_UI
- if(hid_native_enabled()&&native_rejected){
-  if(!release_input()){stop_session("Input ownership interrupted");return;}
-#if !HID_TOUCHPAD
-  queued_tap.valid=false;completed_count=0;
-#endif
- }
-#endif
  if(rc==-2){stop_session("Touch error - reconnect");return;}
  if(rc<0||!polled)gap=true;
  risc_touch_snapshot_v1 sample={0};
@@ -442,49 +323,16 @@ static void pump(void){
  if(!paper){
   for(unsigned i=0;i<sample.contact_count;i++){
    if(sample.contacts[i].x>=sample.width||sample.contacts[i].y>=sample.height){stop_session("Touch outside display - reconnect");return;}
-#ifdef HID_NATIVE_UI
-   if(!hid_native_enabled()){
-#endif
    sample.contacts[i].x=utility_color_x(app,sample.contacts[i].x);
    sample.contacts[i].y=utility_color_y(app,sample.contacts[i].y);
-#ifdef HID_NATIVE_UI
-   }
-#endif
   }
-#ifdef HID_NATIVE_UI
-  if(!hid_native_enabled()){
-#endif
   sample.width=240;sample.height=(uint16_t)(app->screen_height()*240/app->screen_width());
-#ifdef HID_NATIVE_UI
-  }
-#endif
  }
  if(sample.sequence!=sequence)gap=true;
  sequence=sample.sequence;
  if(status.state==RISC_HID_PAIR_CONFIRM&&gap&&!pair_trace_gap)runtime->diagnostic("HID pairing touch ignored reason=event-gap");
  pair_trace_gap=gap;
  if(gap&&!release_input()){stop_session("Touch gap - reconnect");return;}
-#ifdef HID_NATIVE_UI
- if(hid_native_enabled()){
-  /* The independent raw subscription shares the provider's sequence domain.
-   * Only a fresh DOWN can own a new action; MOVE after visibility cannot
-   * legitimize a contact which began under an older or unseen layout. */
-#if HID_TOUCHPAD
-  bool native_contacts=sample.contact_count==hid_native_count;
-  for(unsigned i=0;i<sample.contact_count;i++)if(!hid_native_owns(sample.contacts[i].id))native_contacts=false;
-  if(!native_contacts){if(!release_input()){stop_session("Input ownership interrupted");return;}return;}
-#else
-  if(sample.contact_count&&!hid_native_contact_owned&&held_button<0&&!pair_down)button_gate=true;
-#endif
-  if(status.state==RISC_HID_PAIR_CONFIRM){
-   #if HID_TOUCHPAD
-   if(!pair_down&&(!native_ready||(sample.contact_count!=0&&sample.contact_count!=1))){pair_armed=false;return;}
-#else
-   if(!pair_down&&(!native_ready||(sample.contact_count&&!hid_native_contact_owned))){pair_armed=false;return;}
-#endif
-  }
- }
-#endif
  if(status.state==RISC_HID_PAIR_CONFIRM){pairing_sample(&sample,now);return;}
  uint32_t need=RISC_HID_ENCRYPTED|RISC_HID_AUTHENTICATED|(HID_TOUCHPAD?RISC_HID_MOUSE_READY:0);
  if(status.state==RISC_HID_READY&&(status.flags&need)==need&&view==HID_VIEW_MAIN){
@@ -556,21 +404,8 @@ static void change_value(int delta){
 #ifdef PORTABLE_PAPER_HID
 #include "ble_hid_paper.inc"
 #endif
-#ifdef HID_NATIVE_UI
-#if HID_TOUCHPAD
-#include "ble_touchpad_native_view.inc"
-#else
-#include "ble_buttons_native_view.inc"
-#endif
-#endif
 static void draw(void){
-#ifdef HID_NATIVE_UI
- hid_native_layout_select();
-#endif
  if(!utility_frame_begin(app))return;
-#ifdef HID_NATIVE_UI
- if(hid_native_enabled()){hid_native_draw();return;}
-#endif
 #ifdef PORTABLE_PAPER_HID
  if(paper){paper_draw();return;}
 #endif
@@ -618,9 +453,6 @@ static void tap(int x,int y){
 #endif
  if((int32_t)(app->millis()-ui_block_until)<0)return;
  if(status.state==RISC_HID_PAIR_CONFIRM&&token)return;
-#ifdef HID_NATIVE_UI
- if(hid_native_enabled()){hid_native_tap(x,y);return;}
-#endif
  if(view==HID_VIEW_MODIFIERS){if(x>=8&&x<232&&y>=54&&y<238){unsigned col=(unsigned)(x-8)/116,row=(unsigned)(y-54)/46;if(col<2&&row<4&&x<8+(int)col*116+108&&y<54+(int)row*46+44){draft.modifiers^=(uint8_t)(1u<<(row*2+col));dirty=true;}}return;}
  if(view==HID_VIEW_EDIT){
   if(y>=196){if(x<116){view=HID_VIEW_MAIN;message="Changes canceled";}else if(x>=124&&save_draft())view=HID_VIEW_MAIN;}
@@ -643,25 +475,11 @@ static void tap(int x,int y){
 }
 void app_main(void){
  utility_frame_reset();
-#ifdef HID_NATIVE_UI
- hid_native_raw_generation=0;hid_native_contact_owned=false;
-#if !HID_TOUCHPAD
- portable_ble_buttons_native_begin();
-#endif
-#endif
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,touch_contact)+sizeof(app->touch_contact)||!app->poll||!app->millis||!app->present||!app->screen_width||!app->screen_height||!app->set_back_exits_app||!runtime||runtime->api_version!=1||runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE||!runtime->acquire||!runtime->release||!runtime->yield_ms||!runtime->diagnostic)return;
 #ifdef PORTABLE_PAPER_HID
  paper_pair_release_gate=false;hp_contact_down=hp_release_seen=false;paper=paper_presentation_get();
  if(paper&&(paper->struct_size<sizeof(*paper)||!paper->begin||!paper->text||!paper->measure||!paper->contact))return;
-#endif
-#ifdef HID_NATIVE_UI
- if(hid_native_enabled()){hid_native_layout l;if(!hid_native_layout_make(&l,app->screen_width(),app->screen_height()))return;
-#if HID_TOUCHPAD
-  hid_native_count=0;hid_native_session_epoch=0;portable_ble_buttons_native_begin();
-#endif
- }
- else
 #endif
  if(paper?(app->screen_width()!=hid_width()||app->screen_height()!=hid_height()):!utility_color_dimensions(app))return;
 #if !HID_TOUCHPAD
@@ -677,17 +495,8 @@ void app_main(void){
 #ifdef PORTABLE_PAPER_HID
   if(paper)paper_input(&input);
 #endif
-#ifdef HID_NATIVE_UI
-  if(!paper&&!hid_native_enabled())utility_color_input(app,&input);
-  bool back_hit=input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,paper?32:8,paper?16:4,paper?64:44,paper?88:44);
-#ifdef HID_NATIVE_UI
-  if(hid_native_enabled())back_hit=input.tapped&&hid_native_back_hit(input.touch_x,input.touch_y);
-#endif
-  if((input.buttons&T5_APP_BUTTON_BACK)||back_hit){if(!back())break;continue;}
-#else
   if(!paper)utility_color_input(app,&input);
   if((input.buttons&T5_APP_BUTTON_BACK)||(input.tapped&&portable_nova_hit(input.touch_x,input.touch_y,paper?32:8,paper?16:4,paper?64:44,paper?88:44))){if(!back())break;continue;}
-#endif
   if(input.tapped)tap(input.touch_x,input.touch_y);
   pump();
  }

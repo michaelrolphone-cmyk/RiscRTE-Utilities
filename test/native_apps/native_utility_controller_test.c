@@ -1,9 +1,6 @@
 #include "AlarmServiceV1.h"
 typedef struct {alarm_service_v1 service;uint32_t output_modes;} alarm_service_outputs_v1;
 #include "PortableNativeTimeToolbar.h"
-#ifdef TEST_STOPWATCH_EXTRA_LIFECYCLE
-static int stopwatch_test_sleep(void);
-#endif
 /* Actual controllers plus production shared adapter. Hardware alone is fake. */
 #define fake_acquire legacy_fixture_acquire
 #define fake_release legacy_fixture_release
@@ -25,12 +22,6 @@ static bool reader_live,retained_flag,deny_reader,release_reader_failure;
 static bool kv_context,kv_unknown,kv_io,kv_commits,service_retained;
 static int32_t native_read_error;
 static unsigned native_reads,retain_count,native_release_count,service_calls;
-#ifdef TEST_STOPWATCH_EXTRA_LIFECYCLE
-static int stopwatch_sleep_result;
-static unsigned stopwatch_sleep_calls,stopwatch_cue_steps;
-static bool stopwatch_cue_requested,stopwatch_cue_complete;
-static int stopwatch_test_sleep(void){assert(!retained_flag&&!frames&&!subs);stopwatch_sleep_calls++;return stopwatch_sleep_result;}
-#endif
 static int64_t native_epoch=INT64_C(1791115200);
 static uint32_t native_validity=RISC_REALTIME_VALID,native_reserved;
 static unsigned frozen_polls,frozen_ticks,frozen_presents,frozen_frames,frozen_subs,frozen_grants,frozen_reads,frozen_calls;
@@ -43,16 +34,8 @@ static const risc_realtime_api_v1 reader_api={1,sizeof(reader_api),&reader_live,
 static int32_t test_get(void*c,const char*k,void*b,uint32_t n,uint32_t*s){assert(!retained_flag);if(!strcmp(k,"stopwatch_utc")){if(kv_context)return RISC_KEY_VALUE_CONTEXT;if(kv_unknown)return -88;}return fake_get(c,k,b,n,s);}
 static int32_t test_put(void*c,const char*k,const void*b,uint32_t n){assert(!retained_flag);if(kv_context)return RISC_KEY_VALUE_CONTEXT;if(kv_unknown)return -88;if(fail_pause&&polls>=80&&polls<140){puts_count++;return RISC_KEY_VALUE_IO;}if(kv_io&&(!kv_commits?polls<100:true)){if(kv_commits)(void)fake_put(c,k,b,n);else puts_count++;return RISC_KEY_VALUE_IO;}return fake_put(c,k,b,n);}
 static const risc_key_value_v1 test_kv={1,sizeof(test_kv),NULL,test_get,test_put};
-static int32_t test_status(void*c,alarm_status_v1*s){assert(!retained_flag);service_calls++;if(service_retained){*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_BLOCKED,.error=-9,.output_uncertain=1};return ALARM_OK;}
-#ifdef TEST_STOPWATCH_EXTRA_LIFECYCLE
- if(stopwatch_cue_requested&&polls>=50&&!stopwatch_cue_complete){*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_CUE,.mode=ALARM_MODE_VISUAL};return ALARM_OK;}
-#endif
- return fake_alarm_status(c,s);}
-static int32_t test_step(void*c){assert(!retained_flag);service_calls++;
-#ifdef TEST_STOPWATCH_EXTRA_LIFECYCLE
- if(stopwatch_cue_requested&&polls>=50&&!stopwatch_cue_complete&&++stopwatch_cue_steps>=4)stopwatch_cue_complete=true;
-#endif
- return service_retained?-9:fake_alarm_step(c);}
+static int32_t test_status(void*c,alarm_status_v1*s){assert(!retained_flag);service_calls++;if(service_retained){*s=(alarm_status_v1){.api_version=1,.struct_size=sizeof(*s),.state=ALARM_STATE_BLOCKED,.error=-9,.output_uncertain=1};return ALARM_OK;}return fake_alarm_status(c,s);}
+static int32_t test_step(void*c){assert(!retained_flag);service_calls++;return service_retained?-9:fake_alarm_step(c);}
 static alarm_service_descriptor_v2 test_alarm={.base={2,sizeof(test_alarm),NULL,test_status,test_step,test_step,fake_alarm_ack,fake_alarm_prepare,test_step},.tag=ALARM_SERVICE_DESCRIPTOR_TAG,.descriptor_version=1,.output_modes=ALARM_MODE_VISUAL};
 #ifdef TEST_RESIDENT_CLIENT
 #define TEST_RESIDENT_IO() assert(!retained_flag)
@@ -133,14 +116,6 @@ int main(int argc,char **argv){
  case 22:native_epoch=INT64_C(2147483648);toggle_at(20);break;
  case 23:zone_change=true;toggle_at(20);toggle_at(100);break;
  case 20:toggle_at(20);touch(40,200,20,0,0);touch(41,200,100,0,0);touch(120,240,620,0,0);touch(121,240,560,0,0);break;
-#ifdef TEST_STOPWATCH_EXTRA_LIFECYCLE
- case 25:service_retained=true;expected_retained=true;home_at=0;break;
- case 26:case 27:case 28:
-  toggle_at(20);home_at=60;stop_poll=160;
-  stopwatch_sleep_result=scenario==26?-2:scenario==27?1:0;
-  expected_retained=scenario==26;break;
- case 29:toggle_at(20);toggle_at(100);home_at=0;stop_poll=160;stopwatch_cue_requested=true;break;
-#endif
  default:assert(0);
  }
 #else
@@ -164,20 +139,10 @@ int main(int argc,char **argv){
 #endif
  }
  assert(app_module_init()==0);
-#if NOVA_APP_ID == 2 && defined(PORTABLE_STOPWATCH_NATIVE_UI)
- if(paper_profile)assert(!portable_stopwatch_native_available());
-#endif
 #if NOVA_APP_ID != 2
  if(scenario>=2&&scenario<=6){twatch_rtc_time_v1 result={0};assert(!portable_app_native_local_time(&result));}
 #endif
  app_main();
-#ifdef TEST_STOPWATCH_EXTRA_LIFECYCLE
- if(scenario>=26&&scenario<=28)assert(stopwatch_sleep_calls==1&&clock_state.running&&clock_state.saved.running&&puts_count==1);
- if(scenario==29)assert(stopwatch_cue_complete&&stopwatch_cue_steps==4&&!clock_state.running&&puts_count==2);
-#endif
-#if NOVA_APP_ID == 2 && defined(PORTABLE_STOPWATCH_NATIVE_UI)
- if(paper_profile)assert(!stopwatch_native_active&&!portable_stopwatch_native_available());
-#endif
 #if NOVA_APP_ID == 2
  if(scenario==17)expected_retained=true;
 #endif
@@ -203,10 +168,6 @@ int main(int argc,char **argv){
   case 9:assert(!clock_state.running&&clock_state.clock_changed&&!puts_count);break;
   case 11:case 12:case 13:assert(!clock_state.running&&!clock_state.clock_changed&&!pending_pause&&puts_count==2);break;
   case 20:assert(clock_state.running&&puts_count==1);break;
-#ifdef TEST_STOPWATCH_EXTRA_LIFECYCLE
-  case 27:case 28:assert(clock_state.running&&clock_state.saved.running&&puts_count==1);break;
-  case 29:assert(!clock_state.running&&clock_state.elapsed_ms>1000&&clock_state.saved.elapsed_ms==clock_state.elapsed_ms&&puts_count==2);break;
-#endif
   default:assert(0);
   }
   if(scenario!=10){for(unsigned i=0;i<32;i++)assert(strcmp(cells[i].key,"stopwatch"));}

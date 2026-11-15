@@ -22,8 +22,8 @@ def inventory():
         if app['version']!=side['version'] or side['runtime_profile']!='portable-riscrte-v1' or side['min_firmware_version']!='0.1.34':raise ValueError('BLE version/profile mismatch')
         if any(not(ROOT/p).is_file() for p in app['additional_sources']):raise ValueError('Missing BLE source')
     return apps
-def build(system, *, paper=False, output=None, native_touchpad=False):
-    pin=json.loads((ROOT/('sdk/hid-touchpad-native-sources.json' if native_touchpad else 'sdk/hid-sources.json')).read_text())
+def build(system, *, paper=False, output=None):
+    pin=json.loads((ROOT/'sdk/hid-sources.json').read_text())
     if hashlib.sha256((ROOT/'lib/Bluetooth/include/RiscBluetoothHidV1.h').read_bytes()).hexdigest()!=pin['hid_header_sha256']:raise ValueError('HID interface content differs from pinned contract')
     if subprocess.check_output(['git','rev-parse','HEAD'],cwd=system,text=True).strip()!=pin['system_apps'] or subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=system,text=True).strip():raise ValueError('Exact clean radio lifecycle adapter required')
     if not (system/'lib/PortableApps/include/PortableRadioSession.h').is_file():raise ValueError('Radio lifecycle hooks missing')
@@ -37,10 +37,8 @@ def build(system, *, paper=False, output=None, native_touchpad=False):
     quick=['quick_actions.c','quick_render.c','quick_session.c']
     if paper:defines+=['-DPORTABLE_DISPLAY_ROTATION=90','-DPORTABLE_INPUT_NAVIGATION','-DPORTABLE_HOME_APP="default.elf"']
     else:defines+=['-DPORTABLE_FORCE_FULL_FRAMES','-DPORTABLE_QUICK_RADIOS'];quick+=['quick_radios.c']
-    if native_touchpad:defines += ['-DPORTABLE_BLE_TOUCHPAD_NATIVE_UI','-DPORTABLE_NATIVE_CANVAS']
     rows=[]
     for app in inventory():
-        if native_touchpad and app['id']!='ble_touchpad':continue
         name=app['id'];elf=out/(name+'.elf')
         subprocess.run([cc,'-std=c11','-Os','-fPIC','-mtext-section-literals','-mlongcalls','-fvisibility=hidden','-ffreestanding','-fno-builtin','-nostdlib','-nostartfiles','-shared','-Wl,--no-relax','-Wl,--hash-style=sysv','-Wl,--version-script='+str(mapping),'-Wall','-Wextra','-Werror',*defines,*['-I'+str(p) for p in (system/'Apps',ROOT/'Apps',ROOT/'lib/Bluetooth/include',system/'lib/PortableApps/include',system/'lib/NativeApps/include')],str(ROOT/app['source_path']),str(system/'lib/PortableApps/src/adapter.c'),str(catalog),*[str(system/'lib/PortableApps/src'/f) for f in quick],'-lgcc','-o',str(elf)],check=True)
         symbols=subprocess.check_output([cc.removesuffix('gcc')+'nm','-D',str(elf)],text=True)
@@ -57,7 +55,7 @@ def build(system, *, paper=False, output=None, native_touchpad=False):
             manifest['requires'].append({'capability':'input.navigation','api':1})
         elf.with_suffix('.json').write_text(json.dumps(manifest,indent=2)+'\n')
         rows.append({'id':name,'version':side['version'],'size_bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'imports':sorted(imports)})
-    record={'schema':1,'purpose':'development-ble-hid-no-hardware-qualification','source_pins':pin,'profile':{'native_touchpad':native_touchpad,'paper':paper,'defines':defines,'quick_sources':quick},'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}
+    record={'schema':1,'purpose':'development-ble-hid-no-hardware-qualification','source_pins':pin,'profile':{'paper':paper,'defines':defines,'quick_sources':quick},'repository_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),'compiler':subprocess.check_output([cc,'--version'],text=True).splitlines()[0],'apps':rows}
     record['source_files']={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [ROOT/'Apps/ble_touchpad.c',ROOT/'Apps/ble_buttons.c',ROOT/'Apps/ble_hid_app.inc',ROOT/'Apps/ble_hid_model.h',ROOT/'Apps/ble_touchpad_gesture.h',ROOT/'Apps/ble_hid_paper.inc',ROOT/'Apps/paper-hid.json']}
     if paper:record['deployment']=json.loads((ROOT/'Apps/paper-hid.json').read_text())
     (out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n')
@@ -70,4 +68,4 @@ def build(system, *, paper=False, output=None, native_touchpad=False):
     (out/'LICENSE-Utilities.txt').write_bytes((ROOT/'LICENSE').read_bytes())
     print('Validated BLE HID target ELFs')
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);p.add_argument('--paper-profile',action='store_true');p.add_argument('--output-dir',type=Path);p.add_argument('--native-touchpad',action='store_true');a=p.parse_args();build(a.system_apps.resolve(),paper=a.paper_profile,output=a.output_dir,native_touchpad=a.native_touchpad)
+    p=argparse.ArgumentParser();p.add_argument('--system-apps',type=Path,required=True);p.add_argument('--paper-profile',action='store_true');p.add_argument('--output-dir',type=Path);a=p.parse_args();build(a.system_apps.resolve(),paper=a.paper_profile,output=a.output_dir)

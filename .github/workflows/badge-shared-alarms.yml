@@ -1,0 +1,93 @@
+name: Badge shared Alarms release packages
+on:
+  pull_request:
+    paths: ['Apps/alarms_scene*', 'Apps/alarms_shared*', 'scripts/build_headless_current.py', 'scripts/build_badge_shared_catalog.py', 'scripts/test_current_scene_release.py', 'scripts/install_badge_catalog_toolchain.sh', 'test/scene/**', 'test/release/**', '.github/workflows/badge-shared-alarms.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  packages:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Utilities
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE
+          ref: 318d77283ba707b6f2820d2833e5d7ea3ff3f7e8
+          path: Runtime
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: michaelrolphone-cmyk/RiscRTE-System-Apps
+          ref: d90415ba8c416cb5a43b9edbde6f84f7750e3eed
+          path: System
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify and stage exact selected scheduler inputs
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0,'Utilities/scripts')
+          from build_badge_shared_catalog import extract
+          extract(Path('Utilities/test/release/badge-springboard-baseline.zip'),Path('baseline-inputs'))
+          PY
+      - name: Current mixed and selected schedules-only GUI lifecycle
+        run: |
+          set -o pipefail
+          mkdir evidence
+          export ALARM_SCENE_COLOR_WIDTH=466 ALARM_SCENE_SAFE_INSET=69
+          for profile in mixed selected; do
+            extra=""
+            if [ "$profile" = selected ]; then extra="--scheduler-source baseline-inputs/BaselineUtilities"; fi
+            for mode in normal sanitized; do
+              san=""
+              if [ "$mode" = sanitized ]; then san="--sanitize"; fi
+              python Utilities/scripts/test_current_scene_release.py --runtime Runtime --system-apps System $extra $san --output runtime-$profile-$mode 2>&1 | tee evidence/runtime-$profile-$mode.log
+            done
+          done
+      - name: Install scene target compiler
+        run: |
+          python -m pip install platformio==6.1.19
+          pio pkg install --global --tool 'espressif/toolchain-xtensa-esp32s3@8.4.0+2021r2-patch5'
+      - name: Build and validate shared application and full presenter
+        run: |
+          set -o pipefail
+          python Utilities/scripts/build_headless_current.py --include-scene --runtime Runtime --system-apps System --output packages/alarms 2>&1 | tee evidence/alarms-target.log
+          python System/scripts/build_scene_services.py --runtime Runtime --host-profile full --output packages/scene 2>&1 | tee evidence/scene-target.log
+      - name: Reproduce baseline and build additive Springboard catalog
+        run: |
+          set -o pipefail
+          bash Utilities/scripts/install_badge_catalog_toolchain.sh "$RUNNER_TEMP/catalog-toolchain" 2>&1 | tee evidence/catalog-compiler.log
+          python Utilities/scripts/build_badge_shared_catalog.py --cc "$RUNNER_TEMP/catalog-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc" --output catalog-build 2>&1 | tee evidence/catalog-build.log
+      - name: Verify ordinary modules are PSRAM instruction safe
+        run: |
+          python - <<'PYCODE'
+          import json,os,sys
+          from pathlib import Path
+          sys.path.insert(0,'Utilities/test/release')
+          from verify_psram_elf import verify
+          cc=os.environ['RUNNER_TEMP']+'/catalog-toolchain/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc'
+          files=sorted(Path('packages').rglob('*.elf'))+[Path('catalog-build/generated/springboard.elf')]
+          results={str(p):verify(p,cc) for p in files}
+          Path('evidence/psram-instruction-safety.json').write_text(json.dumps(results,indent=2))
+          PYCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: badge-shared-alarms-${{ github.sha }}
+          path: |
+            evidence/
+            packages/
+            catalog-build/catalog-build.json
+            catalog-build/catalog.json
+            catalog-build/generated/springboard.elf
+            catalog-build/baseline.elf
+            runtime-*/**/*.json
+          retention-days: 30

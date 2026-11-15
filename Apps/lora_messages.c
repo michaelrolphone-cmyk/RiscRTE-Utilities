@@ -22,15 +22,6 @@
 #include "PortableAppSleep.h"
 #endif
 #include <stdio.h>
-#ifdef PORTABLE_LORA_NATIVE_UI
-#ifndef PORTABLE_NATIVE_CANVAS
-#error Native LoRa requires native canvas
-#endif
-#include "PortableLoRaNative.h"
-#include "lora_messages_native_layout.h"
-static lm_native_layout lm_geometry;
-static bool lm_native_active;
-#endif
 enum { PAGE_HOME,PAGE_COMPOSE,PAGE_KEYBOARD,PAGE_RF,PAGE_HISTORY,PAGE_MESSAGE,PAGE_RF_ERROR,PAGE_RADIO };
 static const t5_app_api_v1 *app;
 static const risc_runtime_api_v1 *runtime;
@@ -195,18 +186,11 @@ static void draw_keyboard(void){
  portable_nova_button(12,188,216,44,"EDIT",false);
 }
 #endif
-#ifdef PORTABLE_LORA_NATIVE_UI
-#include "lora_messages_native_view.inc"
-#endif
 static void draw(void){
 #ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
  if(text_active||text_client.retained)return;
 #endif
  if(!utility_frame_begin(app))return;
-
-#ifdef PORTABLE_LORA_NATIVE_UI
- if(lm_native_active){lm_native_draw();return;}
-#endif
  char line[80],clock[32];
  if(page==PAGE_KEYBOARD){draw_keyboard();app->present(false);dirty=false;return;}
  header(page==PAGE_HOME?"LORA MESSAGES":page==PAGE_COMPOSE?"REVIEW MESSAGE":(page==PAGE_RF || page==PAGE_RF_ERROR)?(profile_save_state==2?"RF SAVE UNCERTAIN":profile_save_state==1?"RF SESSION ONLY":"RF SETTINGS"):page==PAGE_HISTORY?"SESSION HISTORY":page==PAGE_RADIO?"RADIO HARDWARE":"MESSAGE");
@@ -257,11 +241,7 @@ static bool text_begin(void){
  text_closing=false;
  int rc=portable_text_client_begin_long(&text_client,runtime,edit_field<6?field_names[edit_field]:"COMPOSE MESSAGE",entry,edit_field<6?12:sizeof(entry));
  if(rc!=RISC_TEXT_ENTRY_OK){if(!text_client.retained)notify("Text input unavailable. Retry.");return false;}
- text_active=true;page=PAGE_KEYBOARD;
-#ifdef PORTABLE_LORA_NATIVE_UI
- if(lm_native_active)lm_native_mapping();
-#endif
- return true;
+ text_active=true;page=PAGE_KEYBOARD;return true;
 }
 #endif
 static void edit(unsigned field){
@@ -354,10 +334,6 @@ static bool back(void){
  if(page==PAGE_HOME){
 #ifdef LORA_RETURN_APP
   if(!portable_radio_suspend())retain();
-#ifdef PORTABLE_LORA_NATIVE_UI
-  /* Root handoff owns this boundary: never launch over an outstanding image. */
-  if(lm_native_active&&!t5_app_frame_drain(app))return false;
-#endif
   if(!runtime->request_launch || !runtime->request_launch(LORA_RETURN_APP)){notify("Return unavailable; retry");return true;}
 #endif
   return false;
@@ -373,55 +349,7 @@ static bool back(void){
  if(page==PAGE_RF_ERROR){page=PAGE_RF;notice=NULL;return true;}
  page=PAGE_HOME;return true;
 }
-#ifdef PORTABLE_LORA_NATIVE_UI
-static bool lm_native_input(t5_app_input_t*in){
- if(in->exit_requested)return false;
- if(in->buttons&T5_APP_BUTTON_BACK)return back();
- int target=in->tapped?lm_native_target(in->touch_x,in->touch_y):-1;
- if(target==100)return back();
- if(page==PAGE_RF&&target==101){open_picker();return true;}
- if(page==PAGE_RADIO){if(target>=0&&target<4)choose_radio(1+(unsigned)target);return true;}
- if(page==PAGE_KEYBOARD){
-#ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
-  if(!text_active&&((in->buttons&T5_APP_BUTTON_CONFIRM)||target==20))(void)text_begin();
-#else
-  if(in->buttons&T5_APP_BUTTON_LEFT)key_choice=(key_choice+PWK_COUNT-1)%PWK_COUNT;
-  if(in->buttons&T5_APP_BUTTON_RIGHT)key_choice=(key_choice+1)%PWK_COUNT;
-  if(in->buttons&(T5_APP_BUTTON_LEFT|T5_APP_BUTTON_RIGHT))dirty=true;
-  if(target>=0&&target<35)key((unsigned)target);else if(in->buttons&T5_APP_BUTTON_CONFIRM)key(key_choice);
-#endif
-  return true;
- }
- if(!in->tapped){if(page==PAGE_COMPOSE&&(in->buttons&T5_APP_BUTTON_CONFIRM))send_message();return true;}
- if(page==PAGE_HOME){
-  if(target==0){page=PAGE_COMPOSE;dirty=true;}
-  else if(target==1){page=PAGE_HISTORY;history_page=0;dirty=true;}
-  else if(target==2){
-   if(model.owned){if(!portable_radio_suspend())retain();notify("Radio stopped");}
-   else if(!model.choice)open_picker();
-   else if(!model.profile_valid||!lm_profile_matches(&model.profile,model.choice))notify("Set matching RF before listening");
-   else if(open_radio()){bool ok=lm_listen(&model,app->millis());if(model.uncertain)retain();notify(ok?"No encryption or receipts":"RF/provider rejected; check setup");}
-  }else if(target==3){if(!model.choice)open_picker();else{if(!portable_radio_suspend())retain();editing_profile=model.profile;rf_fields=model.profile_valid?63:0;rf_page=0;page=PAGE_RF;dirty=true;}}
- }else if(page==PAGE_COMPOSE){
-  if(target==20)edit(6);
-  else if(target==10){if(!draft[0])edit(6);else{unsigned step=lm_native_compose_step();compose_offset=compose_offset+step<strlen(draft)?compose_offset+step:0;dirty=true;}}
-  else if(target==21)send_message();
- }else if(page==PAGE_RF){
-  if(target>=10&&target<13)edit(rf_page*3+(unsigned)(target-10));
-  else if(target==20){rf_page^=1;dirty=true;}else if(target==21)apply_profile();
- }else if(page==PAGE_HISTORY){
-  if(target>=10&&target<10+(int)lm_geometry.history_rows){lm_message*v=lm_at(&model,history_page*lm_geometry.history_rows+(unsigned)(target-10));if(v){detail=*v;detail_offset=0;page=PAGE_MESSAGE;dirty=true;}}
-  else if(target==20){if(history_page)history_page--;dirty=true;}
-  else if(target==21){if((history_page+1)*lm_geometry.history_rows<model.count)history_page++;dirty=true;}
- }else if(page==PAGE_RF_ERROR){if(target==20){page=PAGE_RF;notice=NULL;dirty=true;}}
- else if(page==PAGE_MESSAGE){unsigned step=lm_native_detail_step();if(target==20){if(detail_offset>=step)detail_offset-=step;dirty=true;}else if(target==21){if(detail_offset+step<detail.length)detail_offset+=step;dirty=true;}}
- return true;
-}
-#endif
 static bool input(t5_app_input_t *in){
-#ifdef PORTABLE_LORA_NATIVE_UI
- if(lm_native_active)return lm_native_input(in);
-#endif
  if(in->exit_requested)return false;
  if(in->buttons&T5_APP_BUTTON_BACK)return back();
  int x=utility_color_x(app,in->touch_x),y=utility_color_y(app,in->touch_y);
@@ -479,17 +407,10 @@ void app_main(void){
  app=t5_app_get_api(1);runtime=risc_runtime_get_api(1);
  if(!app || app->abi_version!=1 || app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label) || !app->poll || !app->present || !app->millis || !app->screen_width || !app->screen_height || !app->set_back_exits_app ||
     !runtime || runtime->api_version!=1 || runtime->struct_size<RISC_RUNTIME_CAPABILITIES_V1_SIZE || !runtime->acquire || !runtime->release || !runtime->diagnostic || !runtime->yield_ms)return;
-#ifdef PORTABLE_LORA_NATIVE_UI
- lm_native_active=lm_native_layout_make(&lm_geometry,app->screen_width(),app->screen_height())&&portable_lora_native_begin();
- if(!lm_native_active)
-#endif
  if(app->screen_width()<240 || app->screen_height()<240)return;
  memset(&model,0,sizeof(model));memset(grants,0,sizeof(grants));memset(acquired,0,sizeof(acquired));memset(draft,0,sizeof(draft));store=preferences=NULL;rtc=NULL;notice=NULL;profile_save_state=0;page=PAGE_HOME;dirty=true;
 #ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
  text_client=(portable_text_client){0};text_state=(risc_text_entry_state_v1_long){0};text_active=text_closing=text_home=false;
-#endif
-#ifdef PORTABLE_LORA_NATIVE_UI
- if(lm_native_active){lm_native_contact=lm_native_buttons_armed=false;lm_native_pressed=-1;lm_native_previous_buttons=0;lm_native_input_generation=0;}
 #endif
  app->set_back_exits_app(false);load_preferences();
  for(;;){
@@ -509,9 +430,6 @@ void app_main(void){
    continue;
   }
 #endif
-#ifdef PORTABLE_LORA_NATIVE_UI
-  if(lm_native_active)lm_native_mapping();
-#endif
   if(dirty)draw();
   t5_app_input_t in={0};
   if(!app->poll(&in,30)){
@@ -520,18 +438,7 @@ void app_main(void){
 #endif
    break;
   }
-#ifdef PORTABLE_LORA_NATIVE_UI
-  if(lm_native_active){lm_native_mapping();lm_native_filter(&in);}
-#endif
-  if(!input(&in)){
-#if defined(PORTABLE_LORA_NATIVE_UI) && defined(PORTABLE_ALARM_CLIENT)
-   if(lm_native_active&&portable_app_sleep_retained())return;
-#endif
-   break;
-  }
-#ifdef PORTABLE_LORA_NATIVE_UI
-  if(lm_native_active)lm_native_mapping();
-#endif
+  if(!input(&in))break;
 #ifdef PORTABLE_LORA_SHARED_TEXT_INPUT
   if(text_client.retained)return;
 #endif

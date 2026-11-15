@@ -1,0 +1,28 @@
+{
+  "architecture": "xtensa-esp32s3",
+  "entry": "app_main",
+  "file_name": "alarms.elf",
+  "id": "alarms",
+  "type": "application",
+  "version": "0.3.1",
+  "requires": [],
+  "optional": [
+    {
+      "api": 1,
+      "capability": "ui.scene"
+    },
+    {
+      "api": 1,
+      "capability": "alarm.control"
+    },
+    {
+      "api": 1,
+      "capability": "storage.app-data"
+    },
+    {
+      "capability": "storage.preferences",
+      "api": 1
+    }
+  ],
+  "display_name": "Alarms"
+}

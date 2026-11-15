@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "source_repository": "Runtime",
+  "source_commit": "37fca3e2244bf71ac64bd8cd7e62eb94f4c09a9d",
+  "upstream_path": "sdk/app/RiscRuntimeClockV1.h",
+  "path": "sdk/app/RiscRuntimeClockV1.h",
+  "sha256": "76584fdab224b184918d9f9cf675d5c4443adef7161e8518d456bc25277dc30f",
+  "scope": "Additive SDK helper only; existing Runtime/profile pins unchanged."
+}

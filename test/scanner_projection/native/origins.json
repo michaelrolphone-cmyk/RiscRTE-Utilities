@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "scope": "Metadata preparation through actual Runtime/CpuPort; no target execution or native ELF cohort admission. Native endpoint callbacks are forbidden and counted.",
+  "runtime": {
+    "watch": "0052d1fc42e9cfc82d626c5a247d460919c87935",
+    "wave": "0052d1fc42e9cfc82d626c5a247d460919c87935",
+    "x4": "6a3b3d46f5b2857eacc6e9863799dec1f466b036"
+  },
+  "public_sources": {
+    "fixture": "michaelrolphone-cmyk/RiscRTE-T-Watch-S3@74f7491dc470b92dfa41fce41bf0c500f3714a94:tests/runtime_store_admission.cpp",
+    "watch_bindings": "michaelrolphone-cmyk/RiscRTE-T-Watch-S3@2050c9f4c40b4951efdc9a59edd9d2c871c30ed7:tests/provisioning_admission_fixture.inc",
+    "wave_bindings": "michaelrolphone-cmyk/RiscRTE-T-Watch-S3@2050c9f4c40b4951efdc9a59edd9d2c871c30ed7:scripts/shared_app_native_admission.py:wave_fixture",
+    "wave_display": "michaelrolphone-cmyk/RiscRTE-Wavshare-S3-Touch-AMOLED-2.06@a6a85f7100aae7221e116a0e00200ea982338390:native/VendorDisplayIdf6.inc",
+    "wave_settings": "michaelrolphone-cmyk/RiscRTE-Wavshare-S3-Touch-AMOLED-2.06@a6a85f7100aae7221e116a0e00200ea982338390:profiles/native-idf61-settings.h",
+    "x4_bindings": "michaelrolphone-cmyk/RiscRTE-XTEINK-X4-PRO@93ee386b7e23628f3776edc6cfd2805cf675d649:scripts/native_provision_qualification.py:x4_fixture"
+  },
+  "adaptations": [
+    "No cohort macro: use original prepare-only branch.",
+    "Bind explicit RuntimeFileFixture metadata roots, same published owning recipe.",
+    "Wave exact extracted vendor accepts predicate plus source-checked SOC output mask constant.",
+    "X4 serial-SD binding preserved from exact original recipe; diagnostic flag witnessed in selected native ELF.",
+    "All hardware/storage calls counted and forbidden; no omitted policy rows."
+  ],
+  "spiFFS_tools": {
+    "repo": "michaelrolphone-cmyk/RiscRTE-T-Watch-S3",
+    "revision": "ab9ff33975680c5bb8d9a2e7ed346d0300732a4e",
+    "scripts": {
+      "current_bootfs.py": "6f0997a71fe6d2abbb97ed91e0e4180abf43b2056afbcb5b54d303437791576b",
+      "read_only_spiffs.py": "e48d3b2422c60f81fdae6371ff3c5b65c5cbaa9dd250b4a2925c74c0b45f040d"
+    },
+    "generator_path": "vendor/esp-idf-spiffs/spiffsgen.py",
+    "generator_sha256": "5779792a4d98a12383233267511735769a201b5c2c79b582186a40c22b7c6466"
+  }
+}

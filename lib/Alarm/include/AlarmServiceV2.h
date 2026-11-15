@@ -10,6 +10,13 @@
 #define ALARM_SERVICE_DESCRIPTOR_TAG UINT32_C(0x414c4432)
 #define ALARM_SERVICE_DESCRIPTOR_VERSION 1u
 #define ALARM_DESCRIPTOR_RESUME_SLEEP 1u
+/* Explicitly selected editor-aware clients accept the tagged extension. */
+#define ALARM_DESCRIPTOR_CLOCK_EDIT 2u
+#ifdef ALARM_SERVICE_CLOCK_EDIT_V2
+#define ALARM_DESCRIPTOR_KNOWN_FEATURES (ALARM_DESCRIPTOR_RESUME_SLEEP|ALARM_DESCRIPTOR_CLOCK_EDIT)
+#else
+#define ALARM_DESCRIPTOR_KNOWN_FEATURES ALARM_DESCRIPTOR_RESUME_SLEEP
+#endif
 typedef struct {
     alarm_service_v1 base;
     uint32_t tag, descriptor_version, output_modes, features;
@@ -19,7 +26,7 @@ static inline const alarm_service_descriptor_v2 *alarm_service_descriptor(const 
     if(!s || s->api_version!=ALARM_SERVICE_API_V2 || s->struct_size<sizeof(alarm_service_descriptor_v2))return NULL;
     const alarm_service_descriptor_v2 *d=(const alarm_service_descriptor_v2 *)s;
     if(d->tag!=ALARM_SERVICE_DESCRIPTOR_TAG || d->descriptor_version!=ALARM_SERVICE_DESCRIPTOR_VERSION ||
-       (d->output_modes&~ALARM_MODE_BOTH) || (d->features&~ALARM_DESCRIPTOR_RESUME_SLEEP) ||
+       (d->output_modes&~ALARM_MODE_BOTH) || (d->features&~ALARM_DESCRIPTOR_KNOWN_FEATURES) ||
        ((d->features&ALARM_DESCRIPTOR_RESUME_SLEEP)!=0)!=(d->resume_sleep!=NULL) ||
        !s->status || !s->step || !s->refresh || !s->acknowledge || !s->prepare_sleep || !s->stop_only)return NULL;
     return d;

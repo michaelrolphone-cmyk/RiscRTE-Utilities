@@ -1,3 +1,13 @@
+#include "../../lib/Bluetooth/include/TelemetryBroadcastPolicyV1.h"
+#ifndef TELEMETRY_BROADCAST_ID
+#define TELEMETRY_BROADCAST_ID "telemetry-broadcast"
+#endif
+#ifndef TELEMETRY_BROADCAST_DEFAULT_ENABLED
+#define TELEMETRY_BROADCAST_DEFAULT_ENABLED 1
+#endif
+#if TELEMETRY_BROADCAST_DEFAULT_ENABLED != 0 && TELEMETRY_BROADCAST_DEFAULT_ENABLED != 1
+#error "Broadcast deployment default must be Boolean"
+#endif
 /* Cooperative ordinary ELF. The deployment selects its sensor capability.
  * Runtime owns no radio/data-sharing policy and receives no poll callbacks. */
 #include "TelemetryBroadcastV1.h"
@@ -148,6 +158,13 @@ static void stop(void) {
     if(token||busy)return;
     started=false;clock_api=NULL;radio=NULL;
 }
-static const telemetry_broadcast_v1 api={1,sizeof(api),NULL,step,pause,status,enumerate,read_value};
-static const risc_driver_v2 driver={2,sizeof(driver),"telemetry-broadcast",TELEMETRY_BROADCAST_CAPABILITY,1,&api,start,stop,quiesce};
+static bool defaults(void *context,telemetry_broadcast_policy_v1 *out) {
+    (void)context;if(!out||out->struct_size<sizeof(*out)||!enter())return false;
+    *out=(telemetry_broadcast_policy_v1){.struct_size=sizeof(*out),.enabled=TELEMETRY_BROADCAST_DEFAULT_ENABLED!=0,.settings_valid=true};
+    leave();return true;
+}
+static const telemetry_broadcast_policy_api_v1 api={
+ .base={1,sizeof(api),NULL,step,pause,status,enumerate,read_value},
+ .tag=TELEMETRY_BROADCAST_POLICY_TAG,.version=1,.defaults=defaults};
+static const risc_driver_v2 driver={2,sizeof(driver),TELEMETRY_BROADCAST_ID,TELEMETRY_BROADCAST_CAPABILITY,1,&api,start,stop,quiesce};
 __attribute__((visibility("default"))) const risc_driver_v2 *t5_driver_get(uint32_t abi){return abi==2?&driver:NULL;}

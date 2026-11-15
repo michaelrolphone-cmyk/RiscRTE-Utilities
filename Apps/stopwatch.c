@@ -8,6 +8,9 @@
 #include "PortableRtcClock.h"
 #include "stopwatch_core.h"
 #include "daily_draw.h"
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+#include "utility_native_geometry.h"
+#endif
 #ifdef PORTABLE_NOVA_UI
 #include "PortableNovaUi.h"
 #endif
@@ -82,24 +85,20 @@ static void reset(void) {
  sw_record record={0};
  if(save(record)){pending_pause=false;sw_restore(&clock_state,&record,false,0,app->millis());status="RESET";}
 }
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
-#include "stopwatch_native.inc"
-#endif
 #ifdef PORTABLE_PAPER_UTILITIES
 #include "stopwatch_paper.inc"
 #endif
-static void draw(void) {
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
- if(stopwatch_native_active)stopwatch_native_mapping();
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+#include "stopwatch_native_geometry.inc"
 #endif
+static void draw(void) {
  if(!utility_frame_begin(app))return;
 #ifdef PORTABLE_PAPER_UTILITIES
  if(utility_paper){stopwatch_paper_draw();return;}
 #endif
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
- if(stopwatch_native_active){stopwatch_native_render();return;}
-#endif
-#ifdef PORTABLE_NOVA_UI
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+ stopwatch_native_draw();
+#elif defined(PORTABLE_NOVA_UI)
  portable_nova_begin();portable_nova_header("STOPWATCH");
  char value[12],large[9];sw_format(clock_state.elapsed_ms,value);
 #ifdef PORTABLE_UNPADDED_HOURS
@@ -139,8 +138,6 @@ static bool open_state(void) {
  if(!runtime->acquire("storage.key-value",1,
 #ifdef PORTABLE_PAPER_UTILITIES
  2,
-#elif defined(PORTABLE_STOPWATCH_NATIVE_UI)
- stopwatch_native_active?2:0,
 #else
  0,
 #endif
@@ -163,35 +160,30 @@ void app_main(void) {
  utility_frame_reset();
  app=t5_app_get_api(1);status="";loaded=reset_armed=pending_pause=false;clock_state=(sw_clock){0};
  if(!app||app->abi_version!=1||app->struct_size<offsetof(t5_app_api_v1,draw_label)+sizeof(app->draw_label)||!app->poll||!app->millis||!app->screen_width||!app->screen_height||!app->clear||!app->draw_text||!app->draw_label||!app->fill_rect||!app->present)return;
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
- if(!stopwatch_native_select())return;
- if(!stopwatch_native_active)
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+ if(!un_dimensions(app))return;
 #endif
  if(app->screen_width()<160||app->screen_width()>1024||app->screen_height()<240||app->screen_height()>1024)return;
 #ifdef PORTABLE_PAPER_UTILITIES
  up_open(app);
 #endif
  if(!open_state()){status="RTC OR STORAGE UNAVAILABLE";draw();
-  for(;;){if(utility_frame_pending
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
-   ||(stopwatch_native_active&&portable_stopwatch_native_repaint())
-#endif
-   )draw();
-   t5_app_input_t input={0};if(!app->poll(&input,50)) {
+  for(;;){if(utility_frame_pending)draw();t5_app_input_t input={0};if(!app->poll(&input,50)) {
 #ifdef PORTABLE_ALARM_CLIENT
    if(portable_app_sleep_retained())return;
 #endif
    break;
   }
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
-   if(stopwatch_native_active)stopwatch_native_input(&input);
-#endif
 #ifdef PORTABLE_PAPER_UTILITIES
    if(input.exit_requested&&!(input.buttons&T5_APP_BUTTON_BACK))break;
    if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,416,88))input.buttons|=T5_APP_BUTTON_BACK;}
    if(input.buttons&T5_APP_BUTTON_BACK){if(up_return())break;}
 #else
-   if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK))break;
+   if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+      ||(input.tapped&&un_hit(un_back(),input.touch_x,input.touch_y))
+#endif
+      )break;
 #endif
   }
   close_state();return;
@@ -204,15 +196,16 @@ void app_main(void) {
 #endif
    break;
   }
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
-  if(stopwatch_native_active)stopwatch_native_input(&input);
-#endif
 #ifdef PORTABLE_PAPER_UTILITIES
   if(input.exit_requested&&!(input.buttons&T5_APP_BUTTON_BACK))break;
   if(utility_paper){up_input(&input);if(input.tapped&&up_hit(input.touch_x,input.touch_y,32,688,416,88))input.buttons|=T5_APP_BUTTON_BACK;}
   if(input.buttons&T5_APP_BUTTON_BACK){if(up_return())break;status="Return unavailable - retry";draw();continue;}
 #else
-  if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK))break;
+  if(input.exit_requested||(input.buttons&T5_APP_BUTTON_BACK)
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+      ||(input.tapped&&un_hit(un_back(),input.touch_x,input.touch_y))
+#endif
+      )break;
 #endif
   uint32_t now=app->millis();bool was_running=clock_state.running;sw_tick(&clock_state,now);bool dirty=false;
   if(was_running&&!clock_state.running){status="99 HOUR LIMIT - RESET";dirty=true;}
@@ -225,20 +218,13 @@ void app_main(void) {
   }
   if(input.buttons&T5_APP_BUTTON_CONFIRM){toggle();dirty=true;}
   if(input.tapped) {
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
-   if(stopwatch_native_active) {
-    int target=stopwatch_native_target(input.touch_x,input.touch_y);
-    if(target==STOPWATCH_TOGGLE){toggle();dirty=true;}
-    else if(target==STOPWATCH_RESET){reset();dirty=true;}
-    else if(target==STOPWATCH_RETRY){
-     if(pending_pause)toggle();
-     else if(clock_state.running)status="RUNNING - NO RETRY NEEDED";
-     else restore();
-     reset_armed=false;dirty=true;
-    }
-   } else {
-#endif
-#ifdef PORTABLE_NOVA_UI
+#ifdef PORTABLE_UTILITIES_NATIVE_SAFE_CONTENT
+   int x=input.touch_x,y=input.touch_y,w=app->screen_width(),h=app->screen_height();
+   if(un_hit(un_back(),x,y))break;
+   if(un_hit(un_footer(w,h,0,3),x,y)){toggle();dirty=true;}
+   else if(un_hit(un_footer(w,h,1,3),x,y)){reset();dirty=true;}
+   else if(un_hit(un_footer(w,h,2,3),x,y)){
+#elif defined(PORTABLE_NOVA_UI)
    int x=input.touch_x,y=input.touch_y;
 #ifdef PORTABLE_PAPER_UTILITIES
    if(!utility_paper)
@@ -269,15 +255,8 @@ void app_main(void) {
     else restore();
     reset_armed=false;dirty=true;
    }
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
-   }
-#endif
   }
-  if(dirty||utility_frame_pending||
-#ifdef PORTABLE_STOPWATCH_NATIVE_UI
-    (stopwatch_native_active&&portable_stopwatch_native_repaint())||
-#endif
-    (clock_state.running&&(uint32_t)(now-rendered)>=
+  if(dirty||utility_frame_pending||(clock_state.running&&(uint32_t)(now-rendered)>=
 #ifdef PORTABLE_PAPER_UTILITIES
     (utility_paper?1000u:50u)
 #else
